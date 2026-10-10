@@ -112,6 +112,12 @@
     synthNoteOff(p.note);
   }
 
+  /** Long-press on touch devices opens the context menu; suppress it except on text. */
+  function contextmenu(e) {
+    if (isTypingTarget(e.target) || e.target.closest?.('table, code')) return;
+    e.preventDefault();
+  }
+
   function releaseAll() {
     for (const p of pressed.values()) synthNoteOff(p.note);
     pressed.clear();
@@ -177,7 +183,7 @@
   ];
 </script>
 
-<svelte:window onkeydown={keydown} onkeyup={keyup} onblur={releaseAll} />
+<svelte:window onkeydown={keydown} onkeyup={keyup} onblur={releaseAll} oncontextmenu={contextmenu} />
 
 <header>
   <div class="brand">
