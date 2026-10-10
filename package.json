@@ -20,5 +20,8 @@
     "svelte": "^5.57.2",
     "vite": "^8.3.4",
     "wrangler": "^4.149.0"
+  },
+  "dependencies": {
+    "@breezystack/lamejs": "^1.2.7"
   }
 }

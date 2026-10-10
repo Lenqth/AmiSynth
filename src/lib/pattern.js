@@ -46,6 +46,41 @@ export function demoPattern() {
   return { bpm: 118, notes, drums };
 }
 
+/**
+ * Piano piece with dynamics (for the physical piano, which gets brighter when played harder):
+ * Fmaj7 - G - Em7 - Am, broken-chord left hand and a melody; pp -> crescendo -> ff at bar 3
+ * -> diminuendo to pp, with downbeat accents and softer off-beats.
+ * @returns {Pattern}
+ */
+export function pianoDemoPattern() {
+  const notes = [];
+  // overall dynamic curve over the 64 steps
+  const dyn = (step) => {
+    const peak = 32; // ff on the downbeat of bar 3
+    return step <= peak ? 45 + (70 * step) / peak : 115 - (80 * (step - peak)) / (STEPS - peak);
+  };
+  const v = (step, offset) => Math.max(1, Math.min(127, Math.round(dyn(step) + offset + (step % 16 === 0 ? 8 : step % 4 === 0 ? 0 : -6))));
+  const left = [
+    [41, 48, 57, 60, 64, 60, 57, 48],
+    [43, 50, 59, 62, 67, 62, 59, 50],
+    [40, 47, 55, 59, 64, 59, 55, 47],
+    [45, 52, 57, 60, 64, 60, 57, 52],
+  ];
+  left.forEach((bar, b) => bar.forEach((note, i) => {
+    const step = b * 16 + i * 2;
+    // the bass note rings for the whole bar (held under the arpeggio)
+    notes.push({ note, start: step, len: i === 0 ? 16 : 2, vel: v(step, i === 0 ? -5 : -18) });
+  }));
+  const melody = [
+    [69, 0, 4], [67, 4, 2], [69, 6, 2], [72, 8, 6],
+    [71, 16, 4], [69, 20, 2], [67, 22, 2], [74, 24, 8],
+    [76, 32, 6], [74, 38, 2], [71, 40, 4], [67, 44, 4],
+    [69, 48, 4], [64, 52, 4], [69, 56, 8],
+  ];
+  for (const [note, start, len] of melody) notes.push({ note: note + 12, start, len, vel: v(start, 8) });
+  return { bpm: 84, notes, drums: [], melodic: 'phys' };
+}
+
 export function emptyPattern(bpm = 120) {
   return { bpm, notes: [], drums: [] };
 }

@@ -2,7 +2,7 @@
   import { onMount } from 'svelte';
   import { DRUM_PARAMS, DRUM_PARTS, PHYS_PARAMS, SYNTH_PARAMS } from './dsp/params.js';
   import { engine } from './lib/engine.js';
-  import { demoPattern, emptyPattern, Sequencer } from './lib/pattern.js';
+  import { demoPattern, emptyPattern, pianoDemoPattern, Sequencer } from './lib/pattern.js';
   import { downloadPatternMidi } from './lib/midifile.js';
   import { codeToOffset, DRUM_KEYS, eventCode, isImeEvent, isoKeyCell, isTypingTarget } from './lib/pckeys.js';
   import {
@@ -10,6 +10,7 @@
     setParam, setScale, startAudio, synthNoteOff, synthNoteOn,
   } from './lib/state.svelte.js';
   import { makeTuning } from './lib/tuning.js';
+  import { coarsePointerQuery } from './lib/keysize.js';
   import { ISO_PRESETS, isoSteps, LAYOUTS } from './lib/layouts.js';
   import DrumPads from './ui/DrumPads.svelte';
   import Keyboard from './ui/Keyboard.svelte';
@@ -37,7 +38,10 @@
     isoSettings ? { ...isoSteps(app.kbLayout, isoSettings.preset, tuning, isoSettings), rows: isoSettings.rows } : undefined,
   );
   // Physical tab: show only the controls of the selected model
-  const physGroups = $derived(['Model', app.phys.phys_model < 0.5 ? 'String' : 'Modal', 'Output']);
+  // only the knobs of the selected model (+ shared ones) are shown
+  const PHYS_MODEL_GROUPS = ['String', 'Modal', 'Bowed', 'Wind', 'Mesh', 'Stiff String'];
+  const physModel = $derived(Math.round(app.phys.phys_model));
+  const physGroups = $derived(['Model', PHYS_MODEL_GROUPS[Math.round(app.phys.phys_model)] ?? 'String', 'Output']);
 
   function toggleViz() {
     app.physViz = !app.physViz;
@@ -55,6 +59,36 @@
   let fsBodyHeight = $state(0);
   let fsToolsOpen = $state(false);
   const fsHeight = $derived(Math.max(120, fsBodyHeight - 16));
+
+  // In-page rotation: a touch device held upright gets the overlay turned 90 deg by CSS, so the
+  // keyboard is landscape without asking the OS to rotate (which some tablets fight).
+  // fsRotMode: 'auto' (90 deg while portrait), 'flip' (-90 deg while portrait), 'off'.
+  let vw = $state(window.innerWidth);
+  let vh = $state(window.innerHeight);
+  let fsRotMode = $state(loadRotMode());
+  const coarse = coarsePointerQuery();
+  let isCoarse = $state(coarse?.matches ?? false);
+  coarse?.addEventListener?.('change', (e) => (isCoarse = e.matches));
+  const portrait = $derived(vh > vw);
+  const fsRot = $derived(!isCoarse || !portrait || fsRotMode === 'off' ? 0 : fsRotMode === 'flip' ? -90 : 90);
+
+  function loadRotMode() {
+    try {
+      const v = localStorage.getItem('amisynth.fsRot');
+      return v === 'flip' || v === 'off' ? v : 'auto';
+    } catch {
+      return 'auto';
+    }
+  }
+
+  function cycleRot() {
+    fsRotMode = fsRotMode === 'auto' ? 'flip' : fsRotMode === 'flip' ? 'off' : 'auto';
+    try {
+      localStorage.setItem('amisynth.fsRot', fsRotMode);
+    } catch {
+      /* private mode etc. */
+    }
+  }
 
   async function enterFullscreen() {
     fullscreen = true;
@@ -75,6 +109,66 @@
     fullscreen = false;
     document.body.style.overflow = '';
     if (document.fullscreenElement) document.exitFullscreen?.().catch(() => {});
+  }
+
+  // ---- audio export (offline render in a worker, same DSP as playback) --------------------
+  let exportFormat = $state('wav');
+  let exportLoops = $state(1);
+  let exportNormalize = $state(false);
+  let exportBusy = $state(false);
+  let exportProgress = $state(0);
+  let exportMsg = $state('');
+
+  function exportAudio() {
+    exportBusy = true;
+    exportProgress = 0;
+    exportMsg = '';
+    const worker = new Worker(new URL('./lib/render-worker.js', import.meta.url), { type: 'module' });
+    const format = exportFormat;
+    const bpm = app.pattern.bpm;
+    worker.onmessage = (e) => {
+      const m = e.data;
+      if (m.type === 'progress') {
+        exportProgress = m.value;
+        return;
+      }
+      worker.terminate();
+      exportBusy = false;
+      if (m.type === 'error') {
+        exportMsg = `失敗しました: ${m.message}`;
+        return;
+      }
+      const url = URL.createObjectURL(new Blob([m.bytes], { type: m.mime }));
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `amisynth-pattern-${bpm}bpm.${format}`;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 2000);
+      const db = 20 * Math.log10(Math.max(m.peak, 1e-9));
+      exportMsg = `${m.seconds.toFixed(1)} 秒 · ピーク ${db.toFixed(1)} dBFS${m.peak > 1 ? ' (クリップあり: ノーマライズ推奨)' : ''}`;
+    };
+    worker.onerror = (e) => {
+      worker.terminate();
+      exportBusy = false;
+      exportMsg = `失敗しました: ${e.message}`;
+    };
+    worker.postMessage({
+      pattern: $state.snapshot(app.pattern),
+      params: { synth: $state.snapshot(app.synth), phys: $state.snapshot(app.phys), drums: $state.snapshot(app.drums) },
+      scaleCents: app.scale ? [...app.scale.cents] : null,
+      sampleRate: engine.ctx?.sampleRate ?? 48000,
+      loops: Number(exportLoops),
+      format,
+      normalize: exportNormalize,
+    });
+  }
+
+  /** demo with dynamics: switches the melodic instrument to the physical Grand Piano */
+  function loadPianoDemo() {
+    app.pattern = pianoDemoPattern();
+    const piano = PHYS_PRESETS.find((p) => p.name === 'Grand Piano');
+    if (piano) applyPreset('phys', piano);
+    persist();
   }
 
   function stepPreset(dir) {
@@ -280,7 +374,10 @@
       if (type === 0x90 && d2 > 0) drumHit(d1, d2);
       return;
     }
-    if (type === 0x90 && d2 > 0) app.held[d1] = true;
+    if (type === 0x90 && d2 > 0) {
+      app.held[d1] = d2;
+      app.lastVel = d2;
+    }
     else if (type === 0x80 || type === 0x90) delete app.held[d1];
     else if (type === 0xe0) app.bend = ((d2 << 7) | d1) / 8192 - 1;
     else if (type === 0xb0 && d1 === 1) app.modwheel = d2 / 127;
@@ -345,6 +442,17 @@
         </select>
       </label>
     {/if}
+    <label class="kbopt" title="押す位置: 鍵の上の方ほど弱く、手前 (下) ほど強く鳴ります (格子 / 六角形はキーの中の縦位置)">強さ
+      <select value={app.kbVelMode} onchange={(e) => { app.kbVelMode = e.currentTarget.value; persist(); }}>
+        <option value="pos">押す位置</option>
+        <option value="fixed">固定</option>
+      </select>
+      {#if app.kbVelMode === 'fixed'}
+        <input type="number" min="1" max="127" value={app.kbVelFixed} aria-label="固定ベロシティ"
+          onchange={(e) => { app.kbVelFixed = Math.max(1, Math.min(127, Math.round(Number(e.currentTarget.value) || 100))); persist(); }} />
+      {/if}
+      <span class="steps vel-readout" title="最後に弾いた音のベロシティ">vel {app.lastVel || '-'}</span>
+    </label>
     <label class="keysize" title="鍵盤の最小幅 (タッチは約 9 mm 相当が基準)">鍵盤サイズ
       <input type="range" min="0.6" max="2" step="0.05" value={app.keyScale}
         oninput={(e) => { app.keyScale = Number(e.currentTarget.value); persist(); }} />
@@ -366,7 +474,7 @@
     <Wheels bend={app.bend} modwheel={app.modwheel} onbend={setBend} onmod={setModwheel} height={fullscreen ? fsHeight : 150} />
     <div class="kb">
       <Keyboard {tuning} baseNote={app.baseNote} held={app.held} playing={app.seqHeld} {noteOn} {noteOff} scale={app.keyScale}
-        layout={app.kbLayout} iso={isoResolved} fillHeight={fullscreen ? fsHeight : 0} />
+        velMode={app.kbVelMode} velFixed={app.kbVelFixed} layout={app.kbLayout} iso={isoResolved} fillHeight={fullscreen ? fsHeight : 0} />
       {#if imeHint}
         <p class="ime-hint">
           日本語入力 (IME) がオンのため、PC キーが IME に取られています。半角英数に切り替えると押している間鳴り続けます
@@ -379,7 +487,7 @@
   </section>
 {/snippet}
 
-<svelte:window onkeydown={keydown} onkeyup={keyup} onblur={releaseAll} oncontextmenu={contextmenu} />
+<svelte:window bind:innerWidth={vw} bind:innerHeight={vh} onkeydown={keydown} onkeyup={keyup} onblur={releaseAll} oncontextmenu={contextmenu} />
 
 <header>
   <div class="brand">
@@ -434,24 +542,49 @@
         <h3>Physical model</h3>
         <button class:active={app.physViz} onclick={toggleViz}>{app.physViz ? '可視化 ON' : '可視化 OFF'}</button>
       </div>
-      {#if app.phys.phys_model < 0.5}
+      {#if physModel === 0}
         <p class="explain">
           <b>弦 (Karplus-Strong)</b>: 長さ ≈ サンプルレート ÷ 周波数 の遅延線 (リングバッファ) を励起 (ノイズ = 指で弾く / パルス = ハンマー) で満たし、
           毎サンプル「一番古い値を読む → ローパス (Damping) → 減衰 (Decay) → 書き戻す」を繰り返します。1 往復の時間が音程になり、
           高い倍音ほど 1 往復あたりに多く削られるので、実際の弦のように明るい音が先に消えます。Pick Position は励起にくし形フィルターをかけ、
           弾いた位置に節がある倍音を消します (0.5 = 中央 → 偶数次倍音が消える)。
         </p>
-      {:else}
+      {:else if physModel === 1}
         <p class="explain">
           <b>モーダル合成</b>: 物体の振動を「減衰する正弦波 (モード) の和」として扱います。各モードは 2 極の共振フィルターで、周波数比は素材ごとに決まっています
           (例: マリンバの鍵盤は 1 : 3.9 : 9.2 に調律され、調律していない棒は 1 : 2.76 : 5.40)。マレットは短いパルスで、硬いほど (短いほど) 高いモードまで励起します。
           打つ位置に節があるモードは鳴りにくくなります。Ratio Stretch で比率を整数倍から曲げると「倍音的 ↔ 非倍音的」の違いを聴き比べられます。
         </p>
+      {:else if physModel === 2}
+        <p class="explain">
+          <b>擦弦 (デジタル導波管 + 弓の摩擦)</b>: 弦を「弓 → ナット」と「弓 → 駒」の 2 本の遅延線に分け、両端で反射する波を往復させます。
+          弓の位置では、弓と弦の速度差から摩擦力を求めます。速度差が小さいと弦は弓に張り付いて一緒に動き (スティック)、大きくなると滑って戻ります (スリップ)。
+          これが周期ごとに 1 回起きる「ヘルムホルツ運動」が、バイオリン族ののこぎり波に近い音の正体です。Bow Pressure が強すぎるとガリガリ、弱すぎるとかすれた倍音だけが鳴るのも実際の楽器と同じです。
+        </p>
+      {:else if physModel === 3}
+        <p class="explain">
+          <b>管楽器 (リード / エアジェット + 管)</b>: 管を遅延線で表し、吹き口に非線形な「弁」を置きます。
+          クラリネットはリードが管内の圧力差で開閉し、片側が閉じた管なので奇数倍音が中心です。管の端では高音ほど外へ逃げる (トーンホール / ベル) ので、反射にローパスをかけています。
+          フルートは、管内の空気の揺れが息の流れ (ジェット) を曲げ、それが少し遅れて歌口のエッジに届き、管の内と外に振り分けられる帰還で発音します。Embouchure はジェットとエッジのずれで、大きいほど偶数倍音が増えます。
+          息は完全には一定でないので、ゆっくりした圧力の揺らぎと、息のノイズ (Breath Noise) を加えています。
+        </p>
+      {:else if physModel === 4}
+        <p class="explain">
+          <b>膜 / 板 (2D 波動方程式)</b>: 太鼓の膜や金属板を N×N の格子で近似し、各点が上下左右の 4 点に引っ張られる差分方程式を毎サンプル計算します (縁は固定)。
+          弦と違い、2 次元の固有振動は整数倍に並ばない (円形膜なら 1 : 1.59 : 2.14 : 2.30 …) ので、音程感の薄い打楽器らしい音になります。
+          形・叩く位置・マレットの硬さを変えると、どのモードが鳴るかが変わります。計算量が多いので同時発音は 3 音まで、格子は 16×16 までです。
+        </p>
+      {:else}
+        <p class="explain">
+          <b>硬い弦 (ピアノ)</b>: Karplus-Strong の弦に、オールパスフィルターによる「分散」を加えたモデルです。
+          ピアノ線のように硬い弦は、高い周波数ほど速く伝わるので、倍音が整数倍より少しずつ高くなります (インハーモニシティ)。ずれの量は実際のピアノの測定値に近い曲線から音ごとに決めています。
+          ハンマーはフェルトの物理モデル (力 = 硬さ × 圧縮量の 2.5 乗) で、フェルトは押しつぶされるほど硬くなるので、強く弾くほど音が大きく、しかも明るくなります。これがピアノらしさの核です。弦の振動は駒を通して 16 個の共鳴でできた響板に伝わり、聞こえる音の大部分はその響板から出ます。1 音につき少しだけ音程をずらした弦を 2 本鳴らすので、うなりも生まれます。
+        </p>
       {/if}
       {#if app.physViz}
         <PhysViz />
       {:else}
-        <p class="muted hint">可視化 ON にすると、最後に弾いた音の内部 (遅延線の中の波 / 各モードの振幅) をリアルタイムで表示します。OFF の間は追加の負荷はありません。</p>
+        <p class="muted hint">可視化 ON にすると、最後に弾いた音の内部 (弦や管の中を進む波 / 各モードの振幅 / 膜の変位 / 倍音のずれ) をリアルタイムで表示します。OFF の間は追加の負荷はありません。</p>
       {/if}
     </section>
     <ParamPanel defs={PHYS_PARAMS} values={app.phys} groups={physGroups} onchange={(id, v) => setParam('phys', id, v)} />
@@ -465,6 +598,7 @@
   {:else if app.tab === 'roll'}
     <div class="roll-head">
       <button onclick={() => { app.pattern = { ...demoPattern(), bpm: app.pattern.bpm }; persist(); }}>デモパターン</button>
+      <button onclick={loadPianoDemo} title="Physical の Grand Piano で、pp からクレッシェンドして ff、また pp に戻る 4 小節">デモ: ピアノ (強弱あり)</button>
       <button onclick={() => { app.pattern.notes = []; persist(); }}>ノート全消去</button>
       <button onclick={() => { app.pattern.drums = []; persist(); }}>ドラム全消去</button>
       <button onclick={() => { app.pattern = emptyPattern(app.pattern.bpm); persist(); }}>すべて消去</button>
@@ -476,6 +610,24 @@
         </select>
       </label>
       <span class="muted">4 小節ループ · 行は現在のチューニングのステップ</span>
+    </div>
+    <div class="roll-head export">
+      <span class="muted">音声書き出し</span>
+      <select bind:value={exportFormat} aria-label="形式" disabled={exportBusy}>
+        <option value="wav">WAV (16 bit)</option>
+        <option value="mp3">MP3 (192 kbps)</option>
+      </select>
+      <label class="muted">ループ
+        <select bind:value={exportLoops} disabled={exportBusy}>
+          {#each [1, 2, 4, 8] as n (n)}<option value={n}>{n} 回</option>{/each}
+        </select>
+      </label>
+      <label class="muted" title="いちばん大きい所が -1 dBFS になるように音量をそろえます"><input type="checkbox" bind:checked={exportNormalize} disabled={exportBusy} /> ノーマライズ</label>
+      <button class="primary" onclick={exportAudio} disabled={exportBusy}
+        title="今の音色とチューニングで、パターンを (余韻まで) 書き出します。再生と同じ DSP をオフラインで回します">
+        {exportBusy ? `書き出し中 ${Math.round(exportProgress * 100)}%` : '⬇ 書き出し'}
+      </button>
+      {#if exportMsg}<span class="muted">{exportMsg}</span>{/if}
     </div>
     <PianoRoll pattern={app.pattern} {tuning} playStep={app.playStep} {preview} {previewDrum} onedit={persist} />
   {:else}
@@ -510,7 +662,8 @@
 </footer>
 
 {#if fullscreen}
-  <div class="fs" role="dialog" aria-label="全画面鍵盤">
+  <div class="fs" class:rot90={fsRot === 90} class:rotm90={fsRot === -90} data-rot={fsRot}
+    style={fsRot ? `width: ${vh}px; height: ${vw}px` : ''} role="dialog" aria-label="全画面鍵盤">
     <div class="fs-bar">
       <select value={app.melodic} onchange={(e) => setMelodic(e.currentTarget.value)} aria-label="楽器">
         <option value="synth">Synth</option>
@@ -522,6 +675,11 @@
       <span class="spacer"></span>
       <button onclick={() => shiftOctave(-1)} aria-label="周期を下げる">◀ 周期</button>
       <button onclick={() => shiftOctave(1)} aria-label="周期を上げる">周期 ▶</button>
+      {#if isCoarse && portrait}
+        <button onclick={cycleRot} title="画面内で回転 (自動 → 逆向き → 回転しない)" aria-label="画面の回転">
+          ⟳ {fsRotMode === 'auto' ? '横' : fsRotMode === 'flip' ? '横 (逆)' : '縦'}
+        </button>
+      {/if}
       <button class:active={fsToolsOpen} onclick={() => (fsToolsOpen = !fsToolsOpen)} aria-label="鍵盤の設定">⚙</button>
       <button class="primary" onclick={exitFullscreen} aria-label="全画面を閉じる">✕</button>
     </div>
@@ -580,6 +738,17 @@
     padding: 8px 10px calc(8px + env(safe-area-inset-bottom));
     gap: 6px;
   }
+  /* rotated overlay: laid out landscape (width = screen height), then turned onto the screen */
+  .fs.rot90,
+  .fs.rotm90 {
+    inset: auto;
+    top: 0;
+    left: 0;
+    transform-origin: top left;
+    padding: 8px 10px;
+  }
+  .fs.rot90 { transform: rotate(90deg) translateY(-100%); }
+  .fs.rotm90 { transform: rotate(-90deg) translateX(-100%); }
   .fs-bar { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: 12px; }
   .fs-bar .spacer { flex: 1; }
   .fs-tools .kb-tools { margin: 0; }

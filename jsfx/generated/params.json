@@ -631,15 +631,19 @@
       "name": "Physical Model",
       "group": "Model",
       "min": 0,
-      "max": 1,
+      "max": 5,
       "default": 0,
       "step": 1,
       "unit": "",
       "options": [
         "String (Karplus-Strong)",
-        "Modal (resonators)"
+        "Modal (resonators)",
+        "Bowed String",
+        "Wind (reed / jet)",
+        "Membrane / Plate (2D mesh)",
+        "Stiff String (piano)"
       ],
-      "description": "String: a delay line whose length sets the pitch, filtered on every round trip. Modal: a bank of tuned resonators struck by a mallet."
+      "description": "String: plucked delay-line loop. Modal: tuned resonators struck by a mallet. Bowed: delay lines + bow friction. Wind: bore + reed/jet. Mesh: 2D wave equation on a grid. Stiff string: string with dispersion (inharmonic partials)."
     },
     {
       "id": "string_excitation",
@@ -779,6 +783,304 @@
       "description": "Bends the mode ratios toward (negative) or away from (positive) harmonic, to hear what inharmonicity does."
     },
     {
+      "id": "bow_pressure",
+      "name": "Bow Pressure",
+      "group": "Bowed",
+      "min": 0,
+      "max": 1,
+      "default": 0.45,
+      "step": 0.001,
+      "unit": "",
+      "description": "Force of the bow on the string: low = airy/flautando, high = gritty (steeper friction curve)."
+    },
+    {
+      "id": "bow_speed",
+      "name": "Bow Speed",
+      "group": "Bowed",
+      "min": 0,
+      "max": 1,
+      "default": 0.55,
+      "step": 0.001,
+      "unit": "",
+      "description": "Bow velocity (loudness and brightness of the Helmholtz motion)."
+    },
+    {
+      "id": "bow_position",
+      "name": "Bow Position",
+      "group": "Bowed",
+      "min": 0.02,
+      "max": 0.5,
+      "default": 0.127,
+      "step": 0.001,
+      "unit": "",
+      "description": "Distance of the bow from the bridge (small = sul ponticello, larger = sul tasto)."
+    },
+    {
+      "id": "bow_attack_ms",
+      "name": "Bow Attack",
+      "group": "Bowed",
+      "min": 1,
+      "max": 2000,
+      "default": 90,
+      "step": 0.1,
+      "unit": "ms",
+      "scale": "log",
+      "description": "Time for the bow to reach full speed."
+    },
+    {
+      "id": "bowed_brightness",
+      "name": "Bowed String Brightness",
+      "group": "Bowed",
+      "min": 0,
+      "max": 1,
+      "default": 0.6,
+      "step": 0.001,
+      "unit": "",
+      "description": "Losses of high frequencies at the bridge (string material / damping)."
+    },
+    {
+      "id": "wind_type",
+      "name": "Wind Type",
+      "group": "Wind",
+      "min": 0,
+      "max": 1,
+      "default": 0,
+      "step": 1,
+      "unit": "",
+      "options": [
+        "Clarinet (reed)",
+        "Flute (air jet)"
+      ],
+      "description": "Reed: a pressure-controlled valve at a closed bore end (odd harmonics). Jet: an air jet across an open bore."
+    },
+    {
+      "id": "breath_pressure",
+      "name": "Breath Pressure",
+      "group": "Wind",
+      "min": 0,
+      "max": 1,
+      "default": 0.6,
+      "step": 0.001,
+      "unit": "",
+      "description": "Blowing pressure; too low does not start the tone, too high overblows."
+    },
+    {
+      "id": "breath_noise",
+      "name": "Breath Noise",
+      "group": "Wind",
+      "min": 0,
+      "max": 1,
+      "default": 0.15,
+      "step": 0.001,
+      "unit": "",
+      "description": "Turbulence noise mixed into the breath."
+    },
+    {
+      "id": "wind_attack_ms",
+      "name": "Breath Attack",
+      "group": "Wind",
+      "min": 1,
+      "max": 2000,
+      "default": 40,
+      "step": 0.1,
+      "unit": "ms",
+      "scale": "log",
+      "description": "Time for the breath pressure to build up."
+    },
+    {
+      "id": "wind_embouchure",
+      "name": "Embouchure",
+      "group": "Wind",
+      "min": 0,
+      "max": 1,
+      "default": 0.5,
+      "step": 0.001,
+      "unit": "",
+      "description": "Reed stiffness (clarinet) or jet length (flute); changes the response and the overblowing point."
+    },
+    {
+      "id": "mesh_shape",
+      "name": "Mesh Shape",
+      "group": "Mesh",
+      "min": 0,
+      "max": 1,
+      "default": 0,
+      "step": 1,
+      "unit": "",
+      "options": [
+        "Circular drum",
+        "Square plate"
+      ],
+      "description": "Shape of the vibrating 2D surface (fixed edges)."
+    },
+    {
+      "id": "mesh_size",
+      "name": "Mesh Resolution",
+      "group": "Mesh",
+      "min": 6,
+      "max": 16,
+      "default": 12,
+      "step": 1,
+      "unit": "cells",
+      "description": "Grid points per side (more = more modes and a smoother sound, but more CPU). Max 3 voices in this model."
+    },
+    {
+      "id": "mesh_decay_ms",
+      "name": "Mesh Decay",
+      "group": "Mesh",
+      "min": 50,
+      "max": 10000,
+      "default": 900,
+      "step": 1,
+      "unit": "ms",
+      "scale": "log",
+      "description": "Overall decay time of the surface."
+    },
+    {
+      "id": "mesh_high_damping",
+      "name": "Mesh High Damping",
+      "group": "Mesh",
+      "min": 0,
+      "max": 1,
+      "default": 0.3,
+      "step": 0.001,
+      "unit": "",
+      "description": "Extra damping of short wavelengths (high modes die faster, like a skin)."
+    },
+    {
+      "id": "mesh_strike_x",
+      "name": "Mesh Strike X",
+      "group": "Mesh",
+      "min": 0,
+      "max": 1,
+      "default": 0.3,
+      "step": 0.001,
+      "unit": "",
+      "description": "Horizontal strike position (0.5 = centre)."
+    },
+    {
+      "id": "mesh_strike_y",
+      "name": "Mesh Strike Y",
+      "group": "Mesh",
+      "min": 0,
+      "max": 1,
+      "default": 0.42,
+      "step": 0.001,
+      "unit": "",
+      "description": "Vertical strike position (0.5 = centre). Hitting the centre excites mostly the symmetric modes."
+    },
+    {
+      "id": "mesh_hardness",
+      "name": "Mesh Mallet Hardness",
+      "group": "Mesh",
+      "min": 0,
+      "max": 1,
+      "default": 0.5,
+      "step": 0.001,
+      "unit": "",
+      "description": "Small hard mallet (1) vs broad soft mallet (0)."
+    },
+    {
+      "id": "piano_inharmonicity",
+      "name": "Piano Inharmonicity",
+      "group": "Stiff String",
+      "min": 0,
+      "max": 1,
+      "default": 0.35,
+      "step": 0.001,
+      "unit": "",
+      "description": "String stiffness: higher partials are pushed sharp (dispersion all-passes in the loop, set per note from a piano-like B curve). 0.35 = typical piano, 1 = about 8x."
+    },
+    {
+      "id": "piano_hammer_hardness",
+      "name": "Piano Hammer Hardness",
+      "group": "Stiff String",
+      "min": 0,
+      "max": 1,
+      "default": 0.6,
+      "step": 0.001,
+      "unit": "",
+      "description": "Felt stiffness of the hammer. The felt hardens as it is compressed, so louder notes are always brighter; this sets the overall brightness."
+    },
+    {
+      "id": "piano_strike_position",
+      "name": "Piano Strike Position",
+      "group": "Stiff String",
+      "min": 0.02,
+      "max": 0.5,
+      "default": 0.12,
+      "step": 0.001,
+      "unit": "",
+      "description": "Where the hammer hits (about 1/8 on real pianos)."
+    },
+    {
+      "id": "piano_decay_ms",
+      "name": "Piano Decay",
+      "group": "Stiff String",
+      "min": 200,
+      "max": 30000,
+      "default": 8000,
+      "step": 1,
+      "unit": "ms",
+      "scale": "log",
+      "description": "Decay time of the fundamental while the key is held."
+    },
+    {
+      "id": "piano_damping",
+      "name": "Piano Damping",
+      "group": "Stiff String",
+      "min": 0,
+      "max": 1,
+      "default": 0.25,
+      "step": 0.001,
+      "unit": "",
+      "description": "Extra loss of high partials per round trip."
+    },
+    {
+      "id": "piano_soundboard",
+      "name": "Piano Soundboard",
+      "group": "Stiff String",
+      "min": 0,
+      "max": 1,
+      "default": 0.6,
+      "step": 0.001,
+      "unit": "",
+      "description": "How much of the sound comes through the soundboard (16 resonances fed by the bridge) instead of straight from the strings."
+    },
+    {
+      "id": "piano_unison_detune_cents",
+      "name": "Piano Unison Detune",
+      "group": "Stiff String",
+      "min": 0,
+      "max": 10,
+      "default": 1.2,
+      "step": 0.01,
+      "unit": "cents",
+      "description": "Two strings per note slightly detuned: slow beating and a two-stage decay."
+    },
+    {
+      "id": "phys_vibrato_cents",
+      "name": "Vibrato Depth",
+      "group": "Output",
+      "min": 0,
+      "max": 100,
+      "default": 0,
+      "step": 0.1,
+      "unit": "cents",
+      "description": "Pitch vibrato for the delay-line models (string, bowed, wind, stiff string)."
+    },
+    {
+      "id": "phys_vibrato_rate_hz",
+      "name": "Vibrato Rate",
+      "group": "Output",
+      "min": 1,
+      "max": 10,
+      "default": 5.5,
+      "step": 0.01,
+      "unit": "Hz",
+      "description": "Vibrato speed."
+    },
+    {
       "id": "phys_release_ms",
       "name": "Release Damping",
       "group": "Output",
@@ -822,6 +1124,29 @@
       "step": 1,
       "unit": "cents",
       "description": "Pitch bend range in cents."
+    },
+    {
+      "id": "phys_room_mix",
+      "name": "Room",
+      "group": "Output",
+      "min": 0,
+      "max": 1,
+      "default": 0,
+      "step": 0.001,
+      "unit": "",
+      "description": "Amount of a small room (4-line feedback delay network). Acoustic instruments sound dry and synthetic without one."
+    },
+    {
+      "id": "phys_room_decay_ms",
+      "name": "Room Decay",
+      "group": "Output",
+      "min": 200,
+      "max": 6000,
+      "default": 1300,
+      "step": 1,
+      "unit": "ms",
+      "scale": "log",
+      "description": "Reverberation time (T60) of the room."
     },
     {
       "id": "phys_volume_db",

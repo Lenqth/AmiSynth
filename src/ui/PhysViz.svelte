@@ -25,7 +25,11 @@
         return;
       }
       if (snap.model === 'string') drawString(ctx, w, h, dpr, snap);
-      else drawModal(ctx, w, h, dpr, snap);
+      else if (snap.model === 'modal') drawModal(ctx, w, h, dpr, snap);
+      else if (snap.model === 'bowed') drawBowed(ctx, w, h, dpr, snap);
+      else if (snap.model === 'wind') drawWind(ctx, w, h, dpr, snap);
+      else if (snap.model === 'mesh') drawMesh(ctx, w, h, dpr, snap);
+      else if (snap.model === 'stiff') drawStiff(ctx, w, h, dpr, snap);
     };
     draw();
     return () => {
@@ -103,6 +107,152 @@
       ctx.fillText(label, x - ctx.measureText(label).width / 2, base + 14 * dpr);
     });
     info = `${s.material} · 基音 ${s.hz.toFixed(1)} Hz · 棒 = 各モードの振幅 (dB, 60 dB 幅) · 縦線 = 整数倍音の位置${s.gate ? '' : ' · 離鍵 (ダンプ中)'}`;
+  }
+
+  /** polyline of `wave` between x0..x1 around y = mid */
+  function plot(ctx, wave, x0, x1, mid, scale, color, lw) {
+    ctx.strokeStyle = color;
+    ctx.lineWidth = lw;
+    ctx.beginPath();
+    wave.forEach((v, i) => {
+      const x = x0 + (i / Math.max(1, wave.length - 1)) * (x1 - x0);
+      const y = mid - v * scale;
+      if (i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    });
+    ctx.stroke();
+  }
+
+  function peakOf(...arrays) {
+    let p = 1e-6;
+    for (const a of arrays) for (const v of a) p = Math.max(p, Math.abs(v));
+    return p;
+  }
+
+  function drawBowed(ctx, w, h, dpr, s) {
+    const pad = 12 * dpr;
+    const mid = h / 2 - 6 * dpr;
+    const x0 = pad;
+    const x1 = w - pad;
+    // nut on the left, bridge on the right; the bow sits at bowPos from the bridge
+    const xb = x1 - s.bowPos * (x1 - x0);
+    ctx.strokeStyle = '#2a3344';
+    ctx.lineWidth = 1 * dpr;
+    ctx.beginPath();
+    ctx.moveTo(x0, mid);
+    ctx.lineTo(x1, mid);
+    ctx.stroke();
+    const scale = (h / 2 - 2 * pad) / Math.max(peakOf(s.nut, s.bridge), 0.05);
+    plot(ctx, s.nut, x0, xb, mid, scale, '#ffb547', 2 * dpr);
+    plot(ctx, s.bridge, xb, x1, mid, scale, '#ffb547', 2 * dpr);
+    // the bow: green while it sticks to the string, red while the string slips under it
+    const stick = s.slip > 0.5;
+    ctx.fillStyle = stick ? '#5ad1c8' : '#ff6b6b';
+    ctx.fillRect(xb - 3 * dpr, pad, 6 * dpr, h - 3 * pad);
+    ctx.fillStyle = '#8b95a8';
+    ctx.fillText('ナット', x0, h - 6 * dpr);
+    const t = '駒 (ブリッジ)';
+    ctx.fillText(t, x1 - ctx.measureText(t).width, h - 6 * dpr);
+    const b = stick ? '弓: スティック (弦をつかんで運ぶ)' : '弓: スリップ (弦が滑って戻る)';
+    ctx.fillStyle = stick ? '#5ad1c8' : '#ff6b6b';
+    const bw = ctx.measureText(b).width;
+    // label on whichever side of the bow has room
+    ctx.fillText(b, xb + 8 * dpr + bw < x1 ? xb + 8 * dpr : xb - 8 * dpr - bw, pad + 10 * dpr);
+    info =
+      `${s.hz.toFixed(1)} Hz · 曲線 = 弦の速度波 (ナット↔弓↔駒を往復) · 弓速 ${s.bow.toFixed(3)} · ` +
+      `摩擦 ${s.slip.toFixed(2)} (1 = 張り付き)。張り付いて引きずられ、離れて戻る「スティック・スリップ」が周期ごとに 1 回起きるのが擦弦の音源です${s.gate ? '' : ' · 離鍵 (弓を離した)'}`;
+  }
+
+  function drawWind(ctx, w, h, dpr, s) {
+    const pad = 12 * dpr;
+    const mid = h / 2 - 6 * dpr;
+    const x0 = pad + 40 * dpr;
+    const x1 = w - pad;
+    // the bore (tube)
+    ctx.strokeStyle = '#2a3344';
+    ctx.lineWidth = 1 * dpr;
+    ctx.strokeRect(x0, pad, x1 - x0, h - 3 * pad);
+    // the static part of the pressure (the blowing pressure itself) is removed for display
+    const mean = s.wave.reduce((a, v) => a + v, 0) / s.wave.length;
+    const wave = s.wave.map((v) => v - mean);
+    const scale = (h / 2 - 2 * pad) / Math.max(peakOf(wave), 0.05);
+    plot(ctx, wave, x0, x1, mid, scale, '#ffb547', 2 * dpr);
+    // the valve: reed opening (clarinet) or jet deflection (flute), -1..1
+    const vh = (h - 3 * pad) / 2;
+    ctx.fillStyle = '#5ad1c8';
+    const vy = mid - Math.max(-1, Math.min(1, s.valve)) * vh;
+    ctx.fillRect(pad, Math.min(mid, vy), 24 * dpr, Math.abs(vy - mid) + 1);
+    ctx.fillStyle = '#8b95a8';
+    ctx.fillText(s.flute ? 'ジェット' : 'リード', pad, h - 6 * dpr);
+    const t = s.flute ? '開いた端 →' : 'ベル →';
+    ctx.fillText(t, x1 - ctx.measureText(t).width, h - 6 * dpr);
+    info = s.flute
+      ? `フルート ${s.hz.toFixed(1)} Hz · 曲線 = 管内の圧力波 · 左の棒 = 息の流れ (ジェット) が歌口のエッジの内/外どちらに振れているか。管の圧力がジェットを揺らし、ジェットが管を押す帰還で発音します · 息 ${s.breath.toFixed(2)}`
+      : `クラリネット ${s.hz.toFixed(1)} Hz · 曲線 = 管内の圧力波 · 左の棒 = リードの開き具合。片側が閉じた円筒管なので波長は管の 4 倍、奇数倍音が中心になります · 息 ${s.breath.toFixed(2)}`;
+    if (!s.gate) info += ' · 離鍵';
+  }
+
+  function drawMesh(ctx, w, h, dpr, s) {
+    const pad = 8 * dpr;
+    const n = s.n;
+    const cell = Math.floor(Math.min((h - 2 * pad) / n, (w - 2 * pad) / n));
+    const ox = Math.floor((w - cell * n) / 2);
+    const oy = pad;
+    let peak = 1e-9;
+    for (let i = 0; i < s.grid.length; i++) if (s.mask[i]) peak = Math.max(peak, Math.abs(s.grid[i]));
+    for (let i = 0; i < n; i++) {
+      for (let j = 0; j < n; j++) {
+        const k = i * n + j;
+        if (!s.mask[k]) continue;
+        // orange = pushed up, teal = pushed down, brightness = amplitude
+        const a = Math.min(1, Math.abs(s.grid[k]) / peak);
+        ctx.fillStyle = s.grid[k] >= 0 ? `rgba(255,181,71,${0.08 + 0.92 * a})` : `rgba(90,209,200,${0.08 + 0.92 * a})`;
+        ctx.fillRect(ox + j * cell, oy + i * cell, cell - 1, cell - 1);
+      }
+    }
+    // strike point
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 1.5 * dpr;
+    ctx.beginPath();
+    ctx.arc(ox + (s.strike[0] * (n - 1) + 0.5) * cell, oy + (s.strike[1] * (n - 1) + 0.5) * cell, cell * 0.45, 0, Math.PI * 2);
+    ctx.stroke();
+    info =
+      `${s.hz.toFixed(1)} Hz (基本モード) · ${n}×${n} 格子の 2D 波動方程式 · 橙 = 上に変位 / 青緑 = 下に変位 · ○ = 叩いた位置。` +
+      `縁は固定。高次モードは整数倍にならないので、膜や板は音程感の薄い打楽器らしい音になります${s.gate ? '' : ' · 離鍵'}`;
+  }
+
+  function drawStiff(ctx, w, h, dpr, s) {
+    const pad = 12 * dpr;
+    const top = h * 0.42;
+    const scale = (top / 2 - pad) / Math.max(peakOf(s.wave), 0.05);
+    plot(ctx, s.wave, pad, w - pad, top / 2 + 2 * dpr, scale, '#ffb547', 1.5 * dpr);
+    // partials vs the harmonic series: how sharp is the k-th partial?
+    const base = h - 22 * dpr;
+    const y0 = top + 14 * dpr;
+    const count = s.partials.length;
+    const colW = (w - 2 * pad) / Math.max(1, count);
+    const devs = s.partials.map((f, i) => 1200 * Math.log2(f / (s.f1 * (i + 1))));
+    const maxDev = Math.max(5, ...devs);
+    ctx.strokeStyle = '#2a3344';
+    ctx.lineWidth = 1 * dpr;
+    ctx.beginPath();
+    ctx.moveTo(pad, base);
+    ctx.lineTo(w - pad, base);
+    ctx.stroke();
+    devs.forEach((d, i) => {
+      const x = pad + (i + 0.5) * colW;
+      const bh = (Math.max(0, d) / maxDev) * (base - y0);
+      ctx.fillStyle = '#5ad1c8';
+      ctx.fillRect(x - colW * 0.3, base - bh, colW * 0.6, bh);
+      ctx.fillStyle = '#8b95a8';
+      const dev = `+${d < 10 ? d.toFixed(1) : d.toFixed(0)}`;
+      // narrow screens: drop the partial number
+      const label = ctx.measureText(`${i + 1}: ${dev}`).width + 4 * dpr < colW ? `${i + 1}: ${dev}` : dev;
+      ctx.fillText(label, x - ctx.measureText(label).width / 2, base + 14 * dpr);
+    });
+    info =
+      `${s.f1.toFixed(1)} Hz · 上 = 弦の波形 · 下 = 第 k 倍音が整数倍よりどれだけ高いか (セント)。` +
+      `硬い弦は高い倍音ほど速く伝わるので倍音が上にずれます (ピアノの「インハーモニシティ」)。調律が広め (ストレッチ) になる理由です${s.gate ? '' : ' · 離鍵 (ダンパー)'}`;
   }
 </script>
 

@@ -1,5 +1,6 @@
 <script>
   import { playable } from './touch.js';
+  import { localFraction } from '../lib/rotate.js';
   /** @type {{ bend: number, modwheel: number, onbend: (v:number)=>void, onmod: (v:number)=>void, height?: number }} */
   let { bend, modwheel, onbend, onmod, height = 150 } = $props();
 
@@ -7,8 +8,8 @@
     const el = e.currentTarget;
     el.setPointerCapture(e.pointerId);
     const apply = (ev) => {
-      const r = el.getBoundingClientRect();
-      const n = 1 - Math.min(1, Math.max(0, (ev.clientY - r.top) / r.height));
+      const { fy } = localFraction(el, ev.clientX, ev.clientY);
+      const n = 1 - Math.min(1, Math.max(0, fy));
       if (kind === 'bend') onbend(n * 2 - 1);
       else onmod(n);
     };

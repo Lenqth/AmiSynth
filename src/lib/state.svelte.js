@@ -60,8 +60,10 @@ export const app = $state({
   baseNote: 48,
   bend: 0,
   modwheel: 0,
-  /** notes currently held from the UI / PC keyboard / MIDI (for highlighting) */
-  held: /** @type {Record<number, boolean>} */ ({}),
+  /** notes currently held from the UI / PC keyboard / MIDI: note -> velocity (for highlighting) */
+  held: /** @type {Record<number, number>} */ ({}),
+  /** velocity of the last note played (shown next to the keyboard) */
+  lastVel: 0,
   drumFlash: /** @type {Record<number, number>} */ ({}),
   /** notes sounding from the sequencer: note -> overlap count (keyboard highlight) */
   seqHeld: /** @type {Record<number, number>} */ ({}),
@@ -70,6 +72,9 @@ export const app = $state({
   keyScale: typeof saved?.keyScale === 'number' ? saved.keyScale : 1,
   /** on-screen keyboard layout: auto | piano | linear | grid | hex */
   kbLayout: saved?.kb?.layout ?? 'auto',
+  /** on-screen key velocity: 'pos' = where on the key you press (top soft .. bottom loud), 'fixed' */
+  kbVelMode: saved?.kb?.velMode === 'fixed' ? 'fixed' : 'pos',
+  kbVelFixed: typeof saved?.kb?.velFixed === 'number' ? saved.kb.velFixed : 100,
   /** isomorphic layout settings per layout ('custom' preset uses right/up) */
   iso: saved?.kb?.iso ?? {
     grid: { preset: 'fourths', right: 1, up: 5, rows: 4 },
@@ -85,7 +90,7 @@ export function persist() {
       localStorage.setItem(STORAGE_KEY, JSON.stringify({
         synth: app.synth, drums: app.drums, phys: app.phys, melodic: app.melodic, scale: app.scale, pattern: app.pattern,
         presetName: app.presetName, userPresets: app.userPresets, keyScale: app.keyScale,
-        kb: { layout: app.kbLayout, iso: app.iso },
+        kb: { layout: app.kbLayout, iso: app.iso, velMode: app.kbVelMode, velFixed: app.kbVelFixed },
       }));
     } catch {
       /* storage unavailable: ignore */
@@ -166,7 +171,8 @@ export function startAudio() {
 
 export function synthNoteOn(note, velocity = 100) {
   if (note < 0 || note > 127) return;
-  app.held[note] = true;
+  app.held[note] = velocity;
+  app.lastVel = velocity;
   engine.noteOn(app.melodic, note, velocity);
 }
 
