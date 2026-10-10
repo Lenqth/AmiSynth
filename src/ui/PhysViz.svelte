@@ -172,8 +172,11 @@
     ctx.strokeStyle = '#2a3344';
     ctx.lineWidth = 1 * dpr;
     ctx.strokeRect(x0, pad, x1 - x0, h - 3 * pad);
-    const scale = (h / 2 - 2 * pad) / Math.max(peakOf(s.wave), 0.05);
-    plot(ctx, s.wave, x0, x1, mid, scale, '#ffb547', 2 * dpr);
+    // the static part of the pressure (the blowing pressure itself) is removed for display
+    const mean = s.wave.reduce((a, v) => a + v, 0) / s.wave.length;
+    const wave = s.wave.map((v) => v - mean);
+    const scale = (h / 2 - 2 * pad) / Math.max(peakOf(wave), 0.05);
+    plot(ctx, wave, x0, x1, mid, scale, '#ffb547', 2 * dpr);
     // the valve: reed opening (clarinet) or jet deflection (flute), -1..1
     const vh = (h - 3 * pad) / 2;
     ctx.fillStyle = '#5ad1c8';
@@ -242,7 +245,9 @@
       ctx.fillStyle = '#5ad1c8';
       ctx.fillRect(x - colW * 0.3, base - bh, colW * 0.6, bh);
       ctx.fillStyle = '#8b95a8';
-      const label = `${i + 1}:+${d.toFixed(0)}`;
+      const dev = `+${d < 10 ? d.toFixed(1) : d.toFixed(0)}`;
+      // narrow screens: drop the partial number
+      const label = ctx.measureText(`${i + 1}: ${dev}`).width + 4 * dpr < colW ? `${i + 1}: ${dev}` : dev;
       ctx.fillText(label, x - ctx.measureText(label).width / 2, base + 14 * dpr);
     });
     info =

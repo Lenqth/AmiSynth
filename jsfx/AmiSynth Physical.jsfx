@@ -193,6 +193,34 @@ function mesh_sigma(ms) local(c, g) (
   (1 - g) / (1 + g);
 );
 
+/** inharmonicity coefficient B: ~1.5e-4 in the bass rising to ~1e-2 at the top, scaled by the knob */
+function stiff_b(hz, amount) local(k) (
+  k = amount / 0.35;
+  0.00015 * (1 + pow(hz / 262, 1.5)) * k * k;
+);
+
+/** dispersion all-pass coefficient that puts partial n where a string with inharmonicity B has it */
+function dispersion_coef(hz, B, b_lp) local(w1, n, wn, period, target, room, lo, hi, mid, pd1, it) (
+  w1 = (2 * $pi * hz) / srate;
+  n = min(8, floor((0.5 * $pi) / w1));
+  n < 2 || B <= 0 ? 0 : (
+    wn = n * w1;
+    period = srate / hz;
+    target = period * (1 - 1 / sqrt(1 + B * n * n)) - (lp1_phase_delay(b_lp, w1) - lp1_phase_delay(b_lp, wn));
+    target <= 0 ? 0 : (
+      room = period - lp1_phase_delay(b_lp, w1) - 3;
+      lo = -0.95;
+      hi = 0;
+      loop(40,
+        mid = 0.5 * (lo + hi);
+        pd1 = N_AP * ap1_phase_delay(mid, w1);
+        pd1 - N_AP * ap1_phase_delay(mid, wn) > target || pd1 > room ? lo = mid : hi = mid;
+      );
+      0.5 * (lo + hi);
+    );
+  );
+);
+
 /** integer delay + Thiran all-pass for the fraction (refined at w); which 0 / 1 = string A / B */
 function thiran_split(which, L, w) instance(delay_len delay_len2 tune_d tune_d2 tune_a tune_a2) local(n, d, dl, a, it) (
   n = clamp(floor(L - 0.5), 2, MAX_DELAY - 2);
@@ -259,7 +287,7 @@ function voice_tune(keep_decay) instance(hz0 damp_b delay_len delay_len2 loop_ga
     // stiff string: two strings detuned by +/- half the unison detune
     b = (0.05 + 0.6 * piano_damping) * clamp(sqrt(262 / hz), 0.15, 1);
     damp_b = b;
-    a = -0.9 * piano_inharmonicity * clamp(srate / (hz * 40), 0, 1);
+    a = dispersion_coef(hz, stiff_b(hz, piano_inharmonicity), b);
     ap_a = a;
     det = pow(2, piano_unison_detune_cents / 2400);
     hzA = hz * det;

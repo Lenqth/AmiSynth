@@ -149,7 +149,9 @@ const NEW_MODELS = [
   ['flute', { phys_model: 3, wind_type: 1, breath_noise: 0 }, [48, 60, 72, 84]],
   ['circular drum', { phys_model: 4, mesh_shape: 0 }, [48, 60, 72, 84]],
   ['square plate', { phys_model: 4, mesh_shape: 1 }, [48, 60, 72, 84]],
-  ['stiff string', { phys_model: 5 }, [36, 48, 60, 72]],
+  // (with inharmonicity the stretched partials pull an autocorrelation estimate sharp; the
+  // fundamental itself is checked from the loop phase in the inharmonicity test below)
+  ['stiff string', { phys_model: 5, piano_inharmonicity: 0 }, [36, 48, 60, 72, 84]],
 ];
 
 test('bowed / wind / mesh / stiff models are in tune', () => {
@@ -208,18 +210,29 @@ test('2D mesh: every size and shape is stable, decays, and uses at most 3 voices
   }
 });
 
-test('stiff string: partials are stretched by the inharmonicity knob', () => {
-  const partials = (piano_inharmonicity) => {
-    const s = make({ phys_model: 5, piano_inharmonicity });
-    phys_note_on(s, 40, 100);
+test('stiff string: partials are stretched like a piano, the fundamental stays in tune', () => {
+  const partials = (note, piano_inharmonicity) => {
+    const s = make({ phys_model: 5, piano_inharmonicity, piano_unison_detune_cents: 0 });
+    phys_note_on(s, note, 100);
     render(s, 100);
     return phys_snapshot(s).partials;
   };
-  const plain = partials(0);
-  const stretched = partials(1);
-  // without dispersion the 8th partial is harmonic, with it it is clearly sharp
+  for (const note of [33, 48, 60, 72, 84, 96]) {
+    const hz = 440 * 2 ** ((note - 69) / 12);
+    const p = partials(note, 0.35);
+    assert.ok(Math.abs(cents(p[0], hz)) < 0.5, `note ${note}: fundamental ${p[0]} vs ${hz}`);
+    // partial 4 vs a string with B = 1.5e-4 * (1 + (f/262)^1.5): 4 f1 sqrt(1 + 16 B)
+    const B = 1.5e-4 * (1 + (hz / 262) ** 1.5);
+    if (p.length >= 4) {
+      const want = 1200 * Math.log2(Math.sqrt(1 + 16 * B));
+      const got = cents(p[3], 4 * p[0]);
+      assert.ok(Math.abs(got - want) < Math.max(1, want * 0.35), `note ${note}: partial 4 +${got.toFixed(1)} cents, want +${want.toFixed(1)}`);
+    }
+  }
+  const plain = partials(40, 0);
+  const stretched = partials(40, 1);
   assert.ok(Math.abs(plain[7] / plain[0] - 8) < 0.02, `harmonic ${plain[7] / plain[0]}`);
-  assert.ok(stretched[7] / stretched[0] > 8.05, `stretched ${stretched[7] / stretched[0]}`);
+  assert.ok(stretched[7] / stretched[0] > 8.2, `stretched ${stretched[7] / stretched[0]}`);
 });
 
 test('vibrato modulates the delay-line models and is exactly off at 0 cents', () => {

@@ -989,7 +989,7 @@
       "default": 0.35,
       "step": 0.001,
       "unit": "",
-      "description": "String stiffness: higher partials are pushed sharp (dispersion all-pass filters in the loop)."
+      "description": "String stiffness: higher partials are pushed sharp (dispersion all-passes in the loop, set per note from a piano-like B curve). 0.35 = typical piano, 1 = about 8x."
     },
     {
       "id": "piano_hammer_hardness",

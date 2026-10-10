@@ -258,6 +258,44 @@ function thiran_split(v, which, L, w) {
   }
 }
 
+/**
+ * Inharmonicity coefficient B of a piano string (partial n at n*f1*sqrt(1 + B n^2)).
+ * Roughly the measured curve: ~1.5e-4 in the bass rising to ~1e-2 at the top; the knob
+ * scales it quadratically (0.35 = a typical piano, 1 = ~8x).
+ */
+function stiff_b(hz, amount) {
+  const k = amount / 0.35;
+  return 1.5e-4 * (1 + Math.pow(hz / 262, 1.5)) * k * k;
+}
+
+/**
+ * Coefficient a (-0.95..0) of the N_AP dispersion all-passes that puts partial n where a
+ * string with inharmonicity B has it: n = 8, or fewer for high notes so that partial n stays
+ * below half Nyquist (where one-pole all-passes still follow the stiff-string curve).
+ * Bisection on the loop phase delay difference between the fundamental and partial n; the
+ * all-passes must also leave room for a delay line of at least 3 samples.
+ */
+function dispersion_coef(hz, B, b_lp, sr) {
+  const w1 = (TWO_PI * hz) / sr;
+  const n = Math.min(8, Math.floor((0.5 * Math.PI) / w1));
+  if (n < 2 || B <= 0) return 0;
+  const wn = n * w1;
+  const period = sr / hz;
+  const target = period * (1 - 1 / Math.sqrt(1 + B * n * n)) - (lp1_phase_delay(b_lp, w1) - lp1_phase_delay(b_lp, wn));
+  if (target <= 0) return 0;
+  const room = period - lp1_phase_delay(b_lp, w1) - 3;
+  let lo = -0.95;
+  let hi = 0;
+  for (let it = 0; it < 40; it++) {
+    const mid = 0.5 * (lo + hi);
+    const pd1 = N_AP * ap1_phase_delay(mid, w1);
+    // too much dispersion, or no room left for the delay line -> less negative
+    if (pd1 - N_AP * ap1_phase_delay(mid, wn) > target || pd1 > room) lo = mid;
+    else hi = mid;
+  }
+  return 0.5 * (lo + hi);
+}
+
 /** Mesh damping s for a T60 of `ms`: (1-s)/(1+s) = coef^2. */
 function mesh_sigma(ms, sr) {
   const c = t60_coef(ms, sr);
@@ -322,8 +360,8 @@ function voice_tune(s, v, keep_decay) {
     // so it is relaxed above middle C to keep the treble ringing
     const b = (0.05 + 0.6 * p.piano_damping) * clamp(Math.sqrt(262 / hz), 0.15, 1);
     v.damp_b = b;
-    // dispersion all-pass coefficient (< 0 = upper partials sharp); fades out for very high notes
-    const a = -0.9 * p.piano_inharmonicity * clamp(sr / (hz * 40), 0, 1);
+    // dispersion all-pass coefficient (< 0 = upper partials sharp) for this note's target B
+    const a = dispersion_coef(hz, stiff_b(hz, p.piano_inharmonicity), b, sr);
     v.ap_a = a;
     const det = Math.pow(2, p.piano_unison_detune_cents / 2400);
     const hzA = hz * det;

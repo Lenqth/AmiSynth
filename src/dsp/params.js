@@ -211,7 +211,7 @@ export const PHYS_PARAMS = /** @type {ParamDef[]} */ ([
     description: 'Small hard mallet (1) vs broad soft mallet (0).' },
 
   { id: 'piano_inharmonicity', name: 'Piano Inharmonicity', group: 'Stiff String', min: 0, max: 1, default: 0.35, step: 0.001, unit: '',
-    description: 'String stiffness: higher partials are pushed sharp (dispersion all-pass filters in the loop).' },
+    description: 'String stiffness: higher partials are pushed sharp (dispersion all-passes in the loop, set per note from a piano-like B curve). 0.35 = typical piano, 1 = about 8x.' },
   { id: 'piano_hammer_hardness', name: 'Piano Hammer Hardness', group: 'Stiff String', min: 0, max: 1, default: 0.6, step: 0.001, unit: '',
     description: 'Felt hardness: harder (and louder notes) excite more high partials.' },
   { id: 'piano_strike_position', name: 'Piano Strike Position', group: 'Stiff String', min: 0.02, max: 0.5, default: 0.12, step: 0.001, unit: '',
