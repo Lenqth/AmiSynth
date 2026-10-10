@@ -5,7 +5,7 @@
   import { demoPattern, emptyPattern, Sequencer } from './lib/pattern.js';
   import { codeToOffset, DRUM_KEYS, isTypingTarget } from './lib/pckeys.js';
   import {
-    app, drumHit, flashDrum, persist, resetParams, setBend, setModwheel, setParam, setScale,
+    app, drumHit, flashDrum, persist, setBend, setModwheel, setParam, setScale,
     startAudio, synthNoteOff, synthNoteOn,
   } from './lib/state.svelte.js';
   import { makeTuning } from './lib/tuning.js';
@@ -13,11 +13,21 @@
   import Keyboard from './ui/Keyboard.svelte';
   import ParamPanel from './ui/ParamPanel.svelte';
   import PianoRoll from './ui/PianoRoll.svelte';
+  import PresetBar from './ui/PresetBar.svelte';
+  import { SYNTH_PRESETS } from './presets/synth.js';
+  import { DRUM_PRESETS } from './presets/drums.js';
   import Scope from './ui/Scope.svelte';
   import TuningPanel from './ui/TuningPanel.svelte';
   import Wheels from './ui/Wheels.svelte';
 
   const tuning = $derived(makeTuning(app.synth, app.scale));
+  // Grey out knobs that currently have no effect.
+  const synthDisabled = $derived([
+    ...(app.synth.osc1_waveform === 1 ? [] : ['osc1_pulse_width']),
+    ...(app.synth.osc2_waveform === 1 ? [] : ['osc2_pulse_width']),
+    ...(app.synth.osc1_waveform === 1 || app.synth.osc2_waveform === 1 ? [] : ['lfo_pulse_width']),
+    ...(app.synth.unison_voices > 1 ? [] : ['unison_detune_cents', 'unison_stereo_width']),
+  ]);
   const synthGroups = [...new Set(SYNTH_PARAMS.map((d) => d.group))].filter((g) => g !== 'Tuning');
 
   // Start the on-screen keyboard on a period boundary (degree 0) whenever the scale size changes.
@@ -231,21 +241,22 @@
         </div>
       </div>
     </section>
+    <PresetBar target="synth" defs={SYNTH_PARAMS} builtins={SYNTH_PRESETS} />
     <div class="two">
       <TuningPanel values={app.synth} scale={app.scale} {tuning}
         onchange={(id, v) => setParam('synth', id, v)} onscale={setScale} />
       <div class="grow">
-        <ParamPanel defs={SYNTH_PARAMS} values={app.synth} groups={synthGroups} onchange={(id, v) => setParam('synth', id, v)} />
-        <button class="reset" onclick={() => resetParams('synth')}>シンセの音色を初期化</button>
+        <ParamPanel defs={SYNTH_PARAMS} values={app.synth} groups={synthGroups} onchange={(id, v) => setParam('synth', id, v)}
+          disabledIds={synthDisabled} />
       </div>
     </div>
   {:else if app.tab === 'drums'}
     <section class="card">
       <DrumPads flash={app.drumFlash} onhit={hit} />
-      <p class="muted hint">パッドの上側ほど強く鳴ります · PC キー <kbd>A</kbd> <kbd>S</kbd> <kbd>D</kbd> <kbd>F</kbd> <kbd>G</kbd> · クローズ HH はオープン HH を止めます(チョーク)</p>
+      <p class="muted hint">パッドの上側ほど強く鳴ります · PC キー <kbd>A</kbd>〜<kbd>L</kbd>, <kbd>Z</kbd>〜<kbd>V</kbd> · クローズ HH はオープン HH を止めます(チョーク)</p>
     </section>
+    <PresetBar target="drums" defs={DRUM_PARAMS} builtins={DRUM_PRESETS} />
     <ParamPanel defs={DRUM_PARAMS} values={app.drums} onchange={(id, v) => setParam('drums', id, v)} />
-    <button class="reset" onclick={() => resetParams('drums')}>ドラムを初期化</button>
   {:else if app.tab === 'roll'}
     <div class="roll-head">
       <button onclick={() => { app.pattern = { ...demoPattern(), bpm: app.pattern.bpm }; persist(); }}>デモパターン</button>

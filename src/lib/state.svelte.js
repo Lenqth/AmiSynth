@@ -4,6 +4,7 @@
 import { clampParam, defaultValues, DRUM_PARAMS, SYNTH_PARAMS } from '../dsp/params.js';
 import { engine } from './engine.js';
 import { demoPattern } from './pattern.js';
+import { resolvePreset } from './presets.js';
 
 const STORAGE_KEY = 'amisynth:v1';
 
@@ -36,6 +37,10 @@ export const app = $state({
   /** @type {{name:string, cents:number[]} | null} */
   scale: saved?.scale ?? null,
   pattern: saved?.pattern ?? demoPattern(),
+  /** name of the last applied preset per instrument ('' = none) */
+  presetName: { synth: saved?.presetName?.synth ?? 'Init', drums: saved?.presetName?.drums ?? 'AmiSynth Default' },
+  /** @type {{synth: import('../presets/synth.js').Preset[], drums: import('../presets/synth.js').Preset[]}} */
+  userPresets: { synth: saved?.userPresets?.synth ?? [], drums: saved?.userPresets?.drums ?? [] },
   playing: false,
   playStep: -1,
   baseNote: 48,
@@ -54,6 +59,7 @@ export function persist() {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify({
         synth: app.synth, drums: app.drums, scale: app.scale, pattern: app.pattern,
+        presetName: app.presetName, userPresets: app.userPresets,
       }));
     } catch {
       /* storage unavailable: ignore */
@@ -74,12 +80,25 @@ export function setScale(scale) {
   persist();
 }
 
-export function resetParams(target) {
+/** Apply a preset (only non-tuning params change). @param {'synth'|'drums'} target */
+export function applyPreset(target, preset) {
   const defs = target === 'synth' ? SYNTH_PARAMS : DRUM_PARAMS;
-  // keep tuning when resetting the synth sound
-  const keep = target === 'synth' ? Object.fromEntries(Object.entries(app.synth).filter(([k]) => k.startsWith('tuning_'))) : {};
-  app[target] = { ...defaultValues(defs), ...keep };
+  app[target] = resolvePreset(defs, preset, app[target]);
+  app.presetName[target] = preset.name;
   engine.setParams(target, app[target]);
+  persist();
+}
+
+export function saveUserPreset(target, name, params) {
+  const list = app.userPresets[target].filter((p) => p.name !== name);
+  list.push({ name, category: 'User', description: '', params });
+  app.userPresets[target] = list;
+  app.presetName[target] = name;
+  persist();
+}
+
+export function deleteUserPreset(target, name) {
+  app.userPresets[target] = app.userPresets[target].filter((p) => p.name !== name);
   persist();
 }
 

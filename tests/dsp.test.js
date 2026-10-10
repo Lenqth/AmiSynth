@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { defaultValues, DRUM_PARAMS, SYNTH_PARAMS } from '../src/dsp/params.js';
+import { defaultValues, DRUM_PARAMS, DRUM_PARTS, SYNTH_PARAMS } from '../src/dsp/params.js';
 import { synth_init, synth_note_off, synth_note_on, synth_render, synth_update } from '../src/dsp/synth.js';
 import { drums_init, drums_note_on, drums_render, drums_update } from '../src/dsp/drums.js';
 import { tuning_init, tuning_note_to_hz, tuning_set_edo, tuning_set_table } from '../src/dsp/lib.js';
@@ -70,7 +70,7 @@ test('synth all waveforms and 12/24 dB slopes stay finite with max resonance', (
 });
 
 test('every drum part makes sound and decays; closed hat chokes open hat', () => {
-  for (const note of [36, 38, 39, 42, 46]) {
+  for (const note of DRUM_PARTS.map((p) => p.note)) {
     const d = {};
     drums_init(d, SR);
     drums_update(d, defaultValues(DRUM_PARAMS));

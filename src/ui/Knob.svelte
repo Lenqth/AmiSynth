@@ -104,7 +104,7 @@
       </g>
     </svg>
   </div>
-  <div class="label">{def.name.replace(/^(Filter Env|Filter|Amp|Mod Wheel|Kick|Snare|Clap|Closed Hi-Hat|Open Hi-Hat|Tuning|Drum) /, '')}</div>
+  <div class="label">{def.name.replace(/^(Filter Env|Filter|Amp|Mod Wheel|LFO|Kick|Snare|Clap|Closed Hi-Hat|Open Hi-Hat|Rimshot|Low Tom|Mid Tom|High Tom|Crash|Ride|Cowbell|Shaker|Tuning|Drum) /, '')}</div>
   <button class="value-text mono" onclick={editValue} {disabled} tabindex="-1">{formatValue(def, value)}</button>
 </div>
 

@@ -4,12 +4,15 @@
 「サンプル単位の素直なループ」で書かれていて、REAPER の JSFX (EEL2) へほぼ機械的に
 移植できる形にしてあります。名前の由来は *LLM-friendly な synth*。
 
-- **シンセ**: 2 オシレーター (Saw / Square / Triangle, PolyBLEP)、デチューン、ノイズ、
-  レゾナンス付き LPF (12/24 dB, TPT SVF)、フィルター ADSR、アンプ ADSR、8 ボイス、
-  ピッチベンド / モジュレーションホイール (ビブラート・フィルター LFO)、サステインペダル
-- **ドラム** (サンプル不使用・全部合成): キック 36 / スネア 38 / クラップ 39 /
-  クローズ HH 42 / オープン HH 46、クローズ HH によるチョーク、パーツごとに
-  音程・減衰・トーン・音量・パン (+α)
+- **シンセ**: 2 オシレーター (Saw / Pulse / Triangle / Sine, PolyBLEP) + サブオシレーター + ノイズ、
+  パルス幅と PWM、ハードシンク、osc2→osc1 の FM、ユニゾン (最大 4 重・ステレオ)、グライド、
+  ドライブ、フィルター (LP / HP / BP / ノッチ, 12/24 dB, TPT SVF)、フィルター/アンプ ADSR、
+  LFO (5 波形、ピッチ / フィルター / PWM / トレモロ)、8 ボイス、ピッチベンド / モジュレーションホイール、サステインペダル
+- **ドラム** (サンプル不使用・全部合成, GM 配置): キック 36 / リム 37 / スネア 38 / クラップ 39 /
+  クローズ HH 42 / ロータム 45 / オープン HH 46 / ミッドタム 47 / クラッシュ 49 / ハイタム 50 /
+  ライド 51 / カウベル 56 / シェイカー 70。クローズ HH によるチョーク、パーツごとに音程・減衰・トーン・音量・パン (+α)
+- **プリセット**: シンセ 16 種・ドラムキット 5 種を内蔵。ユーザープリセット保存 (ブラウザ内)、
+  JSON コピー / 貼り付け (既定値との差分だけを書く形式なので、LLM に作ってもらってそのまま貼れる)
 - **チューニング**: 12 平均律に依存しない。任意の EDO・周期 (例: Bohlen-Pierce)・
   Scala (.scl) / cents / 比のリストによるカスタム音階。ピッチベンドやデチューンは cents 指定
 - **4 小節ピアノロール** + ドラムステップ (サンプル精度でスケジューリング)
@@ -32,10 +35,11 @@ src/dsp/params.js      パラメータ定義 (名前・範囲・既定値・単�
 src/dsp/lib.js         共通 DSP: オシレーター, SVF, 1 pole, ADSR, 減衰 EG, ノイズ, チューニング
 src/dsp/synth.js       シンセ本体 (init / update / note_on / render)
 src/dsp/drums.js       ドラム本体
+src/presets/*.js       内蔵プリセット (既定値からの差分だけを記述)
 src/worklets/*.js      AudioWorklet ラッパー (MIDI バイト列 + パラメータだけを受け取る)
 src/lib/               メインスレッド: エンジン、状態、シーケンサー、チューニング補助
 src/ui/                Svelte コンポーネント
-scripts/gen-jsfx-sliders.js  params.js → JSFX slider 宣言 / params.json
+scripts/gen-jsfx-sliders.js  params.js → JSFX slider 宣言 / params.json / presets.json
 jsfx/                  JSFX 移植メモと生成物
 ```
 
