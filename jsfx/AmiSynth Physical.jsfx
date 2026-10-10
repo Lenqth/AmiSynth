@@ -52,7 +52,9 @@ slider42:phys_release_ms=400<10,20000,1:log>Release Damping [ms]
 slider43:phys_velocity_amount=0.8<0,1,0.001>Velocity Amount
 slider44:phys_stereo_width=0.5<0,1,0.001>Stereo Width
 slider45:phys_pitch_bend_range_cents=200<0,2400,1>Pitch Bend Range [cents]
-slider46:phys_volume_db=-8<-60,6,0.1>Volume [dB]
+slider46:phys_room_mix=0.25<0,1,0.001>Room
+slider47:phys_room_decay_ms=1300<200,6000,1:log>Room Decay [ms]
+slider48:phys_volume_db=-8<-60,6,0.1>Volume [dB]
 // </generated sliders>
 
 import amisynth_lib.jsfx-inc
@@ -70,7 +72,9 @@ MESH_MAX = 16;
 MESH_W = MESH_MAX + 2; // padded row length (zero border = fixed edge)
 MESH_CELLS = MESH_W * MESH_W;
 K_MESH = 5.5;
-FLUTE_JET_RATIO = 0.52;
+FLUTE_JET_RATIO = 1.03;
+FLUTE_JET_GAIN = 1.6;
+EXC_MAX = 8192;
 N_AP = 4;
 MODEL_STRING = 0; MODEL_MODAL = 1; MODEL_BOWED = 2; MODEL_WIND = 3; MODEL_MESH = 4; MODEL_STIFF = 5;
 noise_seed(12345);
@@ -239,7 +243,7 @@ function thiran_split(which, L, w) instance(delay_len delay_len2 tune_d tune_d2 
   );
 );
 
-function voice_tune(keep_decay) instance(hz0 damp_b delay_len delay_len2 loop_gain loop_gain2 modes mhz mt60 jet_bias mesh_c2 mesh_omega ap_a)
+function voice_tune(keep_decay) instance(hz0 damp_b delay_len delay_len2 loop_gain loop_gain2 modes mhz mt60 jet_bias jet_boost mesh_c2 mesh_omega ap_a)
   local(hz, m, k, ratio, pos_w, b, total, x, sharp, w, a, det, hzA, hzB, wA, wB, t) (
   hz = hz0 * bend_ratio;
   model === MODEL_STRING ? (
@@ -267,17 +271,19 @@ function voice_tune(keep_decay) instance(hz0 damp_b delay_len delay_len2 loop_ga
     delay_len2 = clamp(total * (1 - bow_position), 2, MAX_DELAY - 2);
   ) : model === MODEL_WIND ? (
     wind_type < 0.5 ? (
-      // clarinet: inverting reflection at the reed -> period = 2 x (bore + 0.5 sample averaging filter)
-      delay_len = clamp((0.5 * srate) / hz - 0.5, 2, MAX_DELAY - 2);
+      // clarinet: inverting, low-passed reflection (tone holes / bell let the highs escape)
+      damp_b = exp((-2 * $pi * max(1500, 5 * hz)) / srate);
+      delay_len = clamp((0.5 * srate) / hz - lp_phase_delay(damp_b, hz), 2, MAX_DELAY - 2);
     ) : (
-      // flute: bore tuned to the note, jet a fixed fraction; embouchure = jet offset
+      // flute (Fletcher / Verge style jet): jet delay ~ one period, embouchure = jet offset
       damp_b = 0.7 - (0.1 * 22050) / srate;
-      x = max(-1, log((hz * 48000) / (srate * 261.63)) / log(2));
-      sharp = -6 + 3 * x + 2 * x * x;
+      x = log((hz * 48000) / (srate * 523.25)) / log(2);
+      sharp = 10.7 * x + 3.1 * x * x;
       total = (srate / hz) * pow(2, sharp / 1200);
       delay_len = clamp(total - lp_phase_delay(damp_b, hz), 2, MAX_DELAY - 2);
       delay_len2 = clamp(delay_len * FLUTE_JET_RATIO, 2, MAX_DELAY - 2);
-      jet_bias = -0.05 + 0.15 * wind_embouchure;
+      jet_bias = 0.1 + 0.4 * wind_embouchure;
+      jet_boost = clamp(1 + 0.5 * (log((hz * 48000) / (srate * 1046.5)) / log(2)), 1, 1.6);
     );
   ) : model === MODEL_MESH ? (
     w = (2 * $pi * hz) / srate;
@@ -304,28 +310,10 @@ function voice_tune(keep_decay) instance(hz0 damp_b delay_len delay_len2 loop_ga
   );
 );
 
-/** fill a delay line (namespace `ln`) with a raised-cosine hammer pulse and the strike comb */
-function fill_hammer(n, width, pos, amp) instance(w size base) local(i, x, pick, ia, ib) (
-  i = 0;
-  loop(n,
-    x = i < width ? amp * (0.5 - 0.5 * cos((2 * $pi * i) / width)) : 0;
-    this.delay_write(x);
-    i += 1;
-  );
-  pick = max(1, floor(pos * n + 0.5));
-  i = n - 1;
-  while (i >= pick) (
-    ia = (w - n + i + size) % size;
-    ib = (w - n + i - pick + size) % size;
-    base[ia] -= base[ib];
-    i -= 1;
-  );
-);
-
 // op: 0 init(index), 1 start(note, velocity), 2 note off, 3 retune for pitch bend
 function voice_op(op, a, b) instance(idx vel hz0 level frames lp_z lp_z2 loop_gain loop_gain2 damp_b delay_len delay_len2 read_gain
-  exc_t exc_len modes mhz mt60 maxv slope mesh_u mesh_up mesh_un mesh_sig mesh_omega jet_bias)
-  local(v, n, bright, aa, pick, norm, lp, i, j, c, x, width, ia, ib, hard, g_rel, k, R, amp, sx, sy, d, nA, nB) (
+  exc_t exc_len exc modes mhz mt60 maxv slope mesh_u mesh_up mesh_un mesh_sig mesh_omega jet_boost flut hiss_lp)
+  local(v, n, bright, aa, pick, norm, lp, i, j, c, x, width, ia, ib, hard, g_rel, k, R, amp, sx, sy, d, len, decay, sb_a, sb_env) (
   op === 0 ? (
     idx = a;
     this.line.delay_init(MAX_DELAY);
@@ -336,6 +324,7 @@ function voice_op(op, a, b) instance(idx vel hz0 level frames lp_z lp_z2 loop_ga
     mesh_u = mem_alloc(MESH_CELLS);
     mesh_up = mem_alloc(MESH_CELLS);
     mesh_un = mem_alloc(MESH_CELLS);
+    exc = mem_alloc(EXC_MAX);
   ) : op === 1 ? (
     v = b / 127;
     vel = 1 - phys_velocity_amount + phys_velocity_amount * v;
@@ -404,6 +393,8 @@ function voice_op(op, a, b) instance(idx vel hz0 level frames lp_z lp_z2 loop_ga
         lp_z2 = 0;
         this.dc.z = 0;
         this.env.value = 0;
+        flut = 0;
+        hiss_lp = 0;
       );
       this.dc.onepole_set(20);
       this.env.adsr_set(wind_attack_ms, 1, 1, min(phys_release_ms, 400));
@@ -413,7 +404,7 @@ function voice_op(op, a, b) instance(idx vel hz0 level frames lp_z lp_z2 loop_ga
         slope = -(0.2 + 0.25 * wind_embouchure);
         maxv = (0.2 + 0.06 * breath_pressure) / -slope;
       ) : (
-        maxv = 1.125 + 0.16 * (breath_pressure - 0.5) - jet_bias;
+        maxv = (0.6 + 0.4 * breath_pressure) * jet_boost;
       );
     ) : model === MODEL_MESH ? (
       n = mesh_n;
@@ -449,12 +440,32 @@ function voice_op(op, a, b) instance(idx vel hz0 level frames lp_z lp_z2 loop_ga
       this.apB0.ap1_init(); this.apB1.ap1_init(); this.apB2.ap1_init(); this.apB3.ap1_init();
       this.tuneA.ap1_init();
       this.tuneB.ap1_init();
+      // commuted synthesis: hammer pulse + soundboard response (decaying low-passed noise),
+      // with the strike position comb, fed into the strings over the first 50 ms
       hard = clamp(piano_hammer_hardness * (0.6 + 0.4 * v), 0, 1);
-      nA = ceil(delay_len);
-      nB = ceil(delay_len2);
-      this.line.fill_hammer(nA, max(2, nA * (0.45 - 0.42 * hard)), piano_strike_position, 0.5);
-      this.line2.fill_hammer(nB, max(2, nB * (0.45 - 0.42 * hard)), piano_strike_position, 0.32);
-      read_gain = 1.6 * vel * clamp(pow(hz0 / 220, 0.3), 0.7, 2);
+      n = ceil(delay_len);
+      width = max(2, n * (0.45 - 0.42 * hard));
+      len = min(EXC_MAX, floor(0.05 * srate + 0.5));
+      decay = exp(-1 / (0.006 * srate));
+      sb_a = 1 - exp((-2 * $pi * (800 + 3000 * hard)) / srate);
+      sb_env = 0.35;
+      lp = 0;
+      i = 0;
+      loop(len,
+        lp += sb_a * (noise_white() - lp);
+        exc[i] = (i < width ? 0.5 - 0.5 * cos((2 * $pi * i) / width) : 0) + lp * sb_env;
+        sb_env *= decay;
+        i += 1;
+      );
+      pick = max(1, floor(piano_strike_position * n + 0.5));
+      i = len - 1;
+      while (i >= pick) (
+        exc[i] -= exc[i - pick];
+        i -= 1;
+      );
+      exc_len = len;
+      exc_t = 0;
+      read_gain = 1.2 * vel * clamp(pow(hz0 / 220, 0.3), 0.7, 2);
     );
   ) : op === 2 ? (
     model === MODEL_STRING ? (
@@ -528,36 +539,38 @@ function render_bowed() instance(maxv slope lp_z damp_b delay_len delay_len2)
   (bridge_out + 1.2 * this.body1.bp + 0.8 * this.body2.bp) * 1.6;
 );
 
-function render_wind() instance(vel maxv slope lp_z damp_b delay_len delay_len2 jet_bias)
-  local(bp, bore, f, pd, reed, t, jet_in, jet, jx, j) (
-  bp = this.env.adsr_process() * maxv;
-  bp += bp * breath_noise * 0.25 * noise_white();
+function render_wind() instance(vel maxv slope lp_z damp_b delay_len delay_len2 jet_bias flut hiss_lp)
+  local(en, nz, bp, hiss, bore, pd, reed, t, jet, j) (
+  en = this.env.adsr_process();
+  nz = noise_white();
+  // slow (~5 Hz) breath pressure wobble of about 1.5 % and an airy hiss above ~1 kHz
+  flut += flut_a * (nz - flut);
+  bp = en * maxv * (1 + 1.4 * flut);
+  hiss_lp += hiss_a * (nz - hiss_lp);
+  hiss = (nz - hiss_lp) * en * breath_noise * 0.05;
   wind_type < 0.5 ? (
+    bp += bp * breath_noise * 0.25 * nz;
     bore = this.line.delay_read(delay_len / vib);
-    // averaging low-pass + inverting reflection at the bell
-    f = 0.5 * (bore + lp_z);
-    lp_z = bore;
-    pd = -0.95 * f - bp;
+    // lossy, low-passed, inverting reflection at the bell
+    lp_z = (1 - damp_b) * bore + damp_b * lp_z;
+    pd = -0.95 * lp_z - bp;
     // reed: opening = clipped straight line of the pressure difference
     reed = 0.7 + slope * pd;
     reed > 1 ? reed = 1;
     reed < -1 ? reed = -1;
     this.line.delay_write(bp + pd * reed);
-    bore * 1.1 * vel;
+    (bore * 1.1 + hiss) * vel;
   ) : (
     bore = this.line.delay_read(delay_len / vib);
     lp_z = (1 - damp_b) * bore + damp_b * lp_z;
     t = this.dc.onepole_hp(lp_z);
-    jet_in = bp - 0.5 * t;
+    // the acoustic flow (plus turbulence) deflects the jet; it arrives at the edge later
     jet = this.line2.delay_read(delay_len2 / vib);
-    this.line2.delay_write(jet_in);
-    // jet deflection: cubic curve, clipped; the offset only exists while blowing
-    jx = jet + jet_bias * this.env.value;
-    j = jx * (jx * jx - 1);
-    j > 1 ? j = 1;
-    j < -1 ? j = -1;
-    this.line.delay_write(j + 0.5 * t);
-    bore * 0.55 * vel;
+    this.line2.delay_write(t + (0.01 + 0.08 * breath_noise) * en * nz);
+    // the edge splits the jet: saturating curve around the jet offset (DC removed)
+    j = soft_clip(FLUTE_JET_GAIN * jet + jet_bias) - soft_clip(jet_bias);
+    this.line.delay_write(bp * j + 0.5 * t);
+    (bore * 0.3 + hiss) * vel;
   );
 );
 
@@ -595,8 +608,8 @@ function render_mesh() instance(mesh_u mesh_up mesh_un mesh_c2 mesh_sig mesh_ome
   un[mesh_pick] * mesh_omega * K_MESH;
 );
 
-function render_stiff() instance(ap_a delay_len delay_len2 tune_a tune_a2 tune_d tune_d2 lp_z lp_z2 damp_b loop_gain loop_gain2 read_gain)
-  local(a, nA, nB, tA, tB, t, x, y, fa, fb) (
+function render_stiff() instance(ap_a delay_len delay_len2 tune_a tune_a2 tune_d tune_d2 lp_z lp_z2 damp_b loop_gain loop_gain2 read_gain exc exc_t exc_len)
+  local(a, nA, nB, tA, tB, t, x, y, fa, fb, e) (
   a = ap_a;
   nA = delay_len;
   nB = delay_len2;
@@ -613,19 +626,22 @@ function render_stiff() instance(ap_a delay_len delay_len2 tune_a tune_a2 tune_d
     t -= nB;
     tB = (1 - t) / (1 + t);
   );
+  // hammer + soundboard excitation, fed into both strings (the second one less)
+  e = 0;
+  exc_t < exc_len ? ( e = exc[exc_t]; exc_t += 1; );
   x = this.tuneA.ap1_process(this.line.delay_read(nA), tA);
   x = this.apA0.ap1_process(x, a); x = this.apA1.ap1_process(x, a);
   x = this.apA2.ap1_process(x, a); x = this.apA3.ap1_process(x, a);
   lp_z = (1 - damp_b) * x + damp_b * lp_z;
-  fa = lp_z * loop_gain;
+  fa = lp_z * loop_gain + 0.5 * e;
   this.line.delay_write(fa);
   y = this.tuneB.ap1_process(this.line2.delay_read(nB), tB);
   y = this.apB0.ap1_process(y, a); y = this.apB1.ap1_process(y, a);
   y = this.apB2.ap1_process(y, a); y = this.apB3.ap1_process(y, a);
   lp_z2 = (1 - damp_b) * y + damp_b * lp_z2;
-  fb = lp_z2 * loop_gain2;
+  fb = lp_z2 * loop_gain2 + 0.32 * e;
   this.line2.delay_write(fb);
-  (fa + fb) * read_gain;
+  (fa + fb + 0.3 * e) * read_gain;
 );
 
 function voice_render() instance(idx level frames gl gr) local(y, a) (
@@ -647,6 +663,39 @@ function voice_render() instance(idx level frames gl gr) local(y, a) (
       v_note[idx] = -1;
     );
   );
+);
+
+// --- room: 4-line feedback delay network (Hadamard mixing, one-pole damping per line) ---
+room0.delay_init(8192); room1.delay_init(8192); room2.delay_init(8192); room3.delay_init(8192);
+room_z0 = room_z1 = room_z2 = room_z3 = 0;
+
+function room_update(decay_ms) (
+  room_len0 = clamp(floor((1171 * srate) / 48000 + 0.5), 2, 8190);
+  room_len1 = clamp(floor((1429 * srate) / 48000 + 0.5), 2, 8190);
+  room_len2 = clamp(floor((1663 * srate) / 48000 + 0.5), 2, 8190);
+  room_len3 = clamp(floor((1951 * srate) / 48000 + 0.5), 2, 8190);
+  room_g0 = pow(10, (-3 * room_len0) / (decay_ms * 0.001 * srate));
+  room_g1 = pow(10, (-3 * room_len1) / (decay_ms * 0.001 * srate));
+  room_g2 = pow(10, (-3 * room_len2) / (decay_ms * 0.001 * srate));
+  room_g3 = pow(10, (-3 * room_len3) / (decay_ms * 0.001 * srate));
+);
+
+function room_process(l, r) local(x, a, b, c, d) (
+  x = (l + r) * 0.5;
+  room_z0 += 0.55 * (room0.delay_read(room_len0) - room_z0);
+  room_z1 += 0.55 * (room1.delay_read(room_len1) - room_z1);
+  room_z2 += 0.55 * (room2.delay_read(room_len2) - room_z2);
+  room_z3 += 0.55 * (room3.delay_read(room_len3) - room_z3);
+  a = room_z0 * room_g0;
+  b = room_z1 * room_g1;
+  c = room_z2 * room_g2;
+  d = room_z3 * room_g3;
+  room0.delay_write(x + 0.5 * (a + b + c + d));
+  room1.delay_write(x + 0.5 * (a - b + c - d));
+  room2.delay_write(x + 0.5 * (a + b - c - d));
+  room3.delay_write(x + 0.5 * (a - b - c + d));
+  room_l = 2.5 * (a + c);
+  room_r = 2.5 * (b + d);
 );
 
 function vcall(i, op, a, b) (
@@ -728,6 +777,9 @@ out_gain = db_to_gain(phys_volume_db);
 string_damp_b = 0.05 + 0.9 * string_damping; // one-pole coefficient in the loop
 model = floor(phys_model + 0.5);
 vib_inc = phys_vibrato_rate_hz / srate;
+flut_a = 1 - exp((-2 * $pi * 5) / srate);
+hiss_a = 1 - exp((-2 * $pi * 1000) / srate);
+room_update(phys_room_decay_ms);
 mesh_n_new = clamp(floor(mesh_size + 0.5), 6, MESH_MAX);
 mesh_shape_new = floor(mesh_shape + 0.5);
 mesh_n_new !== mesh_n || mesh_shape_new !== mesh_shape_cur ? mesh_setup(mesh_n_new, mesh_shape_new);
@@ -751,6 +803,12 @@ mix_l = 0;
 mix_r = 0;
 p0.voice_render(); p1.voice_render(); p2.voice_render(); p3.voice_render();
 p4.voice_render(); p5.voice_render(); p6.voice_render(); p7.voice_render();
+
+phys_room_mix > 0 ? (
+  room_process(mix_l, mix_r);
+  mix_l += phys_room_mix * room_l;
+  mix_r += phys_room_mix * room_r;
+);
 
 g = out_gain * 0.5;
 spl0 = soft_clip(dc.onepole_hp(mix_l) * g);

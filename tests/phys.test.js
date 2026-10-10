@@ -10,7 +10,8 @@ const SR = 48000;
 function make(overrides) {
   const s = {};
   phys_init(s, SR);
-  phys_update(s, { ...defaultValues(PHYS_PARAMS), ...overrides });
+  // the room is off unless a test asks for it (its tail would blur pitch / decay measurements)
+  phys_update(s, { ...defaultValues(PHYS_PARAMS), phys_room_mix: 0, ...overrides });
   return s;
 }
 
@@ -236,11 +237,13 @@ test('stiff string: partials are stretched like a piano, the fundamental stays i
 });
 
 test('vibrato modulates the delay-line models and is exactly off at 0 cents', () => {
-  const off = make({ phys_model: 5 });
-  const ref = make({ phys_model: 5, phys_vibrato_cents: 0, phys_vibrato_rate_hz: 9 });
-  phys_note_on(off, 60, 100);
-  phys_note_on(ref, 60, 100);
-  assert.deepEqual(render(off, 4000), render(ref, 4000));
+  // (one after the other: phys_init re-seeds the shared noise generator)
+  const run = (over) => {
+    const s = make({ phys_model: 5, ...over });
+    phys_note_on(s, 60, 100);
+    return render(s, 4000);
+  };
+  assert.deepEqual(run({}), run({ phys_vibrato_cents: 0, phys_vibrato_rate_hz: 9 }));
   const s = make({ phys_model: 2, phys_vibrato_cents: 50, phys_vibrato_rate_hz: 5 });
   phys_note_on(s, 57, 100);
   render(s, SR * 0.4);
@@ -271,4 +274,30 @@ test('snapshots of the new models', () => {
   const p = snap({ phys_model: 5 });
   assert.equal(p.model, 'stiff');
   assert.ok(p.partials.length >= 8 && Math.abs(p.f1 - 220) < 1);
+});
+
+test('room: adds a decaying stereo tail and is bypassed at 0', () => {
+  const tail = (phys_room_mix) => {
+    const s = make({ phys_model: 1, modal_decay_ms: 60, phys_release_ms: 60, phys_room_mix, phys_room_decay_ms: 1500 });
+    phys_note_on(s, 60, 120);
+    phys_note_off(s, 60);
+    render(s, SR * 0.4);
+    const l = [];
+    const r = [];
+    for (let i = 0; i < SR * 0.2; i++) {
+      phys_render(s);
+      l.push(s.out_l);
+      r.push(s.out_r);
+    }
+    return { l, r, s };
+  };
+  const dry = tail(0);
+  const wet = tail(1);
+  assert.ok(rms(dry.l) < 1e-4, `dry tail ${rms(dry.l)}`);
+  assert.ok(rms(wet.l) > 1e-3 && rms(wet.r) > 1e-3, `room tail ${rms(wet.l)}`);
+  // decorrelated left / right
+  assert.ok(wet.l.some((x, i) => Math.abs(x - wet.r[i]) > 1e-4));
+  // and it dies away (T60 1.5 s -> well below -60 dB after 4 s)
+  render(wet.s, SR * 4);
+  assert.ok(rms(render(wet.s, 4800)) < rms(wet.l) * 1e-3);
 });

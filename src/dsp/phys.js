@@ -54,8 +54,10 @@ export const MESH_MAX = 16;
 const MESH_W = MESH_MAX + 2; // padded row length (zero border = fixed edge)
 const MAX_DELAY = 8192;
 const K_MESH = 5.5;
-const FLUTE_JET_RATIO = 0.52;
-const N_AP = 4; // dispersion all-passes per stiff string
+const FLUTE_JET_RATIO = 1.03;
+const FLUTE_JET_GAIN = 1.6;
+const N_AP = 4;
+const EXC_MAX = 8192; // piano excitation buffer (50 ms up to 160 kHz) // dispersion all-passes per stiff string
 
 export const MODEL_STRING = 0;
 export const MODEL_MODAL = 1;
@@ -91,9 +93,10 @@ function voice_create() {
     env: {}, maxv: 0, slope: 0, slip: 1, body1: {}, body2: {}, dc: {},
     // mesh
     mesh_u: new Float64Array(MESH_CELLS), mesh_up: new Float64Array(MESH_CELLS), mesh_un: new Float64Array(MESH_CELLS),
-    mesh_c2: 0, mesh_sig: 0, mesh_omega: 0, jet_bias: 0,
+    mesh_c2: 0, mesh_sig: 0, mesh_omega: 0, jet_bias: 0, jet_boost: 1, flut: 0, hiss_lp: 0,
     // stiff string
     ap_a: 0, apA: [], apB: [], tuneA: {}, tuneB: {}, tune_a: 0, tune_a2: 0, tune_d: 1, tune_d2: 1,
+    exc: new Float64Array(EXC_MAX),
     gl: 1, gr: 1,
   };
   delay_init(v.line, MAX_DELAY);
@@ -142,6 +145,7 @@ export function phys_init(s, sr) {
   s.mesh_n = 0;
   s.mesh_shape = -1;
   s.mesh_mu = 1;
+  room_init(s);
   s.p = {};
   s.out_l = 0;
   s.out_r = 0;
@@ -155,6 +159,9 @@ export function phys_update(s, p) {
   s.gain = db_to_gain(p.phys_volume_db);
   s.damp_b = 0.05 + 0.9 * p.string_damping; // one-pole coefficient in the loop
   s.vib_inc = p.phys_vibrato_rate_hz / s.sr;
+  s.flut_a = 1 - Math.exp((-TWO_PI * 5) / s.sr);
+  room_update(s, p.phys_room_decay_ms);
+  s.hiss_a = 1 - Math.exp((-TWO_PI * 1000) / s.sr);
   const n = clamp(Math.floor(p.mesh_size + 0.5), 6, MESH_MAX);
   const shape = Math.floor(p.mesh_shape + 0.5);
   if (n !== s.mesh_n || shape !== s.mesh_shape) mesh_setup(s, n, shape);
@@ -334,21 +341,26 @@ function voice_tune(s, v, keep_decay) {
     v.delay_len2 = clamp(total * (1 - p.bow_position), 2, MAX_DELAY - 2); // nut side
   } else if (model === MODEL_WIND) {
     if (p.wind_type < 0.5) {
-      // clarinet: inverting reflection at the reed -> period = 2 x (bore + 0.5 sample averaging filter)
-      v.delay_len = clamp((0.5 * sr) / hz - 0.5, 2, MAX_DELAY - 2);
+      // clarinet: inverting reflection at the bell -> period = 2 x (bore + reflection low-pass).
+      // The low-pass stands in for the tone-hole lattice / bell, which lets high frequencies
+      // escape instead of reflecting (~1.5 kHz), so upper harmonics do not keep building up.
+      v.damp_b = Math.exp((-TWO_PI * Math.max(1500, 5 * hz)) / sr);
+      v.delay_len = clamp((0.5 * sr) / hz - lp_phase_delay(v.damp_b, hz, sr), 2, MAX_DELAY - 2);
     } else {
-      // flute: open-open bore tuned to the note (loop low-pass delay compensated); the jet
-      // delay is a fixed fraction of it, where the jet / bore loop speaks at the bore pitch.
-      // The embouchure moves the jet across the labium edge (offset) instead of changing the
-      // jet length, so it shapes the tone without detuning.
+      // flute (after Fletcher / Verge): the acoustic flow at the mouth hole deflects the air
+      // jet, which reaches the labium edge a jet delay later and is split in / out of the pipe
+      // by a saturating curve. The jet delay is ~ one period, where the loop speaks on the bore
+      // pitch; the embouchure is the jet offset against the edge (even harmonics).
       v.damp_b = 0.7 - (0.1 * 22050) / sr;
-      // measured residual of the jet loop (cents sharp), x = octaves above C4 at 48 kHz
-      const x = Math.max(-1, Math.log((hz * 48000) / (sr * 261.63)) / Math.log(2));
-      const sharp = -6 + 3 * x + 2 * x * x;
+      // measured residual of the jet loop (cents sharp), x = octaves above C5 at 48 kHz
+      const x = Math.log((hz * 48000) / (sr * 523.25)) / Math.log(2);
+      const sharp = 10.7 * x + 3.1 * x * x;
       const total = (sr / hz) * Math.pow(2, sharp / 1200);
       v.delay_len = clamp(total - lp_phase_delay(v.damp_b, hz, sr), 2, MAX_DELAY - 2);
       v.delay_len2 = clamp(v.delay_len * FLUTE_JET_RATIO, 2, MAX_DELAY - 2);
-      v.jet_bias = -0.05 + 0.15 * p.wind_embouchure;
+      v.jet_bias = 0.1 + 0.4 * p.wind_embouchure;
+      // high notes need a faster (harder blown) jet
+      v.jet_boost = clamp(1 + 0.5 * (Math.log((hz * 48000) / (sr * 1046.5)) / Math.log(2)), 1, 1.6);
     }
   } else if (model === MODEL_MESH) {
     const w = (TWO_PI * hz) / sr;
@@ -394,20 +406,6 @@ function voice_allocate(s, limit) {
     }
   }
   return best;
-}
-
-/** Fill a delay line with a hammer pulse (raised cosine of `width`) and apply the strike comb. */
-function fill_hammer(line, n, width, pos, amp) {
-  for (let i = 0; i < n; i++) {
-    const x = i < width ? amp * (0.5 - 0.5 * Math.cos((TWO_PI * i) / width)) : 0;
-    delay_write(line, x);
-  }
-  const pick = Math.max(1, Math.round(pos * n));
-  for (let i = n - 1; i >= pick; i--) {
-    const idx_a = (line.w - n + i + line.size) % line.size;
-    const idx_b = (line.w - n + i - pick + line.size) % line.size;
-    line.buf[idx_a] -= line.buf[idx_b];
-  }
 }
 
 export function phys_note_on(s, note, velocity) {
@@ -499,6 +497,8 @@ export function phys_note_on(s, note, velocity) {
       v.lp_z2 = 0;
       v.dc.z = 0;
       v.env.value = 0;
+      v.flut = 0;
+      v.hiss_lp = 0;
     }
     onepole_set(v.dc, 20, sr);
     adsr_set(v.env, p.wind_attack_ms, 1, 1, Math.min(p.phys_release_ms, 400), sr);
@@ -510,7 +510,8 @@ export function phys_note_on(s, note, velocity) {
       v.slope = -(0.2 + 0.25 * p.wind_embouchure);
       v.maxv = (0.2 + 0.06 * p.breath_pressure) / -v.slope;
     } else {
-      v.maxv = 1.125 + 0.16 * (p.breath_pressure - 0.5) - v.jet_bias;
+      // jet strength: below ~0.5 the jet is too weak to keep the pipe going
+      v.maxv = (0.6 + 0.4 * p.breath_pressure) * v.jet_boost;
     }
   } else if (model === MODEL_MESH) {
     const n = s.mesh_n;
@@ -545,12 +546,29 @@ export function phys_note_on(s, note, velocity) {
     }
     ap1_init(v.tuneA);
     ap1_init(v.tuneB);
+    // Commuted synthesis: instead of modelling the soundboard, its impulse response (a short
+    // burst of decaying, low-passed noise) is folded into the excitation together with the
+    // hammer pulse, and fed into the strings over the first ~50 ms. The strike position comb
+    // removes the partials with a node at the hammer.
     const hard = clamp(p.piano_hammer_hardness * (0.6 + 0.4 * vel), 0, 1);
-    const nA = Math.ceil(v.delay_len);
-    const nB = Math.ceil(v.delay_len2);
-    fill_hammer(v.line, nA, Math.max(2, nA * (0.45 - 0.42 * hard)), p.piano_strike_position, 0.5);
-    fill_hammer(v.line2, nB, Math.max(2, nB * (0.45 - 0.42 * hard)), p.piano_strike_position, 0.32);
-    v.read_gain = 1.6 * v.vel * clamp(Math.pow(v.hz / 220, 0.3), 0.7, 2);
+    const n = Math.ceil(v.delay_len);
+    const width = Math.max(2, n * (0.45 - 0.42 * hard));
+    const len = Math.min(EXC_MAX, Math.round(0.05 * sr));
+    const decay = Math.exp(-1 / (0.006 * sr));
+    const sb_a = 1 - Math.exp((-TWO_PI * (800 + 3000 * hard)) / sr);
+    const e = v.exc;
+    let env = 0.35;
+    let lp = 0;
+    for (let i = 0; i < len; i++) {
+      lp += sb_a * (noise_white() - lp);
+      e[i] = (i < width ? 0.5 - 0.5 * Math.cos((TWO_PI * i) / width) : 0) + lp * env;
+      env *= decay;
+    }
+    const pick = Math.max(1, Math.round(p.piano_strike_position * n));
+    for (let i = len - 1; i >= pick; i--) e[i] -= e[i - pick];
+    v.exc_len = len;
+    v.exc_t = 0;
+    v.read_gain = 1.2 * v.vel * clamp(Math.pow(v.hz / 220, 0.3), 0.7, 2);
   }
 }
 
@@ -642,38 +660,42 @@ function render_bowed(v, vib) {
   return (bridge_out + 1.2 * v.body1.bp + 0.8 * v.body2.bp) * 1.6;
 }
 
-function render_wind(v, vib, flute, noise_amt) {
-  let bp = adsr_process(v.env) * v.maxv;
-  bp += bp * noise_amt * 0.25 * noise_white();
+function render_wind(s, v, vib, flute, noise_amt) {
+  const env = adsr_process(v.env);
+  const nz = noise_white();
+  // a player's breath is never perfectly steady: slow (~5 Hz low-passed) pressure wobble of
+  // about 1.5 %, plus the breath noise itself
+  v.flut += s.flut_a * (nz - v.flut);
+  let bp = env * v.maxv * (1 + 1.4 * v.flut);
+  // turbulence heard as an airy hiss (noise above ~1 kHz) on top of the tone
+  v.hiss_lp += s.hiss_a * (nz - v.hiss_lp);
+  const hiss = (nz - v.hiss_lp) * env * noise_amt * 0.05;
   if (!flute) {
+    bp += bp * noise_amt * 0.25 * nz;
     const bore = delay_read(v.line, v.delay_len / vib);
-    // averaging low-pass + inverting reflection at the bell
-    const f = 0.5 * (bore + v.lp_z);
-    v.lp_z = bore;
-    const pd = -0.95 * f - bp;
+    // lossy, low-passed, inverting reflection at the bell
+    v.lp_z = (1 - v.damp_b) * bore + v.damp_b * v.lp_z;
+    const pd = -0.95 * v.lp_z - bp;
     // reed: opening = clipped straight line of the pressure difference
     let reed = 0.7 + v.slope * pd;
     if (reed > 1) reed = 1;
     if (reed < -1) reed = -1;
     v.slip = reed;
     delay_write(v.line, bp + pd * reed);
-    return bore * 1.1 * v.vel;
+    return (bore * 1.1 + hiss) * v.vel;
   }
   const bore = delay_read(v.line, v.delay_len / vib);
   v.lp_z = (1 - v.damp_b) * bore + v.damp_b * v.lp_z;
+  // open end: low-passed reflection with the DC removed
   const t = onepole_hp(v.dc, v.lp_z);
-  const jet_in = bp - 0.5 * t;
+  // the acoustic flow (plus turbulence) deflects the jet; it arrives at the edge later
   const jet = delay_read(v.line2, v.delay_len2 / vib);
-  delay_write(v.line2, jet_in);
-  // jet deflection: cubic curve, clipped
-  // the jet (and its offset) only exists while blowing
-  const jx = jet + v.jet_bias * v.env.value;
-  let j = jx * (jx * jx - 1);
-  if (j > 1) j = 1;
-  if (j < -1) j = -1;
+  delay_write(v.line2, t + (0.01 + 0.08 * noise_amt) * env * nz);
+  // the edge splits the jet: saturating curve around the jet offset (DC removed)
+  const j = soft_clip(FLUTE_JET_GAIN * jet + v.jet_bias) - soft_clip(v.jet_bias);
   v.slip = j;
-  delay_write(v.line, j + 0.5 * t);
-  return bore * 0.55 * v.vel;
+  delay_write(v.line, bp * j + 0.5 * t);
+  return (bore * 0.3 + hiss) * v.vel;
 }
 
 function render_mesh(s, v) {
@@ -730,17 +752,21 @@ function render_stiff(v, vib) {
     t -= nB;
     tB = (1 - t) / (1 + t);
   }
+  // hammer + soundboard excitation, fed into both strings (the second one less)
+  let exc = 0;
+  if (v.exc_t < v.exc_len) exc = v.exc[v.exc_t++];
   let x = ap1_process(v.tuneA, delay_read(v.line, nA), tA);
   for (let k = 0; k < N_AP; k++) x = ap1_process(v.apA[k], x, a);
   v.lp_z = (1 - v.damp_b) * x + v.damp_b * v.lp_z;
-  const fa = v.lp_z * v.loop_gain;
+  const fa = v.lp_z * v.loop_gain + 0.5 * exc;
   delay_write(v.line, fa);
   let y = ap1_process(v.tuneB, delay_read(v.line2, nB), tB);
   for (let k = 0; k < N_AP; k++) y = ap1_process(v.apB[k], y, a);
   v.lp_z2 = (1 - v.damp_b) * y + v.damp_b * v.lp_z2;
-  const fb = v.lp_z2 * v.loop_gain2;
+  const fb = v.lp_z2 * v.loop_gain2 + 0.32 * exc;
   delay_write(v.line2, fb);
-  return (fa + fb) * v.read_gain;
+  // plus a little of the soundboard heard directly (the attack "thump")
+  return (fa + fb + 0.3 * exc) * v.read_gain;
 }
 
 export function phys_render(s) {
@@ -763,7 +789,7 @@ export function phys_render(s) {
     if (model === MODEL_STRING) y = render_string(v, vib);
     else if (model === MODEL_MODAL) y = render_modal(v);
     else if (model === MODEL_BOWED) y = render_bowed(v, vib);
-    else if (model === MODEL_WIND) y = render_wind(v, vib, flute, p.breath_noise);
+    else if (model === MODEL_WIND) y = render_wind(s, v, vib, flute, p.breath_noise);
     else if (model === MODEL_MESH) y = render_mesh(s, v);
     else y = render_stiff(v, vib);
     l += y * v.gl;
@@ -777,9 +803,64 @@ export function phys_render(s) {
       v.note = -1;
     }
   }
+  if (p.phys_room_mix > 0) {
+    room_process(s, l, r);
+    l += p.phys_room_mix * s.room_l;
+    r += p.phys_room_mix * s.room_r;
+  }
   const g = s.gain * 0.5;
   s.out_l = soft_clip(onepole_hp(s.dc, l) * g);
   s.out_r = soft_clip(onepole_hp(s.dc_r, r) * g);
+}
+
+// ---------------------------------------------------------------------------
+// Room: 4-line feedback delay network (Hadamard mixing, one-pole damping in each line).
+// Acoustic instruments sound dry and synthetic without at least a small room.
+
+const ROOM_LENS = [1171, 1429, 1663, 1951]; // samples at 48 kHz (mutually prime)
+
+function room_init(s) {
+  s.room = [];
+  for (let k = 0; k < 4; k++) {
+    const o = { line: {}, len: 0, g: 0, z: 0 };
+    delay_init(o.line, 8192);
+    s.room.push(o);
+  }
+  s.room_l = 0;
+  s.room_r = 0;
+}
+
+function room_update(s, decay_ms) {
+  for (let k = 0; k < 4; k++) {
+    const o = s.room[k];
+    o.len = clamp(Math.round((ROOM_LENS[k] * s.sr) / 48000), 2, 8190);
+    // -60 dB after decay_ms: each pass through a line of len samples loses 60*len/(T*sr) dB
+    o.g = Math.pow(10, (-3 * o.len) / (decay_ms * 0.001 * s.sr));
+  }
+}
+
+function room_process(s, l, r) {
+  const x = (l + r) * 0.5;
+  const o0 = s.room[0];
+  const o1 = s.room[1];
+  const o2 = s.room[2];
+  const o3 = s.room[3];
+  // read, damp (high frequencies die first) and scale by each line's decay gain
+  o0.z += 0.55 * (delay_read(o0.line, o0.len) - o0.z);
+  o1.z += 0.55 * (delay_read(o1.line, o1.len) - o1.z);
+  o2.z += 0.55 * (delay_read(o2.line, o2.len) - o2.z);
+  o3.z += 0.55 * (delay_read(o3.line, o3.len) - o3.z);
+  const a = o0.z * o0.g;
+  const b = o1.z * o1.g;
+  const c = o2.z * o2.g;
+  const d = o3.z * o3.g;
+  // orthogonal (energy preserving) Hadamard mix back into the lines
+  delay_write(o0.line, x + 0.5 * (a + b + c + d));
+  delay_write(o1.line, x + 0.5 * (a - b + c - d));
+  delay_write(o2.line, x + 0.5 * (a + b - c - d));
+  delay_write(o3.line, x + 0.5 * (a - b - c + d));
+  s.room_l = 2.5 * (a + c);
+  s.room_r = 2.5 * (b + d);
 }
 
 /** Read a delay line oldest -> newest into `points` samples. */
