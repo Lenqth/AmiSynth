@@ -3,6 +3,7 @@
   import { BLACK_12, isPianoLike, noteDegree, noteHz, noteLabel } from '../lib/tuning.js';
   import { isoKeyLabel, offsetToKeyLabel } from '../lib/pckeys.js';
   import { coarsePointerQuery, fitNotes, minKeyWidth } from '../lib/keysize.js';
+  import { localFraction } from '../lib/rotate.js';
   import { hexPoints, isoCells } from '../lib/layouts.js';
 
   /**
@@ -94,8 +95,8 @@
   function noteAt(x, y) {
     const el = document.elementFromPoint(x, y)?.closest('[data-note]');
     if (!el) return { note: null, vel: 100 };
-    const r = el.getBoundingClientRect();
-    const vel = Math.round(40 + 87 * Math.min(1, Math.max(0, (y - r.top) / r.height)));
+    const { fy } = localFraction(el, x, y);
+    const vel = Math.round(40 + 87 * Math.min(1, Math.max(0, fy)));
     return { note: Number(el.getAttribute('data-note')), vel };
   }
 

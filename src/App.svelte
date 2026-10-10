@@ -10,6 +10,7 @@
     setParam, setScale, startAudio, synthNoteOff, synthNoteOn,
   } from './lib/state.svelte.js';
   import { makeTuning } from './lib/tuning.js';
+  import { coarsePointerQuery } from './lib/keysize.js';
   import { ISO_PRESETS, isoSteps, LAYOUTS } from './lib/layouts.js';
   import DrumPads from './ui/DrumPads.svelte';
   import Keyboard from './ui/Keyboard.svelte';
@@ -58,6 +59,36 @@
   let fsBodyHeight = $state(0);
   let fsToolsOpen = $state(false);
   const fsHeight = $derived(Math.max(120, fsBodyHeight - 16));
+
+  // In-page rotation: a touch device held upright gets the overlay turned 90 deg by CSS, so the
+  // keyboard is landscape without asking the OS to rotate (which some tablets fight).
+  // fsRotMode: 'auto' (90 deg while portrait), 'flip' (-90 deg while portrait), 'off'.
+  let vw = $state(window.innerWidth);
+  let vh = $state(window.innerHeight);
+  let fsRotMode = $state(loadRotMode());
+  const coarse = coarsePointerQuery();
+  let isCoarse = $state(coarse?.matches ?? false);
+  coarse?.addEventListener?.('change', (e) => (isCoarse = e.matches));
+  const portrait = $derived(vh > vw);
+  const fsRot = $derived(!isCoarse || !portrait || fsRotMode === 'off' ? 0 : fsRotMode === 'flip' ? -90 : 90);
+
+  function loadRotMode() {
+    try {
+      const v = localStorage.getItem('amisynth.fsRot');
+      return v === 'flip' || v === 'off' ? v : 'auto';
+    } catch {
+      return 'auto';
+    }
+  }
+
+  function cycleRot() {
+    fsRotMode = fsRotMode === 'auto' ? 'flip' : fsRotMode === 'flip' ? 'off' : 'auto';
+    try {
+      localStorage.setItem('amisynth.fsRot', fsRotMode);
+    } catch {
+      /* private mode etc. */
+    }
+  }
 
   async function enterFullscreen() {
     fullscreen = true;
@@ -382,7 +413,7 @@
   </section>
 {/snippet}
 
-<svelte:window onkeydown={keydown} onkeyup={keyup} onblur={releaseAll} oncontextmenu={contextmenu} />
+<svelte:window bind:innerWidth={vw} bind:innerHeight={vh} onkeydown={keydown} onkeyup={keyup} onblur={releaseAll} oncontextmenu={contextmenu} />
 
 <header>
   <div class="brand">
@@ -537,7 +568,8 @@
 </footer>
 
 {#if fullscreen}
-  <div class="fs" role="dialog" aria-label="全画面鍵盤">
+  <div class="fs" class:rot90={fsRot === 90} class:rotm90={fsRot === -90} data-rot={fsRot}
+    style={fsRot ? `width: ${vh}px; height: ${vw}px` : ''} role="dialog" aria-label="全画面鍵盤">
     <div class="fs-bar">
       <select value={app.melodic} onchange={(e) => setMelodic(e.currentTarget.value)} aria-label="楽器">
         <option value="synth">Synth</option>
@@ -549,6 +581,11 @@
       <span class="spacer"></span>
       <button onclick={() => shiftOctave(-1)} aria-label="周期を下げる">◀ 周期</button>
       <button onclick={() => shiftOctave(1)} aria-label="周期を上げる">周期 ▶</button>
+      {#if isCoarse && portrait}
+        <button onclick={cycleRot} title="画面内で回転 (自動 → 逆向き → 回転しない)" aria-label="画面の回転">
+          ⟳ {fsRotMode === 'auto' ? '横' : fsRotMode === 'flip' ? '横 (逆)' : '縦'}
+        </button>
+      {/if}
       <button class:active={fsToolsOpen} onclick={() => (fsToolsOpen = !fsToolsOpen)} aria-label="鍵盤の設定">⚙</button>
       <button class="primary" onclick={exitFullscreen} aria-label="全画面を閉じる">✕</button>
     </div>
@@ -607,6 +644,17 @@
     padding: 8px 10px calc(8px + env(safe-area-inset-bottom));
     gap: 6px;
   }
+  /* rotated overlay: laid out landscape (width = screen height), then turned onto the screen */
+  .fs.rot90,
+  .fs.rotm90 {
+    inset: auto;
+    top: 0;
+    left: 0;
+    transform-origin: top left;
+    padding: 8px 10px;
+  }
+  .fs.rot90 { transform: rotate(90deg) translateY(-100%); }
+  .fs.rotm90 { transform: rotate(-90deg) translateX(-100%); }
   .fs-bar { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: 12px; }
   .fs-bar .spacer { flex: 1; }
   .fs-tools .kb-tools { margin: 0; }
