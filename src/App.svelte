@@ -3,7 +3,7 @@
   import { DRUM_PARAMS, DRUM_PARTS, SYNTH_PARAMS } from './dsp/params.js';
   import { engine } from './lib/engine.js';
   import { demoPattern, emptyPattern, Sequencer } from './lib/pattern.js';
-  import { codeToOffset, DRUM_KEYS, isTypingTarget } from './lib/pckeys.js';
+  import { codeToOffset, DRUM_KEYS, eventCode, isImeEvent, isTypingTarget } from './lib/pckeys.js';
   import {
     app, clearSeqHighlights, drumHit, flashDrum, flashSeqNote, persist, setBend, setModwheel, setParam, setScale,
     startAudio, synthNoteOff, synthNoteOn,
@@ -105,37 +105,70 @@
   /** @type {Map<string, {kind:'synth'|'drum', note:number}>} */
   const pressed = new Map();
 
+  /** Set when an IME swallowed a key: the next keyup (which has the real code) plays a short note. */
+  let imeFallback = false;
+  let imeHint = $state(false);
+
+  /** Resolve a key to a synth note / drum pad for the current tab. */
+  function keyTarget(code) {
+    if (app.tab === 'drums') {
+      const i = DRUM_KEYS.indexOf(code);
+      return i >= 0 ? { kind: 'drum', note: DRUM_PARTS[i].note } : null;
+    }
+    const off = codeToOffset(code, tuning.size);
+    if (off == null) return null;
+    const note = app.baseNote + off;
+    return note <= 127 ? { kind: 'synth', note } : null;
+  }
+
   function keydown(e) {
     if (e.repeat || e.metaKey || e.ctrlKey || e.altKey || isTypingTarget(e.target)) return;
-    if (e.code === 'Space') {
+    const code = eventCode(e);
+    if (!code) {
+      if (isImeEvent(e)) {
+        imeFallback = true;
+        imeHint = true;
+      }
+      return;
+    }
+    if (code === 'Space') {
       e.preventDefault();
       togglePlay();
       return;
     }
-    if (e.code === 'BracketLeft') return shiftOctave(-1);
-    if (e.code === 'BracketRight') return shiftOctave(1);
-    if (app.tab === 'drums') {
-      const i = DRUM_KEYS.indexOf(e.code);
-      if (i >= 0) {
-        e.preventDefault();
-        hit(DRUM_PARTS[i].note, 110);
-      }
+    if (code === 'BracketLeft') return shiftOctave(-1);
+    if (code === 'BracketRight') return shiftOctave(1);
+    const t = keyTarget(code);
+    if (!t) return;
+    e.preventDefault();
+    if (t.kind === 'drum') {
+      hit(t.note, 110);
       return;
     }
-    const off = codeToOffset(e.code, tuning.size);
-    if (off == null) return;
-    e.preventDefault();
-    const note = app.baseNote + off;
-    if (note > 127) return;
-    pressed.set(e.code, { kind: 'synth', note });
-    noteOn(note, 100);
+    pressed.set(code, t);
+    noteOn(t.note, 100);
   }
 
   function keyup(e) {
-    const p = pressed.get(e.code);
-    if (!p) return;
-    pressed.delete(e.code);
-    noteOff(p.note);
+    const code = eventCode(e);
+    if (!code) return;
+    const p = pressed.get(code);
+    if (p) {
+      pressed.delete(code);
+      noteOff(p.note);
+      return;
+    }
+    // IME ate the keydown: at least sound the note briefly on release.
+    if (imeFallback && !isTypingTarget(e.target)) {
+      imeFallback = false;
+      const t = keyTarget(code);
+      if (!t) return;
+      if (t.kind === 'drum') hit(t.note, 110);
+      else {
+        noteOn(t.note, 100);
+        setTimeout(() => noteOff(t.note), 180);
+      }
+    }
   }
 
   /** Long-press on touch devices opens the context menu; suppress it except on text. */
@@ -250,6 +283,13 @@
       <Wheels bend={app.bend} modwheel={app.modwheel} onbend={setBend} onmod={setModwheel} />
       <div class="kb">
         <Keyboard {tuning} baseNote={app.baseNote} held={app.held} playing={app.seqHeld} {noteOn} {noteOff} />
+        {#if imeHint}
+          <p class="ime-hint">
+            日本語入力 (IME) がオンのため、PC キーが IME に取られています。半角英数に切り替えると押している間鳴り続けます
+            (今は離した瞬間に短く鳴らしています)。
+            <button onclick={() => (imeHint = false)}>閉じる</button>
+          </p>
+        {/if}
         <div class="kb-tools muted">
           <button onclick={() => shiftOctave(-1)} title="[">◀ 周期</button>
           <span>PC キー: <kbd>Z</kbd>〜<kbd>/</kbd> と <kbd>Q</kbd>〜<kbd>P</kbd> · <kbd>[</kbd><kbd>]</kbd> で周期シフト · <kbd>Space</kbd> 再生</span>
@@ -339,6 +379,15 @@
   .status { padding: 0 20px; margin: 8px 0 0; font-size: 12px; }
   .play { display: flex; gap: 12px; align-items: stretch; }
   .kb { flex: 1; min-width: 0; overflow-x: auto; }
+  .ime-hint {
+    margin: 8px 0 0;
+    padding: 6px 10px;
+    font-size: 12px;
+    border: 1px solid var(--accent);
+    border-radius: 6px;
+    color: var(--accent);
+  }
+  .ime-hint button { margin-left: 8px; font-size: 11px; padding: 2px 8px; }
   .kb-tools { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-top: 8px; font-size: 12px; flex-wrap: wrap; }
   .two { display: grid; grid-template-columns: 300px 1fr; gap: 12px; align-items: start; }
   @media (max-width: 900px) {
