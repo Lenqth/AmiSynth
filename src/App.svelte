@@ -111,6 +111,58 @@
     if (document.fullscreenElement) document.exitFullscreen?.().catch(() => {});
   }
 
+  // ---- audio export (offline render in a worker, same DSP as playback) --------------------
+  let exportFormat = $state('wav');
+  let exportLoops = $state(1);
+  let exportNormalize = $state(false);
+  let exportBusy = $state(false);
+  let exportProgress = $state(0);
+  let exportMsg = $state('');
+
+  function exportAudio() {
+    exportBusy = true;
+    exportProgress = 0;
+    exportMsg = '';
+    const worker = new Worker(new URL('./lib/render-worker.js', import.meta.url), { type: 'module' });
+    const format = exportFormat;
+    const bpm = app.pattern.bpm;
+    worker.onmessage = (e) => {
+      const m = e.data;
+      if (m.type === 'progress') {
+        exportProgress = m.value;
+        return;
+      }
+      worker.terminate();
+      exportBusy = false;
+      if (m.type === 'error') {
+        exportMsg = `失敗しました: ${m.message}`;
+        return;
+      }
+      const url = URL.createObjectURL(new Blob([m.bytes], { type: m.mime }));
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `amisynth-pattern-${bpm}bpm.${format}`;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 2000);
+      const db = 20 * Math.log10(Math.max(m.peak, 1e-9));
+      exportMsg = `${m.seconds.toFixed(1)} 秒 · ピーク ${db.toFixed(1)} dBFS${m.peak > 1 ? ' (クリップあり: ノーマライズ推奨)' : ''}`;
+    };
+    worker.onerror = (e) => {
+      worker.terminate();
+      exportBusy = false;
+      exportMsg = `失敗しました: ${e.message}`;
+    };
+    worker.postMessage({
+      pattern: $state.snapshot(app.pattern),
+      params: { synth: $state.snapshot(app.synth), phys: $state.snapshot(app.phys), drums: $state.snapshot(app.drums) },
+      scaleCents: app.scale ? [...app.scale.cents] : null,
+      sampleRate: engine.ctx?.sampleRate ?? 48000,
+      loops: Number(exportLoops),
+      format,
+      normalize: exportNormalize,
+    });
+  }
+
   /** demo with dynamics: switches the melodic instrument to the physical Grand Piano */
   function loadPianoDemo() {
     app.pattern = pianoDemoPattern();
@@ -558,6 +610,24 @@
         </select>
       </label>
       <span class="muted">4 小節ループ · 行は現在のチューニングのステップ</span>
+    </div>
+    <div class="roll-head export">
+      <span class="muted">音声書き出し</span>
+      <select bind:value={exportFormat} aria-label="形式" disabled={exportBusy}>
+        <option value="wav">WAV (16 bit)</option>
+        <option value="mp3">MP3 (192 kbps)</option>
+      </select>
+      <label class="muted">ループ
+        <select bind:value={exportLoops} disabled={exportBusy}>
+          {#each [1, 2, 4, 8] as n (n)}<option value={n}>{n} 回</option>{/each}
+        </select>
+      </label>
+      <label class="muted" title="いちばん大きい所が -1 dBFS になるように音量をそろえます"><input type="checkbox" bind:checked={exportNormalize} disabled={exportBusy} /> ノーマライズ</label>
+      <button class="primary" onclick={exportAudio} disabled={exportBusy}
+        title="今の音色とチューニングで、パターンを (余韻まで) 書き出します。再生と同じ DSP をオフラインで回します">
+        {exportBusy ? `書き出し中 ${Math.round(exportProgress * 100)}%` : '⬇ 書き出し'}
+      </button>
+      {#if exportMsg}<span class="muted">{exportMsg}</span>{/if}
     </div>
     <PianoRoll pattern={app.pattern} {tuning} playStep={app.playStep} {preview} {previewDrum} onedit={persist} />
   {:else}

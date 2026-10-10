@@ -29,6 +29,7 @@
   等音配列では PC キーボードの段 (Z 段〜数字段) がそのまま格子 / 六角形の段になる
 - **JSFX 版 (REAPER)**: `jsfx/` に Synth / Physical / Drums。Web 版とサンプル単位で同じ音 (ysfx で自動比較)。
   ピアノロールの「MIDI 書き出し」で作った .mid をそのまま REAPER で鳴らせる → [jsfx/README.md](jsfx/README.md)
+- **音声書き出し**: ピアノロールのパターンを WAV (16 bit) / MP3 (192 kbps) で書き出し (ループ回数・ノーマライズ指定可、余韻まで)。再生と同じ DSP を Web Worker でオフライン実行するので、オーディオを開始していなくても書き出せる
 
 ## 開発
 
