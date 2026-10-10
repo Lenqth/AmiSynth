@@ -235,7 +235,7 @@ export const PHYS_PARAMS = /** @type {ParamDef[]} */ ([
     description: 'Spreads low notes left and high notes right.' },
   { id: 'phys_pitch_bend_range_cents', name: 'Pitch Bend Range', group: 'Output', min: 0, max: 2400, default: 200, step: 1, unit: 'cents',
     description: 'Pitch bend range in cents.' },
-  { id: 'phys_room_mix', name: 'Room', group: 'Output', min: 0, max: 1, default: 0.25, step: 0.001, unit: '',
+  { id: 'phys_room_mix', name: 'Room', group: 'Output', min: 0, max: 1, default: 0, step: 0.001, unit: '',
     description: 'Amount of a small room (4-line feedback delay network). Acoustic instruments sound dry and synthetic without one.' },
   { id: 'phys_room_decay_ms', name: 'Room Decay', group: 'Output', min: 200, max: 6000, default: 1300, step: 1, unit: 'ms', scale: 'log',
     description: 'Reverberation time (T60) of the room.' },

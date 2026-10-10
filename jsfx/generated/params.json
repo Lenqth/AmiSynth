@@ -1120,7 +1120,7 @@
       "group": "Output",
       "min": 0,
       "max": 1,
-      "default": 0.25,
+      "default": 0,
       "step": 0.001,
       "unit": "",
       "description": "Amount of a small room (4-line feedback delay network). Acoustic instruments sound dry and synthetic without one."
