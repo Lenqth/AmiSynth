@@ -17,7 +17,7 @@
 //   time scales with the period, so the timbre stays similar across the range.
 
 import {
-  clamp, db_to_gain, delay_clear, delay_init, delay_read, delay_write, noise_white,
+  clamp, db_to_gain, delay_clear, delay_init, delay_read, delay_write, noise_seed, noise_white,
   onepole_hp, onepole_init, onepole_set, pan_gains, reson_init, reson_process, reson_reset,
   reson_set, reson_set_decay, soft_clip, t60_coef, tuning_init, tuning_note_to_hz, tuning_set_edo,
   tuning_set_table, TWO_PI,
@@ -58,6 +58,7 @@ function voice_create() {
 }
 
 export function phys_init(s, sr) {
+  noise_seed(12345);
   s.sr = sr;
   s.voices = [];
   for (let i = 0; i < PHYS_MAX_VOICES; i++) s.voices.push(voice_create());

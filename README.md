@@ -19,7 +19,10 @@
 - **チューニング**: 12 平均律に依存しない。任意の EDO・周期 (例: Bohlen-Pierce)・
   Scala (.scl) / cents / 比のリストによるカスタム音階。ピッチベンドやデチューンは cents 指定
 - **4 小節ピアノロール** + ドラムステップ (サンプル精度でスケジューリング)
-- PC キーボード / 画面鍵盤 (ピアノ・1 列・等音の格子 / 六角形、全画面モード) / Web MIDI 入力 (ch10 → ドラム)
+- PC キーボード / 画面鍵盤 (ピアノ・1 列・等音の格子 / 六角形、全画面モード) / Web MIDI 入力 (ch10 → ドラム)。
+  等音配列では PC キーボードの段 (Z 段〜数字段) がそのまま格子 / 六角形の段になる
+- **JSFX 版 (REAPER)**: `jsfx/` に Synth / Physical / Drums。Web 版とサンプル単位で同じ音 (ysfx で自動比較)。
+  ピアノロールの「MIDI 書き出し」で作った .mid をそのまま REAPER で鳴らせる → [jsfx/README.md](jsfx/README.md)
 
 ## 開発
 
@@ -28,7 +31,8 @@ npm install
 npm run dev        # http://localhost:5173
 npm test           # DSP のユニットテスト (Node)
 npm run build      # dist/ に静的ファイルを出力
-npm run gen:jsfx   # JSFX slider 宣言を jsfx/generated/ に生成
+npm run gen:jsfx   # params.js → JSFX のスライダー宣言 (jsfx/*.jsfx と jsfx/generated/)
+npm run jsfx:tools # ysfx をビルドして JSFX 比較テストを有効にする (任意)
 ```
 
 ## 構成

@@ -14,7 +14,7 @@
 //   70 Shaker      band-passed noise with an attack swell
 
 import {
-  clamp, db_to_gain, decay_env_init, decay_env_process, decay_env_trigger, noise_white,
+  clamp, db_to_gain, decay_env_init, decay_env_process, decay_env_trigger, noise_seed, noise_white, random_unit,
   onepole_hp, onepole_init, onepole_set, pan_gains, sine_process, soft_clip,
   square_naive_process, svf_init, svf_process, svf_reset, svf_set, t60_coef, tau_coef,
 } from './lib.js';
@@ -49,11 +49,12 @@ function hat_create() {
   decay_env_init(h.env);
   svf_init(h.hp);
   svf_init(h.bp);
-  for (let i = 0; i < 6; i++) h.oscs.push({ phase: Math.random(), inc: 0 });
+  for (let i = 0; i < 6; i++) h.oscs.push({ phase: random_unit(), inc: 0 });
   return h;
 }
 
 export function drums_init(d, sr) {
+  noise_seed(12345);
   d.sr = sr;
   d.p = {};
   d.out_l = 0;

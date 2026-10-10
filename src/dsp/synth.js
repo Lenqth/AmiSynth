@@ -12,7 +12,7 @@
 
 import {
   adsr_gate_off, adsr_gate_on, adsr_init, adsr_process, adsr_set,
-  clamp, db_to_gain, lfo_init, lfo_process, noise_white, osc_init, osc_process, osc_reset, osc_set_freq,
+  clamp, db_to_gain, lfo_init, lfo_process, noise_seed, noise_white, random_unit, osc_init, osc_process, osc_reset, osc_set_freq,
   osc_sync_to, smoother_init, smoother_process, smoother_set, soft_clip, svf_copy_coefs,
   svf_init, svf_output, svf_process, svf_reset, svf_set, tau_coef, TWO_PI, tuning_init, tuning_note_to_hz,
   tuning_set_edo, tuning_set_table,
@@ -54,6 +54,7 @@ function voice_create() {
 }
 
 export function synth_init(s, sr) {
+  noise_seed(12345);
   s.sr = sr;
   s.voices = [];
   for (let i = 0; i < MAX_VOICES; i++) s.voices.push(voice_create());
@@ -163,8 +164,8 @@ export function synth_note_on(s, note, velocity) {
     const spread = s.unison_n > 1;
     for (let u = 0; u < MAX_UNISON; u++) {
       // random phases make unison copies sound like a section instead of flanging in sync
-      osc_reset(v.osc1[u], spread ? Math.random() : 0);
-      osc_reset(v.osc2[u], Math.random());
+      osc_reset(v.osc1[u], spread ? random_unit() : 0);
+      osc_reset(v.osc2[u], random_unit());
       v.prev2[u] = 0;
     }
     osc_reset(v.sub, 0);

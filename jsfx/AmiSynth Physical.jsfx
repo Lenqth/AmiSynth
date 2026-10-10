@@ -1,0 +1,296 @@
+desc:AmiSynth Physical (Karplus-Strong string / modal resonators)
+//tags: instrument synthesizer physical-modeling
+//author: AmiSynth
+// Port of src/dsp/phys.js (8 voices). Model 0: extended Karplus-Strong string.
+// Model 1: 8 two-pole resonators per voice with material mode tables.
+
+// <generated sliders>
+slider1:tuning_divisions=12<1,72,1>Tuning Divisions Per Period [steps]
+slider2:tuning_period_cents=1200<100,2400,0.001>Tuning Period [cents]
+slider3:tuning_ref_note=69<0,127,1>Tuning Reference Note [note]
+slider4:tuning_ref_hz=440<100,1000,0.01>Tuning Reference Frequency [Hz]
+slider5:phys_model=0<0,1,1{String (Karplus-Strong),Modal (resonators)}>Physical Model
+slider6:string_excitation=0<0,1,1{Pluck (noise burst),Strike (hammer pulse)}>String Excitation
+slider7:string_decay_ms=3000<100,20000,1:log>String Decay [ms]
+slider8:string_damping=0.35<0,1,0.001>String Damping
+slider9:string_pick_position=0.13<0.02,0.5,0.001>String Pick Position
+slider10:string_brightness=0.7<0,1,0.001>String Pick Brightness
+slider11:modal_material=0<0,7,1{Marimba Bar,Vibraphone Bar,Glockenspiel (free bar),Wine Glass,Church Bell,Drum Membrane,Harmonic (string-like),Kalimba Tine}>Modal Material
+slider12:modal_decay_ms=1500<50,20000,1:log>Modal Decay [ms]
+slider13:modal_high_damping=0.5<0,1,0.001>Modal High Mode Damping
+slider14:modal_hardness=0.5<0,1,0.001>Modal Mallet Hardness
+slider15:modal_strike_position=0.22<0.02,0.5,0.001>Modal Strike Position
+slider16:modal_inharmonicity=0<-0.5,0.5,0.001>Modal Ratio Stretch
+slider17:phys_release_ms=400<10,20000,1:log>Release Damping [ms]
+slider18:phys_velocity_amount=0.8<0,1,0.001>Velocity Amount
+slider19:phys_stereo_width=0.5<0,1,0.001>Stereo Width
+slider20:phys_pitch_bend_range_cents=200<0,2400,1>Pitch Bend Range [cents]
+slider21:phys_volume_db=-8<-60,6,0.1>Volume [dB]
+// </generated sliders>
+
+import amisynth_lib.jsfx-inc
+
+in_pin:none
+out_pin:Left
+out_pin:Right
+
+@init
+MAX_VOICES = 8;
+NMODES = 8;
+MAX_DELAY = 8192;
+noise_seed(12345);
+
+// material tables: ratio / gain, 8 modes each (same values as MATERIALS in phys.js)
+mat_ratio = mem_alloc(8 * NMODES);
+mat_gain = mem_alloc(8 * NMODES);
+function mat_row(m, r0, r1, r2, r3, r4, r5, r6, r7) (
+  mat_ratio[m * 8] = r0; mat_ratio[m * 8 + 1] = r1; mat_ratio[m * 8 + 2] = r2; mat_ratio[m * 8 + 3] = r3;
+  mat_ratio[m * 8 + 4] = r4; mat_ratio[m * 8 + 5] = r5; mat_ratio[m * 8 + 6] = r6; mat_ratio[m * 8 + 7] = r7;
+);
+function mat_gains(m, g0, g1, g2, g3, g4, g5, g6, g7) (
+  mat_gain[m * 8] = g0; mat_gain[m * 8 + 1] = g1; mat_gain[m * 8 + 2] = g2; mat_gain[m * 8 + 3] = g3;
+  mat_gain[m * 8 + 4] = g4; mat_gain[m * 8 + 5] = g5; mat_gain[m * 8 + 6] = g6; mat_gain[m * 8 + 7] = g7;
+);
+mat_row(0, 1, 3.93, 9.17, 15.3, 22.6, 30.7, 39.6, 49.4);          mat_gains(0, 1, 0.55, 0.25, 0.12, 0.06, 0.04, 0.03, 0.02); // marimba
+mat_row(1, 1, 4, 10, 17.6, 26.3, 35.9, 46.3, 57.4);               mat_gains(1, 1, 0.45, 0.22, 0.1, 0.05, 0.03, 0.02, 0.01);  // vibraphone
+mat_row(2, 1, 2.756, 5.404, 8.933, 13.345, 18.638, 24.813, 31.87); mat_gains(2, 1, 0.7, 0.45, 0.3, 0.2, 0.12, 0.08, 0.05);   // glockenspiel
+mat_row(3, 1, 2.32, 4.25, 6.63, 9.38, 12.5, 16, 19.8);            mat_gains(3, 1, 0.5, 0.25, 0.15, 0.08, 0.05, 0.03, 0.02);  // wine glass
+mat_row(4, 0.5, 1, 1.183, 1.506, 2, 2.514, 2.662, 3.011);         mat_gains(4, 0.6, 0.8, 0.7, 0.4, 1, 0.5, 0.45, 0.35);      // bell
+mat_row(5, 1, 1.593, 2.136, 2.296, 2.653, 2.918, 3.156, 3.501);   mat_gains(5, 1, 0.7, 0.55, 0.5, 0.4, 0.35, 0.3, 0.25);     // membrane
+mat_row(6, 1, 2, 3, 4, 5, 6, 7, 8);                               mat_gains(6, 1, 0.5, 0.33, 0.25, 0.2, 0.17, 0.14, 0.12);   // harmonic
+mat_row(7, 1, 5.93, 13.0, 21.9, 32.6, 45.2, 59.6, 75.8);          mat_gains(7, 1, 0.35, 0.12, 0.05, 0.03, 0.02, 0.01, 0.01); // kalimba
+
+v_active = mem_alloc(MAX_VOICES);
+v_note = mem_alloc(MAX_VOICES);
+v_gate = mem_alloc(MAX_VOICES);
+v_age = mem_alloc(MAX_VOICES);
+age_counter = 0;
+bend_ratio = 1;
+dc.onepole_set(20);
+dc_r.onepole_set(20);
+level_coef = t60_coef(300);
+
+/** phase delay (samples) of the loop low-pass y = (1-b)x + b*y1 at hz */
+function lp_phase_delay(b, hz) local(w) (
+  w = (2 * $pi * hz) / srate;
+  atan2(b * sin(w), 1 - b * cos(w)) / w;
+);
+
+function voice_tune(keep_decay) instance(idx hz0 damp_b delay_len loop_gain modes mhz mt60) local(hz, m, k, ratio, pos_w) (
+  hz = hz0 * bend_ratio;
+  phys_model < 0.5 ? (
+    damp_b = string_damp_b;
+    delay_len = clamp(srate / hz - lp_phase_delay(damp_b, hz), 2, MAX_DELAY - 2);
+    !keep_decay ? loop_gain = exp(-6.907755 / (hz * max(string_decay_ms, 1) * 0.001));
+  ) : (
+    m = clamp(floor(modal_material + 0.5), 0, 7);
+    k = 0;
+    loop(NMODES,
+      // stretch: ratio^(1+x) bends the series away from / toward harmonic
+      ratio = pow(mat_ratio[m * 8 + k], 1 + modal_inharmonicity);
+      mhz[k] = hz * ratio;
+      !keep_decay ? mt60[k] = modal_decay_ms / (1 + modal_high_damping * 4 * (ratio - 1));
+      pos_w = abs(sin($pi * (k + 1) * modal_strike_position));
+      rmem_set(modes + k * 6, mhz[k], mt60[k], mat_gain[m * 8 + k] * (0.3 + 0.7 * pos_w));
+      k += 1;
+    );
+  );
+);
+
+// op: 0 init(index), 1 start(note, velocity), 2 note off (damp), 3 retune for pitch bend
+function voice_op(op, a, b) instance(idx vel hz0 level frames lp_z loop_gain damp_b delay_len read_gain exc_t exc_len modes mhz mt60)
+  local(v, n, bright, aa, pick, norm, lp, i, x, width, ia, ib, hard, g_rel, k) (
+  op === 0 ? (
+    idx = a;
+    this.line.delay_init(MAX_DELAY);
+    modes = mem_alloc(NMODES * 6);
+    mhz = mem_alloc(NMODES);
+    mt60 = mem_alloc(NMODES);
+  ) : op === 1 ? (
+    v = b / 127;
+    vel = 1 - phys_velocity_amount + phys_velocity_amount * v;
+    hz0 = tuning_note_to_hz(a);
+    frames = 0;
+    level = 1;
+    this.pan_gains(clamp(((a - 60) / 36) * phys_stereo_width, -1, 1));
+    this.voice_tune(0);
+    phys_model < 0.5 ? (
+      // fill the delay line with the excitation (classic Karplus-Strong initialisation)
+      this.line.delay_clear();
+      lp_z = 0;
+      n = ceil(delay_len);
+      bright = clamp(string_brightness * (0.6 + 0.4 * v), 0.02, 1);
+      aa = bright * bright;
+      pick = max(1, floor(string_pick_position * n + 0.5));
+      norm = 1 / sqrt(aa / (2 - aa));
+      lp = 0;
+      i = 0;
+      loop(n,
+        string_excitation < 0.5 ? (
+          lp += aa * (noise_white() - lp);
+          x = lp * norm * 0.5;
+        ) : (
+          width = max(2, n * (0.5 - 0.45 * bright));
+          x = i < width ? 0.5 - 0.5 * cos((2 * $pi * i) / width) : 0;
+        );
+        this.line.delay_write(x);
+        i += 1;
+      );
+      // pick position comb: subtract the excitation delayed by the pick distance
+      i = n - 1;
+      while (i >= pick) (
+        ia = (this.line.w - n + i + this.line.size) % this.line.size;
+        ib = (this.line.w - n + i - pick + this.line.size) % this.line.size;
+        this.line.base[ia] -= this.line.base[ib];
+        i -= 1;
+      );
+      read_gain = 1.2 * vel * clamp(pow(hz0 / 220, 0.3), 0.7, 2);
+    ) : (
+      k = 0;
+      loop(NMODES, rmem_reset(modes + k * 6); k += 1;);
+      hard = clamp(modal_hardness * (0.7 + 0.3 * v), 0, 1);
+      exc_len = max(2, floor((srate / hz0) * (0.6 - 0.56 * hard) + 0.5));
+      exc_t = 0;
+    );
+  ) : op === 2 ? (
+    phys_model < 0.5 ? (
+      g_rel = exp(-6.907755 / (hz0 * phys_release_ms * 0.001));
+      loop_gain = min(loop_gain, g_rel);
+    ) : (
+      k = 0;
+      loop(NMODES,
+        mt60[k] = min(mt60[k], phys_release_ms);
+        rmem_set_decay(modes + k * 6, mhz[k], mt60[k]);
+        k += 1;
+      );
+    );
+  ) : op === 3 ? (
+    this.voice_tune(1);
+  );
+);
+
+function voice_render() instance(idx vel level frames lp_z loop_gain damp_b delay_len read_gain exc_t exc_len modes gl gr)
+  local(x, fb, y, exc, k, a) (
+  v_active[idx] ? (
+    phys_model < 0.5 ? (
+      // read the oldest sample, damp it, feed it back
+      x = this.line.delay_read(delay_len);
+      lp_z = (1 - damp_b) * x + damp_b * lp_z;
+      fb = lp_z * loop_gain;
+      this.line.delay_write(fb);
+      y = fb * read_gain;
+    ) : (
+      exc = 0;
+      exc_t < exc_len ? (
+        exc = ((0.5 - 0.5 * cos((2 * $pi * exc_t) / exc_len)) * vel) / (0.5 * exc_len);
+        exc_t += 1;
+      );
+      y = 0;
+      k = 0;
+      loop(NMODES, y += rmem_process(modes + k * 6, exc); k += 1;);
+      y *= 1.6;
+    );
+    mix_l += y * gl;
+    mix_r += y * gr;
+    a = abs(y);
+    level = a > level ? a : level * level_coef;
+    frames += 1;
+    frames > 2000 && level < 0.00005 ? (
+      v_active[idx] = 0;
+      v_note[idx] = -1;
+    );
+  );
+);
+
+function vcall(i, op, a, b) (
+  i === 0 ? p0.voice_op(op, a, b) : i === 1 ? p1.voice_op(op, a, b) :
+  i === 2 ? p2.voice_op(op, a, b) : i === 3 ? p3.voice_op(op, a, b) :
+  i === 4 ? p4.voice_op(op, a, b) : i === 5 ? p5.voice_op(op, a, b) :
+  i === 6 ? p6.voice_op(op, a, b) : p7.voice_op(op, a, b);
+);
+
+i = 0;
+loop(MAX_VOICES,
+  vcall(i, 0, i, 0);
+  v_active[i] = 0; v_note[i] = -1; v_gate[i] = 0; v_age[i] = 0;
+  i += 1;
+);
+
+function voice_allocate() local(i, best, best_score, score, found) (
+  best = 0; best_score = -1; found = -1;
+  i = 0;
+  while (i < MAX_VOICES && found < 0) (
+    !v_active[i] ? found = i : (
+      score = (v_gate[i] ? 0 : 1000000000000) + (age_counter - v_age[i]);
+      score > best_score ? ( best_score = score; best = i; );
+    );
+    i += 1;
+  );
+  found >= 0 ? found : best;
+);
+
+function note_off(note) local(i) (
+  i = 0;
+  loop(MAX_VOICES,
+    v_active[i] && v_gate[i] && v_note[i] === note ? (
+      v_gate[i] = 0;
+      vcall(i, 2, 0, 0);
+    );
+    i += 1;
+  );
+);
+
+function note_on(note, velocity) local(i, idx) (
+  velocity <= 0 ? note_off(note) : (
+    idx = -1;
+    i = 0;
+    loop(MAX_VOICES, v_active[i] && v_note[i] === note ? idx = i; i += 1;);
+    idx < 0 ? idx = voice_allocate();
+    v_note[idx] = note;
+    v_active[idx] = 1;
+    v_gate[idx] = 1;
+    age_counter += 1;
+    v_age[idx] = age_counter;
+    vcall(idx, 1, note, velocity);
+  );
+);
+
+function all_notes_off() local(i) (
+  i = 0;
+  loop(MAX_VOICES, v_active[i] && v_gate[i] ? note_off(v_note[i]); i += 1;);
+);
+
+function pitch_bend(value) local(i) (
+  bend_ratio = pow(2, (clamp(value, -1, 1) * phys_pitch_bend_range_cents) / 1200);
+  i = 0;
+  loop(MAX_VOICES, v_active[i] ? vcall(i, 3, 0, 0); i += 1;);
+);
+
+function handle_midi(m1, m2, m3) local(type) (
+  type = m1 & 0xF0;
+  type === 0x90 ? note_on(m2, m3)
+  : type === 0x80 ? note_off(m2)
+  : type === 0xE0 ? pitch_bend(((m3 * 128 + m2) / 8192) - 1)
+  : type === 0xB0 && (m2 === 120 || m2 === 123) ? all_notes_off();
+);
+
+@slider
+tuning_set_edo(tuning_divisions, tuning_period_cents);
+out_gain = db_to_gain(phys_volume_db);
+string_damp_b = 0.05 + 0.9 * string_damping; // one-pole coefficient in the loop
+
+@block
+midi_queue_read();
+
+@sample
+while (midi_pop()) ( handle_midi(midi_m1, midi_m2, midi_m3); );
+midi_tick();
+
+mix_l = 0;
+mix_r = 0;
+p0.voice_render(); p1.voice_render(); p2.voice_render(); p3.voice_render();
+p4.voice_render(); p5.voice_render(); p6.voice_render(); p7.voice_render();
+
+g = out_gain * 0.5;
+spl0 = soft_clip(dc.onepole_hp(mix_l) * g);
+spl1 = soft_clip(dc_r.onepole_hp(mix_r) * g);

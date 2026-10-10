@@ -3,7 +3,7 @@
 // Output goes to jsfx/generated/. Paste the slider block into the .jsfx file;
 // the variable names are identical to the ids used by the JS DSP code.
 
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { DRUM_PARAMS, PHYS_PARAMS, SYNTH_PARAMS } from '../src/dsp/params.js';
@@ -32,6 +32,25 @@ function block(title, defs) {
   return lines.join('\n') + '\n';
 }
 
+/** JSFX instrument files whose slider block is generated from params.js */
+export const JSFX_FILES = [
+  ['AmiSynth Synth.jsfx', SYNTH_PARAMS],
+  ['AmiSynth Drums.jsfx', DRUM_PARAMS],
+  ['AmiSynth Physical.jsfx', PHYS_PARAMS],
+];
+
+const BEGIN = '// <generated sliders>';
+const END = '// </generated sliders>';
+
+/** Replace the slider block between the markers; returns the new text. */
+export function withSliders(text, defs) {
+  const a = text.indexOf(BEGIN);
+  const b = text.indexOf(END);
+  if (a < 0 || b < a) throw new Error('generated slider markers not found');
+  const lines = defs.map((d, i) => sliderLine(i + 1, d));
+  return text.slice(0, a) + BEGIN + '\n' + lines.join('\n') + '\n' + text.slice(b);
+}
+
 function main() {
   mkdirSync(outDir, { recursive: true });
   writeFileSync(join(outDir, 'synth-sliders.txt'), block('AmiSynth Synth', SYNTH_PARAMS));
@@ -45,6 +64,13 @@ function main() {
     join(outDir, 'presets.json'),
     JSON.stringify({ synth: resolved(SYNTH_PARAMS, SYNTH_PRESETS), phys: resolved(PHYS_PARAMS, PHYS_PRESETS), drums: resolved(DRUM_PARAMS, DRUM_PRESETS) }, null, 1) + '\n',
   );
+  for (const [file, defs] of JSFX_FILES) {
+    const path = join(root, 'jsfx', file);
+    if (!existsSync(path)) continue;
+    const text = readFileSync(path, 'utf8');
+    const next = withSliders(text, defs);
+    if (next !== text) writeFileSync(path, next);
+  }
   console.log(`wrote ${SYNTH_PARAMS.length} synth + ${PHYS_PARAMS.length} physical + ${DRUM_PARAMS.length} drum sliders to jsfx/generated/`);
 }
 

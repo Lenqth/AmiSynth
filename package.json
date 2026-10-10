@@ -11,7 +11,9 @@
     "preview": "vite preview",
     "test": "node --test tests/*.test.js",
     "gen:jsfx": "node scripts/gen-jsfx-sliders.js",
-    "deploy": "npm run build && wrangler deploy"
+    "deploy": "npm run build && wrangler deploy",
+    "jsfx:tools": "bash scripts/build-jsfx-render.sh",
+    "jsfx:compare": "node scripts/jsfx-compare.js"
   },
   "devDependencies": {
     "@sveltejs/vite-plugin-svelte": "^7.3.1",
