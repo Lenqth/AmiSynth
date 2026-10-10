@@ -5,6 +5,8 @@
 //   { type: 'midi', data: [status, d1, d2], time?: <AudioContext seconds> }
 //   { type: 'param', id, value }  /  { type: 'params', values: {...} }
 //   { type: 'clear' }             drop scheduled events + all notes off
+//   { type: 'viz', on: bool }     (optional) post core.snapshot() to the main thread
+//                                 every few blocks while on; costs nothing when off
 // Timed MIDI events are applied with sample accuracy (like JSFX midirecv offsets).
 
 /**
@@ -21,6 +23,8 @@ export function registerAmiProcessor(name, core) {
       core.update(this.state, this.params);
       this.queue = []; // sorted by frame
       this.dirty = false;
+      this.vizOn = false;
+      this.vizCount = 0;
       this.port.onmessage = (e) => this.onMessage(e.data);
     }
 
@@ -42,6 +46,9 @@ export function registerAmiProcessor(name, core) {
           this.queue.splice(i, 0, ev);
           break;
         }
+        case 'viz':
+          this.vizOn = !!msg.on && typeof core.snapshot === 'function';
+          break;
         case 'clear':
           this.queue.length = 0;
           core.panic(this.state);
@@ -71,6 +78,11 @@ export function registerAmiProcessor(name, core) {
         core.render(s);
         L[i] = s.out_l;
         R[i] = s.out_r;
+      }
+      // ~60 snapshots/s at 48 kHz (every 6 blocks of 128 samples)
+      if (this.vizOn && ++this.vizCount >= 6) {
+        this.vizCount = 0;
+        this.port.postMessage({ type: 'snapshot', data: core.snapshot(s) });
       }
       return true;
     }

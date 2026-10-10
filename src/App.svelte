@@ -1,12 +1,12 @@
 <script>
   import { onMount } from 'svelte';
-  import { DRUM_PARAMS, DRUM_PARTS, SYNTH_PARAMS } from './dsp/params.js';
+  import { DRUM_PARAMS, DRUM_PARTS, PHYS_PARAMS, SYNTH_PARAMS } from './dsp/params.js';
   import { engine } from './lib/engine.js';
   import { demoPattern, emptyPattern, Sequencer } from './lib/pattern.js';
   import { codeToOffset, DRUM_KEYS, eventCode, isImeEvent, isTypingTarget } from './lib/pckeys.js';
   import {
-    app, clearSeqHighlights, drumHit, flashDrum, flashSeqNote, persist, setBend, setModwheel, setParam, setScale,
-    startAudio, synthNoteOff, synthNoteOn,
+    app, applyPreset, clearSeqHighlights, drumHit, flashDrum, flashSeqNote, persist, setBend, setMelodic, setModwheel,
+    setParam, setScale, startAudio, synthNoteOff, synthNoteOn,
   } from './lib/state.svelte.js';
   import { makeTuning } from './lib/tuning.js';
   import { ISO_PRESETS, isoSteps, LAYOUTS } from './lib/layouts.js';
@@ -17,6 +17,8 @@
   import PresetBar from './ui/PresetBar.svelte';
   import { SYNTH_PRESETS } from './presets/synth.js';
   import { DRUM_PRESETS } from './presets/drums.js';
+  import { PHYS_PRESETS } from './presets/phys.js';
+  import PhysViz from './ui/PhysViz.svelte';
   import Scope from './ui/Scope.svelte';
   import TuningPanel from './ui/TuningPanel.svelte';
   import Wheels from './ui/Wheels.svelte';
@@ -33,6 +35,58 @@
   const isoResolved = $derived(
     isoSettings ? { ...isoSteps(app.kbLayout, isoSettings.preset, tuning, isoSettings), rows: isoSettings.rows } : undefined,
   );
+  // Physical tab: show only the controls of the selected model
+  const physGroups = $derived(['Model', app.phys.phys_model < 0.5 ? 'String' : 'Modal', 'Output']);
+
+  function toggleViz() {
+    app.physViz = !app.physViz;
+    engine.setPhysViz(app.physViz);
+  }
+
+  /** Tabs with a keyboard also choose which instrument it plays. */
+  function selectTab(id) {
+    app.tab = id;
+    if (id === 'synth' || id === 'phys') setMelodic(id);
+  }
+
+  // ---- full-screen keyboard -------------------------------------------------
+  let fullscreen = $state(false);
+  let fsBodyHeight = $state(0);
+  let fsToolsOpen = $state(false);
+  const fsHeight = $derived(Math.max(120, fsBodyHeight - 16));
+
+  async function enterFullscreen() {
+    fullscreen = true;
+    document.body.style.overflow = 'hidden';
+    // Real fullscreen hides the browser UI where supported; the overlay alone works everywhere (e.g. iPhone).
+    try {
+      if (document.documentElement.requestFullscreen && !document.fullscreenElement) {
+        await document.documentElement.requestFullscreen({ navigationUI: 'hide' });
+      }
+      await screen.orientation?.lock?.('landscape');
+    } catch {
+      /* not supported / not allowed: overlay only */
+    }
+  }
+
+  function exitFullscreen() {
+    fullscreen = false;
+    document.body.style.overflow = '';
+    try {
+      screen.orientation?.unlock?.();
+    } catch {
+      /* ignore */
+    }
+    if (document.fullscreenElement) document.exitFullscreen?.().catch(() => {});
+  }
+
+  function stepPreset(dir) {
+    const target = app.melodic;
+    const list = [...(target === 'phys' ? PHYS_PRESETS : SYNTH_PRESETS), ...app.userPresets[target]];
+    const i = list.findIndex((p) => p.name === app.presetName[target]);
+    applyPreset(target, list[(i + dir + list.length) % list.length]);
+  }
+
   const synthGroups = [...new Set(SYNTH_PARAMS.map((d) => d.group))].filter((g) => g !== 'Tuning');
 
   // Start the on-screen keyboard on a period boundary (degree 0) whenever the scale size changes.
@@ -127,6 +181,10 @@
   }
 
   function keydown(e) {
+    if (e.key === 'Escape' && fullscreen) {
+      exitFullscreen();
+      return;
+    }
     if (e.repeat || e.metaKey || e.ctrlKey || e.altKey || isTypingTarget(e.target)) return;
     const code = eventCode(e);
     if (!code) {
@@ -222,7 +280,7 @@
     else if (type === 0x80 || type === 0x90) delete app.held[d1];
     else if (type === 0xe0) app.bend = ((d2 << 7) | d1) / 8192 - 1;
     else if (type === 0xb0 && d1 === 1) app.modwheel = d2 / 127;
-    engine.midi('synth', [status, d1 ?? 0, d2 ?? 0]);
+    engine.midi(app.melodic, [status, d1 ?? 0, d2 ?? 0]);
   }
 
   onMount(() => {
@@ -233,7 +291,13 @@
       if (s !== app.playStep) app.playStep = s;
     };
     loop();
+    // leaving browser fullscreen (Esc / back gesture) also closes the overlay
+    const onFs = () => {
+      if (!document.fullscreenElement && fullscreen) exitFullscreen();
+    };
+    document.addEventListener('fullscreenchange', onFs);
     return () => {
+      document.removeEventListener('fullscreenchange', onFs);
       cancelAnimationFrame(raf);
       seq.stop();
     };
@@ -241,11 +305,75 @@
 
   const TABS = [
     { id: 'synth', label: 'Synth' },
+    { id: 'phys', label: 'Physical' },
     { id: 'drums', label: 'Drums' },
     { id: 'roll', label: 'Piano Roll' },
     { id: 'params', label: 'Parameters' },
   ];
 </script>
+
+{#snippet kbTools()}
+  <div class="kb-tools muted">
+    <button onclick={() => shiftOctave(-1)} title="[">◀ 周期</button>
+    <label class="kbopt">配列
+      <select value={app.kbLayout} onchange={(e) => { app.kbLayout = e.currentTarget.value; persist(); }}>
+        {#each LAYOUTS as l (l.id)}<option value={l.id}>{l.label}</option>{/each}
+      </select>
+    </label>
+    {#if isoSettings}
+      <label class="kbopt">
+        <select value={isoSettings.preset} onchange={(e) => { isoSettings.preset = e.currentTarget.value; persist(); }}>
+          {#each ISO_PRESETS[app.kbLayout] as p (p.id)}<option value={p.id}>{p.label}</option>{/each}
+          <option value="custom">カスタム</option>
+        </select>
+      </label>
+      {#if isoSettings.preset === 'custom'}
+        <label class="kbopt" title="右隣のセルとの音程 (ステップ数)">→
+          <input type="number" min="-24" max="24" value={isoSettings.right}
+            onchange={(e) => { isoSettings.right = Number(e.currentTarget.value) || 1; persist(); }} />
+        </label>
+        <label class="kbopt" title={app.kbLayout === 'hex' ? '右上のセルとの音程 (左上は ↗ − →)' : '上のセルとの音程 (ステップ数)'}>{app.kbLayout === 'hex' ? '↗' : '↑'}
+          <input type="number" min="-24" max="24" value={isoSettings.up}
+            onchange={(e) => { isoSettings.up = Number(e.currentTarget.value) || 1; persist(); }} />
+        </label>
+      {:else}
+        <span class="steps">→{isoResolved.right} {app.kbLayout === 'hex' ? '↗' : '↑'}{isoResolved.up} ステップ</span>
+      {/if}
+      <label class="kbopt">段
+        <select value={isoSettings.rows} onchange={(e) => { isoSettings.rows = Number(e.currentTarget.value); persist(); }}>
+          {#each [2, 3, 4, 5, 6, 7, 8] as n (n)}<option value={n}>{n}</option>{/each}
+        </select>
+      </label>
+    {/if}
+    <label class="keysize" title="鍵盤の最小幅 (タッチは約 9 mm 相当が基準)">鍵盤サイズ
+      <input type="range" min="0.6" max="2" step="0.05" value={app.keyScale}
+        oninput={(e) => { app.keyScale = Number(e.currentTarget.value); persist(); }} />
+    </label>
+    <span class="pc-hint">PC キー: <kbd>Z</kbd>〜<kbd>/</kbd> と <kbd>Q</kbd>〜<kbd>P</kbd> · <kbd>[</kbd><kbd>]</kbd> で周期シフト · <kbd>Space</kbd> 再生</span>
+    <button onclick={() => shiftOctave(1)} title="]">周期 ▶</button>
+    {#if !fullscreen}
+    <button class="fs-btn" onclick={enterFullscreen} title="鍵盤を全画面表示">⛶ 全画面</button>
+  {/if}
+</div>
+{/snippet}
+
+{#snippet playCard()}
+  <section class="card play" class:fs-play={fullscreen}>
+    <Wheels bend={app.bend} modwheel={app.modwheel} onbend={setBend} onmod={setModwheel} height={fullscreen ? fsHeight : 150} />
+    <div class="kb">
+      <Keyboard {tuning} baseNote={app.baseNote} held={app.held} playing={app.seqHeld} {noteOn} {noteOff} scale={app.keyScale}
+        layout={app.kbLayout} iso={isoResolved} fillHeight={fullscreen ? fsHeight : 0} />
+      {#if imeHint}
+        <p class="ime-hint">
+          日本語入力 (IME) がオンのため、PC キーが IME に取られています。半角英数に切り替えると押している間鳴り続けます
+          (今は離した瞬間に短く鳴らしています)。
+          <button onclick={() => (imeHint = false)}>閉じる</button>
+        </p>
+      {/if}
+      {#if !fullscreen}{@render kbTools()}{/if}
+    </div>
+  </section>
+{/snippet}
 
 <svelte:window onkeydown={keydown} onkeyup={keyup} onblur={releaseAll} oncontextmenu={contextmenu} />
 
@@ -278,65 +406,13 @@
 
 <nav>
   {#each TABS as t (t.id)}
-    <button class:active={app.tab === t.id} onclick={() => (app.tab = t.id)}>{t.label}</button>
+    <button class:active={app.tab === t.id} onclick={() => selectTab(t.id)}>{t.label}</button>
   {/each}
 </nav>
 
 <main>
   {#if app.tab === 'synth'}
-    <section class="card play">
-      <Wheels bend={app.bend} modwheel={app.modwheel} onbend={setBend} onmod={setModwheel} />
-      <div class="kb">
-        <Keyboard {tuning} baseNote={app.baseNote} held={app.held} playing={app.seqHeld} {noteOn} {noteOff} scale={app.keyScale}
-          layout={app.kbLayout} iso={isoResolved} />
-        {#if imeHint}
-          <p class="ime-hint">
-            日本語入力 (IME) がオンのため、PC キーが IME に取られています。半角英数に切り替えると押している間鳴り続けます
-            (今は離した瞬間に短く鳴らしています)。
-            <button onclick={() => (imeHint = false)}>閉じる</button>
-          </p>
-        {/if}
-        <div class="kb-tools muted">
-          <button onclick={() => shiftOctave(-1)} title="[">◀ 周期</button>
-          <label class="kbopt">配列
-            <select value={app.kbLayout} onchange={(e) => { app.kbLayout = e.currentTarget.value; persist(); }}>
-              {#each LAYOUTS as l (l.id)}<option value={l.id}>{l.label}</option>{/each}
-            </select>
-          </label>
-          {#if isoSettings}
-            <label class="kbopt">
-              <select value={isoSettings.preset} onchange={(e) => { isoSettings.preset = e.currentTarget.value; persist(); }}>
-                {#each ISO_PRESETS[app.kbLayout] as p (p.id)}<option value={p.id}>{p.label}</option>{/each}
-                <option value="custom">カスタム</option>
-              </select>
-            </label>
-            {#if isoSettings.preset === 'custom'}
-              <label class="kbopt" title="右隣のセルとの音程 (ステップ数)">→
-                <input type="number" min="-24" max="24" value={isoSettings.right}
-                  onchange={(e) => { isoSettings.right = Number(e.currentTarget.value) || 1; persist(); }} />
-              </label>
-              <label class="kbopt" title={app.kbLayout === 'hex' ? '右上のセルとの音程 (左上は ↗ − →)' : '上のセルとの音程 (ステップ数)'}>{app.kbLayout === 'hex' ? '↗' : '↑'}
-                <input type="number" min="-24" max="24" value={isoSettings.up}
-                  onchange={(e) => { isoSettings.up = Number(e.currentTarget.value) || 1; persist(); }} />
-              </label>
-            {:else}
-              <span class="steps">→{isoResolved.right} {app.kbLayout === 'hex' ? '↗' : '↑'}{isoResolved.up} ステップ</span>
-            {/if}
-            <label class="kbopt">段
-              <select value={isoSettings.rows} onchange={(e) => { isoSettings.rows = Number(e.currentTarget.value); persist(); }}>
-                {#each [2, 3, 4, 5, 6, 7, 8] as n (n)}<option value={n}>{n}</option>{/each}
-              </select>
-            </label>
-          {/if}
-          <label class="keysize" title="鍵盤の最小幅 (タッチは約 9 mm 相当が基準)">鍵盤サイズ
-            <input type="range" min="0.6" max="2" step="0.05" value={app.keyScale}
-              oninput={(e) => { app.keyScale = Number(e.currentTarget.value); persist(); }} />
-          </label>
-          <span class="pc-hint">PC キー: <kbd>Z</kbd>〜<kbd>/</kbd> と <kbd>Q</kbd>〜<kbd>P</kbd> · <kbd>[</kbd><kbd>]</kbd> で周期シフト · <kbd>Space</kbd> 再生</span>
-          <button onclick={() => shiftOctave(1)} title="]">周期 ▶</button>
-        </div>
-      </div>
-    </section>
+    {@render playCard()}
     <PresetBar target="synth" defs={SYNTH_PARAMS} builtins={SYNTH_PRESETS} />
     <div class="two">
       <TuningPanel values={app.synth} scale={app.scale} {tuning}
@@ -346,6 +422,35 @@
           disabledIds={synthDisabled} />
       </div>
     </div>
+  {:else if app.tab === 'phys'}
+    {@render playCard()}
+    <PresetBar target="phys" defs={PHYS_PARAMS} builtins={PHYS_PRESETS} />
+    <section class="card">
+      <div class="viz-head">
+        <h3>Physical model</h3>
+        <button class:active={app.physViz} onclick={toggleViz}>{app.physViz ? '可視化 ON' : '可視化 OFF'}</button>
+      </div>
+      {#if app.phys.phys_model < 0.5}
+        <p class="explain">
+          <b>弦 (Karplus-Strong)</b>: 長さ ≈ サンプルレート ÷ 周波数 の遅延線 (リングバッファ) を励起 (ノイズ = 指で弾く / パルス = ハンマー) で満たし、
+          毎サンプル「一番古い値を読む → ローパス (Damping) → 減衰 (Decay) → 書き戻す」を繰り返します。1 往復の時間が音程になり、
+          高い倍音ほど 1 往復あたりに多く削られるので、実際の弦のように明るい音が先に消えます。Pick Position は励起にくし形フィルターをかけ、
+          弾いた位置に節がある倍音を消します (0.5 = 中央 → 偶数次倍音が消える)。
+        </p>
+      {:else}
+        <p class="explain">
+          <b>モーダル合成</b>: 物体の振動を「減衰する正弦波 (モード) の和」として扱います。各モードは 2 極の共振フィルターで、周波数比は素材ごとに決まっています
+          (例: マリンバの鍵盤は 1 : 3.9 : 9.2 に調律され、調律していない棒は 1 : 2.76 : 5.40)。マレットは短いパルスで、硬いほど (短いほど) 高いモードまで励起します。
+          打つ位置に節があるモードは鳴りにくくなります。Ratio Stretch で比率を整数倍から曲げると「倍音的 ↔ 非倍音的」の違いを聴き比べられます。
+        </p>
+      {/if}
+      {#if app.physViz}
+        <PhysViz />
+      {:else}
+        <p class="muted hint">可視化 ON にすると、最後に弾いた音の内部 (遅延線の中の波 / 各モードの振幅) をリアルタイムで表示します。OFF の間は追加の負荷はありません。</p>
+      {/if}
+    </section>
+    <ParamPanel defs={PHYS_PARAMS} values={app.phys} groups={physGroups} onchange={(id, v) => setParam('phys', id, v)} />
   {:else if app.tab === 'drums'}
     <section class="card">
       <DrumPads flash={app.drumFlash} onhit={hit} />
@@ -359,6 +464,12 @@
       <button onclick={() => { app.pattern.notes = []; persist(); }}>ノート全消去</button>
       <button onclick={() => { app.pattern.drums = []; persist(); }}>ドラム全消去</button>
       <button onclick={() => { app.pattern = emptyPattern(app.pattern.bpm); persist(); }}>すべて消去</button>
+      <label class="muted">メロディ音源
+        <select value={app.pattern.melodic ?? 'synth'} onchange={(e) => { app.pattern.melodic = e.currentTarget.value; persist(); }}>
+          <option value="synth">Synth</option>
+          <option value="phys">Physical</option>
+        </select>
+      </label>
       <span class="muted">4 小節ループ · 行は現在のチューニングのステップ</span>
     </div>
     <PianoRoll pattern={app.pattern} {tuning} playStep={app.playStep} {preview} {previewDrum} onedit={persist} />
@@ -366,7 +477,7 @@
     <section class="card">
       <h3>Parameter reference</h3>
       <p class="muted hint">JSFX の slider 宣言にそのまま対応します (<code>npm run gen:jsfx</code> で生成)。id は REAPER のオートメーション / MCP から見える名前です。</p>
-      {#each [['Synth', SYNTH_PARAMS], ['Drums', DRUM_PARAMS]] as [title, defs] (title)}
+      {#each [['Synth', SYNTH_PARAMS], ['Physical', PHYS_PARAMS], ['Drums', DRUM_PARAMS]] as [title, defs] (title)}
         <h4>{title}</h4>
         <div class="table-wrap">
           <table>
@@ -390,8 +501,31 @@
 </main>
 
 <footer class="muted">
-  DSP はすべて AudioWorklet 内のサンプル単位ループ(Web Audio 組み込みノード不使用)。共通 DSP → <code>src/dsp/lib.js</code>、シンセ → <code>src/dsp/synth.js</code>、ドラム → <code>src/dsp/drums.js</code>。
+  DSP はすべて AudioWorklet 内のサンプル単位ループ(Web Audio 組み込みノード不使用)。共通 DSP → <code>src/dsp/lib.js</code>、シンセ → <code>src/dsp/synth.js</code>、物理モデル → <code>src/dsp/phys.js</code>、ドラム → <code>src/dsp/drums.js</code>。
 </footer>
+
+{#if fullscreen}
+  <div class="fs" role="dialog" aria-label="全画面鍵盤">
+    <div class="fs-bar">
+      <select value={app.melodic} onchange={(e) => setMelodic(e.currentTarget.value)} aria-label="楽器">
+        <option value="synth">Synth</option>
+        <option value="phys">Physical</option>
+      </select>
+      <button onclick={() => stepPreset(-1)} aria-label="前のプリセット">◀</button>
+      <span class="fs-preset">{app.presetName[app.melodic]}</span>
+      <button onclick={() => stepPreset(1)} aria-label="次のプリセット">▶</button>
+      <span class="spacer"></span>
+      <button onclick={() => shiftOctave(-1)} aria-label="周期を下げる">◀ 周期</button>
+      <button onclick={() => shiftOctave(1)} aria-label="周期を上げる">周期 ▶</button>
+      <button class:active={fsToolsOpen} onclick={() => (fsToolsOpen = !fsToolsOpen)} aria-label="鍵盤の設定">⚙</button>
+      <button class="primary" onclick={exitFullscreen} aria-label="全画面を閉じる">✕</button>
+    </div>
+    {#if fsToolsOpen}<div class="fs-tools">{@render kbTools()}</div>{/if}
+    <div class="fs-body" bind:clientHeight={fsBodyHeight}>
+      {@render playCard()}
+    </div>
+  </div>
+{/if}
 
 <style>
   header {
@@ -427,6 +561,26 @@
     .pc-hint { display: none; }
   }
   .keysize input { width: 100px; }
+  .viz-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .viz-head h3 { margin: 0; }
+  .explain { font-size: 12px; line-height: 1.7; opacity: 0.85; margin: 8px 0; }
+  .fs-btn { margin-left: auto; }
+  .fs {
+    position: fixed;
+    inset: 0;
+    z-index: 100;
+    background: var(--bg);
+    display: flex;
+    flex-direction: column;
+    padding: 8px 10px calc(8px + env(safe-area-inset-bottom));
+    gap: 6px;
+  }
+  .fs-bar { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: 12px; }
+  .fs-bar .spacer { flex: 1; }
+  .fs-tools .kb-tools { margin: 0; }
+  .fs-preset { min-width: 8em; font-weight: 600; }
+  .fs-body { flex: 1; min-height: 0; display: flex; }
+  .fs-body .play { flex: 1; min-width: 0; padding: 6px; }
   .ime-hint {
     margin: 8px 0 0;
     padding: 6px 10px;

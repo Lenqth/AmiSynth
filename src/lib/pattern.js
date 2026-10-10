@@ -9,7 +9,7 @@ export const STEPS = STEPS_PER_BEAT * BEATS_PER_BAR * BARS;
 
 /** @typedef {{note:number,start:number,len:number,vel:number}} RollNote */
 /** @typedef {{note:number,step:number,vel:number}} DrumHit */
-/** @typedef {{bpm:number, notes:RollNote[], drums:DrumHit[]}} Pattern */
+/** @typedef {{bpm:number, notes:RollNote[], drums:DrumHit[], melodic?:'synth'|'phys'}} Pattern */
 
 /** @returns {Pattern} */
 export function demoPattern() {
@@ -122,11 +122,12 @@ export class Sequencer {
   }
 
   scheduleStep(pattern, step, time, stepDur) {
+    const inst = pattern.melodic === 'phys' ? 'phys' : 'synth';
     for (const n of pattern.notes) {
       if (n.start !== step) continue;
-      this.engine.noteOn('synth', n.note, n.vel, time);
+      this.engine.noteOn(inst, n.note, n.vel, time);
       // release slightly before the step boundary so repeated notes retrigger cleanly
-      this.engine.noteOff('synth', n.note, time + n.len * stepDur - 0.002);
+      this.engine.noteOff(inst, n.note, time + n.len * stepDur - 0.002);
       this.onSynthNote(n.note, time, n.len * stepDur - 0.002);
     }
     for (const h of pattern.drums) {

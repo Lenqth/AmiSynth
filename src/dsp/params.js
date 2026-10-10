@@ -137,6 +137,54 @@ export const SYNTH_PARAMS = /** @type {ParamDef[]} */ ([
 ]);
 
 // ---------------------------------------------------------------------------
+// Physical modelling instrument (Karplus-Strong string / modal resonators)
+
+/** Mode tables used by the modal model (see src/dsp/phys.js MATERIALS). */
+export const MODAL_MATERIALS = ['Marimba Bar', 'Vibraphone Bar', 'Glockenspiel (free bar)', 'Wine Glass', 'Church Bell', 'Drum Membrane', 'Harmonic (string-like)', 'Kalimba Tine'];
+
+export const PHYS_PARAMS = /** @type {ParamDef[]} */ ([
+  ...TUNING_PARAMS,
+
+  { id: 'phys_model', name: 'Physical Model', group: 'Model', min: 0, max: 1, default: 0, step: 1, unit: '', options: ['String (Karplus-Strong)', 'Modal (resonators)'],
+    description: 'String: a delay line whose length sets the pitch, filtered on every round trip. Modal: a bank of tuned resonators struck by a mallet.' },
+
+  { id: 'string_excitation', name: 'String Excitation', group: 'String', min: 0, max: 1, default: 0, step: 1, unit: '', options: ['Pluck (noise burst)', 'Strike (hammer pulse)'],
+    description: 'What initially fills the delay line: a burst of noise (plucked) or a smooth pulse (hammered).' },
+  { id: 'string_decay_ms', name: 'String Decay', group: 'String', min: 100, max: 20000, default: 3000, step: 1, unit: 'ms', scale: 'log',
+    description: 'Time for the fundamental to fall by 60 dB while the key is held (loop gain per round trip).' },
+  { id: 'string_damping', name: 'String Damping', group: 'String', min: 0, max: 1, default: 0.35, step: 0.001, unit: '',
+    description: 'Low-pass in the loop: higher = high harmonics die out faster (nylon/felt-like).' },
+  { id: 'string_pick_position', name: 'String Pick Position', group: 'String', min: 0.02, max: 0.5, default: 0.13, step: 0.001, unit: '',
+    description: 'Where the string is plucked (0.5 = middle, removes even harmonics; near 0 = bright/thin).' },
+  { id: 'string_brightness', name: 'String Pick Brightness', group: 'String', min: 0, max: 1, default: 0.7, step: 0.001, unit: '',
+    description: 'Spectrum of the excitation (soft finger vs hard pick).' },
+
+  { id: 'modal_material', name: 'Modal Material', group: 'Modal', min: 0, max: MODAL_MATERIALS.length - 1, default: 0, step: 1, unit: '', options: MODAL_MATERIALS,
+    description: 'Set of mode frequency ratios / gains (measured or textbook values for each object).' },
+  { id: 'modal_decay_ms', name: 'Modal Decay', group: 'Modal', min: 50, max: 20000, default: 1500, step: 1, unit: 'ms', scale: 'log',
+    description: 'Decay time (-60 dB) of the lowest mode.' },
+  { id: 'modal_high_damping', name: 'Modal High Mode Damping', group: 'Modal', min: 0, max: 1, default: 0.5, step: 0.001, unit: '',
+    description: 'How much faster higher modes decay than the fundamental.' },
+  { id: 'modal_hardness', name: 'Modal Mallet Hardness', group: 'Modal', min: 0, max: 1, default: 0.5, step: 0.001, unit: '',
+    description: 'Short hard mallet (1) excites high modes; long soft mallet (0) mostly the low ones.' },
+  { id: 'modal_strike_position', name: 'Modal Strike Position', group: 'Modal', min: 0.02, max: 0.5, default: 0.22, step: 0.001, unit: '',
+    description: 'Where the object is struck; modes with a node there are not excited (approximation: sin(pi*k*pos)).' },
+  { id: 'modal_inharmonicity', name: 'Modal Ratio Stretch', group: 'Modal', min: -0.5, max: 0.5, default: 0, step: 0.001, unit: '',
+    description: 'Bends the mode ratios toward (negative) or away from (positive) harmonic, to hear what inharmonicity does.' },
+
+  { id: 'phys_release_ms', name: 'Release Damping', group: 'Output', min: 10, max: 20000, default: 400, step: 1, unit: 'ms', scale: 'log',
+    description: 'Decay time after the key is released (like a damper touching the string/bar).' },
+  { id: 'phys_velocity_amount', name: 'Velocity Amount', group: 'Output', min: 0, max: 1, default: 0.8, step: 0.001, unit: '',
+    description: 'How much velocity changes loudness and brightness.' },
+  { id: 'phys_stereo_width', name: 'Stereo Width', group: 'Output', min: 0, max: 1, default: 0.5, step: 0.001, unit: '',
+    description: 'Spreads low notes left and high notes right.' },
+  { id: 'phys_pitch_bend_range_cents', name: 'Pitch Bend Range', group: 'Output', min: 0, max: 2400, default: 200, step: 1, unit: 'cents',
+    description: 'Pitch bend range in cents.' },
+  { id: 'phys_volume_db', name: 'Volume', group: 'Output', min: -60, max: 6, default: -8, step: 0.1, unit: 'dB',
+    description: 'Output volume of the physical model instrument.' },
+]);
+
+// ---------------------------------------------------------------------------
 // Drums
 
 /** MIDI note assignment (GM compatible). */

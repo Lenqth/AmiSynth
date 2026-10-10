@@ -6,10 +6,11 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { DRUM_PARAMS, SYNTH_PARAMS } from '../src/dsp/params.js';
+import { DRUM_PARAMS, PHYS_PARAMS, SYNTH_PARAMS } from '../src/dsp/params.js';
 import { resolvePreset } from '../src/lib/presets.js';
 import { DRUM_PRESETS } from '../src/presets/drums.js';
 import { SYNTH_PRESETS } from '../src/presets/synth.js';
+import { PHYS_PRESETS } from '../src/presets/phys.js';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const outDir = join(root, 'jsfx', 'generated');
@@ -35,15 +36,16 @@ function main() {
   mkdirSync(outDir, { recursive: true });
   writeFileSync(join(outDir, 'synth-sliders.txt'), block('AmiSynth Synth', SYNTH_PARAMS));
   writeFileSync(join(outDir, 'drums-sliders.txt'), block('AmiSynth Drums', DRUM_PARAMS));
-  writeFileSync(join(outDir, 'params.json'), JSON.stringify({ synth: SYNTH_PARAMS, drums: DRUM_PARAMS }, null, 2) + '\n');
+  writeFileSync(join(outDir, 'phys-sliders.txt'), block('AmiSynth Physical', PHYS_PARAMS));
+  writeFileSync(join(outDir, 'params.json'), JSON.stringify({ synth: SYNTH_PARAMS, phys: PHYS_PARAMS, drums: DRUM_PARAMS }, null, 2) + '\n');
   // Full slider values per preset, in slider order (for building REAPER .rpl presets later).
   const resolved = (defs, presets) =>
     presets.map((p) => ({ name: p.name, category: p.category, description: p.description, sliders: defs.map((d) => resolvePreset(defs, p)[d.id]) }));
   writeFileSync(
     join(outDir, 'presets.json'),
-    JSON.stringify({ synth: resolved(SYNTH_PARAMS, SYNTH_PRESETS), drums: resolved(DRUM_PARAMS, DRUM_PRESETS) }, null, 1) + '\n',
+    JSON.stringify({ synth: resolved(SYNTH_PARAMS, SYNTH_PRESETS), phys: resolved(PHYS_PARAMS, PHYS_PRESETS), drums: resolved(DRUM_PARAMS, DRUM_PRESETS) }, null, 1) + '\n',
   );
-  console.log(`wrote ${SYNTH_PARAMS.length} synth + ${DRUM_PARAMS.length} drum sliders to jsfx/generated/`);
+  console.log(`wrote ${SYNTH_PARAMS.length} synth + ${PHYS_PARAMS.length} physical + ${DRUM_PARAMS.length} drum sliders to jsfx/generated/`);
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) main();

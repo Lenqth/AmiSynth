@@ -1,7 +1,7 @@
 <script>
   import { playable } from './touch.js';
-  /** @type {{ bend: number, modwheel: number, onbend: (v:number)=>void, onmod: (v:number)=>void }} */
-  let { bend, modwheel, onbend, onmod } = $props();
+  /** @type {{ bend: number, modwheel: number, onbend: (v:number)=>void, onmod: (v:number)=>void, height?: number }} */
+  let { bend, modwheel, onbend, onmod, height = 150 } = $props();
 
   function drag(e, kind) {
     const el = e.currentTarget;
@@ -26,7 +26,7 @@
   }
 </script>
 
-<div class="wheels" use:playable>
+<div class="wheels" use:playable style={`height: ${height}px`}>
   <div class="wheel-wrap">
     <div class="wheel" role="slider" aria-label="Pitch bend" aria-valuemin={-1} aria-valuemax={1} aria-valuenow={bend} tabindex="-1"
       onpointerdown={(e) => drag(e, 'bend')}>
@@ -46,7 +46,7 @@
 </div>
 
 <style>
-  .wheels { display: flex; gap: 8px; height: 150px; }
+  .wheels { display: flex; gap: 8px; }
   .wheel-wrap { display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 11px; color: var(--muted); }
   .wheel {
     position: relative;

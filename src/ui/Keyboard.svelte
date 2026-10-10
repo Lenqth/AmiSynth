@@ -8,9 +8,12 @@
   /**
    * @type {{ tuning: any, baseNote: number, held: Record<number, boolean>, playing?: Record<number, number>,
    *   noteOn: (n:number, vel:number)=>void, noteOff: (n:number)=>void, scale?: number,
-   *   layout?: string, iso?: {right:number, up:number, rows:number} }}
+   *   layout?: string, iso?: {right:number, up:number, rows:number}, fillHeight?: number }}
    */
-  let { tuning, baseNote, held, playing = {}, noteOn, noteOff, scale = 1, layout = 'auto', iso = { right: 1, up: 5, rows: 4 } } = $props();
+  let {
+    tuning, baseNote, held, playing = {}, noteOn, noteOff, scale = 1, layout = 'auto',
+    iso = { right: 1, up: 5, rows: 4 }, fillHeight = 0,
+  } = $props();
 
   // Fit as many keys as the width allows at a finger/mouse friendly minimum size.
   let width = $state(800);
@@ -24,7 +27,8 @@
     return () => q.removeEventListener('change', on);
   });
   const minKey = $derived(minKeyWidth(coarse, scale));
-  const keyHeight = $derived(Math.round(Math.min(240, Math.max(130, minKey * 3.6))));
+  // fillHeight (full-screen mode): use all the vertical space we are given
+  const keyHeight = $derived(fillHeight > 0 ? fillHeight : Math.round(Math.min(240, Math.max(130, minKey * 3.6))));
 
   const pianoLike = $derived(isPianoLike(tuning));
   // piano only makes sense for 12 steps per octave; fall back to one row otherwise
@@ -38,13 +42,24 @@
     if (mode !== 'grid' && mode !== 'hex') return null;
     const hex = mode === 'hex';
     const rows = Math.max(2, Math.min(8, Math.round(iso.rows)));
-    const cols = Math.max(4, Math.min(24, Math.floor(width / minKey - (hex ? 0.5 : 0))));
-    const w = width / (cols + (hex ? 0.5 : 0));
+    // Cell width: normally the finger/mouse minimum. In full screen the chosen number of
+    // rows is stretched to the available height, so cells grow instead of adding rows.
+    let target = minKey;
+    let maxW = Infinity; // hex: widest cell whose rows still fit the height
+    if (fillHeight > 0) {
+      const fromHeight = hex ? Math.sqrt(3) * (fillHeight / (0.5 + 1.5 * rows)) : fillHeight / rows;
+      target = Math.max(minKey, Math.min(fromHeight, width / 4.5));
+      if (hex) maxW = fromHeight;
+    }
+    const cols = Math.max(4, Math.min(32, Math.floor(width / target - (hex ? 0.5 : 0))));
+    const w = Math.min(width / (cols + (hex ? 0.5 : 0)), maxW);
+    const x0 = (width - w * (cols + (hex ? 0.5 : 0))) / 2; // centre when narrower than the box
     const R = w / Math.sqrt(3); // hex circumradius
-    const ch = hex ? 1.5 * R : Math.max(minKey, Math.min(w, minKey * 1.4)); // row pitch
+    let ch = hex ? 1.5 * R : Math.max(minKey, Math.min(w, minKey * 1.4)); // row pitch
+    if (fillHeight > 0 && !hex) ch = fillHeight / rows;
     const height = hex ? 2 * R + (rows - 1) * ch : rows * ch;
     const cells = isoCells({ cols, rows, base: baseNote, right: iso.right, up: iso.up, hex }).map((cell) => {
-      const cx = hex ? w / 2 + cell.c * w + (cell.r & 1) * (w / 2) : cell.c * w + w / 2;
+      const cx = x0 + (hex ? w / 2 + cell.c * w + (cell.r & 1) * (w / 2) : cell.c * w + w / 2);
       const cy = hex ? height - R - cell.r * ch : height - (cell.r + 0.5) * ch;
       return { ...cell, cx, cy };
     });
@@ -126,7 +141,7 @@
   style={`height: ${isoGeom ? isoGeom.height : keyHeight}px`}
 >
   {#if isoGeom}
-    <svg class="iso" width={width} height={isoGeom.height} aria-hidden="true">
+    <svg class="iso" viewBox={`0 0 ${width} ${isoGeom.height}`} height={isoGeom.height} aria-hidden="true">
       {#each isoGeom.cells as cell (cell.c + ':' + cell.r)}
         {#if isoGeom.hex}
           <polygon points={hexPoints(cell.cx, cell.cy, isoGeom.w - 2)} class={cellClass(cell.note)}
@@ -172,7 +187,7 @@
 </div>
 
 <style>
-  .fit { width: 100%; min-width: 0; }
+  .fit { width: 100%; min-width: 0; overflow: hidden; }
   .keyboard {
     position: relative;
     display: flex;
@@ -215,7 +230,8 @@
   .name { bottom: 4px; font-weight: 600; }
   .black .kbd { bottom: 6px; }
 
-  .iso { display: block; }
+  /* width comes from CSS so the SVG never props its container open (it is measured from it) */
+  .iso { display: block; width: 100%; }
   .cell { stroke: #0b0d12; stroke-width: 1; }
   .cell.light { fill: #2a3242; }
   .cell.dark { fill: #181d27; }
