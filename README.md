@@ -65,6 +65,10 @@ jsfx/                  JSFX 移植メモと生成物
    - (Non-production branch deploy command: `npx wrangler versions upload`)
 4. 以後、push するたびに自動でビルド & デプロイされます
 
+> 本番以外のブランチでは Workers Builds が `npx wrangler preview` を **ビルドコマンドなしで**
+> 実行するため、`package.json` の `prepare` スクリプトで `npm clean-install` 時に
+> `vite build` が走るようにしてあります (`wrangler preview` は起動直後に `dist/` の存在を確認するため)。
+
 ### 代替: API トークンで wrangler deploy
 
 ```sh
