@@ -1,4 +1,5 @@
 <script>
+  import { playable } from './touch.js';
   import { DRUM_PARTS } from '../dsp/params.js';
   import { DRUM_KEYS } from '../lib/pckeys.js';
 
@@ -15,7 +16,7 @@
   }
 </script>
 
-<div class="pads">
+<div class="pads" use:playable>
   {#each DRUM_PARTS as part, i (part.note)}
     {#key flash[part.note]}
       <button class="pad" class:flash={flash[part.note]} onpointerdown={(e) => down(e, part.note)}

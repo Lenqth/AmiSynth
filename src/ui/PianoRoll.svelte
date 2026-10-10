@@ -1,4 +1,5 @@
 <script>
+  import { playable } from './touch.js';
   import { onMount } from 'svelte';
   import { DRUM_PARTS } from '../dsp/params.js';
   import { STEPS, STEPS_PER_BEAT, BEATS_PER_BAR } from '../lib/pattern.js';
@@ -177,6 +178,7 @@
         {/each}
       </svg>
       <svg
+        use:playable
         class="grid"
         width={W}
         height={H}
@@ -213,6 +215,7 @@
         {/each}
       </svg>
       <svg
+        use:playable
         class="grid"
         width={W}
         height={DRUM_PARTS.length * DH}

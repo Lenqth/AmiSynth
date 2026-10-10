@@ -1,4 +1,5 @@
 <script>
+  import { playable } from './touch.js';
   import { BLACK_12, isPianoLike, noteDegree, noteHz, noteLabel } from '../lib/tuning.js';
   import { offsetToKeyLabel } from '../lib/pckeys.js';
 
@@ -60,6 +61,7 @@
 </script>
 
 <div
+  use:playable
   class="keyboard"
   class:linear={!piano}
   role="group"

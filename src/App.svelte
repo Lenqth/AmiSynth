@@ -47,8 +47,23 @@
     if (app.started) fn();
   }
 
+  /** Notes pressed while audio is still starting; released ones are dropped so they can't hang. */
+  const pendingNotes = new Set();
+
   function noteOn(n, vel) {
-    withAudio(() => synthNoteOn(n, vel));
+    if (app.started) {
+      synthNoteOn(n, vel);
+      return;
+    }
+    pendingNotes.add(n);
+    startAudio().then(() => {
+      if (app.started && pendingNotes.delete(n)) synthNoteOn(n, vel);
+    });
+  }
+
+  function noteOff(n) {
+    pendingNotes.delete(n);
+    synthNoteOff(n);
   }
 
   function hit(note, vel) {
@@ -119,7 +134,7 @@
     const p = pressed.get(e.code);
     if (!p) return;
     pressed.delete(e.code);
-    synthNoteOff(p.note);
+    noteOff(p.note);
   }
 
   /** Long-press on touch devices opens the context menu; suppress it except on text. */
@@ -129,7 +144,7 @@
   }
 
   function releaseAll() {
-    for (const p of pressed.values()) synthNoteOff(p.note);
+    for (const p of pressed.values()) noteOff(p.note);
     pressed.clear();
   }
 
@@ -233,7 +248,7 @@
     <section class="card play">
       <Wheels bend={app.bend} modwheel={app.modwheel} onbend={setBend} onmod={setModwheel} />
       <div class="kb">
-        <Keyboard {tuning} baseNote={app.baseNote} held={app.held} {noteOn} noteOff={synthNoteOff} />
+        <Keyboard {tuning} baseNote={app.baseNote} held={app.held} {noteOn} {noteOff} />
         <div class="kb-tools muted">
           <button onclick={() => shiftOctave(-1)} title="[">◀ 周期</button>
           <span>PC キー: <kbd>Z</kbd>〜<kbd>/</kbd> と <kbd>Q</kbd>〜<kbd>P</kbd> · <kbd>[</kbd><kbd>]</kbd> で周期シフト · <kbd>Space</kbd> 再生</span>

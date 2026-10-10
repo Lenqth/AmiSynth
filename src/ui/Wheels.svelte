@@ -1,4 +1,5 @@
 <script>
+  import { playable } from './touch.js';
   /** @type {{ bend: number, modwheel: number, onbend: (v:number)=>void, onmod: (v:number)=>void }} */
   let { bend, modwheel, onbend, onmod } = $props();
 
@@ -25,7 +26,7 @@
   }
 </script>
 
-<div class="wheels">
+<div class="wheels" use:playable>
   <div class="wheel-wrap">
     <div class="wheel" role="slider" aria-label="Pitch bend" aria-valuemin={-1} aria-valuemax={1} aria-valuenow={bend} tabindex="-1"
       onpointerdown={(e) => drag(e, 'bend')}>

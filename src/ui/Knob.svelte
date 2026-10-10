@@ -1,4 +1,5 @@
 <script>
+  import { playable } from './touch.js';
   import { formatValue, fromNorm, toNorm } from './format.js';
 
   /** @type {{ def: import('../dsp/params.js').ParamDef, value: number, onchange: (v:number)=>void, disabled?: boolean }} */
@@ -77,6 +78,7 @@
 
 <div class="knob" class:disabled title={`${def.name}\n${def.description}\n[${def.id}] ダブルクリックで既定値、値をクリックで数値入力、Shift+ドラッグで微調整`}>
   <div
+    use:playable
     class="dial"
     class:dragging
     role="slider"

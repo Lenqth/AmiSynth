@@ -102,21 +102,31 @@ export function deleteUserPreset(target, name) {
   persist();
 }
 
-export async function startAudio() {
-  if (app.started || app.starting) return;
-  app.starting = true;
-  app.error = '';
-  try {
-    await engine.start();
-    engine.setParams('synth', app.synth);
-    engine.setParams('drums', app.drums);
-    if (app.scale) engine.setScale(app.scale.cents);
-    app.started = true;
-  } catch (e) {
-    app.error = `オーディオを開始できませんでした: ${e?.message ?? e}`;
-  } finally {
-    app.starting = false;
+/** @type {Promise<void> | null} */
+let starting = null;
+
+/** Start audio once; concurrent callers (e.g. a 3-finger first touch) all await the same start. */
+export function startAudio() {
+  if (app.started) return Promise.resolve();
+  if (!starting) {
+    app.starting = true;
+    app.error = '';
+    starting = (async () => {
+      try {
+        await engine.start();
+        engine.setParams('synth', app.synth);
+        engine.setParams('drums', app.drums);
+        if (app.scale) engine.setScale(app.scale.cents);
+        app.started = true;
+      } catch (e) {
+        app.error = `オーディオを開始できませんでした: ${e?.message ?? e}`;
+      } finally {
+        app.starting = false;
+        starting = null;
+      }
+    })();
   }
+  return starting;
 }
 
 export function synthNoteOn(note, velocity = 100) {
