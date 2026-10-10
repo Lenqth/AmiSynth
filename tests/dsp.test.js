@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { defaultValues, DRUM_PARAMS, DRUM_PARTS, SYNTH_PARAMS } from '../src/dsp/params.js';
+import { defaultValues, DRUM_PARAMS, DRUM_PARTS, PHYS_PARAMS, SYNTH_PARAMS } from '../src/dsp/params.js';
 import { synth_init, synth_note_off, synth_note_on, synth_render, synth_update } from '../src/dsp/synth.js';
 import { drums_init, drums_note_on, drums_render, drums_update } from '../src/dsp/drums.js';
 import { tuning_init, tuning_note_to_hz, tuning_set_edo, tuning_set_table } from '../src/dsp/lib.js';
@@ -19,7 +19,7 @@ function stats(render, s, n) {
 }
 
 test('param ids are unique and defaults within range', () => {
-  for (const defs of [SYNTH_PARAMS, DRUM_PARAMS]) {
+  for (const defs of [SYNTH_PARAMS, DRUM_PARAMS, PHYS_PARAMS]) {
     const ids = new Set();
     for (const d of defs) {
       assert.ok(!ids.has(d.id), `duplicate ${d.id}`);
@@ -94,7 +94,7 @@ test('every drum part makes sound and decays; closed hat chokes open hat', () =>
 
 test('generated JSFX slider lines are well-formed', async () => {
   const { sliderLine } = await import('../scripts/gen-jsfx-sliders.js');
-  for (const defs of [SYNTH_PARAMS, DRUM_PARAMS]) {
+  for (const defs of [SYNTH_PARAMS, DRUM_PARAMS, PHYS_PARAMS]) {
     assert.ok(defs.length <= 256, 'JSFX supports up to 256 sliders');
     defs.forEach((d, i) => {
       assert.match(sliderLine(i + 1, d), /^slider\d+:[a-z][a-z0-9_]*=-?[\d.]+<-?[\d.]+,-?[\d.]+,[\d.]+(\{[^}]+\}|:log)?>[^<>]+$/);

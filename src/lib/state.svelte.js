@@ -1,10 +1,14 @@
 // Reactive app state + persistence. All parameter writes go through setParam()
 // so the worklets always mirror the UI.
 
-import { clampParam, defaultValues, DRUM_PARAMS, SYNTH_PARAMS } from '../dsp/params.js';
+import { clampParam, defaultValues, DRUM_PARAMS, PHYS_PARAMS, SYNTH_PARAMS } from '../dsp/params.js';
+
+/** Parameter definitions per instrument. */
+export const DEFS = { synth: SYNTH_PARAMS, drums: DRUM_PARAMS, phys: PHYS_PARAMS };
 import { engine } from './engine.js';
 import { demoPattern } from './pattern.js';
 import { resolvePreset } from './presets.js';
+import { PHYS_PRESETS } from '../presets/phys.js';
 
 const STORAGE_KEY = 'amisynth:v1';
 
@@ -34,13 +38,23 @@ export const app = $state({
   tab: 'synth',
   synth: merged(SYNTH_PARAMS, saved?.synth),
   drums: merged(DRUM_PARAMS, saved?.drums),
+  // first visit: start from the first physical preset so the preset name matches the sound
+  phys: saved?.phys ? merged(PHYS_PARAMS, saved.phys) : resolvePreset(PHYS_PARAMS, PHYS_PRESETS[0]),
+  /** which melodic instrument the keyboard / MIDI / piano roll play: 'synth' | 'phys' */
+  melodic: saved?.melodic === 'phys' ? 'phys' : 'synth',
+  /** physical model visualisation on/off */
+  physViz: false,
   /** @type {{name:string, cents:number[]} | null} */
   scale: saved?.scale ?? null,
   pattern: saved?.pattern ?? demoPattern(),
   /** name of the last applied preset per instrument ('' = none) */
-  presetName: { synth: saved?.presetName?.synth ?? 'Init', drums: saved?.presetName?.drums ?? 'AmiSynth Default' },
-  /** @type {{synth: import('../presets/synth.js').Preset[], drums: import('../presets/synth.js').Preset[]}} */
-  userPresets: { synth: saved?.userPresets?.synth ?? [], drums: saved?.userPresets?.drums ?? [] },
+  presetName: {
+    synth: saved?.presetName?.synth ?? 'Init',
+    drums: saved?.presetName?.drums ?? 'AmiSynth Default',
+    phys: saved?.presetName?.phys ?? 'Nylon Guitar',
+  },
+  /** @type {Record<'synth'|'drums'|'phys', import('../presets/synth.js').Preset[]>} */
+  userPresets: { synth: saved?.userPresets?.synth ?? [], drums: saved?.userPresets?.drums ?? [], phys: saved?.userPresets?.phys ?? [] },
   playing: false,
   playStep: -1,
   baseNote: 48,
@@ -69,7 +83,7 @@ export function persist() {
   saveTimer = setTimeout(() => {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify({
-        synth: app.synth, drums: app.drums, scale: app.scale, pattern: app.pattern,
+        synth: app.synth, drums: app.drums, phys: app.phys, melodic: app.melodic, scale: app.scale, pattern: app.pattern,
         presetName: app.presetName, userPresets: app.userPresets, keyScale: app.keyScale,
         kb: { layout: app.kbLayout, iso: app.iso },
       }));
@@ -79,10 +93,16 @@ export function persist() {
   }, 300);
 }
 
-/** @param {'synth'|'drums'} target */
+/** @param {'synth'|'drums'|'phys'} target */
 export function setParam(target, id, value) {
   app[target][id] = value;
   engine.setParam(target, id, value);
+  // tuning is shared by both melodic instruments
+  if (id.startsWith('tuning_')) {
+    const other = target === 'synth' ? 'phys' : 'synth';
+    app[other][id] = value;
+    engine.setParam(other, id, value);
+  }
   persist();
 }
 
@@ -92,9 +112,9 @@ export function setScale(scale) {
   persist();
 }
 
-/** Apply a preset (only non-tuning params change). @param {'synth'|'drums'} target */
+/** Apply a preset (only non-tuning params change). @param {'synth'|'drums'|'phys'} target */
 export function applyPreset(target, preset) {
-  const defs = target === 'synth' ? SYNTH_PARAMS : DRUM_PARAMS;
+  const defs = DEFS[target];
   app[target] = resolvePreset(defs, preset, app[target]);
   app.presetName[target] = preset.name;
   engine.setParams(target, app[target]);
@@ -128,6 +148,9 @@ export function startAudio() {
         await engine.start();
         engine.setParams('synth', app.synth);
         engine.setParams('drums', app.drums);
+        for (const d of SYNTH_PARAMS) if (d.id.startsWith('tuning_')) app.phys[d.id] = app.synth[d.id];
+        engine.setParams('phys', app.phys);
+        engine.setPhysViz(app.physViz);
         if (app.scale) engine.setScale(app.scale.cents);
         app.started = true;
       } catch (e) {
@@ -144,13 +167,13 @@ export function startAudio() {
 export function synthNoteOn(note, velocity = 100) {
   if (note < 0 || note > 127) return;
   app.held[note] = true;
-  engine.noteOn('synth', note, velocity);
+  engine.noteOn(app.melodic, note, velocity);
 }
 
 export function synthNoteOff(note) {
   if (note < 0 || note > 127) return;
   delete app.held[note];
-  engine.noteOff('synth', note);
+  engine.noteOff(app.melodic, note);
 }
 
 export function drumHit(note, velocity = 110, time) {
@@ -200,9 +223,19 @@ export function setBend(v) {
   const value = Math.round((v + 1) * 8192);
   const clamped = Math.max(0, Math.min(16383, value));
   engine.midi('synth', [0xe0, clamped & 0x7f, clamped >> 7]);
+  engine.midi('phys', [0xe0, clamped & 0x7f, clamped >> 7]);
 }
 
 export function setModwheel(v) {
   app.modwheel = v;
   engine.midi('synth', [0xb0, 1, Math.round(v * 127)]);
+}
+
+/** Switch the melodic instrument (releases held notes so nothing hangs on the old one). */
+export function setMelodic(target) {
+  if (app.melodic === target) return;
+  for (const n of Object.keys(app.held)) engine.noteOff(app.melodic, Number(n));
+  app.held = {};
+  app.melodic = target;
+  persist();
 }

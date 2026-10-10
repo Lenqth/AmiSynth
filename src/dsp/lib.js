@@ -379,3 +379,85 @@ export function decay_env_process(o) {
   if (o.value < 0.000001) o.value = 0;
   return v;
 }
+
+// ----------------------------------------------------------------------------
+// Fractional delay line (circular buffer). JSFX: a memory block + write index.
+
+export function delay_init(o, size) {
+  o.buf = new Float64Array(size);
+  o.size = size;
+  o.w = 0;
+}
+
+export function delay_write(o, x) {
+  o.buf[o.w] = x;
+  o.w += 1;
+  if (o.w >= o.size) o.w = 0;
+}
+
+/** Read `d` samples behind the most recent write (1 <= d < size), linear interpolation. */
+export function delay_read(o, d) {
+  let pos = o.w - d;
+  while (pos < 0) pos += o.size;
+  const i0 = Math.floor(pos);
+  const frac = pos - i0;
+  const i1 = i0 + 1 >= o.size ? 0 : i0 + 1;
+  return o.buf[i0] + frac * (o.buf[i1] - o.buf[i0]);
+}
+
+export function delay_clear(o) {
+  o.buf.fill(0);
+  o.w = 0;
+}
+
+// ----------------------------------------------------------------------------
+// Two-pole resonator: rings at `hz` and decays to -60 dB in `t60_ms`.
+// The input gain is normalised so a unit impulse gives a sine of amplitude `gain`.
+//   y[n] = a1*y[n-1] - a2*y[n-2] + b0*x[n]
+
+export function reson_init(o) {
+  o.y1 = 0;
+  o.y2 = 0;
+  o.a1 = 0;
+  o.a2 = 0;
+  o.b0 = 0;
+  o.amp = 0; // peak follower (for visualisation)
+}
+
+export function reson_set(o, hz, t60_ms, gain, sr) {
+  if (hz <= 0 || hz >= sr * 0.45) {
+    o.a1 = 0;
+    o.a2 = 0;
+    o.b0 = 0;
+    return;
+  }
+  const w = (TWO_PI * hz) / sr;
+  const r = t60_coef(t60_ms, sr);
+  o.a1 = 2 * r * Math.cos(w);
+  o.a2 = r * r;
+  o.b0 = Math.sin(w) * gain;
+}
+
+/** Change only the decay (keeps frequency): used for note-off damping. */
+export function reson_set_decay(o, hz, t60_ms, sr) {
+  if (o.b0 === 0) return;
+  const w = (TWO_PI * hz) / sr;
+  const r = t60_coef(t60_ms, sr);
+  o.a1 = 2 * r * Math.cos(w);
+  o.a2 = r * r;
+}
+
+export function reson_process(o, x) {
+  const y = o.a1 * o.y1 - o.a2 * o.y2 + o.b0 * x;
+  o.y2 = o.y1;
+  o.y1 = y;
+  const a = y < 0 ? -y : y;
+  o.amp = a > o.amp ? a : o.amp * 0.9995;
+  return y;
+}
+
+export function reson_reset(o) {
+  o.y1 = 0;
+  o.y2 = 0;
+  o.amp = 0;
+}

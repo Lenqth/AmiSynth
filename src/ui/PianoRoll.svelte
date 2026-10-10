@@ -1,5 +1,4 @@
 <script>
-  import { playable } from './touch.js';
   import { onMount } from 'svelte';
   import { DRUM_PARTS } from '../dsp/params.js';
   import { STEPS, STEPS_PER_BEAT, BEATS_PER_BAR } from '../lib/pattern.js';
@@ -60,7 +59,7 @@
   function rollDown(e) {
     if (e.button !== 0) return;
     const svg = e.currentTarget;
-    svg.setPointerCapture(e.pointerId);
+    capture(svg, e.pointerId);
     const { step, row, x } = cellFrom(e, svg, CH);
     const note = HIGH - row;
     const idx = findNote(note, step);
@@ -130,7 +129,7 @@
   function drumDown(e) {
     if (e.button !== 0) return;
     const svg = e.currentTarget;
-    svg.setPointerCapture(e.pointerId);
+    capture(svg, e.pointerId);
     const { step, row } = cellFrom(e, svg, DH);
     const part = DRUM_PARTS[row];
     if (!part) return;
@@ -151,6 +150,94 @@
     if (paint) onedit();
     paint = null;
   }
+
+  function capture(el, id) {
+    try {
+      el.setPointerCapture(id);
+    } catch {
+      /* pointer already released (tap) */
+    }
+  }
+
+  // ---- touch: swipe scrolls, tap edits, long-press + drag edits ---------------
+  // Mouse / pen go straight to the handlers above. For touch the grid keeps
+  // native scrolling (touch-action: pan-x pan-y) and we decide per gesture:
+  //   moved before LONG_PRESS_MS  -> it was a scroll, do nothing
+  //   released quickly in place   -> tap: same as a click (add / delete / toggle)
+  //   held still LONG_PRESS_MS    -> edit mode: drag moves/resizes notes or paints drums,
+  //                                  touchmove is cancelled so the page stops scrolling
+  const LONG_PRESS_MS = 350;
+  const SLOP_PX = 8;
+  /** @type {{id:number, x:number, y:number, svg:Element, kind:'roll'|'drum', mode:'pending'|'edit', timer:any} | null} */
+  let touch = null; // plain object on purpose: $state would proxy it and break identity checks
+  /** which grid shows the edit-mode outline ('roll' | 'drum' | null) */
+  let editingKind = $state(null);
+  const handlers = { roll: { down: rollDown, move: rollMove, up: rollUp }, drum: { down: drumDown, move: drumMove, up: drumUp } };
+
+  const fake = (t, e) => ({ clientX: e.clientX, clientY: e.clientY, currentTarget: t.svg, button: 0, pointerId: t.id, shiftKey: false });
+
+  function gDown(e, kind) {
+    if (e.pointerType !== 'touch') return handlers[kind].down(e);
+    if (touch) return; // ignore extra fingers (pinch / two-finger scroll)
+    const t = { id: e.pointerId, x: e.clientX, y: e.clientY, svg: e.currentTarget, kind, mode: 'pending', timer: 0 };
+    t.timer = setTimeout(() => {
+      if (touch !== t) return;
+      t.mode = 'edit';
+      editingKind = kind;
+      navigator.vibrate?.(12);
+      handlers[kind].down(fake(t, { clientX: t.x, clientY: t.y }));
+    }, LONG_PRESS_MS);
+    touch = t;
+  }
+
+  function gMove(e, kind) {
+    if (e.pointerType !== 'touch') return handlers[kind].move(e);
+    const t = touch;
+    if (!t || t.id !== e.pointerId) return;
+    if (t.mode === 'pending') {
+      if (Math.hypot(e.clientX - t.x, e.clientY - t.y) > SLOP_PX) {
+        clearTimeout(t.timer); // the finger is scrolling
+        touch = null;
+      }
+      return;
+    }
+    handlers[t.kind].move(fake(t, e));
+  }
+
+  function gUp(e, kind) {
+    if (e.pointerType !== 'touch') return handlers[kind].up(e);
+    const t = touch;
+    if (!t || t.id !== e.pointerId) return;
+    clearTimeout(t.timer);
+    touch = null;
+    editingKind = null;
+    if (t.mode === 'pending') {
+      // tap = a click without movement
+      handlers[t.kind].down(fake(t, { clientX: t.x, clientY: t.y }));
+      handlers[t.kind].up();
+    } else {
+      handlers[t.kind].up();
+    }
+  }
+
+  function gCancel(e, kind) {
+    if (e.pointerType !== 'touch') return handlers[kind].up(e);
+    const t = touch;
+    if (!t || t.id !== e.pointerId) return;
+    clearTimeout(t.timer);
+    touch = null;
+    editingKind = null;
+    if (t.mode === 'edit') handlers[t.kind].up();
+  }
+
+  /** While editing, stop the browser from turning the drag into a scroll. */
+  function noScrollWhileEditing(node) {
+    const block = (ev) => {
+      if (touch && touch.mode === 'edit' && ev.cancelable) ev.preventDefault();
+    };
+    node.addEventListener('touchmove', block, { passive: false });
+    return { destroy: () => node.removeEventListener('touchmove', block) };
+  }
 </script>
 
 <div class="roll-tools">
@@ -163,7 +250,8 @@
       <option value={16}>1 小節</option>
     </select>
   </label>
-  <span class="muted help">空きセルをクリック/ドラッグで追加・長さ指定 · ノートをクリックで削除 · ドラッグで移動 · 右端ドラッグで長さ変更 · ドラムは Shift+クリックで弱打</span>
+  <span class="muted help">空きセルをクリック/ドラッグで追加・長さ指定 · ノートをクリックで削除 · ドラッグで移動 · 右端ドラッグで長さ変更 · ドラムは Shift+クリックで弱打<br />
+    タッチ: スワイプでスクロール · タップで追加/削除 · 長押ししてからドラッグで移動・長さ変更・ドラムの連続入力</span>
 </div>
 
 <div class="roll card">
@@ -178,16 +266,17 @@
         {/each}
       </svg>
       <svg
-        use:playable
+        use:noScrollWhileEditing
         class="grid"
         width={W}
         height={H}
         role="application"
         aria-label="Piano roll"
-        onpointerdown={rollDown}
-        onpointermove={rollMove}
-        onpointerup={rollUp}
-        onpointercancel={rollUp}
+        class:editing={editingKind === 'roll'}
+        onpointerdown={(e) => gDown(e, 'roll')}
+        onpointermove={(e) => gMove(e, 'roll')}
+        onpointerup={(e) => gUp(e, 'roll')}
+        onpointercancel={(e) => gCancel(e, 'roll')}
       >
         {#each rows as note, i (note)}
           <rect x="0" y={i * CH} width={W} height={CH} class={`row ${shade(note)}`} />
@@ -215,16 +304,17 @@
         {/each}
       </svg>
       <svg
-        use:playable
+        use:noScrollWhileEditing
         class="grid"
         width={W}
         height={DRUM_PARTS.length * DH}
         role="application"
         aria-label="Drum steps"
-        onpointerdown={drumDown}
-        onpointermove={drumMove}
-        onpointerup={drumUp}
-        onpointercancel={drumUp}
+        class:editing={editingKind === 'drum'}
+        onpointerdown={(e) => gDown(e, 'drum')}
+        onpointermove={(e) => gMove(e, 'drum')}
+        onpointerup={(e) => gUp(e, 'drum')}
+        onpointercancel={(e) => gCancel(e, 'drum')}
       >
         {#each DRUM_PARTS as part, i (part.note)}
           <rect x="0" y={i * DH} width={W} height={DH} class={`row ${i % 2 ? 'dark' : 'light'}`} />
@@ -257,7 +347,9 @@
   .scroller.drums { overflow-y: hidden; }
   .inner { display: flex; }
   .labels { position: sticky; left: 0; z-index: 2; flex: none; }
-  .grid { flex: none; touch-action: none; cursor: crosshair; display: block; }
+  /* native scrolling stays available for touch; editing gestures are decided in gDown/gMove */
+  .grid { flex: none; touch-action: pan-x pan-y; cursor: crosshair; display: block; }
+  .grid.editing { outline: 2px solid var(--accent); outline-offset: -2px; }
   .lab.light, .lab.root { fill: #222a38; }
   .lab.dark { fill: #161b24; }
   .lab.root { fill: #2c3547; }
