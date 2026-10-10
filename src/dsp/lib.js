@@ -7,7 +7,9 @@
 //   * Only scalar math (Math.sin/exp/tan/pow/...) and if/else. No closures, no allocation in
 //     the audio loop, no Web Audio nodes.
 //   * Sample rate is passed explicitly (`sr`), mirroring JSFX `srate`.
-//   * Random numbers come from noise_white() (EEL2: `rand(2)-1`).
+//   * Random numbers come from noise_white(): a Park-Miller LCG done in plain double
+//     arithmetic, so JS and EEL2 produce the *same* sequence (lets tests compare the JSFX
+//     port with this code sample by sample). Instruments reseed it in their init.
 
 export const PI = Math.PI;
 export const TWO_PI = 2 * Math.PI;
@@ -41,9 +43,22 @@ export function soft_clip(x) {
   return (x * (27 + x2)) / (27 + 9 * x2);
 }
 
-/** White noise in [-1, 1). EEL2: rand(2)-1 */
+let noise_state = 22222;
+
+export function noise_seed(seed) {
+  noise_state = Math.max(1, Math.floor(seed) % 2147483646);
+}
+
+/** White noise in [-1, 1). Deterministic (see header); EEL2 port uses the same formula. */
 export function noise_white() {
-  return Math.random() * 2 - 1;
+  noise_state *= 16807;
+  noise_state -= Math.floor(noise_state / 2147483647) * 2147483647;
+  return noise_state / 1073741823.5 - 1;
+}
+
+/** Uniform random in [0, 1) from the same generator. */
+export function random_unit() {
+  return (noise_white() + 1) * 0.5;
 }
 
 /** Equal power pan. Writes gains into o.gl / o.gr. pan in [-1, 1]. */

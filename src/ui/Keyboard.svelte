@@ -1,7 +1,7 @@
 <script>
   import { playable } from './touch.js';
   import { BLACK_12, isPianoLike, noteDegree, noteHz, noteLabel } from '../lib/tuning.js';
-  import { offsetToKeyLabel } from '../lib/pckeys.js';
+  import { isoKeyLabel, offsetToKeyLabel } from '../lib/pckeys.js';
   import { coarsePointerQuery, fitNotes, minKeyWidth } from '../lib/keysize.js';
   import { hexPoints, isoCells } from '../lib/layouts.js';
 
@@ -59,9 +59,11 @@
     if (fillHeight > 0 && !hex) ch = fillHeight / rows;
     const height = hex ? 2 * R + (rows - 1) * ch : rows * ch;
     const cells = isoCells({ cols, rows, base: baseNote, right: iso.right, up: iso.up, hex }).map((cell) => {
+      const q = hex ? cell.c - (cell.r - (cell.r & 1)) / 2 : cell.c; // lattice column (same as the PC key mapping)
+      const key = isoKeyLabel(q, cell.r, hex);
       const cx = x0 + (hex ? w / 2 + cell.c * w + (cell.r & 1) * (w / 2) : cell.c * w + w / 2);
       const cy = hex ? height - R - cell.r * ch : height - (cell.r + 0.5) * ch;
-      return { ...cell, cx, cy };
+      return { ...cell, cx, cy, key };
     });
     return { hex, w, R, ch, height, cells };
   });
@@ -152,6 +154,7 @@
         {/if}
         {#if cell.note >= 0 && cell.note <= 127}
           <text x={cell.cx} y={cell.cy + 4} text-anchor="middle" class="cell-label">{cellLabel(cell.note)}</text>
+          {#if cell.key}<text x={cell.cx} y={cell.cy + 4 + Math.min(16, isoGeom.ch * 0.3)} text-anchor="middle" class="cell-key">{cell.key.toLowerCase()}</text>{/if}
         {/if}
       {/each}
     </svg>
@@ -240,6 +243,7 @@
   .cell.held { fill: var(--accent); }
   .cell.playing { fill: var(--accent-2); }
   .cell-label { fill: var(--muted); font-size: 11px; pointer-events: none; font-family: ui-monospace, Menlo, monospace; }
+  .cell-key { fill: #6b7488; font-size: 9px; pointer-events: none; font-family: ui-monospace, Menlo, monospace; }
 
   .linear { gap: 2px; }
   .step {

@@ -3,7 +3,8 @@
   import { DRUM_PARAMS, DRUM_PARTS, PHYS_PARAMS, SYNTH_PARAMS } from './dsp/params.js';
   import { engine } from './lib/engine.js';
   import { demoPattern, emptyPattern, Sequencer } from './lib/pattern.js';
-  import { codeToOffset, DRUM_KEYS, eventCode, isImeEvent, isTypingTarget } from './lib/pckeys.js';
+  import { downloadPatternMidi } from './lib/midifile.js';
+  import { codeToOffset, DRUM_KEYS, eventCode, isImeEvent, isoKeyCell, isTypingTarget } from './lib/pckeys.js';
   import {
     app, applyPreset, clearSeqHighlights, drumHit, flashDrum, flashSeqNote, persist, setBend, setMelodic, setModwheel,
     setParam, setScale, startAudio, synthNoteOff, synthNoteOn,
@@ -59,11 +60,12 @@
     fullscreen = true;
     document.body.style.overflow = 'hidden';
     // Real fullscreen hides the browser UI where supported; the overlay alone works everywhere (e.g. iPhone).
+    // No orientation lock: on some tablets (e.g. Xiaomi HyperOS) forcing landscape fights the OS rotation
+    // setting, the OS rotates back and the browser drops out of fullscreen.
     try {
       if (document.documentElement.requestFullscreen && !document.fullscreenElement) {
         await document.documentElement.requestFullscreen({ navigationUI: 'hide' });
       }
-      await screen.orientation?.lock?.('landscape');
     } catch {
       /* not supported / not allowed: overlay only */
     }
@@ -72,11 +74,6 @@
   function exitFullscreen() {
     fullscreen = false;
     document.body.style.overflow = '';
-    try {
-      screen.orientation?.unlock?.();
-    } catch {
-      /* ignore */
-    }
     if (document.fullscreenElement) document.exitFullscreen?.().catch(() => {});
   }
 
@@ -173,6 +170,13 @@
     if (app.tab === 'drums') {
       const i = DRUM_KEYS.indexOf(code);
       return i >= 0 ? { kind: 'drum', note: DRUM_PARTS[i].note } : null;
+    }
+    // isomorphic layouts: the PC keyboard rows are the lattice (Z = bottom-left cell)
+    if (isoResolved && (app.kbLayout === 'grid' || app.kbLayout === 'hex')) {
+      const cell = isoKeyCell(code, app.kbLayout === 'hex');
+      if (!cell) return null;
+      const note = app.baseNote + cell.q * isoResolved.right + cell.r * isoResolved.up;
+      return note >= 0 && note <= 127 ? { kind: 'synth', note } : null;
     }
     const off = codeToOffset(code, tuning.size);
     if (off == null) return null;
@@ -291,13 +295,9 @@
       if (s !== app.playStep) app.playStep = s;
     };
     loop();
-    // leaving browser fullscreen (Esc / back gesture) also closes the overlay
-    const onFs = () => {
-      if (!document.fullscreenElement && fullscreen) exitFullscreen();
-    };
-    document.addEventListener('fullscreenchange', onFs);
+    // Leaving *browser* fullscreen (rotation, back gesture, Esc) keeps the overlay: it still fills
+    // the viewport, and it closes only via its ✕ button / Esc key.
     return () => {
-      document.removeEventListener('fullscreenchange', onFs);
       cancelAnimationFrame(raf);
       seq.stop();
     };
@@ -349,7 +349,11 @@
       <input type="range" min="0.6" max="2" step="0.05" value={app.keyScale}
         oninput={(e) => { app.keyScale = Number(e.currentTarget.value); persist(); }} />
     </label>
-    <span class="pc-hint">PC キー: <kbd>Z</kbd>〜<kbd>/</kbd> と <kbd>Q</kbd>〜<kbd>P</kbd> · <kbd>[</kbd><kbd>]</kbd> で周期シフト · <kbd>Space</kbd> 再生</span>
+    {#if isoSettings}
+      <span class="pc-hint">PC キー: 下 4 段 (<kbd>Z</kbd> 段〜数字段) がそのまま等音配列 · <kbd>Z</kbd> = 左下 · <kbd>[</kbd><kbd>]</kbd> で周期シフト</span>
+    {:else}
+      <span class="pc-hint">PC キー: <kbd>Z</kbd>〜<kbd>/</kbd> と <kbd>Q</kbd>〜<kbd>P</kbd> · <kbd>[</kbd><kbd>]</kbd> で周期シフト · <kbd>Space</kbd> 再生</span>
+    {/if}
     <button onclick={() => shiftOctave(1)} title="]">周期 ▶</button>
     {#if !fullscreen}
     <button class="fs-btn" onclick={enterFullscreen} title="鍵盤を全画面表示">⛶ 全画面</button>
@@ -464,6 +468,7 @@
       <button onclick={() => { app.pattern.notes = []; persist(); }}>ノート全消去</button>
       <button onclick={() => { app.pattern.drums = []; persist(); }}>ドラム全消去</button>
       <button onclick={() => { app.pattern = emptyPattern(app.pattern.bpm); persist(); }}>すべて消去</button>
+      <button onclick={() => downloadPatternMidi(app.pattern)} title="Standard MIDI File (メロディ ch1 / ドラム ch10)。REAPER で JSFX 版に流し込めます">MIDI 書き出し</button>
       <label class="muted">メロディ音源
         <select value={app.pattern.melodic ?? 'synth'} onchange={(e) => { app.pattern.melodic = e.currentTarget.value; persist(); }}>
           <option value="synth">Synth</option>

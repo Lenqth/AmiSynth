@@ -1,0 +1,385 @@
+desc:AmiSynth shared DSP library (port of src/dsp/lib.js)
+// Imported by the AmiSynth JSFX instruments. Function names, argument order and
+// formulas match src/dsp/lib.js one to one, so the two can be compared sample by
+// sample (see jsfx/README.md and tests/jsfx.test.js).
+//
+// JS  foo_process(o, x) with o.state   ->   o.foo_process(x)  with instance(state)
+// Note: EEL2 `==` is fuzzy (|a-b| < 0.00001); exact comparisons use `===`.
+
+@init
+
+// ---------------------------------------------------------------------------
+// Memory: a tiny bump allocator for tables and delay lines.
+mem_top = 1024;
+function mem_alloc(n) local(p) (
+  p = mem_top;
+  mem_top += n;
+  p;
+);
+
+// ---------------------------------------------------------------------------
+// Utilities
+
+function clamp(x, lo, hi) ( x < lo ? lo : x > hi ? hi : x; );
+
+function db_to_gain(db) ( db <= -60 ? 0 : pow(10, db / 20); );
+
+/** coefficient for an exponential decay reaching -60 dB after `ms` */
+function t60_coef(ms) ( exp(-6.907755 / (max(ms, 0.01) * 0.001 * srate)); );
+
+/** one-pole smoother coefficient with time constant `ms` */
+function tau_coef(ms) ( exp(-1 / (max(ms, 0.001) * 0.001 * srate)); );
+
+/** tanh-like soft clipper, exactly +/-1 beyond |x| >= 3 */
+function soft_clip(x) local(x2) (
+  x > 3 ? 1 : x < -3 ? -1 : (
+    x2 = x * x;
+    (x * (27 + x2)) / (27 + 9 * x2);
+  );
+);
+
+// Deterministic white noise (Park-Miller LCG in plain double arithmetic; same
+// sequence as noise_white() in lib.js).
+noise_state = 22222;
+function noise_seed(seed) ( noise_state = max(1, floor(seed) % 2147483646); );
+function noise_white() (
+  noise_state *= 16807;
+  noise_state -= floor(noise_state / 2147483647) * 2147483647;
+  noise_state / 1073741823.5 - 1;
+);
+function random_unit() ( (noise_white() + 1) * 0.5; );
+
+/** equal-power pan; writes gl / gr */
+function pan_gains(pan) instance(gl gr) local(a) (
+  a = (clamp(pan, -1, 1) + 1) * 0.25 * $pi;
+  gl = cos(a) * 1.41421356;
+  gr = sin(a) * 1.41421356;
+);
+
+// ---------------------------------------------------------------------------
+// Tuning: a table of degrees (cents) + period; EDO fills the table evenly.
+// Uses the slider variables tuning_ref_note / tuning_ref_hz directly.
+
+tuning_table = mem_alloc(256);
+tuning_size = 12;
+tuning_period = 1200;
+
+function tuning_set_edo(divisions, period) local(i) (
+  divisions = max(1, min(255, floor(divisions + 0.5)));
+  tuning_size = divisions;
+  tuning_period = period;
+  i = 0;
+  while (i < divisions) (
+    tuning_table[i] = (i * period) / divisions;
+    i += 1;
+  );
+);
+
+function tuning_note_cents(note) local(steps, period, degree) (
+  steps = note - tuning_ref_note;
+  period = floor(steps / tuning_size);
+  degree = steps - period * tuning_size;
+  period * tuning_period + tuning_table[degree];
+);
+
+function tuning_note_to_hz(note) local(base, frac, c) (
+  base = floor(note);
+  frac = note - base;
+  c = tuning_note_cents(base);
+  frac > 0 ? c += frac * (tuning_note_cents(base + 1) - c);
+  tuning_ref_hz * pow(2, c / 1200);
+);
+
+// ---------------------------------------------------------------------------
+// Oscillator (PolyBLEP). waveform 0 saw, 1 pulse, 2 triangle, 3 sine; pm in cycles.
+
+function osc_reset(p) instance(phase wrapped) ( phase = p; wrapped = 0; );
+
+function osc_set_freq(hz) instance(inc) ( inc = clamp(hz / srate, 0, 0.49); );
+
+function poly_blep(t, dt) (
+  t < dt ? (
+    t /= dt;
+    t + t - t * t - 1;
+  ) : t > 1 - dt ? (
+    t = (t - 1) / dt;
+    t * t + t + t + 1;
+  ) : 0;
+);
+
+function osc_process(waveform, pw, pm) instance(phase inc wrapped) local(t, t2, y) (
+  t = phase + pm;
+  t -= floor(t);
+  waveform < 0.5 ? (
+    y = 2 * t - 1 - poly_blep(t, inc);
+  ) : waveform < 1.5 ? (
+    t2 = t - pw;
+    t2 < 0 ? t2 += 1;
+    y = (t < pw ? 1 : -1) + poly_blep(t, inc) - poly_blep(t2, inc) - (2 * pw - 1);
+  ) : waveform < 2.5 ? (
+    y = 1 - 4 * abs(t - 0.5);
+  ) : (
+    y = sin(2 * $pi * t);
+  );
+  phase += inc;
+  wrapped = 0;
+  phase >= 1 ? (
+    phase -= 1;
+    wrapped = 1;
+  );
+  y;
+);
+
+/** hard sync: restart at the master's sub-sample wrap position */
+function osc_sync(master_phase, master_inc) instance(phase inc) (
+  phase = master_inc > 0 ? (master_phase / master_inc) * inc : 0;
+);
+
+function sine_process() instance(phase inc) local(y) (
+  y = sin(2 * $pi * phase);
+  phase += inc;
+  phase >= 1 ? phase -= 1;
+  y;
+);
+
+function square_naive_process() instance(phase inc) local(y) (
+  y = phase < 0.5 ? 1 : -1;
+  phase += inc;
+  phase >= 1 ? phase -= 1;
+  y;
+);
+
+// ---------------------------------------------------------------------------
+// LFO: 0 sine, 1 triangle, 2 saw down, 3 square, 4 sample & hold
+
+function lfo_process(waveform) instance(phase inc held) local(t, y) (
+  t = phase;
+  waveform < 0.5 ? (y = sin(2 * $pi * t))
+  : waveform < 1.5 ? (y = 1 - 4 * abs(t - 0.5))
+  : waveform < 2.5 ? (y = 1 - 2 * t)
+  : waveform < 3.5 ? (y = (t < 0.5 ? 1 : -1))
+  : (y = held);
+  phase += inc;
+  phase >= 1 ? (
+    phase -= 1;
+    held = noise_white();
+  );
+  y;
+);
+
+// ---------------------------------------------------------------------------
+// State variable filter (TPT). Outputs in lp / bp / hp after svf_process().
+
+function svf_set(cutoff_hz, kk) instance(g k a1 a2 a3) local(fc) (
+  fc = clamp(cutoff_hz, 5, srate * 0.49);
+  g = tan(($pi * fc) / srate);
+  k = kk;
+  a1 = 1 / (1 + g * (g + kk));
+  a2 = g * a1;
+  a3 = g * a2;
+);
+
+function svf_process(x) instance(ic1 ic2 k a1 a2 a3 lp bp hp) local(v1, v2, v3) (
+  v3 = x - ic2;
+  v1 = a1 * ic1 + a2 * v3;
+  v2 = ic2 + a2 * ic1 + a3 * v3;
+  ic1 = 2 * v1 - ic1;
+  ic2 = 2 * v2 - ic2;
+  lp = v2;
+  bp = v1;
+  hp = x - k * v1 - v2;
+  v2;
+);
+
+/** copy coefficients from another svf (pass its g k a1 a2 a3) */
+function svf_copy(gg, kk, aa1, aa2, aa3) instance(g k a1 a2 a3) (
+  g = gg; k = kk; a1 = aa1; a2 = aa2; a3 = aa3;
+);
+
+/** 0 low-pass, 1 high-pass, 2 band-pass, 3 notch */
+function svf_output(mode) instance(lp bp hp) (
+  mode < 0.5 ? lp : mode < 1.5 ? hp : mode < 2.5 ? bp : lp + hp;
+);
+
+function svf_reset() instance(ic1 ic2) ( ic1 = 0; ic2 = 0; );
+
+// ---------------------------------------------------------------------------
+// One-pole filters / smoother
+
+function onepole_set(cutoff_hz) instance(a) (
+  a = 1 - exp((-2 * $pi * clamp(cutoff_hz, 1, srate * 0.49)) / srate);
+);
+function onepole_lp(x) instance(z a) ( z += a * (x - z); z; );
+function onepole_hp(x) instance(z a) ( z += a * (x - z); x - z; );
+
+function smoother_init(value) instance(z) ( z = value; );
+function smoother_set(ms) instance(c) ( c = tau_coef(ms); );
+function smoother_process(target) instance(z c) ( z = target + c * (z - target); z; );
+
+// ---------------------------------------------------------------------------
+// ADSR (stage 0 idle, 1 attack, 2 decay/sustain, 3 release)
+
+function adsr_set(attack_ms, decay_ms, sus, release_ms) instance(attack_inc decay_coef release_coef sustain) (
+  attack_inc = 1 / (max(attack_ms, 0.01) * 0.001 * srate);
+  decay_coef = t60_coef(decay_ms);
+  release_coef = t60_coef(release_ms);
+  sustain = sus;
+);
+
+function adsr_gate_on() instance(stage) ( stage = 1; );
+function adsr_gate_off() instance(stage) ( stage !== 0 ? stage = 3; );
+
+function adsr_process() instance(stage value attack_inc decay_coef release_coef sustain) (
+  stage === 1 ? (
+    value += attack_inc;
+    value >= 1 ? (
+      value = 1;
+      stage = 2;
+    );
+  ) : stage === 2 ? (
+    value = sustain + decay_coef * (value - sustain);
+  ) : stage === 3 ? (
+    value *= release_coef;
+    value < 0.00001 ? (
+      value = 0;
+      stage = 0;
+    );
+  );
+  value;
+);
+
+// ---------------------------------------------------------------------------
+// One-shot exponential decay envelope
+
+function decay_env_trigger(level, ms) instance(value coef) ( value = level; coef = t60_coef(ms); );
+function decay_env_process() instance(value coef) local(v) (
+  v = value;
+  value *= coef;
+  value < 0.000001 ? value = 0;
+  v;
+);
+
+// ---------------------------------------------------------------------------
+// Fractional delay line in a memory block
+
+function delay_init(n) instance(base size w) ( base = mem_alloc(n); size = n; w = 0; memset(base, 0, n); );
+function delay_clear() instance(base size w) ( memset(base, 0, size); w = 0; );
+function delay_write(x) instance(base size w) (
+  base[w] = x;
+  w += 1;
+  w >= size ? w = 0;
+);
+function delay_read(d) instance(base size w) local(pos, i0, frac, i1) (
+  pos = w - d;
+  while (pos < 0) ( pos += size; );
+  i0 = floor(pos);
+  frac = pos - i0;
+  i1 = i0 + 1 >= size ? 0 : i0 + 1;
+  base[i0] + frac * (base[i1] - base[i0]);
+);
+
+// ---------------------------------------------------------------------------
+// Two-pole resonator (unit impulse -> sine of amplitude `gain`)
+
+function reson_set(hz, t60_ms, gain) instance(a1 a2 b0) local(w, r) (
+  hz <= 0 || hz >= srate * 0.45 ? (
+    a1 = 0; a2 = 0; b0 = 0;
+  ) : (
+    w = (2 * $pi * hz) / srate;
+    r = t60_coef(t60_ms);
+    a1 = 2 * r * cos(w);
+    a2 = r * r;
+    b0 = sin(w) * gain;
+  );
+);
+
+function reson_set_decay(hz, t60_ms) instance(a1 a2 b0) local(w, r) (
+  b0 !== 0 ? (
+    w = (2 * $pi * hz) / srate;
+    r = t60_coef(t60_ms);
+    a1 = 2 * r * cos(w);
+    a2 = r * r;
+  );
+);
+
+function reson_process(x) instance(y1 y2 a1 a2 b0 amp) local(y, a) (
+  y = a1 * y1 - a2 * y2 + b0 * x;
+  y2 = y1;
+  y1 = y;
+  a = abs(y);
+  amp = a > amp ? a : amp * 0.9995;
+  y;
+);
+
+function reson_reset() instance(y1 y2 amp) ( y1 = 0; y2 = 0; amp = 0; );
+
+// Same resonator stored in a memory block (6 slots: y1 y2 a1 a2 b0 amp) so a voice can
+// loop over its modes (EEL2 namespaces cannot be indexed).
+function rmem_set(p, hz, t60_ms, gain) local(w, r) (
+  hz <= 0 || hz >= srate * 0.45 ? (
+    p[2] = 0; p[3] = 0; p[4] = 0;
+  ) : (
+    w = (2 * $pi * hz) / srate;
+    r = t60_coef(t60_ms);
+    p[2] = 2 * r * cos(w);
+    p[3] = r * r;
+    p[4] = sin(w) * gain;
+  );
+);
+
+function rmem_set_decay(p, hz, t60_ms) local(w, r) (
+  p[4] !== 0 ? (
+    w = (2 * $pi * hz) / srate;
+    r = t60_coef(t60_ms);
+    p[2] = 2 * r * cos(w);
+    p[3] = r * r;
+  );
+);
+
+function rmem_process(p, x) local(y, a) (
+  y = p[2] * p[0] - p[3] * p[1] + p[4] * x;
+  p[1] = p[0];
+  p[0] = y;
+  a = abs(y);
+  p[5] = a > p[5] ? a : p[5] * 0.9995;
+  y;
+);
+
+function rmem_reset(p) ( p[0] = 0; p[1] = 0; p[5] = 0; );
+
+// ---------------------------------------------------------------------------
+// Sample-accurate MIDI: @block stores events, @sample pops them at their offset.
+//   @block:  midi_queue_read();   @sample: while (midi_pop()) ( handle midi_m1/m2/m3 );  midi_tick();
+midi_q = mem_alloc(4 * 1024);
+midi_count = 0;
+midi_pos = 0;
+midi_frame = 0;
+
+function midi_queue_read() local(ofs, m1, m2, m3) (
+  midi_count = 0;
+  midi_pos = 0;
+  midi_frame = 0;
+  while (midirecv(ofs, m1, m2, m3)) (
+    midi_count < 1024 ? (
+      midi_q[midi_count * 4] = ofs;
+      midi_q[midi_count * 4 + 1] = m1;
+      midi_q[midi_count * 4 + 2] = m2;
+      midi_q[midi_count * 4 + 3] = m3;
+      midi_count += 1;
+    );
+    midisend(ofs, m1, m2, m3); // pass through for chaining
+  );
+);
+
+/** 1 when an event is due at the current sample (fills midi_m1/m2/m3) */
+function midi_pop() (
+  midi_pos < midi_count && midi_q[midi_pos * 4] <= midi_frame ? (
+    midi_m1 = midi_q[midi_pos * 4 + 1];
+    midi_m2 = midi_q[midi_pos * 4 + 2];
+    midi_m3 = midi_q[midi_pos * 4 + 3];
+    midi_pos += 1;
+    1;
+  ) : 0;
+);
+
+function midi_tick() ( midi_frame += 1; );

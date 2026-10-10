@@ -1,0 +1,116 @@
+// Render the same scenario with the JS DSP and with the JSFX port (through the
+// ysfx-based jsfx/tools/jsfx_render) and report the difference.
+//   node scripts/jsfx-compare.js            (needs JSFX_RENDER=/path/to/jsfx_render)
+
+import { execFileSync } from 'node:child_process';
+import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { defaultValues, DRUM_PARAMS, PHYS_PARAMS, SYNTH_PARAMS } from '../src/dsp/params.js';
+import { drums_init, drums_note_on, drums_render, drums_update } from '../src/dsp/drums.js';
+import { phys_init, phys_note_off, phys_note_on, phys_pitch_bend, phys_render, phys_update } from '../src/dsp/phys.js';
+import {
+  synth_init, synth_mod_wheel, synth_note_off, synth_note_on, synth_pitch_bend, synth_render, synth_sustain_pedal, synth_update,
+} from '../src/dsp/synth.js';
+
+const root = join(dirname(fileURLToPath(import.meta.url)), '..');
+
+export const INSTRUMENTS = {
+  synth: {
+    file: 'AmiSynth Synth.jsfx', defs: SYNTH_PARAMS, init: synth_init, update: synth_update, render: synth_render,
+    midi(s, st, d1, d2) {
+      const t = st & 0xf0;
+      if (t === 0x90) synth_note_on(s, d1, d2);
+      else if (t === 0x80) synth_note_off(s, d1);
+      else if (t === 0xe0) synth_pitch_bend(s, ((d2 << 7) | d1) / 8192 - 1);
+      else if (t === 0xb0 && d1 === 1) synth_mod_wheel(s, d2 / 127);
+      else if (t === 0xb0 && d1 === 64) synth_sustain_pedal(s, d2 >= 64);
+    },
+  },
+  drums: {
+    file: 'AmiSynth Drums.jsfx', defs: DRUM_PARAMS, init: drums_init, update: drums_update, render: drums_render,
+    midi(s, st, d1, d2) {
+      if ((st & 0xf0) === 0x90 && d2 > 0) drums_note_on(s, d1, d2);
+    },
+  },
+  phys: {
+    file: 'AmiSynth Physical.jsfx', defs: PHYS_PARAMS, init: phys_init, update: phys_update, render: phys_render,
+    midi(s, st, d1, d2) {
+      const t = st & 0xf0;
+      if (t === 0x90) phys_note_on(s, d1, d2);
+      else if (t === 0x80) phys_note_off(s, d1);
+      else if (t === 0xe0) phys_pitch_bend(s, ((d2 << 7) | d1) / 8192 - 1);
+    },
+  },
+};
+
+/** JS render with the same event semantics as the worklet / JSFX (events before the sample at their frame). */
+export function renderJs(inst, params, events, sr, frames) {
+  const s = {};
+  inst.init(s, sr);
+  inst.update(s, params);
+  const out = new Float64Array(frames * 2);
+  let e = 0;
+  for (let i = 0; i < frames; i++) {
+    while (e < events.length && events[e][0] <= i) {
+      const [, a, b, c] = events[e++];
+      inst.midi(s, a, b, c);
+    }
+    inst.render(s);
+    out[i * 2] = s.out_l;
+    out[i * 2 + 1] = s.out_r;
+  }
+  return out;
+}
+
+export function renderJsfx(renderBin, inst, params, events, sr, frames) {
+  const dir = mkdtempSync(join(tmpdir(), 'amijsfx-'));
+  const script = [
+    // ysfx knows 64 sliders; beyond that (REAPER allows 256) the ids are plain variables
+    ...inst.defs.map((d, i) => (i < 64 ? `slider ${i + 1} ${params[d.id]}` : `var ${d.id} ${params[d.id]}`)),
+    ...events.map(([f, a, b, c]) => `midi ${f} ${a} ${b} ${c}`),
+  ].join('\n');
+  writeFileSync(join(dir, 'script.txt'), script);
+  const outPath = join(dir, 'out.f32');
+  execFileSync(renderBin, [join(root, 'jsfx', inst.file), String(sr), String(frames / sr), outPath, join(dir, 'script.txt')], { stdio: ['ignore', 'ignore', 'pipe'] });
+  const buf = readFileSync(outPath);
+  return new Float32Array(buf.buffer, buf.byteOffset, buf.length / 4);
+}
+
+export function compare(a, b) {
+  const n = Math.min(a.length, b.length);
+  let maxDiff = 0;
+  let energy = 0;
+  let diffEnergy = 0;
+  for (let i = 0; i < n; i++) {
+    const d = a[i] - b[i];
+    maxDiff = Math.max(maxDiff, Math.abs(d));
+    energy += a[i] * a[i];
+    diffEnergy += d * d;
+  }
+  return { maxDiff, rms: Math.sqrt(energy / n), snrDb: 10 * Math.log10(energy / Math.max(diffEnergy, 1e-30)) };
+}
+
+export function scenario(name, overrides = {}) {
+  const inst = INSTRUMENTS[name];
+  return { ...defaultValues(inst.defs), ...overrides };
+}
+
+if (process.argv[1] === fileURLToPath(import.meta.url)) {
+  const bin = process.env.JSFX_RENDER;
+  if (!bin) {
+    console.error('set JSFX_RENDER to the jsfx_render binary (see jsfx/README.md)');
+    process.exit(2);
+  }
+  const SR = 48000;
+  const chord = [[0, 0x90, 57, 100], [100, 0x90, 61, 90], [200, 0x90, 64, 80], [24000, 0x80, 57, 0], [24000, 0x80, 61, 0], [24000, 0x80, 64, 0]];
+  for (const name of ['synth', 'phys', 'drums']) {
+    const inst = INSTRUMENTS[name];
+    const p = scenario(name);
+    const ev = name === 'drums' ? [36, 38, 39, 42, 46, 37, 45, 47, 50, 49, 51, 56, 70].map((n, i) => [i * 3000, 0x90, n, 110]) : chord;
+    const frames = SR;
+    const r = compare(renderJs(inst, p, ev, SR, frames), renderJsfx(bin, inst, p, ev, SR, frames));
+    console.log(name.padEnd(6), `max diff ${r.maxDiff.toExponential(2)}  rms ${r.rms.toFixed(4)}  SNR ${r.snrDb.toFixed(1)} dB`);
+  }
+}
