@@ -9,6 +9,7 @@
     startAudio, synthNoteOff, synthNoteOn,
   } from './lib/state.svelte.js';
   import { makeTuning } from './lib/tuning.js';
+  import { ISO_PRESETS, isoSteps, LAYOUTS } from './lib/layouts.js';
   import DrumPads from './ui/DrumPads.svelte';
   import Keyboard from './ui/Keyboard.svelte';
   import ParamPanel from './ui/ParamPanel.svelte';
@@ -28,6 +29,10 @@
     ...(app.synth.osc1_waveform === 1 || app.synth.osc2_waveform === 1 ? [] : ['lfo_pulse_width']),
     ...(app.synth.unison_voices > 1 ? [] : ['unison_detune_cents', 'unison_stereo_width']),
   ]);
+  const isoSettings = $derived(app.kbLayout === 'grid' || app.kbLayout === 'hex' ? app.iso[app.kbLayout] : null);
+  const isoResolved = $derived(
+    isoSettings ? { ...isoSteps(app.kbLayout, isoSettings.preset, tuning, isoSettings), rows: isoSettings.rows } : undefined,
+  );
   const synthGroups = [...new Set(SYNTH_PARAMS.map((d) => d.group))].filter((g) => g !== 'Tuning');
 
   // Start the on-screen keyboard on a period boundary (degree 0) whenever the scale size changes.
@@ -282,7 +287,8 @@
     <section class="card play">
       <Wheels bend={app.bend} modwheel={app.modwheel} onbend={setBend} onmod={setModwheel} />
       <div class="kb">
-        <Keyboard {tuning} baseNote={app.baseNote} held={app.held} playing={app.seqHeld} {noteOn} {noteOff} scale={app.keyScale} />
+        <Keyboard {tuning} baseNote={app.baseNote} held={app.held} playing={app.seqHeld} {noteOn} {noteOff} scale={app.keyScale}
+          layout={app.kbLayout} iso={isoResolved} />
         {#if imeHint}
           <p class="ime-hint">
             日本語入力 (IME) がオンのため、PC キーが IME に取られています。半角英数に切り替えると押している間鳴り続けます
@@ -292,6 +298,36 @@
         {/if}
         <div class="kb-tools muted">
           <button onclick={() => shiftOctave(-1)} title="[">◀ 周期</button>
+          <label class="kbopt">配列
+            <select value={app.kbLayout} onchange={(e) => { app.kbLayout = e.currentTarget.value; persist(); }}>
+              {#each LAYOUTS as l (l.id)}<option value={l.id}>{l.label}</option>{/each}
+            </select>
+          </label>
+          {#if isoSettings}
+            <label class="kbopt">
+              <select value={isoSettings.preset} onchange={(e) => { isoSettings.preset = e.currentTarget.value; persist(); }}>
+                {#each ISO_PRESETS[app.kbLayout] as p (p.id)}<option value={p.id}>{p.label}</option>{/each}
+                <option value="custom">カスタム</option>
+              </select>
+            </label>
+            {#if isoSettings.preset === 'custom'}
+              <label class="kbopt" title="右隣のセルとの音程 (ステップ数)">→
+                <input type="number" min="-24" max="24" value={isoSettings.right}
+                  onchange={(e) => { isoSettings.right = Number(e.currentTarget.value) || 1; persist(); }} />
+              </label>
+              <label class="kbopt" title={app.kbLayout === 'hex' ? '右上のセルとの音程 (左上は ↗ − →)' : '上のセルとの音程 (ステップ数)'}>{app.kbLayout === 'hex' ? '↗' : '↑'}
+                <input type="number" min="-24" max="24" value={isoSettings.up}
+                  onchange={(e) => { isoSettings.up = Number(e.currentTarget.value) || 1; persist(); }} />
+              </label>
+            {:else}
+              <span class="steps">→{isoResolved.right} {app.kbLayout === 'hex' ? '↗' : '↑'}{isoResolved.up} ステップ</span>
+            {/if}
+            <label class="kbopt">段
+              <select value={isoSettings.rows} onchange={(e) => { isoSettings.rows = Number(e.currentTarget.value); persist(); }}>
+                {#each [2, 3, 4, 5, 6, 7, 8] as n (n)}<option value={n}>{n}</option>{/each}
+              </select>
+            </label>
+          {/if}
           <label class="keysize" title="鍵盤の最小幅 (タッチは約 9 mm 相当が基準)">鍵盤サイズ
             <input type="range" min="0.6" max="2" step="0.05" value={app.keyScale}
               oninput={(e) => { app.keyScale = Number(e.currentTarget.value); persist(); }} />
@@ -384,6 +420,9 @@
   .play { display: flex; gap: 12px; align-items: stretch; }
   .kb { flex: 1; min-width: 0; overflow-x: auto; }
   .keysize { display: flex; align-items: center; gap: 6px; }
+  .kbopt { display: flex; align-items: center; gap: 4px; }
+  .kbopt input[type='number'] { width: 52px; }
+  .steps { font-family: ui-monospace, Menlo, monospace; }
   @media (pointer: coarse) {
     .pc-hint { display: none; }
   }
