@@ -2,7 +2,7 @@
   import { onMount } from 'svelte';
   import { DRUM_PARAMS, DRUM_PARTS, PHYS_PARAMS, SYNTH_PARAMS } from './dsp/params.js';
   import { engine } from './lib/engine.js';
-  import { demoPattern, emptyPattern, Sequencer } from './lib/pattern.js';
+  import { demoPattern, emptyPattern, pianoDemoPattern, Sequencer } from './lib/pattern.js';
   import { downloadPatternMidi } from './lib/midifile.js';
   import { codeToOffset, DRUM_KEYS, eventCode, isImeEvent, isoKeyCell, isTypingTarget } from './lib/pckeys.js';
   import {
@@ -109,6 +109,14 @@
     fullscreen = false;
     document.body.style.overflow = '';
     if (document.fullscreenElement) document.exitFullscreen?.().catch(() => {});
+  }
+
+  /** demo with dynamics: switches the melodic instrument to the physical Grand Piano */
+  function loadPianoDemo() {
+    app.pattern = pianoDemoPattern();
+    const piano = PHYS_PRESETS.find((p) => p.name === 'Grand Piano');
+    if (piano) applyPreset('phys', piano);
+    persist();
   }
 
   function stepPreset(dir) {
@@ -314,7 +322,10 @@
       if (type === 0x90 && d2 > 0) drumHit(d1, d2);
       return;
     }
-    if (type === 0x90 && d2 > 0) app.held[d1] = true;
+    if (type === 0x90 && d2 > 0) {
+      app.held[d1] = d2;
+      app.lastVel = d2;
+    }
     else if (type === 0x80 || type === 0x90) delete app.held[d1];
     else if (type === 0xe0) app.bend = ((d2 << 7) | d1) / 8192 - 1;
     else if (type === 0xb0 && d1 === 1) app.modwheel = d2 / 127;
@@ -379,6 +390,17 @@
         </select>
       </label>
     {/if}
+    <label class="kbopt" title="押す位置: 鍵の上の方ほど弱く、手前 (下) ほど強く鳴ります (格子 / 六角形はキーの中の縦位置)">強さ
+      <select value={app.kbVelMode} onchange={(e) => { app.kbVelMode = e.currentTarget.value; persist(); }}>
+        <option value="pos">押す位置</option>
+        <option value="fixed">固定</option>
+      </select>
+      {#if app.kbVelMode === 'fixed'}
+        <input type="number" min="1" max="127" value={app.kbVelFixed} aria-label="固定ベロシティ"
+          onchange={(e) => { app.kbVelFixed = Math.max(1, Math.min(127, Math.round(Number(e.currentTarget.value) || 100))); persist(); }} />
+      {/if}
+      <span class="steps vel-readout" title="最後に弾いた音のベロシティ">vel {app.lastVel || '-'}</span>
+    </label>
     <label class="keysize" title="鍵盤の最小幅 (タッチは約 9 mm 相当が基準)">鍵盤サイズ
       <input type="range" min="0.6" max="2" step="0.05" value={app.keyScale}
         oninput={(e) => { app.keyScale = Number(e.currentTarget.value); persist(); }} />
@@ -400,7 +422,7 @@
     <Wheels bend={app.bend} modwheel={app.modwheel} onbend={setBend} onmod={setModwheel} height={fullscreen ? fsHeight : 150} />
     <div class="kb">
       <Keyboard {tuning} baseNote={app.baseNote} held={app.held} playing={app.seqHeld} {noteOn} {noteOff} scale={app.keyScale}
-        layout={app.kbLayout} iso={isoResolved} fillHeight={fullscreen ? fsHeight : 0} />
+        velMode={app.kbVelMode} velFixed={app.kbVelFixed} layout={app.kbLayout} iso={isoResolved} fillHeight={fullscreen ? fsHeight : 0} />
       {#if imeHint}
         <p class="ime-hint">
           日本語入力 (IME) がオンのため、PC キーが IME に取られています。半角英数に切り替えると押している間鳴り続けます
@@ -524,6 +546,7 @@
   {:else if app.tab === 'roll'}
     <div class="roll-head">
       <button onclick={() => { app.pattern = { ...demoPattern(), bpm: app.pattern.bpm }; persist(); }}>デモパターン</button>
+      <button onclick={loadPianoDemo} title="Physical の Grand Piano で、pp からクレッシェンドして ff、また pp に戻る 4 小節">デモ: ピアノ (強弱あり)</button>
       <button onclick={() => { app.pattern.notes = []; persist(); }}>ノート全消去</button>
       <button onclick={() => { app.pattern.drums = []; persist(); }}>ドラム全消去</button>
       <button onclick={() => { app.pattern = emptyPattern(app.pattern.bpm); persist(); }}>すべて消去</button>

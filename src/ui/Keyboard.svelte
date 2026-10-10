@@ -7,12 +7,13 @@
   import { hexPoints, isoCells } from '../lib/layouts.js';
 
   /**
-   * @type {{ tuning: any, baseNote: number, held: Record<number, boolean>, playing?: Record<number, number>,
+   * @type {{ tuning: any, baseNote: number, held: Record<number, number>, playing?: Record<number, number>,
    *   noteOn: (n:number, vel:number)=>void, noteOff: (n:number)=>void, scale?: number,
+   *   velMode?: 'pos'|'fixed', velFixed?: number,
    *   layout?: string, iso?: {right:number, up:number, rows:number}, fillHeight?: number }}
    */
   let {
-    tuning, baseNote, held, playing = {}, noteOn, noteOff, scale = 1, layout = 'auto',
+    tuning, baseNote, held, playing = {}, noteOn, noteOff, scale = 1, layout = 'auto', velMode = 'pos', velFixed = 100,
     iso = { right: 1, up: 5, rows: 4 }, fillHeight = 0,
   } = $props();
 
@@ -69,6 +70,11 @@
     return { hex, w, R, ch, height, cells };
   });
 
+  /** held cells get brighter the harder they were played */
+  function cellStyle(n) {
+    return held[n] ? `fill-opacity: ${0.3 + (0.7 * held[n]) / 127}` : '';
+  }
+
   function cellClass(n) {
     if (n < 0 || n > 127) return 'cell off';
     if (held[n]) return 'cell held';
@@ -96,7 +102,8 @@
     const el = document.elementFromPoint(x, y)?.closest('[data-note]');
     if (!el) return { note: null, vel: 100 };
     const { fy } = localFraction(el, x, y);
-    const vel = Math.round(40 + 87 * Math.min(1, Math.max(0, fy)));
+    // where on the key: top edge soft (40) .. front / bottom edge loud (127)
+    const vel = velMode === 'fixed' ? velFixed : Math.round(40 + 87 * Math.min(1, Math.max(0, fy)));
     return { note: Number(el.getAttribute('data-note')), vel };
   }
 
@@ -147,11 +154,11 @@
     <svg class="iso" viewBox={`0 0 ${width} ${isoGeom.height}`} height={isoGeom.height} aria-hidden="true">
       {#each isoGeom.cells as cell (cell.c + ':' + cell.r)}
         {#if isoGeom.hex}
-          <polygon points={hexPoints(cell.cx, cell.cy, isoGeom.w - 2)} class={cellClass(cell.note)}
+          <polygon points={hexPoints(cell.cx, cell.cy, isoGeom.w - 2)} class={cellClass(cell.note)} style={cellStyle(cell.note)}
             data-note={cell.note >= 0 && cell.note <= 127 ? cell.note : undefined}><title>{cell.note >= 0 && cell.note <= 127 ? title(cell.note) : ''}</title></polygon>
         {:else}
           <rect x={cell.cx - isoGeom.w / 2 + 1} y={cell.cy - isoGeom.ch / 2 + 1} width={isoGeom.w - 2} height={isoGeom.ch - 2} rx="4"
-            class={cellClass(cell.note)} data-note={cell.note >= 0 && cell.note <= 127 ? cell.note : undefined}><title>{cell.note >= 0 && cell.note <= 127 ? title(cell.note) : ''}</title></rect>
+            class={cellClass(cell.note)} style={cellStyle(cell.note)} data-note={cell.note >= 0 && cell.note <= 127 ? cell.note : undefined}><title>{cell.note >= 0 && cell.note <= 127 ? title(cell.note) : ''}</title></rect>
         {/if}
         {#if cell.note >= 0 && cell.note <= 127}
           <text x={cell.cx} y={cell.cy + 4} text-anchor="middle" class="cell-label">{cellLabel(cell.note)}</text>
@@ -162,6 +169,7 @@
   {:else if piano}
     {#each whites as n (n)}
       <div class="white" class:held={held[n]} class:playing={!held[n] && playing[n]} data-note={n} title={title(n)}>
+        {#if held[n]}<span class="velbar" style={`height: ${(held[n] / 127) * 100}%`}></span>{/if}
         <span class="kbd">{offsetToKeyLabel(n - baseNote, 12)}</span>
         {#if n % 12 === 0}<span class="name">{noteLabel(tuning, n)}</span>{/if}
       </div>
@@ -175,6 +183,7 @@
         title={title(n)}
         style={`left: calc(${blackLeft(n)}% - ${(100 / whites.length) * 0.32}%); width: ${(100 / whites.length) * 0.64}%`}
       >
+        {#if held[n]}<span class="velbar" style={`height: ${(held[n] / 127) * 100}%`}></span>{/if}
         <span class="kbd">{offsetToKeyLabel(n - baseNote, 12)}</span>
       </div>
     {/each}
@@ -182,6 +191,7 @@
     {#each notes as n (n)}
       {@const d = noteDegree(tuning, n)}
       <div class="step" class:root={d.degree === 0} class:held={held[n]} class:playing={!held[n] && playing[n]} data-note={n} title={title(n)}>
+        {#if held[n]}<span class="velbar" style={`height: ${(held[n] / 127) * 100}%`}></span>{/if}
         <span class="kbd">{offsetToKeyLabel(n - baseNote, tuning.size)}</span>
         <span class="name">{d.degree === 0 ? noteLabel(tuning, n) : d.degree}</span>
       </div>
@@ -192,6 +202,16 @@
 
 <style>
   .fit { width: 100%; min-width: 0; overflow: hidden; }
+  /* velocity of a held key: a bar rising from the front edge (127 = full height) */
+  .velbar {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(255, 255, 255, 0.45);
+    pointer-events: none;
+  }
+  .black .velbar { background: rgba(255, 255, 255, 0.35); }
   .keyboard {
     position: relative;
     display: flex;
