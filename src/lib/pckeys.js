@@ -24,6 +24,28 @@ export function offsetToKeyLabel(offset, periodSize) {
 /** Drum pads in DRUM_PARTS order (Drums tab only). */
 export const DRUM_KEYS = ['KeyA', 'KeyS', 'KeyD', 'KeyF', 'KeyG', 'KeyH', 'KeyJ', 'KeyK', 'KeyL', 'KeyZ', 'KeyX', 'KeyC', 'KeyV'];
 
+// Fallback for environments that leave KeyboardEvent.code empty (some remote desktops,
+// VMs, IMEs): map the produced character back to the physical key of a US/JIS layout.
+const KEY_TO_CODE = {
+  ',': 'Comma', '.': 'Period', ';': 'Semicolon', '/': 'Slash', '[': 'BracketLeft', ']': 'BracketRight', ' ': 'Space',
+  '<': 'Comma', '>': 'Period', '+': 'Semicolon', '?': 'Slash',
+  '"': 'Digit2', '#': 'Digit3', '%': 'Digit5', '&': 'Digit6', "'": 'Digit7', ')': 'Digit9',
+};
+
+/** Physical key code of a keyboard event, or null if it cannot be determined. */
+export function eventCode(e) {
+  if (e.code && e.code !== 'Unidentified') return e.code;
+  const k = typeof e.key === 'string' ? e.key : '';
+  if (/^[a-z]$/i.test(k)) return `Key${k.toUpperCase()}`;
+  if (/^[0-9]$/.test(k)) return `Digit${k}`;
+  return KEY_TO_CODE[k] ?? null;
+}
+
+/** True when an IME (e.g. Japanese hiragana mode) swallowed the key. */
+export function isImeEvent(e) {
+  return e.isComposing || e.key === 'Process' || e.keyCode === 229;
+}
+
 export function isTypingTarget(el) {
   return el instanceof HTMLElement && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT' || el.isContentEditable);
 }

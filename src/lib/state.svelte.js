@@ -52,6 +52,15 @@ export const app = $state({
   /** notes sounding from the sequencer: note -> overlap count (keyboard highlight) */
   seqHeld: /** @type {Record<number, number>} */ ({}),
   midiStatus: '',
+  /** on-screen key size multiplier (1 = auto size for the pointer type) */
+  keyScale: typeof saved?.keyScale === 'number' ? saved.keyScale : 1,
+  /** on-screen keyboard layout: auto | piano | linear | grid | hex */
+  kbLayout: saved?.kb?.layout ?? 'auto',
+  /** isomorphic layout settings per layout ('custom' preset uses right/up) */
+  iso: saved?.kb?.iso ?? {
+    grid: { preset: 'fourths', right: 1, up: 5, rows: 4 },
+    hex: { preset: 'wicki', right: 2, up: 7, rows: 5 },
+  },
 });
 
 let saveTimer = 0;
@@ -61,7 +70,8 @@ export function persist() {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify({
         synth: app.synth, drums: app.drums, scale: app.scale, pattern: app.pattern,
-        presetName: app.presetName, userPresets: app.userPresets,
+        presetName: app.presetName, userPresets: app.userPresets, keyScale: app.keyScale,
+        kb: { layout: app.kbLayout, iso: app.iso },
       }));
     } catch {
       /* storage unavailable: ignore */

@@ -2,17 +2,69 @@
   import { playable } from './touch.js';
   import { BLACK_12, isPianoLike, noteDegree, noteHz, noteLabel } from '../lib/tuning.js';
   import { offsetToKeyLabel } from '../lib/pckeys.js';
+  import { coarsePointerQuery, fitNotes, minKeyWidth } from '../lib/keysize.js';
+  import { hexPoints, isoCells } from '../lib/layouts.js';
 
   /**
    * @type {{ tuning: any, baseNote: number, held: Record<number, boolean>, playing?: Record<number, number>,
-   *   noteOn: (n:number, vel:number)=>void, noteOff: (n:number)=>void }}
+   *   noteOn: (n:number, vel:number)=>void, noteOff: (n:number)=>void, scale?: number,
+   *   layout?: string, iso?: {right:number, up:number, rows:number} }}
    */
-  let { tuning, baseNote, held, playing = {}, noteOn, noteOff } = $props();
+  let { tuning, baseNote, held, playing = {}, noteOn, noteOff, scale = 1, layout = 'auto', iso = { right: 1, up: 5, rows: 4 } } = $props();
 
-  const piano = $derived(isPianoLike(tuning));
-  const count = $derived(piano ? 37 : Math.min(128 - baseNote, Math.max(2 * tuning.size + 1, 13)));
-  const notes = $derived(Array.from({ length: count }, (_, i) => baseNote + i).filter((n) => n <= 127));
+  // Fit as many keys as the width allows at a finger/mouse friendly minimum size.
+  let width = $state(800);
+  let coarse = $state(false);
+  $effect(() => {
+    const q = coarsePointerQuery();
+    if (!q) return;
+    coarse = q.matches;
+    const on = () => (coarse = q.matches);
+    q.addEventListener('change', on);
+    return () => q.removeEventListener('change', on);
+  });
+  const minKey = $derived(minKeyWidth(coarse, scale));
+  const keyHeight = $derived(Math.round(Math.min(240, Math.max(130, minKey * 3.6))));
+
+  const pianoLike = $derived(isPianoLike(tuning));
+  // piano only makes sense for 12 steps per octave; fall back to one row otherwise
+  const mode = $derived(layout === 'auto' ? (pianoLike ? 'piano' : 'linear') : layout === 'piano' && !pianoLike ? 'linear' : layout);
+  const piano = $derived(mode === 'piano');
+  const notes = $derived(fitNotes(baseNote, width, minKey, (n) => piano && BLACK_12[n % 12]));
   const whites = $derived(piano ? notes.filter((n) => !BLACK_12[n % 12]) : notes);
+
+  // ---- isomorphic layouts (grid / hex), drawn in SVG pixels
+  const isoGeom = $derived.by(() => {
+    if (mode !== 'grid' && mode !== 'hex') return null;
+    const hex = mode === 'hex';
+    const rows = Math.max(2, Math.min(8, Math.round(iso.rows)));
+    const cols = Math.max(4, Math.min(24, Math.floor(width / minKey - (hex ? 0.5 : 0))));
+    const w = width / (cols + (hex ? 0.5 : 0));
+    const R = w / Math.sqrt(3); // hex circumradius
+    const ch = hex ? 1.5 * R : Math.max(minKey, Math.min(w, minKey * 1.4)); // row pitch
+    const height = hex ? 2 * R + (rows - 1) * ch : rows * ch;
+    const cells = isoCells({ cols, rows, base: baseNote, right: iso.right, up: iso.up, hex }).map((cell) => {
+      const cx = hex ? w / 2 + cell.c * w + (cell.r & 1) * (w / 2) : cell.c * w + w / 2;
+      const cy = hex ? height - R - cell.r * ch : height - (cell.r + 0.5) * ch;
+      return { ...cell, cx, cy };
+    });
+    return { hex, w, R, ch, height, cells };
+  });
+
+  function cellClass(n) {
+    if (n < 0 || n > 127) return 'cell off';
+    if (held[n]) return 'cell held';
+    if (playing[n]) return 'cell playing';
+    const { degree } = noteDegree(tuning, n);
+    if (degree === 0) return 'cell root';
+    return pianoLike && BLACK_12[((n % 12) + 12) % 12] ? 'cell dark' : 'cell light';
+  }
+
+  function cellLabel(n) {
+    const { degree } = noteDegree(tuning, n);
+    if (degree === 0) return noteLabel(tuning, n);
+    return pianoLike ? noteLabel(tuning, n).replace(/-?\d+$/, '') : String(degree);
+  }
 
   function blackLeft(n) {
     const whitesBefore = notes.filter((m) => m < n && !BLACK_12[m % 12]).length;
@@ -60,19 +112,35 @@
   }
 </script>
 
+<div class="fit" bind:clientWidth={width}>
 <div
   use:playable
   class="keyboard"
-  class:linear={!piano}
+  class:linear={mode === 'linear'}
   role="group"
   aria-label="On-screen keyboard"
   onpointerdown={down}
   onpointermove={move}
   onpointerup={up}
   onpointercancel={up}
-  style={piano ? '' : `min-width: ${notes.length * 22}px`}
+  style={`height: ${isoGeom ? isoGeom.height : keyHeight}px`}
 >
-  {#if piano}
+  {#if isoGeom}
+    <svg class="iso" width={width} height={isoGeom.height} aria-hidden="true">
+      {#each isoGeom.cells as cell (cell.c + ':' + cell.r)}
+        {#if isoGeom.hex}
+          <polygon points={hexPoints(cell.cx, cell.cy, isoGeom.w - 2)} class={cellClass(cell.note)}
+            data-note={cell.note >= 0 && cell.note <= 127 ? cell.note : undefined}><title>{cell.note >= 0 && cell.note <= 127 ? title(cell.note) : ''}</title></polygon>
+        {:else}
+          <rect x={cell.cx - isoGeom.w / 2 + 1} y={cell.cy - isoGeom.ch / 2 + 1} width={isoGeom.w - 2} height={isoGeom.ch - 2} rx="4"
+            class={cellClass(cell.note)} data-note={cell.note >= 0 && cell.note <= 127 ? cell.note : undefined}><title>{cell.note >= 0 && cell.note <= 127 ? title(cell.note) : ''}</title></rect>
+        {/if}
+        {#if cell.note >= 0 && cell.note <= 127}
+          <text x={cell.cx} y={cell.cy + 4} text-anchor="middle" class="cell-label">{cellLabel(cell.note)}</text>
+        {/if}
+      {/each}
+    </svg>
+  {:else if piano}
     {#each whites as n (n)}
       <div class="white" class:held={held[n]} class:playing={!held[n] && playing[n]} data-note={n} title={title(n)}>
         <span class="kbd">{offsetToKeyLabel(n - baseNote, 12)}</span>
@@ -101,12 +169,13 @@
     {/each}
   {/if}
 </div>
+</div>
 
 <style>
+  .fit { width: 100%; min-width: 0; }
   .keyboard {
     position: relative;
     display: flex;
-    height: 150px;
     touch-action: none;
     user-select: none;
     border-radius: 6px;
@@ -145,6 +214,16 @@
   .kbd { bottom: 22px; text-transform: lowercase; opacity: 0.8; }
   .name { bottom: 4px; font-weight: 600; }
   .black .kbd { bottom: 6px; }
+
+  .iso { display: block; }
+  .cell { stroke: #0b0d12; stroke-width: 1; }
+  .cell.light { fill: #2a3242; }
+  .cell.dark { fill: #181d27; }
+  .cell.root { fill: #3a4660; }
+  .cell.off { fill: #11151c; }
+  .cell.held { fill: var(--accent); }
+  .cell.playing { fill: var(--accent-2); }
+  .cell-label { fill: var(--muted); font-size: 11px; pointer-events: none; font-family: ui-monospace, Menlo, monospace; }
 
   .linear { gap: 2px; }
   .step {
