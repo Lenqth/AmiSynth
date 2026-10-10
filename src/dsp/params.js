@@ -197,8 +197,8 @@ export const PHYS_PARAMS = /** @type {ParamDef[]} */ ([
 
   { id: 'mesh_shape', name: 'Mesh Shape', group: 'Mesh', min: 0, max: 1, default: 0, step: 1, unit: '', options: ['Circular drum', 'Square plate'],
     description: 'Shape of the vibrating 2D surface (fixed edges).' },
-  { id: 'mesh_size', name: 'Mesh Resolution', group: 'Mesh', min: 6, max: 20, default: 12, step: 1, unit: 'cells',
-    description: 'Grid points per side (more = more modes and a smoother sound, but more CPU). Max 4 voices in this model.' },
+  { id: 'mesh_size', name: 'Mesh Resolution', group: 'Mesh', min: 6, max: 16, default: 12, step: 1, unit: 'cells',
+    description: 'Grid points per side (more = more modes and a smoother sound, but more CPU). Max 3 voices in this model.' },
   { id: 'mesh_decay_ms', name: 'Mesh Decay', group: 'Mesh', min: 50, max: 10000, default: 900, step: 1, unit: 'ms', scale: 'log',
     description: 'Overall decay time of the surface.' },
   { id: 'mesh_high_damping', name: 'Mesh High Damping', group: 'Mesh', min: 0, max: 1, default: 0.3, step: 0.001, unit: '',

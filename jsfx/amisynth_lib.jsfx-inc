@@ -348,6 +348,26 @@ function rmem_process(p, x) local(y, a) (
 function rmem_reset(p) ( p[0] = 0; p[1] = 0; p[5] = 0; );
 
 // ---------------------------------------------------------------------------
+// First-order all-pass  y = a*x + x1 - a*y1  (phase delay (1-a)/(1+a) at DC)
+
+function ap1_init() instance(x1 y1) ( x1 = 0; y1 = 0; );
+function ap1_process(x, a) instance(x1 y1) local(y) (
+  y = a * x + x1 - a * y1;
+  x1 = x;
+  y1 = y;
+  y;
+);
+
+/** phase delay in samples of the all-pass at normalised angular frequency w (0 < w < pi) */
+function ap1_phase_delay(a, w) local(ph) (
+  ph = atan2(-sin(w), a + cos(w)) - atan2(-a * sin(w), 1 + a * cos(w));
+  -ph / w;
+);
+
+/** phase delay in samples of the one-pole low-pass y = (1-b)x + b*y1 at w */
+function lp1_phase_delay(b, w) ( atan2(b * sin(w), 1 - b * cos(w)) / w; );
+
+// ---------------------------------------------------------------------------
 // Sample-accurate MIDI: @block stores events, @sample pops them at their offset.
 //   @block:  midi_queue_read();   @sample: while (midi_pop()) ( handle midi_m1/m2/m3 );  midi_tick();
 midi_q = mem_alloc(4 * 1024);

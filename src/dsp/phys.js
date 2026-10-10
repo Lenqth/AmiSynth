@@ -1,4 +1,4 @@
-// AmiSynth physical-modelling instrument (8 voices; the 2D mesh uses at most 4).
+// AmiSynth physical-modelling instrument (8 voices; the 2D mesh uses at most 3).
 // Same JSFX-style structure as synth.js: phys_init / phys_update / phys_note_on/off / phys_render.
 //
 // Model 0 - String (extended Karplus-Strong)
@@ -48,9 +48,9 @@ import {
 } from './lib.js';
 
 export const PHYS_MAX_VOICES = 8;
-export const MESH_MAX_VOICES = 4;
+export const MESH_MAX_VOICES = 3;
 export const MAX_MODES = 8;
-export const MESH_MAX = 20;
+export const MESH_MAX = 16;
 const MESH_W = MESH_MAX + 2; // padded row length (zero border = fixed edge)
 const MAX_DELAY = 8192;
 const K_MESH = 5.5;
@@ -91,7 +91,7 @@ function voice_create() {
     env: {}, maxv: 0, slope: 0, slip: 1, body1: {}, body2: {}, dc: {},
     // mesh
     mesh_u: new Float64Array(MESH_CELLS), mesh_up: new Float64Array(MESH_CELLS), mesh_un: new Float64Array(MESH_CELLS),
-    mesh_c2: 0, mesh_sig: 0, mesh_w: 0, jet_bias: 0,
+    mesh_c2: 0, mesh_sig: 0, mesh_omega: 0, jet_bias: 0,
     // stiff string
     ap_a: 0, apA: [], apB: [], tuneA: {}, tuneB: {}, tune_a: 0, tune_a2: 0, tune_d: 1, tune_d2: 1,
     gl: 1, gr: 1,
@@ -137,6 +137,8 @@ export function phys_init(s, sr) {
   s.last_voice = -1;
   s.vib_phase = 0;
   s.mesh_mask = new Float64Array(MESH_CELLS);
+  s.mesh_spans = new Int32Array(2 * MESH_MAX);
+  s.mesh_rows = 0;
   s.mesh_n = 0;
   s.mesh_shape = -1;
   s.mesh_mu = 1;
@@ -191,6 +193,24 @@ function mesh_setup(s, n, shape) {
       m[(i + 1) * MESH_W + (j + 1)] = inside;
     }
   }
+  // the cells inside the shape: one contiguous run per row (both shapes are convex)
+  s.mesh_rows = 0;
+  for (let i = 0; i < n; i++) {
+    let start = -1;
+    let end = -1;
+    for (let j = 0; j < n; j++) {
+      const c = (i + 1) * MESH_W + (j + 1);
+      if (m[c] !== 0) {
+        if (start < 0) start = c;
+        end = c + 1;
+      }
+    }
+    if (start >= 0) {
+      s.mesh_spans[2 * s.mesh_rows] = start;
+      s.mesh_spans[2 * s.mesh_rows + 1] = end;
+      s.mesh_rows++;
+    }
+  }
   // Lowest eigenvalue mu of -Laplacian on the shape, by power iteration on (8 - (-Lap)):
   // its largest eigenvalue is 8 - mu. Needed to tune: cos(wT) = 1 - c^2 * mu / 2.
   const x = new Float64Array(MESH_CELLS);
@@ -240,7 +260,8 @@ function thiran_split(v, which, L, w) {
 
 /** Mesh damping s for a T60 of `ms`: (1-s)/(1+s) = coef^2. */
 function mesh_sigma(ms, sr) {
-  const g = t60_coef(ms, sr) ** 2;
+  const c = t60_coef(ms, sr);
+  const g = c * c;
   return (1 - g) / (1 + g);
 }
 
@@ -284,7 +305,7 @@ function voice_tune(s, v, keep_decay) {
       // jet length, so it shapes the tone without detuning.
       v.damp_b = 0.7 - (0.1 * 22050) / sr;
       // measured residual of the jet loop (cents sharp), x = octaves above C4 at 48 kHz
-      const x = Math.max(-1, Math.log2((hz * 48000) / (sr * 261.63)));
+      const x = Math.max(-1, Math.log((hz * 48000) / (sr * 261.63)) / Math.log(2));
       const sharp = -6 + 3 * x + 2 * x * x;
       const total = (sr / hz) * Math.pow(2, sharp / 1200);
       v.delay_len = clamp(total - lp_phase_delay(v.damp_b, hz, sr), 2, MAX_DELAY - 2);
@@ -294,7 +315,7 @@ function voice_tune(s, v, keep_decay) {
   } else if (model === MODEL_MESH) {
     const w = (TWO_PI * hz) / sr;
     v.mesh_c2 = Math.min(0.49, (2 * (1 - Math.cos(w))) / s.mesh_mu);
-    v.mesh_w = w;
+    v.mesh_omega = w;
   } else {
     // stiff string: two strings, detuned by +/- half the unison detune
     // the loop low-pass costs a high string far more per second (many more round trips),
@@ -618,38 +639,40 @@ function render_wind(v, vib, flute, noise_amt) {
 }
 
 function render_mesh(s, v) {
-  const n = s.mesh_n;
-  const m = s.mesh_mask;
   const u = v.mesh_u;
   const up = v.mesh_up;
   const un = v.mesh_un;
   const c2 = v.mesh_c2;
-  // velocity damping u_tt + 2s u_t: per-sample amplitude factor sqrt((1-s)/(1+s)) for every
-  // mode, without detuning the low ones (scaling the whole update would)
-  const a = 1 - v.mesh_sig;
+  // u' = 2u - (1-s)up + c2 Lap(u) + d (Lap(u) - Lap(up) + mu (u - up)), all / (1+s):
+  //  - velocity damping s: every mode decays at the set rate, without detuning the low ones
+  //    (scaling the whole update would)
+  //  - velocity-Laplacian damping d: a mode with -Laplacian eigenvalue lambda loses an extra
+  //    d*(lambda-mu)/2 per sample, so the fundamental keeps the set decay and the highest grid
+  //    modes (lambda ~ 8) die within ~10 ms at 1
+  // With Lap(u) = (sum of the 4 neighbours) - 4u this collapses to 4 coefficients:
   const inv = 1 / (1 + v.mesh_sig);
-  // velocity-Laplacian damping: a mode with -Laplacian eigenvalue lambda loses an extra
-  // d*(lambda-mu)/2 per sample, so the fundamental keeps the set decay and the highest
-  // grid modes (lambda ~ 8) die within ~10 ms at 1
   const d = (s.p.mesh_high_damping * 172.5) / s.sr;
   const mu = s.mesh_mu;
-  for (let i = 1; i <= n; i++) {
-    let c = i * MESH_W + 1;
-    for (let j = 1; j <= n; j++, c++) {
-      if (m[c] === 0) continue;
-      const lu = u[c - 1] + u[c + 1] + u[c - MESH_W] + u[c + MESH_W] - 4 * u[c];
-      const lp = up[c - 1] + up[c + 1] + up[c - MESH_W] + up[c + MESH_W] - 4 * up[c];
-      un[c] = (2 * u[c] - a * up[c] + c2 * lu + d * (lu - lp + mu * (u[c] - up[c]))) * inv;
+  const ku = (2 - 4 * c2 - 4 * d + d * mu) * inv;
+  const kp = (4 * d - d * mu - (1 - v.mesh_sig)) * inv;
+  const kn = (c2 + d) * inv;
+  const kq = d * inv;
+  // each row of the shape is one contiguous run of cells [start, end)
+  const spans = s.mesh_spans;
+  for (let r = 0; r < s.mesh_rows; r++) {
+    const end = spans[2 * r + 1];
+    for (let c = spans[2 * r]; c < end; c++) {
+      un[c] = ku * u[c] + kp * up[c] + kn * (u[c - 1] + u[c + 1] + u[c - MESH_W] + u[c + MESH_W]) -
+        kq * (up[c - 1] + up[c + 1] + up[c - MESH_W] + up[c + MESH_W]);
     }
   }
   // rotate the three time levels
   v.mesh_up = u;
   v.mesh_u = un;
   v.mesh_un = up;
-  const pk = s.mesh_pick;
   // displacement at the pickup (x w so the level does not depend on pitch); the
   // fundamental dominates as on a real drum head
-  return un[pk] * v.mesh_w * K_MESH;
+  return un[s.mesh_pick] * v.mesh_omega * K_MESH;
 }
 
 function render_stiff(v, vib) {

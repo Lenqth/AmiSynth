@@ -25,10 +25,10 @@ test('JSFX slider blocks are in sync with params.js', () => {
   }
 });
 
-function check(name, params, events, seconds, label) {
+function check(name, params, events, seconds, label, sr = SR) {
   const inst = INSTRUMENTS[name];
-  const frames = Math.round(SR * seconds);
-  const r = compare(renderJs(inst, params, events, SR, frames), renderJsfx(BIN, inst, params, events, SR, frames));
+  const frames = Math.round(sr * seconds);
+  const r = compare(renderJs(inst, params, events, sr, frames), renderJsfx(BIN, inst, params, events, sr, frames));
   assert.ok(r.rms > 1e-4, `${label}: silent?`);
   assert.ok(r.snrDb > MIN_SNR_DB, `${label}: JSFX differs from JS (SNR ${r.snrDb.toFixed(1)} dB, max diff ${r.maxDiff})`);
 }
@@ -60,6 +60,24 @@ test('JSFX synth matches JS with stress settings (unison, FM, sync, S&H, 19-EDO)
 test('JSFX physical model matches JS for every preset', { skip: !HAVE && 'jsfx_render not built' }, () => {
   for (const preset of PHYS_PRESETS) {
     check('phys', resolvePreset(INSTRUMENTS.phys.defs, preset), PERFORMANCE, 0.7, `phys/${preset.name}`);
+  }
+});
+
+test('JSFX physical model matches JS with stress settings (vibrato, voice stealing, 44.1 kHz, every mesh shape)', { skip: !HAVE && 'jsfx_render not built' }, () => {
+  // more notes than the mesh has voices, repeated notes, and a bend while everything rings
+  const busy = [...PERFORMANCE, ...[60, 62, 64, 65, 67, 69].map((n, i) => [2000 + i * 500, 0x90, n, 70 + i * 9]), [8000, 0x90, 60, 127]].sort((a, b) => a[0] - b[0]);
+  const cases = [
+    ['string+vibrato', { phys_model: 0, phys_vibrato_cents: 40, phys_vibrato_rate_hz: 7 }],
+    ['bowed+vibrato', { phys_model: 2, phys_vibrato_cents: 30, bow_pressure: 0.9, bow_position: 0.3 }],
+    ['clarinet', { phys_model: 3, wind_type: 0, wind_embouchure: 1, breath_pressure: 0, phys_vibrato_cents: 20 }],
+    ['flute', { phys_model: 3, wind_type: 1, breath_noise: 1, wind_embouchure: 0, tuning_divisions: 19 }],
+    ['circular mesh', { phys_model: 4, mesh_shape: 0, mesh_size: 16, mesh_high_damping: 1, mesh_hardness: 1 }],
+    ['square mesh', { phys_model: 4, mesh_shape: 1, mesh_size: 7, mesh_strike_x: 0.9, mesh_strike_y: 0.1 }],
+    ['stiff+vibrato', { phys_model: 5, piano_inharmonicity: 1, piano_unison_detune_cents: 10, phys_vibrato_cents: 25 }],
+  ];
+  for (const [label, over] of cases) {
+    check('phys', scenario('phys', over), busy, 0.7, `phys/${label}`);
+    check('phys', scenario('phys', over), busy, 0.4, `phys/${label} @44.1k`, 44100);
   }
 });
 

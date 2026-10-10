@@ -192,9 +192,9 @@ test('wind instruments speak over the whole pressure / embouchure range', () => 
   }
 });
 
-test('2D mesh: every size and shape is stable, decays, and uses at most 4 voices', () => {
+test('2D mesh: every size and shape is stable, decays, and uses at most 3 voices', () => {
   for (const mesh_shape of [0, 1]) {
-    for (const mesh_size of [6, 13, 20]) {
+    for (const mesh_size of [6, 11, 16]) {
       // note 108 asks for more than the grid can carry: c^2 is clamped to stay stable
       const s = make({ phys_model: 4, mesh_shape, mesh_size, mesh_decay_ms: 300, mesh_high_damping: 0 });
       for (const n of [36, 60, 84, 108, 50, 70]) phys_note_on(s, n, 127);
