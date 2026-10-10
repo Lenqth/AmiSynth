@@ -1,0 +1,327 @@
+// AmiSynth shared DSP library.
+//
+// Porting rules (JS -> JSFX/EEL2 .jsfx-inc):
+//   * Every "object" is a plain JS object holding only numbers.
+//     JS  `foo_process(o, x)` with `o.state`  ->  EEL2 `function foo_process(x) instance(state) (...)`
+//     called as `voice.filt.foo_process(x)` (EEL2 namespaces).
+//   * Only scalar math (Math.sin/exp/tan/pow/...) and if/else. No closures, no allocation in
+//     the audio loop, no Web Audio nodes.
+//   * Sample rate is passed explicitly (`sr`), mirroring JSFX `srate`.
+//   * Random numbers come from noise_white() (EEL2: `rand(2)-1`).
+
+export const PI = Math.PI;
+export const TWO_PI = 2 * Math.PI;
+
+// ----------------------------------------------------------------------------
+// Utilities
+
+export function db_to_gain(db) {
+  return db <= -60 ? 0 : Math.pow(10, db / 20);
+}
+
+export function clamp(x, lo, hi) {
+  return x < lo ? lo : x > hi ? hi : x;
+}
+
+/** Coefficient for an exponential decay reaching -60 dB after `ms`. */
+export function t60_coef(ms, sr) {
+  return Math.exp(-6.907755 / (Math.max(ms, 0.01) * 0.001 * sr));
+}
+
+/** Coefficient for a one-pole smoother with time constant `ms`. */
+export function tau_coef(ms, sr) {
+  return Math.exp(-1 / (Math.max(ms, 0.001) * 0.001 * sr));
+}
+
+/** Smooth, symmetric soft clipper (tanh approximation, exact +/-1 beyond |x|>=3). */
+export function soft_clip(x) {
+  if (x > 3) return 1;
+  if (x < -3) return -1;
+  const x2 = x * x;
+  return (x * (27 + x2)) / (27 + 9 * x2);
+}
+
+/** White noise in [-1, 1). EEL2: rand(2)-1 */
+export function noise_white() {
+  return Math.random() * 2 - 1;
+}
+
+/** Equal power pan. Writes gains into o.gl / o.gr. pan in [-1, 1]. */
+export function pan_gains(o, pan) {
+  const a = (clamp(pan, -1, 1) + 1) * 0.25 * PI;
+  o.gl = Math.cos(a) * 1.41421356;
+  o.gr = Math.sin(a) * 1.41421356;
+}
+
+// ----------------------------------------------------------------------------
+// Tuning (not tied to 12-TET)
+//
+// A scale is a table of `scale_size` degrees in cents (degree 0 = 0 cents) plus a
+// period (normally 1200 cents). Note n is mapped as:
+//   steps   = n - ref_note
+//   period  = floor(steps / scale_size)
+//   degree  = steps - period * scale_size
+//   cents   = period * period_cents + table[degree]
+//   freq    = ref_hz * 2^(cents / 1200)
+// An EDO is just table[i] = i * period_cents / divisions.
+// In JSFX the table lives in a memory block (e.g. `scale_table = 1024;`).
+
+export function tuning_init(o) {
+  o.size = 12;
+  o.period_cents = 1200;
+  o.ref_note = 69;
+  o.ref_hz = 440;
+  o.table = new Float64Array(256);
+  tuning_set_edo(o, 12, 1200);
+}
+
+export function tuning_set_edo(o, divisions, period_cents) {
+  divisions = Math.max(1, Math.min(255, Math.round(divisions)));
+  o.size = divisions;
+  o.period_cents = period_cents;
+  for (let i = 0; i < divisions; i++) o.table[i] = (i * period_cents) / divisions;
+}
+
+/** cents_list: degrees 1..N in cents, last element = period (Scala convention). */
+export function tuning_set_table(o, cents_list, count) {
+  count = Math.max(1, Math.min(255, count));
+  o.size = count;
+  o.table[0] = 0;
+  for (let i = 1; i < count; i++) o.table[i] = cents_list[i - 1];
+  o.period_cents = cents_list[count - 1];
+}
+
+/** Fractional notes are interpolated linearly in cents. */
+export function tuning_note_to_hz(o, note) {
+  const base = Math.floor(note);
+  const frac = note - base;
+  let c = tuning_note_cents(o, base);
+  if (frac > 0) c += frac * (tuning_note_cents(o, base + 1) - c);
+  return o.ref_hz * Math.pow(2, c / 1200);
+}
+
+export function tuning_note_cents(o, note) {
+  const steps = note - o.ref_note;
+  const period = Math.floor(steps / o.size);
+  const degree = steps - period * o.size;
+  return period * o.period_cents + o.table[degree];
+}
+
+// ----------------------------------------------------------------------------
+// Oscillator: phase accumulator with PolyBLEP anti-aliasing.
+// waveform: 0 = saw, 1 = square, 2 = triangle
+
+export function osc_init(o) {
+  o.phase = 0;
+  o.inc = 0;
+  o.tri = 0; // leaky integrator state for triangle
+}
+
+export function osc_reset(o, phase) {
+  o.phase = phase;
+  // Start the triangle integrator on the ideal waveform to avoid a DC offset.
+  o.tri = phase < 0.5 ? -1 + 4 * phase : 3 - 4 * phase;
+}
+
+export function osc_set_freq(o, hz, sr) {
+  o.inc = clamp(hz / sr, 0, 0.49);
+}
+
+/** PolyBLEP residual. t = phase in [0,1), dt = phase increment. */
+export function poly_blep(t, dt) {
+  if (t < dt) {
+    t /= dt;
+    return t + t - t * t - 1;
+  } else if (t > 1 - dt) {
+    t = (t - 1) / dt;
+    return t * t + t + t + 1;
+  }
+  return 0;
+}
+
+export function osc_process(o, waveform) {
+  const t = o.phase;
+  const dt = o.inc;
+  let y;
+  if (waveform < 0.5) {
+    y = 2 * t - 1 - poly_blep(t, dt);
+  } else {
+    let t2 = t + 0.5;
+    if (t2 >= 1) t2 -= 1;
+    y = (t < 0.5 ? 1 : -1) + poly_blep(t, dt) - poly_blep(t2, dt);
+    if (waveform > 1.5) {
+      // Triangle = leaky integral of the band-limited square.
+      o.tri = dt * 4 * y + (1 - dt * 0.1) * o.tri;
+      y = o.tri;
+    }
+  }
+  o.phase = t + dt;
+  if (o.phase >= 1) o.phase -= 1;
+  return y;
+}
+
+/** Plain sine oscillator (used by drums / LFO). Returns sin(2*pi*phase). */
+export function sine_process(o) {
+  const y = Math.sin(TWO_PI * o.phase);
+  o.phase += o.inc;
+  if (o.phase >= 1) o.phase -= 1;
+  return y;
+}
+
+/** Naive square (intentionally aliasing; used for metallic hats). */
+export function square_naive_process(o) {
+  const y = o.phase < 0.5 ? 1 : -1;
+  o.phase += o.inc;
+  if (o.phase >= 1) o.phase -= 1;
+  return y;
+}
+
+// ----------------------------------------------------------------------------
+// State variable filter (TPT / Zavalishin). Stable under fast modulation.
+// Outputs are left in o.lp / o.bp / o.hp after svf_process().
+
+export function svf_init(o) {
+  o.ic1 = 0;
+  o.ic2 = 0;
+  o.g = 0;
+  o.k = 1.414;
+  o.a1 = 0;
+  o.a2 = 0;
+  o.a3 = 0;
+  o.lp = 0;
+  o.bp = 0;
+  o.hp = 0;
+}
+
+/** k = 1/Q (2 = no resonance, ~0 = self oscillation). */
+export function svf_set(o, cutoff_hz, k, sr) {
+  const fc = clamp(cutoff_hz, 5, sr * 0.49);
+  o.g = Math.tan((PI * fc) / sr);
+  o.k = k;
+  o.a1 = 1 / (1 + o.g * (o.g + k));
+  o.a2 = o.g * o.a1;
+  o.a3 = o.g * o.a2;
+}
+
+export function svf_process(o, x) {
+  const v3 = x - o.ic2;
+  const v1 = o.a1 * o.ic1 + o.a2 * v3;
+  const v2 = o.ic2 + o.a2 * o.ic1 + o.a3 * v3;
+  o.ic1 = 2 * v1 - o.ic1;
+  o.ic2 = 2 * v2 - o.ic2;
+  o.lp = v2;
+  o.bp = v1;
+  o.hp = x - o.k * v1 - v2;
+  return v2;
+}
+
+export function svf_reset(o) {
+  o.ic1 = 0;
+  o.ic2 = 0;
+}
+
+// ----------------------------------------------------------------------------
+// One-pole filters
+
+export function onepole_init(o) {
+  o.z = 0;
+  o.a = 0;
+}
+
+export function onepole_set(o, cutoff_hz, sr) {
+  o.a = 1 - Math.exp((-TWO_PI * clamp(cutoff_hz, 1, sr * 0.49)) / sr);
+}
+
+export function onepole_lp(o, x) {
+  o.z += o.a * (x - o.z);
+  return o.z;
+}
+
+export function onepole_hp(o, x) {
+  o.z += o.a * (x - o.z);
+  return x - o.z;
+}
+
+/** Parameter smoother: o.z glides to target with the coefficient set by smoother_set(). */
+export function smoother_init(o, value) {
+  o.z = value;
+  o.c = 0;
+}
+
+export function smoother_set(o, ms, sr) {
+  o.c = tau_coef(ms, sr);
+}
+
+export function smoother_process(o, target) {
+  o.z = target + o.c * (o.z - target);
+  return o.z;
+}
+
+// ----------------------------------------------------------------------------
+// ADSR envelope
+// stage: 0 idle, 1 attack, 2 decay/sustain, 3 release
+// Attack is linear, decay & release are exponential (time = to -60 dB).
+
+export function adsr_init(o) {
+  o.stage = 0;
+  o.value = 0;
+  o.attack_inc = 0;
+  o.decay_coef = 0;
+  o.release_coef = 0;
+  o.sustain = 0;
+}
+
+export function adsr_set(o, attack_ms, decay_ms, sustain, release_ms, sr) {
+  o.attack_inc = 1 / (Math.max(attack_ms, 0.01) * 0.001 * sr);
+  o.decay_coef = t60_coef(decay_ms, sr);
+  o.release_coef = t60_coef(release_ms, sr);
+  o.sustain = sustain;
+}
+
+/** Legato-friendly: restarts attack from the current value (no click). */
+export function adsr_gate_on(o) {
+  o.stage = 1;
+}
+
+export function adsr_gate_off(o) {
+  if (o.stage !== 0) o.stage = 3;
+}
+
+export function adsr_process(o) {
+  if (o.stage === 1) {
+    o.value += o.attack_inc;
+    if (o.value >= 1) {
+      o.value = 1;
+      o.stage = 2;
+    }
+  } else if (o.stage === 2) {
+    o.value = o.sustain + o.decay_coef * (o.value - o.sustain);
+  } else if (o.stage === 3) {
+    o.value *= o.release_coef;
+    if (o.value < 0.00001) {
+      o.value = 0;
+      o.stage = 0;
+    }
+  }
+  return o.value;
+}
+
+// ----------------------------------------------------------------------------
+// One-shot exponential decay envelope (drums)
+
+export function decay_env_init(o) {
+  o.value = 0;
+  o.coef = 0;
+}
+
+export function decay_env_trigger(o, level, ms, sr) {
+  o.value = level;
+  o.coef = t60_coef(ms, sr);
+}
+
+export function decay_env_process(o) {
+  const v = o.value;
+  o.value *= o.coef;
+  if (o.value < 0.000001) o.value = 0;
+  return v;
+}

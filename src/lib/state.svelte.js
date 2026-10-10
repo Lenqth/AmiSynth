@@ -1,0 +1,137 @@
+// Reactive app state + persistence. All parameter writes go through setParam()
+// so the worklets always mirror the UI.
+
+import { clampParam, defaultValues, DRUM_PARAMS, SYNTH_PARAMS } from '../dsp/params.js';
+import { engine } from './engine.js';
+import { demoPattern } from './pattern.js';
+
+const STORAGE_KEY = 'amisynth:v1';
+
+function load() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+const saved = load();
+
+function merged(defs, savedValues) {
+  const v = defaultValues(defs);
+  if (savedValues) {
+    for (const d of defs) if (typeof savedValues[d.id] === 'number') v[d.id] = clampParam(d, savedValues[d.id]);
+  }
+  return v;
+}
+
+export const app = $state({
+  started: false,
+  starting: false,
+  error: '',
+  tab: 'synth',
+  synth: merged(SYNTH_PARAMS, saved?.synth),
+  drums: merged(DRUM_PARAMS, saved?.drums),
+  /** @type {{name:string, cents:number[]} | null} */
+  scale: saved?.scale ?? null,
+  pattern: saved?.pattern ?? demoPattern(),
+  playing: false,
+  playStep: -1,
+  baseNote: 48,
+  bend: 0,
+  modwheel: 0,
+  /** notes currently held from the UI / PC keyboard / MIDI (for highlighting) */
+  held: /** @type {Record<number, boolean>} */ ({}),
+  drumFlash: /** @type {Record<number, number>} */ ({}),
+  midiStatus: '',
+});
+
+let saveTimer = 0;
+export function persist() {
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({
+        synth: app.synth, drums: app.drums, scale: app.scale, pattern: app.pattern,
+      }));
+    } catch {
+      /* storage unavailable: ignore */
+    }
+  }, 300);
+}
+
+/** @param {'synth'|'drums'} target */
+export function setParam(target, id, value) {
+  app[target][id] = value;
+  engine.setParam(target, id, value);
+  persist();
+}
+
+export function setScale(scale) {
+  app.scale = scale;
+  engine.setScale(scale ? scale.cents : null);
+  persist();
+}
+
+export function resetParams(target) {
+  const defs = target === 'synth' ? SYNTH_PARAMS : DRUM_PARAMS;
+  // keep tuning when resetting the synth sound
+  const keep = target === 'synth' ? Object.fromEntries(Object.entries(app.synth).filter(([k]) => k.startsWith('tuning_'))) : {};
+  app[target] = { ...defaultValues(defs), ...keep };
+  engine.setParams(target, app[target]);
+  persist();
+}
+
+export async function startAudio() {
+  if (app.started || app.starting) return;
+  app.starting = true;
+  app.error = '';
+  try {
+    await engine.start();
+    engine.setParams('synth', app.synth);
+    engine.setParams('drums', app.drums);
+    if (app.scale) engine.setScale(app.scale.cents);
+    app.started = true;
+  } catch (e) {
+    app.error = `オーディオを開始できませんでした: ${e?.message ?? e}`;
+  } finally {
+    app.starting = false;
+  }
+}
+
+export function synthNoteOn(note, velocity = 100) {
+  if (note < 0 || note > 127) return;
+  app.held[note] = true;
+  engine.noteOn('synth', note, velocity);
+}
+
+export function synthNoteOff(note) {
+  if (note < 0 || note > 127) return;
+  delete app.held[note];
+  engine.noteOff('synth', note);
+}
+
+export function drumHit(note, velocity = 110, time) {
+  engine.noteOn('drums', note, velocity, time);
+  flashDrum(note, time);
+}
+
+export function flashDrum(note, time) {
+  const delay = time ? Math.max(0, (time - engine.time) * 1000) : 0;
+  setTimeout(() => {
+    app.drumFlash[note] = (app.drumFlash[note] ?? 0) + 1;
+  }, delay);
+}
+
+export function setBend(v) {
+  app.bend = v;
+  const value = Math.round((v + 1) * 8192);
+  const clamped = Math.max(0, Math.min(16383, value));
+  engine.midi('synth', [0xe0, clamped & 0x7f, clamped >> 7]);
+}
+
+export function setModwheel(v) {
+  app.modwheel = v;
+  engine.midi('synth', [0xb0, 1, Math.round(v * 127)]);
+}

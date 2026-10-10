@@ -1,0 +1,80 @@
+# AmiSynth
+
+ブラウザで動く自作シンセ & ドラムマシンのデモ。DSP はすべて AudioWorklet 内の
+「サンプル単位の素直なループ」で書かれていて、REAPER の JSFX (EEL2) へほぼ機械的に
+移植できる形にしてあります。名前の由来は *LLM-friendly な synth*。
+
+- **シンセ**: 2 オシレーター (Saw / Square / Triangle, PolyBLEP)、デチューン、ノイズ、
+  レゾナンス付き LPF (12/24 dB, TPT SVF)、フィルター ADSR、アンプ ADSR、8 ボイス、
+  ピッチベンド / モジュレーションホイール (ビブラート・フィルター LFO)、サステインペダル
+- **ドラム** (サンプル不使用・全部合成): キック 36 / スネア 38 / クラップ 39 /
+  クローズ HH 42 / オープン HH 46、クローズ HH によるチョーク、パーツごとに
+  音程・減衰・トーン・音量・パン (+α)
+- **チューニング**: 12 平均律に依存しない。任意の EDO・周期 (例: Bohlen-Pierce)・
+  Scala (.scl) / cents / 比のリストによるカスタム音階。ピッチベンドやデチューンは cents 指定
+- **4 小節ピアノロール** + ドラムステップ (サンプル精度でスケジューリング)
+- PC キーボード / 画面鍵盤 / Web MIDI 入力 (ch10 → ドラム)
+
+## 開発
+
+```sh
+npm install
+npm run dev        # http://localhost:5173
+npm test           # DSP のユニットテスト (Node)
+npm run build      # dist/ に静的ファイルを出力
+npm run gen:jsfx   # JSFX slider 宣言を jsfx/generated/ に生成
+```
+
+## 構成
+
+```
+src/dsp/params.js      パラメータ定義 (名前・範囲・既定値・単位・説明) — 唯一の定義元
+src/dsp/lib.js         共通 DSP: オシレーター, SVF, 1 pole, ADSR, 減衰 EG, ノイズ, チューニング
+src/dsp/synth.js       シンセ本体 (init / update / note_on / render)
+src/dsp/drums.js       ドラム本体
+src/worklets/*.js      AudioWorklet ラッパー (MIDI バイト列 + パラメータだけを受け取る)
+src/lib/               メインスレッド: エンジン、状態、シーケンサー、チューニング補助
+src/ui/                Svelte コンポーネント
+scripts/gen-jsfx-sliders.js  params.js → JSFX slider 宣言 / params.json
+jsfx/                  JSFX 移植メモと生成物
+```
+
+設計上のポイント:
+
+- DSP コードは Web Audio に依存しない (`src/dsp/*` は Node でもそのまま動く。テスト参照)。
+  Web Audio の組み込み DSP ノード (Oscillator / BiquadFilter / Gain 等) は使っていない。
+  AnalyserNode をスコープ表示のためだけに接続している。
+- Worklet へは **MIDI バイト列** (`[0x90, note, vel]` など) と **パラメータ値** だけを送る。
+  JSFX が REAPER から受け取るものと同じ。タイムスタンプ付き MIDI はサンプル単位で適用
+  (JSFX の `midirecv` オフセットに相当)。
+- パラメータ ID は snake_case で単位入り (`filter_cutoff_hz`, `amp_release_ms`, …)。
+  REAPER のオートメーションや MCP から名前だけで意味が分かるようにしている。
+- ブラウザのコンソールから `window.amisynth` (engine / app / setParam) で操作可能。
+
+## デプロイ (Cloudflare Workers, 静的アセット)
+
+`wrangler.jsonc` は Worker スクリプトなしで `dist/` を配信する設定です。
+
+### 第一候補: Workers Builds (GitHub 連携で自動デプロイ)
+
+1. Cloudflare ダッシュボード → **Workers & Pages** → **Create** → **Import a repository**
+2. この GitHub リポジトリを選択
+3. ビルド設定
+   - Build command: `npm run build`
+   - Deploy command: `npx wrangler deploy`
+   - (Non-production branch deploy command: `npx wrangler versions upload`)
+4. 以後、push するたびに自動でビルド & デプロイされます
+
+> 本番以外のブランチでは Workers Builds が `npx wrangler preview` を **ビルドコマンドなしで**
+> 実行するため、`package.json` の `prepare` スクリプトで `npm clean-install` 時に
+> `vite build` が走るようにしてあります (`wrangler preview` は起動直後に `dist/` の存在を確認するため)。
+
+### 代替: API トークンで wrangler deploy
+
+```sh
+export CLOUDFLARE_API_TOKEN=...   # "Edit Cloudflare Workers" テンプレートのトークン
+export CLOUDFLARE_ACCOUNT_ID=...
+npm run deploy                     # = vite build && wrangler deploy
+```
+
+(`wrangler login` は不要。サンドボックス環境ではネットワーク許可に `api.cloudflare.com` が必要)

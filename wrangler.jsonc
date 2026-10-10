@@ -1,0 +1,13 @@
+{
+  // Static assets only (no Worker script): Cloudflare serves the Vite build output.
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "amisynth",
+  "compatibility_date": "2026-10-01",
+  "assets": {
+    "directory": "./dist",
+    "not_found_handling": "single-page-application"
+  },
+  // Required by `wrangler preview` (Workers Builds preview deployments for non-production branches).
+  // Empty because this Worker has no bindings; assets & compatibility settings stay at the top level.
+  "previews": {}
+}

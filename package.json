@@ -1,0 +1,22 @@
+{
+  "name": "amisynth",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "AmiSynth: an LLM-friendly synth & drum machine for the browser (AudioWorklet), designed to be ported to REAPER JSFX.",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "prepare": "vite build",
+    "preview": "vite preview",
+    "test": "node --test tests/*.test.js",
+    "gen:jsfx": "node scripts/gen-jsfx-sliders.js",
+    "deploy": "npm run build && wrangler deploy"
+  },
+  "devDependencies": {
+    "@sveltejs/vite-plugin-svelte": "^7.3.1",
+    "svelte": "^5.57.2",
+    "vite": "^8.3.4",
+    "wrangler": "^4.149.0"
+  }
+}
