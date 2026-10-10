@@ -2,16 +2,30 @@
   import { playable } from './touch.js';
   import { BLACK_12, isPianoLike, noteDegree, noteHz, noteLabel } from '../lib/tuning.js';
   import { offsetToKeyLabel } from '../lib/pckeys.js';
+  import { coarsePointerQuery, fitNotes, minKeyWidth } from '../lib/keysize.js';
 
   /**
    * @type {{ tuning: any, baseNote: number, held: Record<number, boolean>, playing?: Record<number, number>,
-   *   noteOn: (n:number, vel:number)=>void, noteOff: (n:number)=>void }}
+   *   noteOn: (n:number, vel:number)=>void, noteOff: (n:number)=>void, scale?: number }}
    */
-  let { tuning, baseNote, held, playing = {}, noteOn, noteOff } = $props();
+  let { tuning, baseNote, held, playing = {}, noteOn, noteOff, scale = 1 } = $props();
+
+  // Fit as many keys as the width allows at a finger/mouse friendly minimum size.
+  let width = $state(800);
+  let coarse = $state(false);
+  $effect(() => {
+    const q = coarsePointerQuery();
+    if (!q) return;
+    coarse = q.matches;
+    const on = () => (coarse = q.matches);
+    q.addEventListener('change', on);
+    return () => q.removeEventListener('change', on);
+  });
+  const minKey = $derived(minKeyWidth(coarse, scale));
+  const keyHeight = $derived(Math.round(Math.min(240, Math.max(130, minKey * 3.6))));
 
   const piano = $derived(isPianoLike(tuning));
-  const count = $derived(piano ? 37 : Math.min(128 - baseNote, Math.max(2 * tuning.size + 1, 13)));
-  const notes = $derived(Array.from({ length: count }, (_, i) => baseNote + i).filter((n) => n <= 127));
+  const notes = $derived(fitNotes(baseNote, width, minKey, (n) => piano && BLACK_12[n % 12]));
   const whites = $derived(piano ? notes.filter((n) => !BLACK_12[n % 12]) : notes);
 
   function blackLeft(n) {
@@ -60,6 +74,7 @@
   }
 </script>
 
+<div class="fit" bind:clientWidth={width}>
 <div
   use:playable
   class="keyboard"
@@ -70,7 +85,7 @@
   onpointermove={move}
   onpointerup={up}
   onpointercancel={up}
-  style={piano ? '' : `min-width: ${notes.length * 22}px`}
+  style={`height: ${keyHeight}px`}
 >
   {#if piano}
     {#each whites as n (n)}
@@ -101,12 +116,13 @@
     {/each}
   {/if}
 </div>
+</div>
 
 <style>
+  .fit { width: 100%; min-width: 0; }
   .keyboard {
     position: relative;
     display: flex;
-    height: 150px;
     touch-action: none;
     user-select: none;
     border-radius: 6px;

@@ -282,7 +282,7 @@
     <section class="card play">
       <Wheels bend={app.bend} modwheel={app.modwheel} onbend={setBend} onmod={setModwheel} />
       <div class="kb">
-        <Keyboard {tuning} baseNote={app.baseNote} held={app.held} playing={app.seqHeld} {noteOn} {noteOff} />
+        <Keyboard {tuning} baseNote={app.baseNote} held={app.held} playing={app.seqHeld} {noteOn} {noteOff} scale={app.keyScale} />
         {#if imeHint}
           <p class="ime-hint">
             日本語入力 (IME) がオンのため、PC キーが IME に取られています。半角英数に切り替えると押している間鳴り続けます
@@ -292,7 +292,11 @@
         {/if}
         <div class="kb-tools muted">
           <button onclick={() => shiftOctave(-1)} title="[">◀ 周期</button>
-          <span>PC キー: <kbd>Z</kbd>〜<kbd>/</kbd> と <kbd>Q</kbd>〜<kbd>P</kbd> · <kbd>[</kbd><kbd>]</kbd> で周期シフト · <kbd>Space</kbd> 再生</span>
+          <label class="keysize" title="鍵盤の最小幅 (タッチは約 9 mm 相当が基準)">鍵盤サイズ
+            <input type="range" min="0.6" max="2" step="0.05" value={app.keyScale}
+              oninput={(e) => { app.keyScale = Number(e.currentTarget.value); persist(); }} />
+          </label>
+          <span class="pc-hint">PC キー: <kbd>Z</kbd>〜<kbd>/</kbd> と <kbd>Q</kbd>〜<kbd>P</kbd> · <kbd>[</kbd><kbd>]</kbd> で周期シフト · <kbd>Space</kbd> 再生</span>
           <button onclick={() => shiftOctave(1)} title="]">周期 ▶</button>
         </div>
       </div>
@@ -379,6 +383,11 @@
   .status { padding: 0 20px; margin: 8px 0 0; font-size: 12px; }
   .play { display: flex; gap: 12px; align-items: stretch; }
   .kb { flex: 1; min-width: 0; overflow-x: auto; }
+  .keysize { display: flex; align-items: center; gap: 6px; }
+  @media (pointer: coarse) {
+    .pc-hint { display: none; }
+  }
+  .keysize input { width: 100px; }
   .ime-hint {
     margin: 8px 0 0;
     padding: 6px 10px;

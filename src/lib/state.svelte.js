@@ -52,6 +52,8 @@ export const app = $state({
   /** notes sounding from the sequencer: note -> overlap count (keyboard highlight) */
   seqHeld: /** @type {Record<number, number>} */ ({}),
   midiStatus: '',
+  /** on-screen key size multiplier (1 = auto size for the pointer type) */
+  keyScale: typeof saved?.keyScale === 'number' ? saved.keyScale : 1,
 });
 
 let saveTimer = 0;
@@ -61,7 +63,7 @@ export function persist() {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify({
         synth: app.synth, drums: app.drums, scale: app.scale, pattern: app.pattern,
-        presetName: app.presetName, userPresets: app.userPresets,
+        presetName: app.presetName, userPresets: app.userPresets, keyScale: app.keyScale,
       }));
     } catch {
       /* storage unavailable: ignore */
