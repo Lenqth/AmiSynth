@@ -4,6 +4,7 @@
 import { clampParam, defaultValues, DRUM_PARAMS, SYNTH_PARAMS } from '../dsp/params.js';
 import { engine } from './engine.js';
 import { demoPattern } from './pattern.js';
+import { resolvePreset } from './presets.js';
 
 const STORAGE_KEY = 'amisynth:v1';
 
@@ -36,6 +37,10 @@ export const app = $state({
   /** @type {{name:string, cents:number[]} | null} */
   scale: saved?.scale ?? null,
   pattern: saved?.pattern ?? demoPattern(),
+  /** name of the last applied preset per instrument ('' = none) */
+  presetName: { synth: saved?.presetName?.synth ?? 'Init', drums: saved?.presetName?.drums ?? 'AmiSynth Default' },
+  /** @type {{synth: import('../presets/synth.js').Preset[], drums: import('../presets/synth.js').Preset[]}} */
+  userPresets: { synth: saved?.userPresets?.synth ?? [], drums: saved?.userPresets?.drums ?? [] },
   playing: false,
   playStep: -1,
   baseNote: 48,
@@ -44,6 +49,8 @@ export const app = $state({
   /** notes currently held from the UI / PC keyboard / MIDI (for highlighting) */
   held: /** @type {Record<number, boolean>} */ ({}),
   drumFlash: /** @type {Record<number, number>} */ ({}),
+  /** notes sounding from the sequencer: note -> overlap count (keyboard highlight) */
+  seqHeld: /** @type {Record<number, number>} */ ({}),
   midiStatus: '',
 });
 
@@ -54,6 +61,7 @@ export function persist() {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify({
         synth: app.synth, drums: app.drums, scale: app.scale, pattern: app.pattern,
+        presetName: app.presetName, userPresets: app.userPresets,
       }));
     } catch {
       /* storage unavailable: ignore */
@@ -74,30 +82,53 @@ export function setScale(scale) {
   persist();
 }
 
-export function resetParams(target) {
+/** Apply a preset (only non-tuning params change). @param {'synth'|'drums'} target */
+export function applyPreset(target, preset) {
   const defs = target === 'synth' ? SYNTH_PARAMS : DRUM_PARAMS;
-  // keep tuning when resetting the synth sound
-  const keep = target === 'synth' ? Object.fromEntries(Object.entries(app.synth).filter(([k]) => k.startsWith('tuning_'))) : {};
-  app[target] = { ...defaultValues(defs), ...keep };
+  app[target] = resolvePreset(defs, preset, app[target]);
+  app.presetName[target] = preset.name;
   engine.setParams(target, app[target]);
   persist();
 }
 
-export async function startAudio() {
-  if (app.started || app.starting) return;
-  app.starting = true;
-  app.error = '';
-  try {
-    await engine.start();
-    engine.setParams('synth', app.synth);
-    engine.setParams('drums', app.drums);
-    if (app.scale) engine.setScale(app.scale.cents);
-    app.started = true;
-  } catch (e) {
-    app.error = `オーディオを開始できませんでした: ${e?.message ?? e}`;
-  } finally {
-    app.starting = false;
+export function saveUserPreset(target, name, params) {
+  const list = app.userPresets[target].filter((p) => p.name !== name);
+  list.push({ name, category: 'User', description: '', params });
+  app.userPresets[target] = list;
+  app.presetName[target] = name;
+  persist();
+}
+
+export function deleteUserPreset(target, name) {
+  app.userPresets[target] = app.userPresets[target].filter((p) => p.name !== name);
+  persist();
+}
+
+/** @type {Promise<void> | null} */
+let starting = null;
+
+/** Start audio once; concurrent callers (e.g. a 3-finger first touch) all await the same start. */
+export function startAudio() {
+  if (app.started) return Promise.resolve();
+  if (!starting) {
+    app.starting = true;
+    app.error = '';
+    starting = (async () => {
+      try {
+        await engine.start();
+        engine.setParams('synth', app.synth);
+        engine.setParams('drums', app.drums);
+        if (app.scale) engine.setScale(app.scale.cents);
+        app.started = true;
+      } catch (e) {
+        app.error = `オーディオを開始できませんでした: ${e?.message ?? e}`;
+      } finally {
+        app.starting = false;
+        starting = null;
+      }
+    })();
   }
+  return starting;
 }
 
 export function synthNoteOn(note, velocity = 100) {
@@ -122,6 +153,36 @@ export function flashDrum(note, time) {
   setTimeout(() => {
     app.drumFlash[note] = (app.drumFlash[note] ?? 0) + 1;
   }, delay);
+}
+
+/** UI timers for sequencer note highlights (cleared on stop). */
+const seqTimers = new Set();
+
+function later(ms, fn) {
+  const id = setTimeout(() => {
+    seqTimers.delete(id);
+    fn();
+  }, ms);
+  seqTimers.add(id);
+}
+
+/** Light a keyboard key while a sequenced note sounds. */
+export function flashSeqNote(note, time, duration) {
+  const delay = Math.max(0, (time - engine.time) * 1000);
+  later(delay, () => {
+    app.seqHeld[note] = (app.seqHeld[note] ?? 0) + 1;
+  });
+  later(delay + Math.max(30, duration * 1000), () => {
+    const n = (app.seqHeld[note] ?? 1) - 1;
+    if (n > 0) app.seqHeld[note] = n;
+    else delete app.seqHeld[note];
+  });
+}
+
+export function clearSeqHighlights() {
+  for (const id of seqTimers) clearTimeout(id);
+  seqTimers.clear();
+  app.seqHeld = {};
 }
 
 export function setBend(v) {

@@ -5,7 +5,7 @@
   import { demoPattern, emptyPattern, Sequencer } from './lib/pattern.js';
   import { codeToOffset, DRUM_KEYS, isTypingTarget } from './lib/pckeys.js';
   import {
-    app, drumHit, flashDrum, persist, resetParams, setBend, setModwheel, setParam, setScale,
+    app, clearSeqHighlights, drumHit, flashDrum, flashSeqNote, persist, setBend, setModwheel, setParam, setScale,
     startAudio, synthNoteOff, synthNoteOn,
   } from './lib/state.svelte.js';
   import { makeTuning } from './lib/tuning.js';
@@ -13,11 +13,21 @@
   import Keyboard from './ui/Keyboard.svelte';
   import ParamPanel from './ui/ParamPanel.svelte';
   import PianoRoll from './ui/PianoRoll.svelte';
+  import PresetBar from './ui/PresetBar.svelte';
+  import { SYNTH_PRESETS } from './presets/synth.js';
+  import { DRUM_PRESETS } from './presets/drums.js';
   import Scope from './ui/Scope.svelte';
   import TuningPanel from './ui/TuningPanel.svelte';
   import Wheels from './ui/Wheels.svelte';
 
   const tuning = $derived(makeTuning(app.synth, app.scale));
+  // Grey out knobs that currently have no effect.
+  const synthDisabled = $derived([
+    ...(app.synth.osc1_waveform === 1 ? [] : ['osc1_pulse_width']),
+    ...(app.synth.osc2_waveform === 1 ? [] : ['osc2_pulse_width']),
+    ...(app.synth.osc1_waveform === 1 || app.synth.osc2_waveform === 1 ? [] : ['lfo_pulse_width']),
+    ...(app.synth.unison_voices > 1 ? [] : ['unison_detune_cents', 'unison_stereo_width']),
+  ]);
   const synthGroups = [...new Set(SYNTH_PARAMS.map((d) => d.group))].filter((g) => g !== 'Tuning');
 
   // Start the on-screen keyboard on a period boundary (degree 0) whenever the scale size changes.
@@ -29,7 +39,7 @@
     app.baseNote = Math.max(0, 60 - size * Math.max(1, Math.round(12 / size)));
   });
 
-  const seq = new Sequencer(engine, () => app.pattern, (note, time) => flashDrum(note, time));
+  const seq = new Sequencer(engine, () => app.pattern, flashDrum, flashSeqNote);
 
   /** Start audio lazily on the first gesture, then run fn. */
   async function withAudio(fn) {
@@ -37,8 +47,23 @@
     if (app.started) fn();
   }
 
+  /** Notes pressed while audio is still starting; released ones are dropped so they can't hang. */
+  const pendingNotes = new Set();
+
   function noteOn(n, vel) {
-    withAudio(() => synthNoteOn(n, vel));
+    if (app.started) {
+      synthNoteOn(n, vel);
+      return;
+    }
+    pendingNotes.add(n);
+    startAudio().then(() => {
+      if (app.started && pendingNotes.delete(n)) synthNoteOn(n, vel);
+    });
+  }
+
+  function noteOff(n) {
+    pendingNotes.delete(n);
+    synthNoteOff(n);
   }
 
   function hit(note, vel) {
@@ -59,6 +84,7 @@
   async function togglePlay() {
     if (app.playing) {
       seq.stop();
+      clearSeqHighlights();
       app.playing = false;
       app.playStep = -1;
       app.held = {};
@@ -109,7 +135,7 @@
     const p = pressed.get(e.code);
     if (!p) return;
     pressed.delete(e.code);
-    synthNoteOff(p.note);
+    noteOff(p.note);
   }
 
   /** Long-press on touch devices opens the context menu; suppress it except on text. */
@@ -119,7 +145,7 @@
   }
 
   function releaseAll() {
-    for (const p of pressed.values()) synthNoteOff(p.note);
+    for (const p of pressed.values()) noteOff(p.note);
     pressed.clear();
   }
 
@@ -223,7 +249,7 @@
     <section class="card play">
       <Wheels bend={app.bend} modwheel={app.modwheel} onbend={setBend} onmod={setModwheel} />
       <div class="kb">
-        <Keyboard {tuning} baseNote={app.baseNote} held={app.held} {noteOn} noteOff={synthNoteOff} />
+        <Keyboard {tuning} baseNote={app.baseNote} held={app.held} playing={app.seqHeld} {noteOn} {noteOff} />
         <div class="kb-tools muted">
           <button onclick={() => shiftOctave(-1)} title="[">◀ 周期</button>
           <span>PC キー: <kbd>Z</kbd>〜<kbd>/</kbd> と <kbd>Q</kbd>〜<kbd>P</kbd> · <kbd>[</kbd><kbd>]</kbd> で周期シフト · <kbd>Space</kbd> 再生</span>
@@ -231,21 +257,22 @@
         </div>
       </div>
     </section>
+    <PresetBar target="synth" defs={SYNTH_PARAMS} builtins={SYNTH_PRESETS} />
     <div class="two">
       <TuningPanel values={app.synth} scale={app.scale} {tuning}
         onchange={(id, v) => setParam('synth', id, v)} onscale={setScale} />
       <div class="grow">
-        <ParamPanel defs={SYNTH_PARAMS} values={app.synth} groups={synthGroups} onchange={(id, v) => setParam('synth', id, v)} />
-        <button class="reset" onclick={() => resetParams('synth')}>シンセの音色を初期化</button>
+        <ParamPanel defs={SYNTH_PARAMS} values={app.synth} groups={synthGroups} onchange={(id, v) => setParam('synth', id, v)}
+          disabledIds={synthDisabled} />
       </div>
     </div>
   {:else if app.tab === 'drums'}
     <section class="card">
       <DrumPads flash={app.drumFlash} onhit={hit} />
-      <p class="muted hint">パッドの上側ほど強く鳴ります · PC キー <kbd>A</kbd> <kbd>S</kbd> <kbd>D</kbd> <kbd>F</kbd> <kbd>G</kbd> · クローズ HH はオープン HH を止めます(チョーク)</p>
+      <p class="muted hint">パッドの上側ほど強く鳴ります · PC キー <kbd>A</kbd>〜<kbd>L</kbd>, <kbd>Z</kbd>〜<kbd>V</kbd> · クローズ HH はオープン HH を止めます(チョーク)</p>
     </section>
+    <PresetBar target="drums" defs={DRUM_PARAMS} builtins={DRUM_PRESETS} />
     <ParamPanel defs={DRUM_PARAMS} values={app.drums} onchange={(id, v) => setParam('drums', id, v)} />
-    <button class="reset" onclick={() => resetParams('drums')}>ドラムを初期化</button>
   {:else if app.tab === 'roll'}
     <div class="roll-head">
       <button onclick={() => { app.pattern = { ...demoPattern(), bpm: app.pattern.bpm }; persist(); }}>デモパターン</button>

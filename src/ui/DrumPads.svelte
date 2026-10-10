@@ -1,9 +1,11 @@
 <script>
+  import { playable } from './touch.js';
   import { DRUM_PARTS } from '../dsp/params.js';
+  import { DRUM_KEYS } from '../lib/pckeys.js';
 
   /** @type {{ flash: Record<number, number>, onhit: (note:number, vel:number)=>void }} */
   let { flash, onhit } = $props();
-  const KEYS = ['A', 'S', 'D', 'F', 'G'];
+  const KEYS = DRUM_KEYS.map((c) => c.replace('Key', ''));
 
   function down(e, note) {
     e.preventDefault();
@@ -14,7 +16,7 @@
   }
 </script>
 
-<div class="pads">
+<div class="pads" use:playable>
   {#each DRUM_PARTS as part, i (part.note)}
     {#key flash[part.note]}
       <button class="pad" class:flash={flash[part.note]} onpointerdown={(e) => down(e, part.note)}
@@ -29,14 +31,11 @@
 <style>
   .pads {
     display: grid;
-    grid-template-columns: repeat(5, minmax(0, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
     gap: 10px;
   }
-  @media (max-width: 640px) {
-    .pads { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-  }
   .pad {
-    height: 110px;
+    height: 96px;
     display: flex;
     flex-direction: column;
     justify-content: space-between;

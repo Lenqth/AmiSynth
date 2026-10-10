@@ -23,6 +23,7 @@ JS 側の DSP は JSFX に機械的に移せるよう、次の規約で書かれ
 - `generated/synth-sliders.txt` — シンセ用 (変数名 = パラメータ ID)
 - `generated/drums-sliders.txt` — ドラム用
 - `generated/params.json` — 全パラメータの説明付きマニフェスト (LLM / MCP 向け)
+- `generated/presets.json` — 内蔵プリセットを slider 順の値の配列に展開したもの (.rpl 生成用)
 
 `:log` (対数スライダー) は REAPER 6.74 以降の構文です。
 

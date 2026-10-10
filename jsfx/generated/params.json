@@ -49,16 +49,28 @@
       "name": "Osc1 Waveform",
       "group": "Oscillators",
       "min": 0,
-      "max": 2,
+      "max": 3,
       "default": 0,
       "step": 1,
       "unit": "",
       "options": [
         "Saw",
-        "Square",
-        "Triangle"
+        "Pulse",
+        "Triangle",
+        "Sine"
       ],
       "description": "Waveform of oscillator 1."
+    },
+    {
+      "id": "osc1_pulse_width",
+      "name": "Osc1 Pulse Width",
+      "group": "Oscillators",
+      "min": 0.05,
+      "max": 0.95,
+      "default": 0.5,
+      "step": 0.001,
+      "unit": "",
+      "description": "Duty cycle of oscillator 1 when its waveform is Pulse (0.5 = square)."
     },
     {
       "id": "osc1_level",
@@ -76,16 +88,28 @@
       "name": "Osc2 Waveform",
       "group": "Oscillators",
       "min": 0,
-      "max": 2,
+      "max": 3,
       "default": 1,
       "step": 1,
       "unit": "",
       "options": [
         "Saw",
-        "Square",
-        "Triangle"
+        "Pulse",
+        "Triangle",
+        "Sine"
       ],
       "description": "Waveform of oscillator 2."
+    },
+    {
+      "id": "osc2_pulse_width",
+      "name": "Osc2 Pulse Width",
+      "group": "Oscillators",
+      "min": 0.05,
+      "max": 0.95,
+      "default": 0.5,
+      "step": 0.001,
+      "unit": "",
+      "description": "Duty cycle of oscillator 2 when its waveform is Pulse (0.5 = square)."
     },
     {
       "id": "osc2_level",
@@ -121,6 +145,17 @@
       "description": "Fine detune of oscillator 2 against oscillator 1."
     },
     {
+      "id": "sub_osc_level",
+      "name": "Sub Osc Level",
+      "group": "Oscillators",
+      "min": 0,
+      "max": 1,
+      "default": 0,
+      "step": 0.001,
+      "unit": "",
+      "description": "Square wave one octave below oscillator 1."
+    },
+    {
       "id": "noise_level",
       "name": "Noise Level",
       "group": "Oscillators",
@@ -132,6 +167,60 @@
       "description": "White noise mixed into the filter input."
     },
     {
+      "id": "osc2_hard_sync",
+      "name": "Osc2 Hard Sync",
+      "group": "Osc Modulation",
+      "min": 0,
+      "max": 1,
+      "default": 0,
+      "step": 1,
+      "unit": "",
+      "options": [
+        "Off",
+        "On"
+      ],
+      "description": "Restart oscillator 2 every cycle of oscillator 1 (classic sync lead; sweep Osc2 Transpose or Osc2 Env Pitch)."
+    },
+    {
+      "id": "osc2_env_pitch_cents",
+      "name": "Osc2 Env Pitch",
+      "group": "Osc Modulation",
+      "min": -4800,
+      "max": 4800,
+      "default": 0,
+      "step": 1,
+      "unit": "cents",
+      "description": "How far the filter envelope bends oscillator 2 pitch (sync sweeps, FM brightness changes)."
+    },
+    {
+      "id": "fm_index",
+      "name": "FM Index",
+      "group": "Osc Modulation",
+      "min": 0,
+      "max": 10,
+      "default": 0,
+      "step": 0.01,
+      "unit": "rad",
+      "description": "Phase modulation of oscillator 1 by oscillator 2 (0 = off; use Sine waves for bells/e-pianos)."
+    },
+    {
+      "id": "filter_mode",
+      "name": "Filter Mode",
+      "group": "Filter",
+      "min": 0,
+      "max": 3,
+      "default": 0,
+      "step": 1,
+      "unit": "",
+      "options": [
+        "Low-pass",
+        "High-pass",
+        "Band-pass",
+        "Notch"
+      ],
+      "description": "Filter response type."
+    },
+    {
       "id": "filter_cutoff_hz",
       "name": "Filter Cutoff",
       "group": "Filter",
@@ -141,7 +230,7 @@
       "step": 1,
       "unit": "Hz",
       "scale": "log",
-      "description": "Base cutoff frequency of the resonant low-pass filter."
+      "description": "Base cutoff frequency of the resonant filter."
     },
     {
       "id": "filter_resonance",
@@ -167,7 +256,18 @@
         "12 dB/oct",
         "24 dB/oct"
       ],
-      "description": "Low-pass slope: 2-pole or 4-pole."
+      "description": "Filter slope: 2-pole or 4-pole."
+    },
+    {
+      "id": "filter_drive",
+      "name": "Filter Drive",
+      "group": "Filter",
+      "min": 0,
+      "max": 1,
+      "default": 0,
+      "step": 0.001,
+      "unit": "",
+      "description": "Soft saturation before the filter."
     },
     {
       "id": "filter_env_amount_oct",
@@ -308,43 +408,105 @@
       "description": "How much note velocity scales loudness (0 = ignore velocity)."
     },
     {
+      "id": "lfo_waveform",
+      "name": "LFO Waveform",
+      "group": "LFO",
+      "min": 0,
+      "max": 4,
+      "default": 0,
+      "step": 1,
+      "unit": "",
+      "options": [
+        "Sine",
+        "Triangle",
+        "Saw Down",
+        "Square",
+        "Sample & Hold"
+      ],
+      "description": "Shape of the global LFO."
+    },
+    {
       "id": "lfo_rate_hz",
       "name": "LFO Rate",
-      "group": "Modulation",
+      "group": "LFO",
       "min": 0.05,
       "max": 20,
       "default": 5,
       "step": 0.01,
       "unit": "Hz",
       "scale": "log",
-      "description": "Rate of the global LFO driven by the mod wheel."
+      "description": "Rate of the global LFO."
     },
     {
-      "id": "modwheel_vibrato_cents",
-      "name": "Mod Wheel Vibrato Depth",
-      "group": "Modulation",
+      "id": "lfo_pitch_cents",
+      "name": "LFO Pitch Depth",
+      "group": "LFO",
       "min": 0,
-      "max": 200,
-      "default": 30,
+      "max": 1200,
+      "default": 0,
       "step": 0.1,
       "unit": "cents",
-      "description": "Vibrato depth at full mod wheel."
+      "description": "Constant vibrato depth (independent of the mod wheel)."
     },
     {
-      "id": "modwheel_filter_oct",
-      "name": "Mod Wheel Filter LFO Depth",
-      "group": "Modulation",
+      "id": "lfo_filter_oct",
+      "name": "LFO Filter Depth",
+      "group": "LFO",
       "min": 0,
       "max": 4,
       "default": 0,
       "step": 0.01,
       "unit": "oct",
-      "description": "Filter cutoff wobble depth at full mod wheel."
+      "description": "Constant filter cutoff modulation depth."
+    },
+    {
+      "id": "lfo_pulse_width",
+      "name": "LFO Pulse Width Depth",
+      "group": "LFO",
+      "min": 0,
+      "max": 0.45,
+      "default": 0,
+      "step": 0.001,
+      "unit": "",
+      "description": "Pulse width modulation (PWM) depth for Pulse waveforms."
+    },
+    {
+      "id": "lfo_amp",
+      "name": "LFO Tremolo Depth",
+      "group": "LFO",
+      "min": 0,
+      "max": 1,
+      "default": 0,
+      "step": 0.001,
+      "unit": "",
+      "description": "Amplitude modulation (tremolo) depth."
+    },
+    {
+      "id": "modwheel_vibrato_cents",
+      "name": "Mod Wheel Vibrato Depth",
+      "group": "Mod Wheel / Bend",
+      "min": 0,
+      "max": 200,
+      "default": 30,
+      "step": 0.1,
+      "unit": "cents",
+      "description": "Extra vibrato depth at full mod wheel."
+    },
+    {
+      "id": "modwheel_filter_oct",
+      "name": "Mod Wheel Filter LFO Depth",
+      "group": "Mod Wheel / Bend",
+      "min": 0,
+      "max": 4,
+      "default": 0,
+      "step": 0.01,
+      "unit": "oct",
+      "description": "Extra filter cutoff wobble depth at full mod wheel."
     },
     {
       "id": "pitch_bend_range_cents",
       "name": "Pitch Bend Range",
-      "group": "Modulation",
+      "group": "Mod Wheel / Bend",
       "min": 0,
       "max": 2400,
       "default": 200,
@@ -355,13 +517,57 @@
     {
       "id": "voice_count",
       "name": "Max Voices",
-      "group": "Master",
+      "group": "Voice",
       "min": 1,
       "max": 8,
       "default": 8,
       "step": 1,
       "unit": "voices",
       "description": "Maximum polyphony (1 = mono)."
+    },
+    {
+      "id": "glide_ms",
+      "name": "Glide Time",
+      "group": "Voice",
+      "min": 0,
+      "max": 1000,
+      "default": 0,
+      "step": 1,
+      "unit": "ms",
+      "description": "Portamento time from the previously played note (0 = off)."
+    },
+    {
+      "id": "unison_voices",
+      "name": "Unison Voices",
+      "group": "Voice",
+      "min": 1,
+      "max": 4,
+      "default": 1,
+      "step": 1,
+      "unit": "voices",
+      "description": "Stacked detuned copies of both oscillators per note (supersaw-style thickness)."
+    },
+    {
+      "id": "unison_detune_cents",
+      "name": "Unison Detune",
+      "group": "Voice",
+      "min": 0,
+      "max": 100,
+      "default": 15,
+      "step": 0.1,
+      "unit": "cents",
+      "description": "Total detune spread across the unison copies."
+    },
+    {
+      "id": "unison_stereo_width",
+      "name": "Unison Stereo Width",
+      "group": "Voice",
+      "min": 0,
+      "max": 1,
+      "default": 0.7,
+      "step": 0.001,
+      "unit": "",
+      "description": "How far the unison copies are spread left/right."
     },
     {
       "id": "master_volume_db",
@@ -727,6 +933,484 @@
       "step": 0.001,
       "unit": "",
       "description": "Balance between noise (0) and detuned square cluster (1)."
+    },
+    {
+      "id": "low_tom_pitch_hz",
+      "name": "Low Tom Pitch",
+      "group": "Low Tom",
+      "min": 40,
+      "max": 600,
+      "default": 90,
+      "step": 0.1,
+      "unit": "Hz",
+      "scale": "log",
+      "description": "Resting frequency of the tom sine."
+    },
+    {
+      "id": "low_tom_decay_ms",
+      "name": "Low Tom Decay",
+      "group": "Low Tom",
+      "min": 40,
+      "max": 3000,
+      "default": 420,
+      "step": 1,
+      "unit": "ms",
+      "scale": "log",
+      "description": "Amplitude decay time of the tom."
+    },
+    {
+      "id": "low_tom_tone",
+      "name": "Low Tom Tone",
+      "group": "Low Tom",
+      "min": 0,
+      "max": 1,
+      "default": 0.4,
+      "step": 0.001,
+      "unit": "",
+      "description": "Downward pitch bend at the attack plus stick noise."
+    },
+    {
+      "id": "low_tom_level_db",
+      "name": "Low Tom Level",
+      "group": "Low Tom",
+      "min": -60,
+      "max": 6,
+      "default": -3,
+      "step": 0.1,
+      "unit": "dB",
+      "description": "Output level of the low tom."
+    },
+    {
+      "id": "low_tom_pan",
+      "name": "Low Tom Pan",
+      "group": "Low Tom",
+      "min": -1,
+      "max": 1,
+      "default": -0.3,
+      "step": 0.01,
+      "unit": "",
+      "description": "Stereo position of the low tom (-1 = left, +1 = right)."
+    },
+    {
+      "id": "mid_tom_pitch_hz",
+      "name": "Mid Tom Pitch",
+      "group": "Mid Tom",
+      "min": 40,
+      "max": 600,
+      "default": 135,
+      "step": 0.1,
+      "unit": "Hz",
+      "scale": "log",
+      "description": "Resting frequency of the tom sine."
+    },
+    {
+      "id": "mid_tom_decay_ms",
+      "name": "Mid Tom Decay",
+      "group": "Mid Tom",
+      "min": 40,
+      "max": 3000,
+      "default": 420,
+      "step": 1,
+      "unit": "ms",
+      "scale": "log",
+      "description": "Amplitude decay time of the tom."
+    },
+    {
+      "id": "mid_tom_tone",
+      "name": "Mid Tom Tone",
+      "group": "Mid Tom",
+      "min": 0,
+      "max": 1,
+      "default": 0.4,
+      "step": 0.001,
+      "unit": "",
+      "description": "Downward pitch bend at the attack plus stick noise."
+    },
+    {
+      "id": "mid_tom_level_db",
+      "name": "Mid Tom Level",
+      "group": "Mid Tom",
+      "min": -60,
+      "max": 6,
+      "default": -3,
+      "step": 0.1,
+      "unit": "dB",
+      "description": "Output level of the mid tom."
+    },
+    {
+      "id": "mid_tom_pan",
+      "name": "Mid Tom Pan",
+      "group": "Mid Tom",
+      "min": -1,
+      "max": 1,
+      "default": 0,
+      "step": 0.01,
+      "unit": "",
+      "description": "Stereo position of the mid tom (-1 = left, +1 = right)."
+    },
+    {
+      "id": "high_tom_pitch_hz",
+      "name": "High Tom Pitch",
+      "group": "High Tom",
+      "min": 40,
+      "max": 600,
+      "default": 200,
+      "step": 0.1,
+      "unit": "Hz",
+      "scale": "log",
+      "description": "Resting frequency of the tom sine."
+    },
+    {
+      "id": "high_tom_decay_ms",
+      "name": "High Tom Decay",
+      "group": "High Tom",
+      "min": 40,
+      "max": 3000,
+      "default": 420,
+      "step": 1,
+      "unit": "ms",
+      "scale": "log",
+      "description": "Amplitude decay time of the tom."
+    },
+    {
+      "id": "high_tom_tone",
+      "name": "High Tom Tone",
+      "group": "High Tom",
+      "min": 0,
+      "max": 1,
+      "default": 0.4,
+      "step": 0.001,
+      "unit": "",
+      "description": "Downward pitch bend at the attack plus stick noise."
+    },
+    {
+      "id": "high_tom_level_db",
+      "name": "High Tom Level",
+      "group": "High Tom",
+      "min": -60,
+      "max": 6,
+      "default": -3,
+      "step": 0.1,
+      "unit": "dB",
+      "description": "Output level of the high tom."
+    },
+    {
+      "id": "high_tom_pan",
+      "name": "High Tom Pan",
+      "group": "High Tom",
+      "min": -1,
+      "max": 1,
+      "default": 0.3,
+      "step": 0.01,
+      "unit": "",
+      "description": "Stereo position of the high tom (-1 = left, +1 = right)."
+    },
+    {
+      "id": "rimshot_pitch_hz",
+      "name": "Rimshot Pitch",
+      "group": "Rimshot",
+      "min": 400,
+      "max": 4000,
+      "default": 1700,
+      "step": 0.1,
+      "unit": "Hz",
+      "scale": "log",
+      "description": "Frequency of the high resonance (a lower partial follows at ~0.27x)."
+    },
+    {
+      "id": "rimshot_decay_ms",
+      "name": "Rimshot Decay",
+      "group": "Rimshot",
+      "min": 5,
+      "max": 300,
+      "default": 40,
+      "step": 1,
+      "unit": "ms",
+      "scale": "log",
+      "description": "Decay time of the rim click."
+    },
+    {
+      "id": "rimshot_tone",
+      "name": "Rimshot Tone",
+      "group": "Rimshot",
+      "min": 0,
+      "max": 1,
+      "default": 0.5,
+      "step": 0.001,
+      "unit": "",
+      "description": "Drive / hardness of the click."
+    },
+    {
+      "id": "rimshot_level_db",
+      "name": "Rimshot Level",
+      "group": "Rimshot",
+      "min": -60,
+      "max": 6,
+      "default": -6,
+      "step": 0.1,
+      "unit": "dB",
+      "description": "Output level of the rimshot."
+    },
+    {
+      "id": "rimshot_pan",
+      "name": "Rimshot Pan",
+      "group": "Rimshot",
+      "min": -1,
+      "max": 1,
+      "default": 0.1,
+      "step": 0.01,
+      "unit": "",
+      "description": "Stereo position of the rimshot (-1 = left, +1 = right)."
+    },
+    {
+      "id": "cowbell_pitch_hz",
+      "name": "Cowbell Pitch",
+      "group": "Cowbell",
+      "min": 200,
+      "max": 1500,
+      "default": 540,
+      "step": 0.1,
+      "unit": "Hz",
+      "scale": "log",
+      "description": "Frequency of the lower square (the upper one sits at ~1.48x, as on the 808)."
+    },
+    {
+      "id": "cowbell_decay_ms",
+      "name": "Cowbell Decay",
+      "group": "Cowbell",
+      "min": 30,
+      "max": 2000,
+      "default": 300,
+      "step": 1,
+      "unit": "ms",
+      "scale": "log",
+      "description": "Decay time of the cowbell tail."
+    },
+    {
+      "id": "cowbell_tone",
+      "name": "Cowbell Tone",
+      "group": "Cowbell",
+      "min": 0,
+      "max": 1,
+      "default": 0.4,
+      "step": 0.001,
+      "unit": "",
+      "description": "Band-pass brightness."
+    },
+    {
+      "id": "cowbell_level_db",
+      "name": "Cowbell Level",
+      "group": "Cowbell",
+      "min": -60,
+      "max": 6,
+      "default": -8,
+      "step": 0.1,
+      "unit": "dB",
+      "description": "Output level of the cowbell."
+    },
+    {
+      "id": "cowbell_pan",
+      "name": "Cowbell Pan",
+      "group": "Cowbell",
+      "min": -1,
+      "max": 1,
+      "default": 0.2,
+      "step": 0.01,
+      "unit": "",
+      "description": "Stereo position of the cowbell (-1 = left, +1 = right)."
+    },
+    {
+      "id": "crash_pitch_hz",
+      "name": "Crash Pitch",
+      "group": "Crash",
+      "min": 100,
+      "max": 1000,
+      "default": 420,
+      "step": 0.1,
+      "unit": "Hz",
+      "scale": "log",
+      "description": "Base frequency of the metallic square-wave cluster."
+    },
+    {
+      "id": "crash_decay_ms",
+      "name": "Crash Decay",
+      "group": "Crash",
+      "min": 200,
+      "max": 8000,
+      "default": 1800,
+      "step": 1,
+      "unit": "ms",
+      "scale": "log",
+      "description": "Decay time of the crash cymbal."
+    },
+    {
+      "id": "crash_tone",
+      "name": "Crash Tone",
+      "group": "Crash",
+      "min": 0,
+      "max": 1,
+      "default": 0.35,
+      "step": 0.001,
+      "unit": "",
+      "description": "High-pass cutoff (brightness)."
+    },
+    {
+      "id": "crash_level_db",
+      "name": "Crash Level",
+      "group": "Crash",
+      "min": -60,
+      "max": 6,
+      "default": -9,
+      "step": 0.1,
+      "unit": "dB",
+      "description": "Output level of the crash."
+    },
+    {
+      "id": "crash_pan",
+      "name": "Crash Pan",
+      "group": "Crash",
+      "min": -1,
+      "max": 1,
+      "default": -0.35,
+      "step": 0.01,
+      "unit": "",
+      "description": "Stereo position of the crash (-1 = left, +1 = right)."
+    },
+    {
+      "id": "crash_metal_mix",
+      "name": "Crash Metal Mix",
+      "group": "Crash",
+      "min": 0,
+      "max": 1,
+      "default": 0.35,
+      "step": 0.001,
+      "unit": "",
+      "description": "Balance between noise (0) and detuned square cluster (1)."
+    },
+    {
+      "id": "ride_pitch_hz",
+      "name": "Ride Pitch",
+      "group": "Ride",
+      "min": 100,
+      "max": 1000,
+      "default": 520,
+      "step": 0.1,
+      "unit": "Hz",
+      "scale": "log",
+      "description": "Base frequency of the metallic square-wave cluster."
+    },
+    {
+      "id": "ride_decay_ms",
+      "name": "Ride Decay",
+      "group": "Ride",
+      "min": 200,
+      "max": 8000,
+      "default": 2200,
+      "step": 1,
+      "unit": "ms",
+      "scale": "log",
+      "description": "Decay time of the ride cymbal."
+    },
+    {
+      "id": "ride_tone",
+      "name": "Ride Tone",
+      "group": "Ride",
+      "min": 0,
+      "max": 1,
+      "default": 0.6,
+      "step": 0.001,
+      "unit": "",
+      "description": "High-pass cutoff (brightness)."
+    },
+    {
+      "id": "ride_level_db",
+      "name": "Ride Level",
+      "group": "Ride",
+      "min": -60,
+      "max": 6,
+      "default": -7,
+      "step": 0.1,
+      "unit": "dB",
+      "description": "Output level of the ride."
+    },
+    {
+      "id": "ride_pan",
+      "name": "Ride Pan",
+      "group": "Ride",
+      "min": -1,
+      "max": 1,
+      "default": 0.35,
+      "step": 0.01,
+      "unit": "",
+      "description": "Stereo position of the ride (-1 = left, +1 = right)."
+    },
+    {
+      "id": "ride_metal_mix",
+      "name": "Ride Metal Mix",
+      "group": "Ride",
+      "min": 0,
+      "max": 1,
+      "default": 0.85,
+      "step": 0.001,
+      "unit": "",
+      "description": "Balance between noise (0) and detuned square cluster (1)."
+    },
+    {
+      "id": "shaker_pitch_hz",
+      "name": "Shaker Pitch",
+      "group": "Shaker",
+      "min": 1500,
+      "max": 15000,
+      "default": 6500,
+      "step": 0.1,
+      "unit": "Hz",
+      "scale": "log",
+      "description": "Centre frequency of the band-passed noise."
+    },
+    {
+      "id": "shaker_decay_ms",
+      "name": "Shaker Decay",
+      "group": "Shaker",
+      "min": 10,
+      "max": 500,
+      "default": 70,
+      "step": 1,
+      "unit": "ms",
+      "scale": "log",
+      "description": "Decay time after the swell."
+    },
+    {
+      "id": "shaker_tone",
+      "name": "Shaker Tone",
+      "group": "Shaker",
+      "min": 0,
+      "max": 1,
+      "default": 0.4,
+      "step": 0.001,
+      "unit": "",
+      "description": "Attack swell length (0 = instant, 1 = slow shake)."
+    },
+    {
+      "id": "shaker_level_db",
+      "name": "Shaker Level",
+      "group": "Shaker",
+      "min": -60,
+      "max": 6,
+      "default": -10,
+      "step": 0.1,
+      "unit": "dB",
+      "description": "Output level of the shaker."
+    },
+    {
+      "id": "shaker_pan",
+      "name": "Shaker Pan",
+      "group": "Shaker",
+      "min": -1,
+      "max": 1,
+      "default": 0.25,
+      "step": 0.01,
+      "unit": "",
+      "description": "Stereo position of the shaker (-1 = left, +1 = right)."
     },
     {
       "id": "drum_master_volume_db",

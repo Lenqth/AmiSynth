@@ -109,18 +109,19 @@ export function tuning_note_cents(o, note) {
 
 // ----------------------------------------------------------------------------
 // Oscillator: phase accumulator with PolyBLEP anti-aliasing.
-// waveform: 0 = saw, 1 = square, 2 = triangle
+// waveform: 0 = saw, 1 = pulse (pw = duty cycle, 0.5 = square), 2 = triangle, 3 = sine
+// pm: phase modulation in cycles (used for FM; 0 = none)
+// After osc_process(), o.wrapped is 1 on the sample where the phase wrapped (for hard sync).
 
 export function osc_init(o) {
   o.phase = 0;
   o.inc = 0;
-  o.tri = 0; // leaky integrator state for triangle
+  o.wrapped = 0;
 }
 
 export function osc_reset(o, phase) {
   o.phase = phase;
-  // Start the triangle integrator on the ideal waveform to avoid a DC offset.
-  o.tri = phase < 0.5 ? -1 + 4 * phase : 3 - 4 * phase;
+  o.wrapped = 0;
 }
 
 export function osc_set_freq(o, hz, sr) {
@@ -139,25 +140,36 @@ export function poly_blep(t, dt) {
   return 0;
 }
 
-export function osc_process(o, waveform) {
-  const t = o.phase;
+export function osc_process(o, waveform, pw, pm) {
+  let t = o.phase + pm;
+  t -= Math.floor(t);
   const dt = o.inc;
   let y;
   if (waveform < 0.5) {
     y = 2 * t - 1 - poly_blep(t, dt);
+  } else if (waveform < 1.5) {
+    let t2 = t - pw;
+    if (t2 < 0) t2 += 1;
+    // rising edge at t=0, falling edge at t=pw; subtract DC so PWM does not thump
+    y = (t < pw ? 1 : -1) + poly_blep(t, dt) - poly_blep(t2, dt) - (2 * pw - 1);
+  } else if (waveform < 2.5) {
+    // Naive triangle: harmonics fall at 12 dB/oct so aliasing is negligible.
+    y = 1 - 4 * Math.abs(t - 0.5);
   } else {
-    let t2 = t + 0.5;
-    if (t2 >= 1) t2 -= 1;
-    y = (t < 0.5 ? 1 : -1) + poly_blep(t, dt) - poly_blep(t2, dt);
-    if (waveform > 1.5) {
-      // Triangle = leaky integral of the band-limited square.
-      o.tri = dt * 4 * y + (1 - dt * 0.1) * o.tri;
-      y = o.tri;
-    }
+    y = Math.sin(TWO_PI * t);
   }
-  o.phase = t + dt;
-  if (o.phase >= 1) o.phase -= 1;
+  o.phase += dt;
+  o.wrapped = 0;
+  if (o.phase >= 1) {
+    o.phase -= 1;
+    o.wrapped = 1;
+  }
   return y;
+}
+
+/** Hard sync: restart slave at the master's sub-sample wrap position. Call right after the master wrapped. */
+export function osc_sync_to(slave, master) {
+  slave.phase = master.inc > 0 ? (master.phase / master.inc) * slave.inc : 0;
 }
 
 /** Plain sine oscillator (used by drums / LFO). Returns sin(2*pi*phase). */
@@ -173,6 +185,31 @@ export function square_naive_process(o) {
   const y = o.phase < 0.5 ? 1 : -1;
   o.phase += o.inc;
   if (o.phase >= 1) o.phase -= 1;
+  return y;
+}
+
+// ----------------------------------------------------------------------------
+// LFO: 0 sine, 1 triangle, 2 saw down, 3 square, 4 sample & hold. Output -1..1.
+
+export function lfo_init(o) {
+  o.phase = 0;
+  o.inc = 0;
+  o.held = 0;
+}
+
+export function lfo_process(o, waveform) {
+  const t = o.phase;
+  let y;
+  if (waveform < 0.5) y = Math.sin(TWO_PI * t);
+  else if (waveform < 1.5) y = 1 - 4 * Math.abs(t - 0.5);
+  else if (waveform < 2.5) y = 1 - 2 * t;
+  else if (waveform < 3.5) y = t < 0.5 ? 1 : -1;
+  else y = o.held;
+  o.phase += o.inc;
+  if (o.phase >= 1) {
+    o.phase -= 1;
+    o.held = noise_white();
+  }
   return y;
 }
 
@@ -213,6 +250,23 @@ export function svf_process(o, x) {
   o.bp = v1;
   o.hp = x - o.k * v1 - v2;
   return v2;
+}
+
+/** Copy coefficients (not state) so a second channel can reuse one tan() per sample. */
+export function svf_copy_coefs(dst, src) {
+  dst.g = src.g;
+  dst.k = src.k;
+  dst.a1 = src.a1;
+  dst.a2 = src.a2;
+  dst.a3 = src.a3;
+}
+
+/** Pick an output of the last svf_process(): 0 low-pass, 1 high-pass, 2 band-pass, 3 notch. */
+export function svf_output(o, mode) {
+  if (mode < 0.5) return o.lp;
+  if (mode < 1.5) return o.hp;
+  if (mode < 2.5) return o.bp;
+  return o.lp + o.hp;
 }
 
 export function svf_reset(o) {

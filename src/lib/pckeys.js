@@ -21,7 +21,8 @@ export function offsetToKeyLabel(offset, periodSize) {
   return '';
 }
 
-export const DRUM_KEYS = ['KeyA', 'KeyS', 'KeyD', 'KeyF', 'KeyG'];
+/** Drum pads in DRUM_PARTS order (Drums tab only). */
+export const DRUM_KEYS = ['KeyA', 'KeyS', 'KeyD', 'KeyF', 'KeyG', 'KeyH', 'KeyJ', 'KeyK', 'KeyL', 'KeyZ', 'KeyX', 'KeyC', 'KeyV'];
 
 export function isTypingTarget(el) {
   return el instanceof HTMLElement && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT' || el.isContentEditable);

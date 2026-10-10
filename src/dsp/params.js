@@ -19,7 +19,7 @@
 
 /** @typedef {{id:string,name:string,group:string,min:number,max:number,default:number,step:number,unit:string,scale?:'log',options?:string[],description:string}} ParamDef */
 
-const WAVES = ['Saw', 'Square', 'Triangle'];
+const WAVES = ['Saw', 'Pulse', 'Triangle', 'Sine'];
 
 /** Tuning is shared by synth & piano roll. 12-EDO is just the default. */
 export const TUNING_PARAMS = /** @type {ParamDef[]} */ ([
@@ -36,27 +36,44 @@ export const TUNING_PARAMS = /** @type {ParamDef[]} */ ([
 export const SYNTH_PARAMS = /** @type {ParamDef[]} */ ([
   ...TUNING_PARAMS,
 
-  { id: 'osc1_waveform', name: 'Osc1 Waveform', group: 'Oscillators', min: 0, max: 2, default: 0, step: 1, unit: '', options: WAVES,
+  { id: 'osc1_waveform', name: 'Osc1 Waveform', group: 'Oscillators', min: 0, max: 3, default: 0, step: 1, unit: '', options: WAVES,
     description: 'Waveform of oscillator 1.' },
+  { id: 'osc1_pulse_width', name: 'Osc1 Pulse Width', group: 'Oscillators', min: 0.05, max: 0.95, default: 0.5, step: 0.001, unit: '',
+    description: 'Duty cycle of oscillator 1 when its waveform is Pulse (0.5 = square).' },
   { id: 'osc1_level', name: 'Osc1 Level', group: 'Oscillators', min: 0, max: 1, default: 0.8, step: 0.001, unit: '',
     description: 'Mix level of oscillator 1.' },
-  { id: 'osc2_waveform', name: 'Osc2 Waveform', group: 'Oscillators', min: 0, max: 2, default: 1, step: 1, unit: '', options: WAVES,
+  { id: 'osc2_waveform', name: 'Osc2 Waveform', group: 'Oscillators', min: 0, max: 3, default: 1, step: 1, unit: '', options: WAVES,
     description: 'Waveform of oscillator 2.' },
+  { id: 'osc2_pulse_width', name: 'Osc2 Pulse Width', group: 'Oscillators', min: 0.05, max: 0.95, default: 0.5, step: 0.001, unit: '',
+    description: 'Duty cycle of oscillator 2 when its waveform is Pulse (0.5 = square).' },
   { id: 'osc2_level', name: 'Osc2 Level', group: 'Oscillators', min: 0, max: 1, default: 0.5, step: 0.001, unit: '',
     description: 'Mix level of oscillator 2.' },
   { id: 'osc2_transpose_cents', name: 'Osc2 Transpose', group: 'Oscillators', min: -2400, max: 2400, default: 0, step: 1, unit: 'cents',
     description: 'Coarse pitch offset of oscillator 2 in cents (tuning independent; 1200 = one octave up).' },
   { id: 'osc2_detune_cents', name: 'Osc2 Detune', group: 'Oscillators', min: -100, max: 100, default: 7, step: 0.1, unit: 'cents',
     description: 'Fine detune of oscillator 2 against oscillator 1.' },
+  { id: 'sub_osc_level', name: 'Sub Osc Level', group: 'Oscillators', min: 0, max: 1, default: 0, step: 0.001, unit: '',
+    description: 'Square wave one octave below oscillator 1.' },
   { id: 'noise_level', name: 'Noise Level', group: 'Oscillators', min: 0, max: 1, default: 0, step: 0.001, unit: '',
     description: 'White noise mixed into the filter input.' },
 
+  { id: 'osc2_hard_sync', name: 'Osc2 Hard Sync', group: 'Osc Modulation', min: 0, max: 1, default: 0, step: 1, unit: '', options: ['Off', 'On'],
+    description: 'Restart oscillator 2 every cycle of oscillator 1 (classic sync lead; sweep Osc2 Transpose or Osc2 Env Pitch).' },
+  { id: 'osc2_env_pitch_cents', name: 'Osc2 Env Pitch', group: 'Osc Modulation', min: -4800, max: 4800, default: 0, step: 1, unit: 'cents',
+    description: 'How far the filter envelope bends oscillator 2 pitch (sync sweeps, FM brightness changes).' },
+  { id: 'fm_index', name: 'FM Index', group: 'Osc Modulation', min: 0, max: 10, default: 0, step: 0.01, unit: 'rad',
+    description: 'Phase modulation of oscillator 1 by oscillator 2 (0 = off; use Sine waves for bells/e-pianos).' },
+
+  { id: 'filter_mode', name: 'Filter Mode', group: 'Filter', min: 0, max: 3, default: 0, step: 1, unit: '', options: ['Low-pass', 'High-pass', 'Band-pass', 'Notch'],
+    description: 'Filter response type.' },
   { id: 'filter_cutoff_hz', name: 'Filter Cutoff', group: 'Filter', min: 20, max: 20000, default: 1800, step: 1, unit: 'Hz', scale: 'log',
-    description: 'Base cutoff frequency of the resonant low-pass filter.' },
+    description: 'Base cutoff frequency of the resonant filter.' },
   { id: 'filter_resonance', name: 'Filter Resonance', group: 'Filter', min: 0, max: 1, default: 0.3, step: 0.001, unit: '',
     description: 'Filter resonance (approaches self-oscillation near 1).' },
   { id: 'filter_slope', name: 'Filter Slope', group: 'Filter', min: 0, max: 1, default: 1, step: 1, unit: '', options: ['12 dB/oct', '24 dB/oct'],
-    description: 'Low-pass slope: 2-pole or 4-pole.' },
+    description: 'Filter slope: 2-pole or 4-pole.' },
+  { id: 'filter_drive', name: 'Filter Drive', group: 'Filter', min: 0, max: 1, default: 0, step: 0.001, unit: '',
+    description: 'Soft saturation before the filter.' },
   { id: 'filter_env_amount_oct', name: 'Filter Env Amount', group: 'Filter', min: -8, max: 8, default: 3, step: 0.01, unit: 'oct',
     description: 'How far the filter envelope moves the cutoff, in octaves.' },
   { id: 'filter_key_tracking', name: 'Filter Key Tracking', group: 'Filter', min: 0, max: 1, default: 0.5, step: 0.001, unit: '',
@@ -84,17 +101,37 @@ export const SYNTH_PARAMS = /** @type {ParamDef[]} */ ([
   { id: 'amp_velocity_amount', name: 'Amp Velocity Amount', group: 'Amp Envelope', min: 0, max: 1, default: 0.7, step: 0.001, unit: '',
     description: 'How much note velocity scales loudness (0 = ignore velocity).' },
 
-  { id: 'lfo_rate_hz', name: 'LFO Rate', group: 'Modulation', min: 0.05, max: 20, default: 5, step: 0.01, unit: 'Hz', scale: 'log',
-    description: 'Rate of the global LFO driven by the mod wheel.' },
-  { id: 'modwheel_vibrato_cents', name: 'Mod Wheel Vibrato Depth', group: 'Modulation', min: 0, max: 200, default: 30, step: 0.1, unit: 'cents',
-    description: 'Vibrato depth at full mod wheel.' },
-  { id: 'modwheel_filter_oct', name: 'Mod Wheel Filter LFO Depth', group: 'Modulation', min: 0, max: 4, default: 0, step: 0.01, unit: 'oct',
-    description: 'Filter cutoff wobble depth at full mod wheel.' },
-  { id: 'pitch_bend_range_cents', name: 'Pitch Bend Range', group: 'Modulation', min: 0, max: 2400, default: 200, step: 1, unit: 'cents',
+  { id: 'lfo_waveform', name: 'LFO Waveform', group: 'LFO', min: 0, max: 4, default: 0, step: 1, unit: '', options: ['Sine', 'Triangle', 'Saw Down', 'Square', 'Sample & Hold'],
+    description: 'Shape of the global LFO.' },
+  { id: 'lfo_rate_hz', name: 'LFO Rate', group: 'LFO', min: 0.05, max: 20, default: 5, step: 0.01, unit: 'Hz', scale: 'log',
+    description: 'Rate of the global LFO.' },
+  { id: 'lfo_pitch_cents', name: 'LFO Pitch Depth', group: 'LFO', min: 0, max: 1200, default: 0, step: 0.1, unit: 'cents',
+    description: 'Constant vibrato depth (independent of the mod wheel).' },
+  { id: 'lfo_filter_oct', name: 'LFO Filter Depth', group: 'LFO', min: 0, max: 4, default: 0, step: 0.01, unit: 'oct',
+    description: 'Constant filter cutoff modulation depth.' },
+  { id: 'lfo_pulse_width', name: 'LFO Pulse Width Depth', group: 'LFO', min: 0, max: 0.45, default: 0, step: 0.001, unit: '',
+    description: 'Pulse width modulation (PWM) depth for Pulse waveforms.' },
+  { id: 'lfo_amp', name: 'LFO Tremolo Depth', group: 'LFO', min: 0, max: 1, default: 0, step: 0.001, unit: '',
+    description: 'Amplitude modulation (tremolo) depth.' },
+
+  { id: 'modwheel_vibrato_cents', name: 'Mod Wheel Vibrato Depth', group: 'Mod Wheel / Bend', min: 0, max: 200, default: 30, step: 0.1, unit: 'cents',
+    description: 'Extra vibrato depth at full mod wheel.' },
+  { id: 'modwheel_filter_oct', name: 'Mod Wheel Filter LFO Depth', group: 'Mod Wheel / Bend', min: 0, max: 4, default: 0, step: 0.01, unit: 'oct',
+    description: 'Extra filter cutoff wobble depth at full mod wheel.' },
+  { id: 'pitch_bend_range_cents', name: 'Pitch Bend Range', group: 'Mod Wheel / Bend', min: 0, max: 2400, default: 200, step: 1, unit: 'cents',
     description: 'Pitch bend range in cents (tuning independent; 200 = +/-2 semitones).' },
 
-  { id: 'voice_count', name: 'Max Voices', group: 'Master', min: 1, max: 8, default: 8, step: 1, unit: 'voices',
+  { id: 'voice_count', name: 'Max Voices', group: 'Voice', min: 1, max: 8, default: 8, step: 1, unit: 'voices',
     description: 'Maximum polyphony (1 = mono).' },
+  { id: 'glide_ms', name: 'Glide Time', group: 'Voice', min: 0, max: 1000, default: 0, step: 1, unit: 'ms',
+    description: 'Portamento time from the previously played note (0 = off).' },
+  { id: 'unison_voices', name: 'Unison Voices', group: 'Voice', min: 1, max: 4, default: 1, step: 1, unit: 'voices',
+    description: 'Stacked detuned copies of both oscillators per note (supersaw-style thickness).' },
+  { id: 'unison_detune_cents', name: 'Unison Detune', group: 'Voice', min: 0, max: 100, default: 15, step: 0.1, unit: 'cents',
+    description: 'Total detune spread across the unison copies.' },
+  { id: 'unison_stereo_width', name: 'Unison Stereo Width', group: 'Voice', min: 0, max: 1, default: 0.7, step: 0.001, unit: '',
+    description: 'How far the unison copies are spread left/right.' },
+
   { id: 'master_volume_db', name: 'Master Volume', group: 'Master', min: -60, max: 6, default: -6, step: 0.1, unit: 'dB',
     description: 'Output volume of the synth.' },
 ]);
@@ -109,6 +146,14 @@ export const DRUM_PARTS = [
   { key: 'clap', name: 'Clap', note: 39 },
   { key: 'closed_hat', name: 'Closed Hi-Hat', note: 42 },
   { key: 'open_hat', name: 'Open Hi-Hat', note: 46 },
+  { key: 'rimshot', name: 'Rimshot', note: 37 },
+  { key: 'low_tom', name: 'Low Tom', note: 45 },
+  { key: 'mid_tom', name: 'Mid Tom', note: 47 },
+  { key: 'high_tom', name: 'High Tom', note: 50 },
+  { key: 'crash', name: 'Crash', note: 49 },
+  { key: 'ride', name: 'Ride', note: 51 },
+  { key: 'cowbell', name: 'Cowbell', note: 56 },
+  { key: 'shaker', name: 'Shaker', note: 70 },
 ];
 
 /** Common per-part parameters: pitch, decay, tone, level, pan. */
@@ -174,6 +219,64 @@ export const DRUM_PARAMS = /** @type {ParamDef[]} */ ([
   }),
   { id: 'open_hat_metal_mix', name: 'Open Hi-Hat Metal Mix', group: 'Open Hi-Hat', min: 0, max: 1, default: 0.6, step: 0.001, unit: '',
     description: 'Balance between noise (0) and detuned square cluster (1).' },
+
+  ...partParams('low_tom', 'Low Tom', {
+    pitch: [40, 600, 90], decay: [40, 3000, 420], tone: 0.4, level: -3, pan: -0.3,
+    pitchDesc: 'Resting frequency of the tom sine.',
+    decayDesc: 'Amplitude decay time of the tom.',
+    toneDesc: 'Downward pitch bend at the attack plus stick noise.',
+  }),
+  ...partParams('mid_tom', 'Mid Tom', {
+    pitch: [40, 600, 135], decay: [40, 3000, 420], tone: 0.4, level: -3, pan: 0,
+    pitchDesc: 'Resting frequency of the tom sine.',
+    decayDesc: 'Amplitude decay time of the tom.',
+    toneDesc: 'Downward pitch bend at the attack plus stick noise.',
+  }),
+  ...partParams('high_tom', 'High Tom', {
+    pitch: [40, 600, 200], decay: [40, 3000, 420], tone: 0.4, level: -3, pan: 0.3,
+    pitchDesc: 'Resting frequency of the tom sine.',
+    decayDesc: 'Amplitude decay time of the tom.',
+    toneDesc: 'Downward pitch bend at the attack plus stick noise.',
+  }),
+
+  ...partParams('rimshot', 'Rimshot', {
+    pitch: [400, 4000, 1700], decay: [5, 300, 40], tone: 0.5, level: -6, pan: 0.1,
+    pitchDesc: 'Frequency of the high resonance (a lower partial follows at ~0.27x).',
+    decayDesc: 'Decay time of the rim click.',
+    toneDesc: 'Drive / hardness of the click.',
+  }),
+
+  ...partParams('cowbell', 'Cowbell', {
+    pitch: [200, 1500, 540], decay: [30, 2000, 300], tone: 0.4, level: -8, pan: 0.2,
+    pitchDesc: 'Frequency of the lower square (the upper one sits at ~1.48x, as on the 808).',
+    decayDesc: 'Decay time of the cowbell tail.',
+    toneDesc: 'Band-pass brightness.',
+  }),
+
+  ...partParams('crash', 'Crash', {
+    pitch: [100, 1000, 420], decay: [200, 8000, 1800], tone: 0.35, level: -9, pan: -0.35,
+    pitchDesc: 'Base frequency of the metallic square-wave cluster.',
+    decayDesc: 'Decay time of the crash cymbal.',
+    toneDesc: 'High-pass cutoff (brightness).',
+  }),
+  { id: 'crash_metal_mix', name: 'Crash Metal Mix', group: 'Crash', min: 0, max: 1, default: 0.35, step: 0.001, unit: '',
+    description: 'Balance between noise (0) and detuned square cluster (1).' },
+
+  ...partParams('ride', 'Ride', {
+    pitch: [100, 1000, 520], decay: [200, 8000, 2200], tone: 0.6, level: -7, pan: 0.35,
+    pitchDesc: 'Base frequency of the metallic square-wave cluster.',
+    decayDesc: 'Decay time of the ride cymbal.',
+    toneDesc: 'High-pass cutoff (brightness).',
+  }),
+  { id: 'ride_metal_mix', name: 'Ride Metal Mix', group: 'Ride', min: 0, max: 1, default: 0.85, step: 0.001, unit: '',
+    description: 'Balance between noise (0) and detuned square cluster (1).' },
+
+  ...partParams('shaker', 'Shaker', {
+    pitch: [1500, 15000, 6500], decay: [10, 500, 70], tone: 0.4, level: -10, pan: 0.25,
+    pitchDesc: 'Centre frequency of the band-passed noise.',
+    decayDesc: 'Decay time after the swell.',
+    toneDesc: 'Attack swell length (0 = instant, 1 = slow shake).',
+  }),
 
   { id: 'drum_master_volume_db', name: 'Drum Master Volume', group: 'Master', min: -60, max: 6, default: -4, step: 0.1, unit: 'dB',
     description: 'Output volume of the drum machine.' },

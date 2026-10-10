@@ -7,6 +7,9 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { DRUM_PARAMS, SYNTH_PARAMS } from '../src/dsp/params.js';
+import { resolvePreset } from '../src/lib/presets.js';
+import { DRUM_PRESETS } from '../src/presets/drums.js';
+import { SYNTH_PRESETS } from '../src/presets/synth.js';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const outDir = join(root, 'jsfx', 'generated');
@@ -33,6 +36,13 @@ function main() {
   writeFileSync(join(outDir, 'synth-sliders.txt'), block('AmiSynth Synth', SYNTH_PARAMS));
   writeFileSync(join(outDir, 'drums-sliders.txt'), block('AmiSynth Drums', DRUM_PARAMS));
   writeFileSync(join(outDir, 'params.json'), JSON.stringify({ synth: SYNTH_PARAMS, drums: DRUM_PARAMS }, null, 2) + '\n');
+  // Full slider values per preset, in slider order (for building REAPER .rpl presets later).
+  const resolved = (defs, presets) =>
+    presets.map((p) => ({ name: p.name, category: p.category, description: p.description, sliders: defs.map((d) => resolvePreset(defs, p)[d.id]) }));
+  writeFileSync(
+    join(outDir, 'presets.json'),
+    JSON.stringify({ synth: resolved(SYNTH_PARAMS, SYNTH_PRESETS), drums: resolved(DRUM_PARAMS, DRUM_PRESETS) }, null, 1) + '\n',
+  );
   console.log(`wrote ${SYNTH_PARAMS.length} synth + ${DRUM_PARAMS.length} drum sliders to jsfx/generated/`);
 }
 

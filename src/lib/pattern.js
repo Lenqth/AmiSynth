@@ -35,7 +35,11 @@ export function demoPattern() {
     for (const s of [0, 4, 8, 12]) drums.push({ note: 36, step: b + s, vel: 120 });
     if (bar % 2 === 1) drums.push({ note: 36, step: b + 14, vel: 90 });
     for (const s of [4, 12]) drums.push({ note: 38, step: b + s, vel: 110 });
-    if (bar === 3) drums.push({ note: 39, step: b + 15, vel: 100 });
+    if (bar === 0) drums.push({ note: 49, step: b, vel: 110 });
+    if (bar === 3) {
+      // tom fill into the loop
+      drums.push({ note: 50, step: b + 13, vel: 100 }, { note: 47, step: b + 14, vel: 105 }, { note: 45, step: b + 15, vel: 115 });
+    }
     for (let s = 2; s < 16; s += 4) drums.push({ note: s === 14 && bar % 2 === 1 ? 46 : 42, step: b + s, vel: 100 });
     for (const s of [1, 7, 9, 13]) drums.push({ note: 42, step: b + s, vel: 55 });
   }
@@ -55,11 +59,13 @@ export class Sequencer {
    * @param {import('./engine.js').AudioEngine} engine
    * @param {() => Pattern} getPattern
    * @param {(note:number, time:number) => void} onDrum UI feedback hook
+   * @param {(note:number, time:number, duration:number) => void} [onSynthNote] UI feedback hook
    */
-  constructor(engine, getPattern, onDrum) {
+  constructor(engine, getPattern, onDrum, onSynthNote = () => {}) {
     this.engine = engine;
     this.getPattern = getPattern;
     this.onDrum = onDrum;
+    this.onSynthNote = onSynthNote;
     this.timer = 0;
     this.playing = false;
     this.nextStep = 0;
@@ -121,6 +127,7 @@ export class Sequencer {
       this.engine.noteOn('synth', n.note, n.vel, time);
       // release slightly before the step boundary so repeated notes retrigger cleanly
       this.engine.noteOff('synth', n.note, time + n.len * stepDur - 0.002);
+      this.onSynthNote(n.note, time, n.len * stepDur - 0.002);
     }
     for (const h of pattern.drums) {
       if (h.step !== step) continue;
