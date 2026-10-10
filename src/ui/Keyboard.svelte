@@ -4,10 +4,10 @@
   import { offsetToKeyLabel } from '../lib/pckeys.js';
 
   /**
-   * @type {{ tuning: any, baseNote: number, held: Record<number, boolean>,
+   * @type {{ tuning: any, baseNote: number, held: Record<number, boolean>, playing?: Record<number, number>,
    *   noteOn: (n:number, vel:number)=>void, noteOff: (n:number)=>void }}
    */
-  let { tuning, baseNote, held, noteOn, noteOff } = $props();
+  let { tuning, baseNote, held, playing = {}, noteOn, noteOff } = $props();
 
   const piano = $derived(isPianoLike(tuning));
   const count = $derived(piano ? 37 : Math.min(128 - baseNote, Math.max(2 * tuning.size + 1, 13)));
@@ -74,7 +74,7 @@
 >
   {#if piano}
     {#each whites as n (n)}
-      <div class="white" class:held={held[n]} data-note={n} title={title(n)}>
+      <div class="white" class:held={held[n]} class:playing={!held[n] && playing[n]} data-note={n} title={title(n)}>
         <span class="kbd">{offsetToKeyLabel(n - baseNote, 12)}</span>
         {#if n % 12 === 0}<span class="name">{noteLabel(tuning, n)}</span>{/if}
       </div>
@@ -83,6 +83,7 @@
       <div
         class="black"
         class:held={held[n]}
+        class:playing={!held[n] && playing[n]}
         data-note={n}
         title={title(n)}
         style={`left: calc(${blackLeft(n)}% - ${(100 / whites.length) * 0.32}%); width: ${(100 / whites.length) * 0.64}%`}
@@ -93,7 +94,7 @@
   {:else}
     {#each notes as n (n)}
       {@const d = noteDegree(tuning, n)}
-      <div class="step" class:root={d.degree === 0} class:held={held[n]} data-note={n} title={title(n)}>
+      <div class="step" class:root={d.degree === 0} class:held={held[n]} class:playing={!held[n] && playing[n]} data-note={n} title={title(n)}>
         <span class="kbd">{offsetToKeyLabel(n - baseNote, tuning.size)}</span>
         <span class="name">{d.degree === 0 ? noteLabel(tuning, n) : d.degree}</span>
       </div>
@@ -119,6 +120,8 @@
     color: #59627a;
   }
   .white.held { background: var(--accent); }
+  /* notes played by the sequencer (teal, like the drum steps) */
+  .white.playing { background: var(--accent-2); }
   .black {
     position: absolute;
     top: 0;
@@ -130,6 +133,7 @@
     color: #9aa3b5;
   }
   .black.held { background: #c98420; }
+  .black.playing { background: #2f9d95; }
   .kbd, .name {
     position: absolute;
     left: 0;
@@ -154,4 +158,5 @@
   }
   .step.root { background: #2b3446; color: var(--text); }
   .step.held { background: var(--accent); color: #1b1408; }
+  .step.playing { background: var(--accent-2); color: #0b1a19; }
 </style>

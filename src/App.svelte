@@ -5,7 +5,7 @@
   import { demoPattern, emptyPattern, Sequencer } from './lib/pattern.js';
   import { codeToOffset, DRUM_KEYS, isTypingTarget } from './lib/pckeys.js';
   import {
-    app, drumHit, flashDrum, persist, setBend, setModwheel, setParam, setScale,
+    app, clearSeqHighlights, drumHit, flashDrum, flashSeqNote, persist, setBend, setModwheel, setParam, setScale,
     startAudio, synthNoteOff, synthNoteOn,
   } from './lib/state.svelte.js';
   import { makeTuning } from './lib/tuning.js';
@@ -39,7 +39,7 @@
     app.baseNote = Math.max(0, 60 - size * Math.max(1, Math.round(12 / size)));
   });
 
-  const seq = new Sequencer(engine, () => app.pattern, (note, time) => flashDrum(note, time));
+  const seq = new Sequencer(engine, () => app.pattern, flashDrum, flashSeqNote);
 
   /** Start audio lazily on the first gesture, then run fn. */
   async function withAudio(fn) {
@@ -84,6 +84,7 @@
   async function togglePlay() {
     if (app.playing) {
       seq.stop();
+      clearSeqHighlights();
       app.playing = false;
       app.playStep = -1;
       app.held = {};
@@ -248,7 +249,7 @@
     <section class="card play">
       <Wheels bend={app.bend} modwheel={app.modwheel} onbend={setBend} onmod={setModwheel} />
       <div class="kb">
-        <Keyboard {tuning} baseNote={app.baseNote} held={app.held} {noteOn} {noteOff} />
+        <Keyboard {tuning} baseNote={app.baseNote} held={app.held} playing={app.seqHeld} {noteOn} {noteOff} />
         <div class="kb-tools muted">
           <button onclick={() => shiftOctave(-1)} title="[">◀ 周期</button>
           <span>PC キー: <kbd>Z</kbd>〜<kbd>/</kbd> と <kbd>Q</kbd>〜<kbd>P</kbd> · <kbd>[</kbd><kbd>]</kbd> で周期シフト · <kbd>Space</kbd> 再生</span>

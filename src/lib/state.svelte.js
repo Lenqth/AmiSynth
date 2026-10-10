@@ -49,6 +49,8 @@ export const app = $state({
   /** notes currently held from the UI / PC keyboard / MIDI (for highlighting) */
   held: /** @type {Record<number, boolean>} */ ({}),
   drumFlash: /** @type {Record<number, number>} */ ({}),
+  /** notes sounding from the sequencer: note -> overlap count (keyboard highlight) */
+  seqHeld: /** @type {Record<number, number>} */ ({}),
   midiStatus: '',
 });
 
@@ -151,6 +153,36 @@ export function flashDrum(note, time) {
   setTimeout(() => {
     app.drumFlash[note] = (app.drumFlash[note] ?? 0) + 1;
   }, delay);
+}
+
+/** UI timers for sequencer note highlights (cleared on stop). */
+const seqTimers = new Set();
+
+function later(ms, fn) {
+  const id = setTimeout(() => {
+    seqTimers.delete(id);
+    fn();
+  }, ms);
+  seqTimers.add(id);
+}
+
+/** Light a keyboard key while a sequenced note sounds. */
+export function flashSeqNote(note, time, duration) {
+  const delay = Math.max(0, (time - engine.time) * 1000);
+  later(delay, () => {
+    app.seqHeld[note] = (app.seqHeld[note] ?? 0) + 1;
+  });
+  later(delay + Math.max(30, duration * 1000), () => {
+    const n = (app.seqHeld[note] ?? 1) - 1;
+    if (n > 0) app.seqHeld[note] = n;
+    else delete app.seqHeld[note];
+  });
+}
+
+export function clearSeqHighlights() {
+  for (const id of seqTimers) clearTimeout(id);
+  seqTimers.clear();
+  app.seqHeld = {};
 }
 
 export function setBend(v) {

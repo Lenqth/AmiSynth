@@ -59,11 +59,13 @@ export class Sequencer {
    * @param {import('./engine.js').AudioEngine} engine
    * @param {() => Pattern} getPattern
    * @param {(note:number, time:number) => void} onDrum UI feedback hook
+   * @param {(note:number, time:number, duration:number) => void} [onSynthNote] UI feedback hook
    */
-  constructor(engine, getPattern, onDrum) {
+  constructor(engine, getPattern, onDrum, onSynthNote = () => {}) {
     this.engine = engine;
     this.getPattern = getPattern;
     this.onDrum = onDrum;
+    this.onSynthNote = onSynthNote;
     this.timer = 0;
     this.playing = false;
     this.nextStep = 0;
@@ -125,6 +127,7 @@ export class Sequencer {
       this.engine.noteOn('synth', n.note, n.vel, time);
       // release slightly before the step boundary so repeated notes retrigger cleanly
       this.engine.noteOff('synth', n.note, time + n.len * stepDur - 0.002);
+      this.onSynthNote(n.note, time, n.len * stepDur - 0.002);
     }
     for (const h of pattern.drums) {
       if (h.step !== step) continue;
