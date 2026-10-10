@@ -1000,7 +1000,7 @@
       "default": 0.6,
       "step": 0.001,
       "unit": "",
-      "description": "Felt hardness: harder (and louder notes) excite more high partials."
+      "description": "Felt stiffness of the hammer. The felt hardens as it is compressed, so louder notes are always brighter; this sets the overall brightness."
     },
     {
       "id": "piano_strike_position",
@@ -1035,6 +1035,17 @@
       "step": 0.001,
       "unit": "",
       "description": "Extra loss of high partials per round trip."
+    },
+    {
+      "id": "piano_soundboard",
+      "name": "Piano Soundboard",
+      "group": "Stiff String",
+      "min": 0,
+      "max": 1,
+      "default": 0.6,
+      "step": 0.001,
+      "unit": "",
+      "description": "How much of the sound comes through the soundboard (16 resonances fed by the bridge) instead of straight from the strings."
     },
     {
       "id": "piano_unison_detune_cents",

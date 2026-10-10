@@ -301,3 +301,36 @@ test('room: adds a decaying stereo tail and is bypassed at 0', () => {
   render(wet.s, SR * 4);
   assert.ok(rms(render(wet.s, 4800)) < rms(wet.l) * 1e-3);
 });
+
+test('piano: harder notes are brighter (felt hammer), and the soundboard is bypassed at 0', () => {
+  const centroid = (velocity, over = {}) => {
+    const s = make({ phys_model: 5, ...over });
+    phys_note_on(s, 60, velocity);
+    const x = render(s, 4800);
+    let num = 0;
+    let den = 0;
+    for (let f = 100; f < 8000; f += 100) {
+      let re = 0;
+      let im = 0;
+      for (let i = 0; i < x.length; i++) {
+        re += x[i] * Math.cos((2 * Math.PI * f * i) / SR);
+        im += x[i] * Math.sin((2 * Math.PI * f * i) / SR);
+      }
+      num += f * (re * re + im * im);
+      den += re * re + im * im;
+    }
+    return num / den;
+  };
+  const pp = centroid(30);
+  const ff = centroid(127);
+  assert.ok(ff > pp * 2, `ff ${ff.toFixed(0)} Hz vs pp ${pp.toFixed(0)} Hz`);
+  // same velocity amount 0: the level no longer follows velocity, the timbre still does
+  assert.ok(centroid(127, { phys_velocity_amount: 0 }) > centroid(30, { phys_velocity_amount: 0 }) * 2);
+  const a = make({ phys_model: 5, piano_soundboard: 0 });
+  const b = make({ phys_model: 5, piano_soundboard: 0.8 });
+  phys_note_on(a, 60, 100);
+  phys_note_on(b, 60, 100);
+  const xa = render(a, 4800);
+  const xb = render(b, 4800);
+  assert.ok(xa.some((x, i) => Math.abs(x - xb[i]) > 1e-4), 'soundboard changes the sound');
+});

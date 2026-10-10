@@ -56,8 +56,14 @@ const MAX_DELAY = 8192;
 const K_MESH = 5.5;
 const FLUTE_JET_RATIO = 1.03;
 const FLUTE_JET_GAIN = 1.6;
-const N_AP = 4;
-const EXC_MAX = 8192; // piano excitation buffer (50 ms up to 160 kHz) // dispersion all-passes per stiff string
+const N_AP = 4; // dispersion all-passes per stiff string
+const EXC_MAX = 16384; // piano excitation buffer (hammer + strike comb, up to 192 kHz)
+const HAM_SUB = 4; // hammer integration sub-steps per sample
+const HAM_GAIN = 1.7;
+const HAM_TILT = 0.42; // per octave away from middle C (see note-on)
+const SB_MODES = 16; // soundboard resonances
+// hammer force history at sub-step resolution (only used inside note-on)
+const ham_hist = new Float64Array(EXC_MAX * HAM_SUB);
 
 export const MODEL_STRING = 0;
 export const MODEL_MODAL = 1;
@@ -146,6 +152,10 @@ export function phys_init(s, sr) {
   s.mesh_shape = -1;
   s.mesh_mu = 1;
   room_init(s);
+  s.sb = new Float64Array(SB_MODES * 8);
+  s.sb_l = 0;
+  s.sb_r = 0;
+  soundboard_setup(s);
   s.p = {};
   s.out_l = 0;
   s.out_r = 0;
@@ -301,6 +311,86 @@ function dispersion_coef(hz, B, b_lp, sr) {
     else hi = mid;
   }
   return 0.5 * (lo + hi);
+}
+
+/**
+ * Force pulse of a felt hammer hitting a string, as string velocity F/2Z (written to out[],
+ * returns its length). Hammer: m x'' = -F, F = K d^2.5 (d = felt compression). String at
+ * the strike point moves at (F(t) - F(t - beta*period)) / 2Z: the wave reflected (inverted)
+ * from the near end comes back and pushes the hammer off. HAM_SUB sub-steps per sample.
+ */
+function hammer_force(out, hz, v0, hardness, beta, sr) {
+  const m = clamp(0.0087 * Math.pow(262 / hz, 0.3), 0.004, 0.012); // hammer mass, kg
+  const Z = 2 * Math.pow(262 / hz, 0.2); // string wave impedance, kg/s
+  const K = 400000000 * Math.pow(100, hardness - 0.5); // felt stiffness, N/m^2.5
+  const dt = 1 / (sr * HAM_SUB);
+  const lag = Math.max(1, Math.round((beta * sr * HAM_SUB) / hz));
+  const max_n = Math.min(EXC_MAX, Math.floor(0.03 * sr));
+  let vh = v0;
+  let d = 0;
+  let i = 0;
+  let n = 0;
+  while (n < max_n) {
+    let acc = 0;
+    for (let j = 0; j < HAM_SUB; j++) {
+      const F = d > 0 ? K * Math.pow(d, 2.5) : 0;
+      ham_hist[i] = F;
+      const back = i >= lag ? ham_hist[i - lag] : 0;
+      vh -= (F / m) * dt;
+      d += (vh - (F - back) / (2 * Z)) * dt;
+      acc += F;
+      i++;
+    }
+    out[n] = acc / (HAM_SUB * 2 * Z);
+    n++;
+    // the hammer has left the string
+    if (d <= 0 && vh < 0 && n > 3) break;
+  }
+  return n;
+}
+
+// Soundboard: SB_MODES resonances (dense and long in the bass, short in the treble) fed by
+// the bridge (sum of the piano strings). It is what actually radiates a piano's sound and
+// colours every note the same way, like a real instrument body. 8 values per mode:
+// k a1 a2 a3 ic1 ic2 gainL gainR (TPT state variable band-pass; bp * k has peak gain 1).
+function soundboard_setup(s) {
+  const sb = s.sb;
+  for (let k = 0; k < SB_MODES; k++) {
+    const f = 75 * Math.pow(2800 / 75, k / (SB_MODES - 1)) * (1 + 0.06 * Math.sin(2.3 * k + 1));
+    const t60 = clamp(0.35 * Math.pow(150 / f, 0.4), 0.05, 0.6);
+    const kk = 1 / clamp((Math.PI * f * t60) / 6.908, 2, 60);
+    const g = Math.tan((Math.PI * Math.min(f, s.sr * 0.45)) / s.sr);
+    const o = k * 8;
+    sb[o] = kk;
+    sb[o + 1] = 1 / (1 + g * (g + kk));
+    sb[o + 2] = g * sb[o + 1];
+    sb[o + 3] = g * sb[o + 2];
+    sb[o + 4] = 0;
+    sb[o + 5] = 0;
+    const gain = ((0.7 + 0.3 * Math.cos(1.7 * k)) / (1 + f / 1500)) * 0.45;
+    // alternate modes lean left / right: the board is wide, and so is its sound
+    sb[o + 6] = gain * (k % 2 === 0 ? 1.3 : 0.7);
+    sb[o + 7] = gain * (k % 2 === 0 ? 0.7 : 1.3);
+  }
+}
+
+function soundboard_process(s, x) {
+  const sb = s.sb;
+  let l = 0;
+  let r = 0;
+  for (let k = 0; k < SB_MODES; k++) {
+    const o = k * 8;
+    const v3 = x - sb[o + 5];
+    const v1 = sb[o + 1] * sb[o + 4] + sb[o + 2] * v3;
+    const v2 = sb[o + 5] + sb[o + 2] * sb[o + 4] + sb[o + 3] * v3;
+    sb[o + 4] = 2 * v1 - sb[o + 4];
+    sb[o + 5] = 2 * v2 - sb[o + 5];
+    const bp = v1 * sb[o];
+    l += bp * sb[o + 6];
+    r += bp * sb[o + 7];
+  }
+  s.sb_l = l;
+  s.sb_r = r;
 }
 
 /** Mesh damping s for a T60 of `ms`: (1-s)/(1+s) = coef^2. */
@@ -546,29 +636,43 @@ export function phys_note_on(s, note, velocity) {
     }
     ap1_init(v.tuneA);
     ap1_init(v.tuneB);
-    // Commuted synthesis: instead of modelling the soundboard, its impulse response (a short
-    // burst of decaying, low-passed noise) is folded into the excitation together with the
-    // hammer pulse, and fed into the strings over the first ~50 ms. The strike position comb
-    // removes the partials with a node at the hammer.
-    const hard = clamp(p.piano_hammer_hardness * (0.6 + 0.4 * vel), 0, 1);
+    // Hammer: a felt hammer (mass m, force K * compression^2.5) is thrown at the string, which
+    // pushes back as a resistance 2Z plus the wave reflected from the near end. Felt gets
+    // stiffer the harder it is compressed, so a faster hammer gives a shorter, sharper force
+    // pulse: louder AND brighter - the main thing that makes a piano sound like a piano.
+    // The force pulse (string velocity F/2Z) is the excitation, with the strike position comb
+    // and a little key / action thump (low-passed noise) on top.
     const n = Math.ceil(v.delay_len);
-    const width = Math.max(2, n * (0.45 - 0.42 * hard));
-    const len = Math.min(EXC_MAX, Math.round(0.05 * sr));
-    const decay = Math.exp(-1 / (0.006 * sr));
-    const sb_a = 1 - Math.exp((-TWO_PI * (800 + 3000 * hard)) / sr);
+    const v0 = 0.3 * Math.pow(20, vel); // hammer speed in m/s: pp ~0.5 .. ff 6
     const e = v.exc;
-    let env = 0.35;
+    const len = hammer_force(e, v.hz, v0, p.piano_hammer_hardness, p.piano_strike_position, sr);
+    // The loop carries what the bridge feels (string velocity / slope, not displacement), so
+    // the velocity pulse goes in as it is. The strike comb cancels much of a long pulse at low
+    // frequencies, more so in the bass; HAM_GAIN and the pitch tilt bring the level back.
+    const pick = Math.max(1, Math.round(p.piano_strike_position * n));
+    const scale = (HAM_GAIN * Math.pow(2, HAM_TILT * Math.abs(Math.log(v.hz / 262) / Math.LN2))) / v0;
+    const total = Math.min(EXC_MAX, Math.max(len + pick + 1, Math.round(0.03 * sr)));
+    const decay = Math.exp(-1 / (0.004 * sr));
+    const thump_a = 1 - Math.exp((-TWO_PI * 600) / sr);
+    let env = 0.08 * vel;
     let lp = 0;
-    for (let i = 0; i < len; i++) {
-      lp += sb_a * (noise_white() - lp);
-      e[i] = (i < width ? 0.5 - 0.5 * Math.cos((TWO_PI * i) / width) : 0) + lp * env;
+    for (let i = 0; i < total; i++) {
+      lp += thump_a * (noise_white() - lp);
+      e[i] = (i < len ? e[i] * scale : 0) + lp * env;
       env *= decay;
     }
-    const pick = Math.max(1, Math.round(p.piano_strike_position * n));
-    for (let i = len - 1; i >= pick; i--) e[i] -= e[i - pick];
-    v.exc_len = len;
+    for (let i = total - 1; i >= pick; i--) e[i] -= e[i - pick];
+    // a string fixed at both ends has no DC mode, but the loop does: remove the bump's DC
+    // (one-pole high-pass at half the fundamental) so it does not pile up as a low thud
+    const hp_a = 1 - Math.exp((-TWO_PI * 0.5 * v.hz) / sr);
+    let hp_z = 0;
+    for (let i = 0; i < total; i++) {
+      hp_z += hp_a * (e[i] - hp_z);
+      e[i] -= hp_z;
+    }
+    v.exc_len = total;
     v.exc_t = 0;
-    v.read_gain = 1.2 * v.vel * clamp(Math.pow(v.hz / 220, 0.3), 0.7, 2);
+    v.read_gain = 0.9 * v.vel * clamp(Math.pow(v.hz / 220, 0.3), 0.7, 2);
   }
 }
 
@@ -782,6 +886,7 @@ export function phys_render(s) {
   const flute = p.wind_type >= 0.5;
   let l = 0;
   let r = 0;
+  let bridge = 0;
   for (let i = 0; i < PHYS_MAX_VOICES; i++) {
     const v = s.voices[i];
     if (!v.active) continue;
@@ -794,6 +899,7 @@ export function phys_render(s) {
     else y = render_stiff(v, vib);
     l += y * v.gl;
     r += y * v.gr;
+    bridge += y;
     // voice ends once it has been quiet for a while
     const a = y < 0 ? -y : y;
     v.level = a > v.level ? a : v.level * s.level_coef;
@@ -802,6 +908,13 @@ export function phys_render(s) {
       v.active = 0;
       v.note = -1;
     }
+  }
+  if (model === MODEL_STIFF && p.piano_soundboard > 0) {
+    // what you hear of a piano is mostly its soundboard; the strings themselves barely radiate
+    soundboard_process(s, bridge);
+    const dry = 1 - 0.7 * p.piano_soundboard;
+    l = l * dry + p.piano_soundboard * s.sb_l;
+    r = r * dry + p.piano_soundboard * s.sb_r;
   }
   if (p.phys_room_mix > 0) {
     room_process(s, l, r);

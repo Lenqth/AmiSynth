@@ -13,7 +13,7 @@ import { PHYS_PRESETS } from '../src/presets/phys.js';
 import { DRUM_PRESETS } from '../src/presets/drums.js';
 import { DRUM_PARTS } from '../src/dsp/params.js';
 
-const BIN = process.env.JSFX_RENDER || join(import.meta.dirname, '..', '.cache', 'jsfx_render');
+const BIN = process.env.JSFX_RENDER || join(import.meta.dirname, '..', '.cache', process.platform === 'win32' ? 'jsfx_render.exe' : 'jsfx_render');
 const HAVE = existsSync(BIN);
 const SR = 48000;
 const MIN_SNR_DB = 100; // float32 output gives ~150 dB when the port is exact
