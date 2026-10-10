@@ -37,7 +37,10 @@
     isoSettings ? { ...isoSteps(app.kbLayout, isoSettings.preset, tuning, isoSettings), rows: isoSettings.rows } : undefined,
   );
   // Physical tab: show only the controls of the selected model
-  const physGroups = $derived(['Model', app.phys.phys_model < 0.5 ? 'String' : 'Modal', 'Output']);
+  // only the knobs of the selected model (+ shared ones) are shown
+  const PHYS_MODEL_GROUPS = ['String', 'Modal', 'Bowed', 'Wind', 'Mesh', 'Stiff String'];
+  const physModel = $derived(Math.round(app.phys.phys_model));
+  const physGroups = $derived(['Model', PHYS_MODEL_GROUPS[Math.round(app.phys.phys_model)] ?? 'String', 'Output']);
 
   function toggleViz() {
     app.physViz = !app.physViz;
@@ -434,24 +437,48 @@
         <h3>Physical model</h3>
         <button class:active={app.physViz} onclick={toggleViz}>{app.physViz ? '可視化 ON' : '可視化 OFF'}</button>
       </div>
-      {#if app.phys.phys_model < 0.5}
+      {#if physModel === 0}
         <p class="explain">
           <b>弦 (Karplus-Strong)</b>: 長さ ≈ サンプルレート ÷ 周波数 の遅延線 (リングバッファ) を励起 (ノイズ = 指で弾く / パルス = ハンマー) で満たし、
           毎サンプル「一番古い値を読む → ローパス (Damping) → 減衰 (Decay) → 書き戻す」を繰り返します。1 往復の時間が音程になり、
           高い倍音ほど 1 往復あたりに多く削られるので、実際の弦のように明るい音が先に消えます。Pick Position は励起にくし形フィルターをかけ、
           弾いた位置に節がある倍音を消します (0.5 = 中央 → 偶数次倍音が消える)。
         </p>
-      {:else}
+      {:else if physModel === 1}
         <p class="explain">
           <b>モーダル合成</b>: 物体の振動を「減衰する正弦波 (モード) の和」として扱います。各モードは 2 極の共振フィルターで、周波数比は素材ごとに決まっています
           (例: マリンバの鍵盤は 1 : 3.9 : 9.2 に調律され、調律していない棒は 1 : 2.76 : 5.40)。マレットは短いパルスで、硬いほど (短いほど) 高いモードまで励起します。
           打つ位置に節があるモードは鳴りにくくなります。Ratio Stretch で比率を整数倍から曲げると「倍音的 ↔ 非倍音的」の違いを聴き比べられます。
         </p>
+      {:else if physModel === 2}
+        <p class="explain">
+          <b>擦弦 (デジタル導波管 + 弓の摩擦)</b>: 弦を「弓 → ナット」と「弓 → 駒」の 2 本の遅延線に分け、両端で反射する波を往復させます。
+          弓の位置では、弓と弦の速度差から摩擦力を求めます。速度差が小さいと弦は弓に張り付いて一緒に動き (スティック)、大きくなると滑って戻ります (スリップ)。
+          これが周期ごとに 1 回起きる「ヘルムホルツ運動」が、バイオリン族ののこぎり波に近い音の正体です。Bow Pressure が強すぎるとガリガリ、弱すぎるとかすれた倍音だけが鳴るのも実際の楽器と同じです。
+        </p>
+      {:else if physModel === 3}
+        <p class="explain">
+          <b>管楽器 (リード / エアジェット + 管)</b>: 管を遅延線で表し、吹き口に非線形な「弁」を置きます。
+          クラリネットはリードが管内の圧力差で開閉し、片側が閉じた管なので奇数倍音が中心です。フルートは息の流れ (ジェット) が歌口のエッジの内と外に振れ、
+          その振れを管内の圧力が揺らす帰還で発音します。どちらも吹く圧力がある範囲に入ったときだけ発振するので、Breath Pressure と Embouchure は発音できる範囲の中で音色を変えるように割り当てています。
+        </p>
+      {:else if physModel === 4}
+        <p class="explain">
+          <b>膜 / 板 (2D 波動方程式)</b>: 太鼓の膜や金属板を N×N の格子で近似し、各点が上下左右の 4 点に引っ張られる差分方程式を毎サンプル計算します (縁は固定)。
+          弦と違い、2 次元の固有振動は整数倍に並ばない (円形膜なら 1 : 1.59 : 2.14 : 2.30 …) ので、音程感の薄い打楽器らしい音になります。
+          形・叩く位置・マレットの硬さを変えると、どのモードが鳴るかが変わります。計算量が多いので同時発音は 4 音までです。
+        </p>
+      {:else}
+        <p class="explain">
+          <b>硬い弦 (ピアノ)</b>: Karplus-Strong の弦に、オールパスフィルターによる「分散」を加えたモデルです。
+          ピアノ線のように硬い弦は、高い周波数ほど速く伝わるので、倍音が整数倍より少しずつ高くなります (インハーモニシティ)。
+          1 音につき少しだけ音程をずらした弦を 2 本鳴らすので、うなりと 2 段階の減衰も生まれます。ハンマーは幅のあるパルスで、硬いほど (細いほど) 明るい音になります。
+        </p>
       {/if}
       {#if app.physViz}
         <PhysViz />
       {:else}
-        <p class="muted hint">可視化 ON にすると、最後に弾いた音の内部 (遅延線の中の波 / 各モードの振幅) をリアルタイムで表示します。OFF の間は追加の負荷はありません。</p>
+        <p class="muted hint">可視化 ON にすると、最後に弾いた音の内部 (弦や管の中を進む波 / 各モードの振幅 / 膜の変位 / 倍音のずれ) をリアルタイムで表示します。OFF の間は追加の負荷はありません。</p>
       {/if}
     </section>
     <ParamPanel defs={PHYS_PARAMS} values={app.phys} groups={physGroups} onchange={(id, v) => setParam('phys', id, v)} />

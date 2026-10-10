@@ -60,7 +60,8 @@
     flex-direction: column;
     gap: 4px;
     font-size: 11px;
-    width: 96px;
+    min-width: 96px;
+    max-width: 100%;
     padding-top: 6px;
   }
 </style>

@@ -476,3 +476,31 @@ export function reson_reset(o) {
   o.y2 = 0;
   o.amp = 0;
 }
+
+// ----------------------------------------------------------------------------
+// First-order all-pass  H(z) = (a + z^-1) / (1 + a z^-1)
+// Used in a string loop to make the delay frequency dependent (dispersion): with a < 0
+// high frequencies travel faster, so upper partials go sharp like on a stiff (piano) string.
+
+export function ap1_init(o) {
+  o.x1 = 0;
+  o.y1 = 0;
+}
+
+export function ap1_process(o, x, a) {
+  const y = a * x + o.x1 - a * o.y1;
+  o.x1 = x;
+  o.y1 = y;
+  return y;
+}
+
+/** Phase delay in samples of the all-pass at normalised angular frequency w (0 < w < pi). */
+export function ap1_phase_delay(a, w) {
+  const ph = Math.atan2(-Math.sin(w), a + Math.cos(w)) - Math.atan2(-a * Math.sin(w), 1 + a * Math.cos(w));
+  return -ph / w;
+}
+
+/** Phase delay in samples of the one-pole low-pass y = (1-b)x + b*y1 at w. */
+export function lp1_phase_delay(b, w) {
+  return Math.atan2(b * Math.sin(w), 1 - b * Math.cos(w)) / w;
+}

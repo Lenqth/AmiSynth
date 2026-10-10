@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { clampParam, defaultValues, PHYS_PARAMS } from '../src/dsp/params.js';
-import { MATERIALS, phys_init, phys_note_off, phys_note_on, phys_pitch_bend, phys_render, phys_snapshot, phys_update } from '../src/dsp/phys.js';
+import { MATERIALS, MESH_MAX_VOICES, phys_init, phys_note_off, phys_note_on, phys_pitch_bend, phys_render, phys_snapshot, phys_update } from '../src/dsp/phys.js';
 import { PHYS_PRESETS } from '../src/presets/phys.js';
 import { resolvePreset } from '../src/lib/presets.js';
 
@@ -139,4 +139,123 @@ test('voices free themselves after decaying', () => {
   phys_note_off(s, 60);
   render(s, SR * 1.5);
   assert.equal(s.voices.filter((v) => v.active).length, 0);
+});
+
+// --- bowed string, wind, 2D mesh, stiff string ---------------------------------------
+
+const NEW_MODELS = [
+  ['bowed', { phys_model: 2 }, [36, 48, 60, 72, 84]],
+  ['clarinet', { phys_model: 3, wind_type: 0 }, [36, 48, 60, 72, 84]],
+  ['flute', { phys_model: 3, wind_type: 1, breath_noise: 0 }, [48, 60, 72, 84]],
+  ['circular drum', { phys_model: 4, mesh_shape: 0 }, [48, 60, 72, 84]],
+  ['square plate', { phys_model: 4, mesh_shape: 1 }, [48, 60, 72, 84]],
+  ['stiff string', { phys_model: 5 }, [36, 48, 60, 72]],
+];
+
+test('bowed / wind / mesh / stiff models are in tune', () => {
+  for (const [name, params, notes] of NEW_MODELS) {
+    for (const note of notes) {
+      const s = make(params);
+      phys_note_on(s, note, 100);
+      render(s, SR * 0.4);
+      const hz = 440 * 2 ** ((note - 69) / 12);
+      const f = pitch(render(s, 8000), hz);
+      assert.ok(Math.abs(cents(f, hz)) < 5, `${name} ${note}: ${f.toFixed(2)} Hz vs ${hz.toFixed(2)}`);
+    }
+  }
+});
+
+test('bowed and wind sustain while held and stop after release', () => {
+  for (const params of [{ phys_model: 2 }, { phys_model: 3, wind_type: 0 }, { phys_model: 3, wind_type: 1 }]) {
+    const s = make({ ...params, phys_release_ms: 150 });
+    phys_note_on(s, 60, 100);
+    render(s, SR * 0.5);
+    const held = rms(render(s, SR * 0.5));
+    assert.ok(held > 0.02, `${JSON.stringify(params)} sustains (${held})`);
+    phys_note_off(s, 60);
+    render(s, SR * 1.5);
+    assert.equal(s.voices.filter((v) => v.active).length, 0, `${JSON.stringify(params)} frees its voice`);
+  }
+});
+
+test('wind instruments speak over the whole pressure / embouchure range', () => {
+  for (const wind_type of [0, 1]) {
+    for (const breath_pressure of [0, 0.5, 1]) {
+      for (const wind_embouchure of [0, 0.5, 1]) {
+        const s = make({ phys_model: 3, wind_type, breath_pressure, wind_embouchure });
+        phys_note_on(s, 64, 100);
+        render(s, SR * 0.4);
+        const r = rms(render(s, 4800));
+        assert.ok(r > 0.01, `type ${wind_type} pressure ${breath_pressure} embouchure ${wind_embouchure}: ${r}`);
+      }
+    }
+  }
+});
+
+test('2D mesh: every size and shape is stable, decays, and uses at most 4 voices', () => {
+  for (const mesh_shape of [0, 1]) {
+    for (const mesh_size of [6, 13, 20]) {
+      // note 108 asks for more than the grid can carry: c^2 is clamped to stay stable
+      const s = make({ phys_model: 4, mesh_shape, mesh_size, mesh_decay_ms: 300, mesh_high_damping: 0 });
+      for (const n of [36, 60, 84, 108, 50, 70]) phys_note_on(s, n, 127);
+      assert.ok(s.voices.filter((v) => v.active).length <= MESH_MAX_VOICES);
+      const a = render(s, SR * 0.3);
+      assert.ok(Math.max(...a.map(Math.abs)) <= 1);
+      assert.ok(rms(a) > 0.005);
+      render(s, SR * 2);
+      assert.equal(s.voices.filter((v) => v.active).length, 0, `shape ${mesh_shape} size ${mesh_size} decays`);
+    }
+  }
+});
+
+test('stiff string: partials are stretched by the inharmonicity knob', () => {
+  const partials = (piano_inharmonicity) => {
+    const s = make({ phys_model: 5, piano_inharmonicity });
+    phys_note_on(s, 40, 100);
+    render(s, 100);
+    return phys_snapshot(s).partials;
+  };
+  const plain = partials(0);
+  const stretched = partials(1);
+  // without dispersion the 8th partial is harmonic, with it it is clearly sharp
+  assert.ok(Math.abs(plain[7] / plain[0] - 8) < 0.02, `harmonic ${plain[7] / plain[0]}`);
+  assert.ok(stretched[7] / stretched[0] > 8.05, `stretched ${stretched[7] / stretched[0]}`);
+});
+
+test('vibrato modulates the delay-line models and is exactly off at 0 cents', () => {
+  const off = make({ phys_model: 5 });
+  const ref = make({ phys_model: 5, phys_vibrato_cents: 0, phys_vibrato_rate_hz: 9 });
+  phys_note_on(off, 60, 100);
+  phys_note_on(ref, 60, 100);
+  assert.deepEqual(render(off, 4000), render(ref, 4000));
+  const s = make({ phys_model: 2, phys_vibrato_cents: 50, phys_vibrato_rate_hz: 5 });
+  phys_note_on(s, 57, 100);
+  render(s, SR * 0.4);
+  // a quarter vibrato cycle apart the pitch differs by up to 50 cents
+  const fs = [];
+  for (let k = 0; k < 4; k++) fs.push(pitch(render(s, 2400), 220));
+  const spread = cents(Math.max(...fs), Math.min(...fs));
+  assert.ok(spread > 20, `vibrato spread ${spread} cents`);
+});
+
+test('snapshots of the new models', () => {
+  const snap = (params) => {
+    const s = make(params);
+    phys_note_on(s, 57, 100);
+    render(s, 2000);
+    return phys_snapshot(s);
+  };
+  const b = snap({ phys_model: 2 });
+  assert.equal(b.model, 'bowed');
+  assert.ok(b.nut.length > 10 && b.bridge.length > 2 && b.slip >= 0 && b.slip <= 1);
+  const w = snap({ phys_model: 3, wind_type: 1 });
+  assert.equal(w.model, 'wind');
+  assert.ok(w.flute && w.wave.length > 10);
+  const m = snap({ phys_model: 4, mesh_size: 10 });
+  assert.equal(m.model, 'mesh');
+  assert.equal(m.grid.length, 100);
+  assert.ok(m.mask.some((x) => x === 0) && m.grid.some((x) => x !== 0));
+  const p = snap({ phys_model: 5 });
+  assert.equal(p.model, 'stiff');
+  assert.ok(p.partials.length >= 8 && Math.abs(p.f1 - 220) < 1);
 });
