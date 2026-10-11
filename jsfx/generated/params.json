@@ -997,7 +997,7 @@
       "group": "Stiff String",
       "min": 0,
       "max": 1,
-      "default": 0.6,
+      "default": 0.5,
       "step": 0.001,
       "unit": "",
       "description": "Felt stiffness of the hammer. The felt hardens as it is compressed, so louder notes are always brighter; this sets the overall brightness."

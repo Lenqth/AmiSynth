@@ -52,6 +52,7 @@
   function selectTab(id) {
     app.tab = id;
     if (id === 'synth' || id === 'phys') setMelodic(id);
+    persist();
   }
 
   // ---- full-screen keyboard -------------------------------------------------

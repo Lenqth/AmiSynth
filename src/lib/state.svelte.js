@@ -31,17 +31,23 @@ function merged(defs, savedValues) {
   return v;
 }
 
+const TABS = ['synth', 'phys', 'drums', 'roll', 'params'];
+// reopen the last tab; the keyboard always plays the instrument of the tab it sits on
+// (restoring 'phys' while showing the Synth tab used to play the piano from the Synth page)
+const savedTab = TABS.includes(saved?.tab) ? saved.tab : 'synth';
+const savedMelodic = savedTab === 'synth' || savedTab === 'phys' ? savedTab : saved?.melodic === 'phys' ? 'phys' : 'synth';
+
 export const app = $state({
   started: false,
   starting: false,
   error: '',
-  tab: 'synth',
+  tab: savedTab,
   synth: merged(SYNTH_PARAMS, saved?.synth),
   drums: merged(DRUM_PARAMS, saved?.drums),
   // first visit: start from the first physical preset so the preset name matches the sound
   phys: saved?.phys ? merged(PHYS_PARAMS, saved.phys) : resolvePreset(PHYS_PARAMS, PHYS_PRESETS[0]),
   /** which melodic instrument the keyboard / MIDI / piano roll play: 'synth' | 'phys' */
-  melodic: saved?.melodic === 'phys' ? 'phys' : 'synth',
+  melodic: savedMelodic,
   /** physical model visualisation on/off */
   physViz: false,
   /** @type {{name:string, cents:number[]} | null} */
@@ -88,7 +94,7 @@ export function persist() {
   saveTimer = setTimeout(() => {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify({
-        synth: app.synth, drums: app.drums, phys: app.phys, melodic: app.melodic, scale: app.scale, pattern: app.pattern,
+        tab: app.tab, synth: app.synth, drums: app.drums, phys: app.phys, melodic: app.melodic, scale: app.scale, pattern: app.pattern,
         presetName: app.presetName, userPresets: app.userPresets, keyScale: app.keyScale,
         kb: { layout: app.kbLayout, iso: app.iso, velMode: app.kbVelMode, velFixed: app.kbVelFixed },
       }));

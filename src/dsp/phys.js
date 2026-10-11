@@ -59,8 +59,7 @@ const FLUTE_JET_GAIN = 1.6;
 const N_AP = 4; // dispersion all-passes per stiff string
 const EXC_MAX = 16384; // piano excitation buffer (hammer + strike comb, up to 192 kHz)
 const HAM_SUB = 4; // hammer integration sub-steps per sample
-const HAM_GAIN = 1.7;
-const HAM_TILT = 0.42; // per octave away from middle C (see note-on)
+const HAM_GAIN = 63;
 const SB_MODES = 16; // soundboard resonances
 // hammer force history at sub-step resolution (only used inside note-on)
 const ham_hist = new Float64Array(EXC_MAX * HAM_SUB);
@@ -322,7 +321,7 @@ function dispersion_coef(hz, B, b_lp, sr) {
 function hammer_force(out, hz, v0, hardness, beta, sr) {
   const m = clamp(0.0087 * Math.pow(262 / hz, 0.3), 0.004, 0.012); // hammer mass, kg
   const Z = 2 * Math.pow(262 / hz, 0.2); // string wave impedance, kg/s
-  const K = 400000000 * Math.pow(100, hardness - 0.5); // felt stiffness, N/m^2.5
+  const K = 250000000 * Math.pow(100, hardness - 0.5); // felt stiffness, N/m^2.5
   const dt = 1 / (sr * HAM_SUB);
   const lag = Math.max(1, Math.round((beta * sr * HAM_SUB) / hz));
   const max_n = Math.min(EXC_MAX, Math.floor(0.03 * sr));
@@ -643,32 +642,45 @@ export function phys_note_on(s, note, velocity) {
     // The force pulse (string velocity F/2Z) is the excitation, with the strike position comb
     // and a little key / action thump (low-passed noise) on top.
     const n = Math.ceil(v.delay_len);
-    const v0 = 0.3 * Math.pow(20, vel); // hammer speed in m/s: pp ~0.5 .. ff 6
+    // hammer speed in m/s: soft and even up to mf (vel 80 ~1.5), fast only near ff (5)
+    const v0 = 0.3 + 4.7 * vel * vel * vel;
     const e = v.exc;
     const len = hammer_force(e, v.hz, v0, p.piano_hammer_hardness, p.piano_strike_position, sr);
     // The loop carries what the bridge feels (string velocity / slope, not displacement), so
-    // the velocity pulse goes in as it is. The strike comb cancels much of a long pulse at low
-    // frequencies, more so in the bass; HAM_GAIN and the pitch tilt bring the level back.
+    // the velocity pulse goes in as it is, through the strike position comb, with the DC removed
+    // (a string fixed at both ends has no DC mode, but the loop does).
     const pick = Math.max(1, Math.round(p.piano_strike_position * n));
-    const scale = (HAM_GAIN * Math.pow(2, HAM_TILT * Math.abs(Math.log(v.hz / 262) / Math.LN2))) / v0;
     const total = Math.min(EXC_MAX, Math.max(len + pick + 1, Math.round(0.03 * sr)));
-    const decay = Math.exp(-1 / (0.004 * sr));
-    const thump_a = 1 - Math.exp((-TWO_PI * 600) / sr);
-    let env = 0.08 * vel;
-    let lp = 0;
-    for (let i = 0; i < total; i++) {
-      lp += thump_a * (noise_white() - lp);
-      e[i] = (i < len ? e[i] * scale : 0) + lp * env;
-      env *= decay;
-    }
+    for (let i = len; i < total; i++) e[i] = 0;
     for (let i = total - 1; i >= pick; i--) e[i] -= e[i - pick];
-    // a string fixed at both ends has no DC mode, but the loop does: remove the bump's DC
-    // (one-pole high-pass at half the fundamental) so it does not pile up as a low thud
     const hp_a = 1 - Math.exp((-TWO_PI * 0.5 * v.hz) / sr);
     let hp_z = 0;
     for (let i = 0; i < total; i++) {
       hp_z += hp_a * (e[i] - hp_z);
       e[i] -= hp_z;
+    }
+    // Normalise at the fundamental: the level follows the velocity (Velocity Amount, as on the
+    // other models) and is even across the keyboard, while the hammer physics decides how
+    // strong the upper partials are (a long, soft contact in the treble barely excites them).
+    const w0 = (TWO_PI * v.hz) / sr;
+    let re = 0;
+    let im = 0;
+    for (let i = 0; i < total; i++) {
+      re += e[i] * Math.cos(w0 * i);
+      im += e[i] * Math.sin(w0 * i);
+    }
+    // (bass strings build up more per hit: -9 dB / octave keeps the keyboard even; a faster
+    // hammer is also somewhat louder, on top of Velocity Amount, for a piano-like dynamic range)
+    const scale = (HAM_GAIN * Math.pow(clamp(v.hz / 262, 0.35, 8), -1.5) * Math.pow(v0 / 2, 0.6)) / Math.max(1e-12, Math.sqrt(re * re + im * im));
+    // plus a little key / action thump (decaying low-passed noise)
+    const decay = Math.exp(-1 / (0.004 * sr));
+    const thump_a = 1 - Math.exp((-TWO_PI * 600) / sr);
+    let env = 0.02 * vel;
+    let lp = 0;
+    for (let i = 0; i < total; i++) {
+      lp += thump_a * (noise_white() - lp);
+      e[i] = e[i] * scale + lp * env;
+      env *= decay;
     }
     v.exc_len = total;
     v.exc_t = 0;

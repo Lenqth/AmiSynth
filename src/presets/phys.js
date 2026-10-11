@@ -43,7 +43,7 @@ export const PHYS_PRESETS = [
   { name: 'Steel Plate', category: 'Percussion', description: 'Square plate, hard strike near the corner, long ring with little high damping.',
     params: { phys_model: 4, mesh_shape: 1, mesh_size: 16, mesh_decay_ms: 2500, mesh_high_damping: 0.05, mesh_strike_x: 0.3, mesh_strike_y: 0.22, mesh_hardness: 0.85, phys_release_ms: 2500, phys_room_mix: 0.3 } },
   { name: 'Grand Piano', category: 'Keys', description: 'Two detuned stiff strings per note: stretched partials, beating, long decay.',
-    params: { phys_model: 5, piano_inharmonicity: 0.35, piano_hammer_hardness: 0.6, piano_strike_position: 0.12, piano_decay_ms: 9000, piano_damping: 0.25, piano_unison_detune_cents: 1.2, phys_release_ms: 250, phys_room_mix: 0.25 } },
+    params: { phys_model: 5, piano_inharmonicity: 0.35, piano_hammer_hardness: 0.45, piano_strike_position: 0.12, piano_decay_ms: 9000, piano_damping: 0.25, piano_unison_detune_cents: 1.2, phys_release_ms: 250, phys_room_mix: 0.25 } },
   { name: 'Honky-tonk', category: 'Keys', description: 'Badly tuned unison and a hard hammer.',
     params: { phys_model: 5, piano_inharmonicity: 0.45, piano_hammer_hardness: 0.85, piano_strike_position: 0.1, piano_decay_ms: 6000, piano_damping: 0.3, piano_unison_detune_cents: 9, phys_release_ms: 200, phys_room_mix: 0.15 } },
   { name: 'Bell-ish Strings', category: 'Keys', description: 'Inharmonicity at maximum: the stretched partials start to sound like a bell.',
