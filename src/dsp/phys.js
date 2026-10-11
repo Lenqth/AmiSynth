@@ -130,7 +130,7 @@ function voice_create() {
     lip_y1: 0, lip_y2: 0, lip_a1: 0, lip_a2: 0, lip_g: 0, dc_x: 0, dc_y: 0, dc_r: 0, bell_b: 0, bell_z: 0,
     refl_b: 0, refl_z: 0, rad_x: 0, rad_k: 1, steep: { buf: new Float64Array(STEEP_LEN), w: 0 },
     // stiff string
-    ap_a: 0, apA: [], apB: [], tuneA: {}, tuneB: {}, tune_a: 0, tune_a2: 0, tune_d: 1, tune_d2: 1,
+    ap_a: 0, n_ap: N_AP, apA: [], apB: [], tuneA: {}, tuneB: {}, tune_a: 0, tune_a2: 0, tune_d: 1, tune_d2: 1,
     exc: new Float64Array(EXC_MAX), hp: new Float64Array(PIANO_HP),
     gl: 1, gr: 1,
   };
@@ -284,7 +284,7 @@ function mesh_setup(s, n, shape) {
  * phase delay at w makes up the rest (Thiran: a = (1-d)/(1+d), refined at w).
  */
 function thiran_split(v, which, L, w) {
-  const n = clamp(Math.floor(L - 0.5), 2, MAX_DELAY - 2);
+  const n = clamp(Math.floor(L - 0.5), 1, MAX_DELAY - 2);
   const d = clamp(L - n, 0.5, 1.5);
   let dl = d;
   let a = 0;
@@ -457,6 +457,11 @@ function brass_sharp(note, mult) {
   return (a[i] * (1 - fu) + a[i + 1] * fu) * (1 - fv) + (b[i] * (1 - fu) + b[i + 1] * fu) * fv;
 }
 
+/** gain of the one-pole low-pass y = (1-b)x + b*y1 at w */
+function lp1_gain(b, w) {
+  return (1 - b) / Math.sqrt(1 - 2 * b * Math.cos(w) + b * b);
+}
+
 /** Mesh damping s for a T60 of `ms`: (1-s)/(1+s) = coef^2. */
 function mesh_sigma(ms, sr) {
   const c = t60_coef(ms, sr);
@@ -547,7 +552,8 @@ function voice_tune(s, v, keep_decay) {
     // stiff string: two strings, detuned by +/- half the unison detune
     // the loop low-pass costs a high string far more per second (many more round trips),
     // so it is relaxed above middle C to keep the treble ringing
-    const b = (0.05 + 0.6 * p.piano_damping) * clamp(Math.sqrt(262 / hz), 0.15, 1);
+    // (and much more above C7, where even the fundamental makes thousands of trips per second)
+    const b = (0.05 + 0.6 * p.piano_damping) * clamp(Math.sqrt(262 / hz), 0.15, 1) * Math.min(1, Math.pow(2093 / hz, 3));
     v.damp_b = b;
     // dispersion all-pass coefficient (< 0 = upper partials sharp) for this note's target B
     const a = dispersion_coef(hz, stiff_b(hz, p.piano_inharmonicity), b, sr);
@@ -559,13 +565,19 @@ function voice_tune(s, v, keep_decay) {
     const wB = (TWO_PI * hzB) / sr;
     // integer delay + a tuning all-pass for the fraction (linear interpolation would damp
     // the treble strings, which make many round trips per second)
-    thiran_split(v, 0, sr / hzA - lp1_phase_delay(b, wA) - N_AP * ap1_phase_delay(a, wA), wA);
-    thiran_split(v, 1, sr / hzB - lp1_phase_delay(b, wB) - N_AP * ap1_phase_delay(a, wB), wB);
+    // without dispersion (top notes) the all-passes are bypassed: each would still be a
+    // one-sample delay, and the loop of a C9 string is under 6 samples
+    v.n_ap = a === 0 ? 0 : N_AP;
+    thiran_split(v, 0, sr / hzA - lp1_phase_delay(b, wA) - v.n_ap * ap1_phase_delay(a, wA), wA);
+    thiran_split(v, 1, sr / hzB - lp1_phase_delay(b, wB) - v.n_ap * ap1_phase_delay(a, wB), wB);
     if (!keep_decay) {
       // higher strings decay faster
       const t = Math.max(p.piano_decay_ms, 1) * clamp(Math.pow(220 / hz, 0.4), 0.25, 2) * 0.001;
-      v.loop_gain = Math.exp(-6.907755 / (hzA * t));
-      v.loop_gain2 = Math.exp(-6.907755 / (hzB * t));
+      // the loop low-pass also takes a little off the fundamental on every round trip, which
+      // adds up in the top octaves (thousands of trips per second): divide it back out so the
+      // fundamental decays in the set time (C9 used to die within ~50 ms, leaving a click)
+      v.loop_gain = Math.min(0.99999, Math.exp(-6.907755 / (hzA * t)) / lp1_gain(b, wA));
+      v.loop_gain2 = Math.min(0.99999, Math.exp(-6.907755 / (hzB * t)) / lp1_gain(b, wB));
     }
   }
 }
@@ -774,16 +786,53 @@ export function phys_note_on(s, note, velocity) {
     // Normalise at the fundamental: the level follows the velocity (Velocity Amount, as on the
     // other models) and is even across the keyboard, while the hammer physics decides how
     // strong the upper partials are (a long, soft contact in the treble barely excites them).
-    const w0 = (TWO_PI * v.hz) / sr;
-    let re = 0;
-    let im = 0;
-    for (let i = 0; i < total; i++) {
-      re += e[i] * Math.cos(w0 * i);
-      im += e[i] * Math.sin(w0 * i);
+    // Top octaves (from sr/16, ~G7 at 48 kHz, fully from sr/10): only a few harmonics are left
+    // below Nyquist and the hammer stays on for many periods, so most of the pulse is nowhere
+    // near a string mode (heard as a click) and the fundamental may even sit in a notch of its
+    // spectrum. Fade towards a burst at the fundamental (a sine under a raised-cosine window as
+    // long as the contact) carrying the fundamental the pulse has, or 30 % of the level around it.
+    const top = clamp((v.hz - sr / 16) / (sr / 10 - sr / 16), 0, 1);
+    if (top > 0) {
+      const w0 = (TWO_PI * v.hz) / sr;
+      const at = (w) => {
+        let re = 0;
+        let im = 0;
+        for (let i = 0; i < total; i++) {
+          re += e[i] * Math.cos(w * i);
+          im += e[i] * Math.sin(w * i);
+        }
+        return Math.sqrt(re * re + im * im);
+      };
+      let around = 0;
+      for (let k = 0; k < 5; k++) around = Math.max(around, at(w0 * (0.8 + 0.1 * k)));
+      const want = Math.max(at(w0), 0.3 * around);
+      const blen = Math.min(total, Math.max(len, Math.ceil((2 * sr) / v.hz)));
+      const amp = want / (blen / 4); // |burst at f0| ~ amp * blen / 4
+      for (let i = 0; i < total; i++) {
+        const burst = i < blen ? amp * (0.5 - 0.5 * Math.cos((TWO_PI * i) / blen)) * Math.sin(w0 * i) : 0;
+        e[i] = (1 - top) * e[i] + top * burst;
+      }
     }
+    // (if the fundamental falls into a notch of the pulse spectrum - the contact time is close to
+    // a multiple of the period - use 30 % of the level around it, or the note would blow up)
+    let mag = 0;
+    let around = 0;
+    for (let k = 0; k < 5; k++) {
+      const w = (TWO_PI * v.hz * (0.8 + 0.1 * k)) / sr;
+      let re = 0;
+      let im = 0;
+      for (let i = 0; i < total; i++) {
+        re += e[i] * Math.cos(w * i);
+        im += e[i] * Math.sin(w * i);
+      }
+      const m = Math.sqrt(re * re + im * im);
+      if (k === 2) mag = m;
+      if (m > around) around = m;
+    }
+    mag = Math.max(mag, 0.3 * around);
     // (bass strings build up more per hit: -9 dB / octave keeps the keyboard even; a faster
     // hammer is also somewhat louder, on top of Velocity Amount, for a piano-like dynamic range)
-    const scale = (HAM_GAIN * Math.pow(clamp(v.hz / 262, 0.35, 8), -1.5) * Math.pow(v0 / 2, 0.6)) / Math.max(1e-12, Math.sqrt(re * re + im * im));
+    const scale = (HAM_GAIN * Math.pow(clamp(v.hz / 262, 0.35, 8), -1.5) * Math.pow(v0 / 2, 0.6)) / Math.max(1e-12, mag);
     // plus a little key / action thump (decaying low-passed noise)
     const decay = Math.exp(-1 / (0.004 * sr));
     const thump_a = 1 - Math.exp((-TWO_PI * 600) / sr);
@@ -1027,12 +1076,12 @@ function render_stiff(v, vib) {
   let exc = 0;
   if (v.exc_t < v.exc_len) exc = v.exc[v.exc_t++];
   let x = ap1_process(v.tuneA, delay_read(v.line, nA), tA);
-  for (let k = 0; k < N_AP; k++) x = ap1_process(v.apA[k], x, a);
+  for (let k = 0; k < v.n_ap; k++) x = ap1_process(v.apA[k], x, a);
   v.lp_z = (1 - v.damp_b) * x + v.damp_b * v.lp_z;
   const fa = v.lp_z * v.loop_gain + 0.5 * exc;
   delay_write(v.line, fa);
   let y = ap1_process(v.tuneB, delay_read(v.line2, nB), tB);
-  for (let k = 0; k < N_AP; k++) y = ap1_process(v.apB[k], y, a);
+  for (let k = 0; k < v.n_ap; k++) y = ap1_process(v.apB[k], y, a);
   v.lp_z2 = (1 - v.damp_b) * y + v.damp_b * v.lp_z2;
   const fb = v.lp_z2 * v.loop_gain2 + 0.32 * exc;
   delay_write(v.line2, fb);
@@ -1158,7 +1207,7 @@ function line_wave(line, len, points) {
 function stiff_partials(s, v, count) {
   const sr = s.sr;
   const total = (w) =>
-    w * (v.delay_len + ap1_phase_delay(v.tune_a, w) + lp1_phase_delay(v.damp_b, w) + N_AP * ap1_phase_delay(v.ap_a, w));
+    w * (v.delay_len + ap1_phase_delay(v.tune_a, w) + lp1_phase_delay(v.damp_b, w) + v.n_ap * ap1_phase_delay(v.ap_a, w));
   const out = [];
   for (let k = 1; k <= count; k++) {
     let lo = 1e-6;

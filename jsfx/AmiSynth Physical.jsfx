@@ -294,7 +294,7 @@ function dispersion_coef(hz, B, b_lp) local(w1, n, wn, period, target, room, lo,
 
 /** integer delay + Thiran all-pass for the fraction (refined at w); which 0 / 1 = string A / B */
 function thiran_split(which, L, w) instance(delay_len delay_len2 tune_d tune_d2 tune_a tune_a2) local(n, d, dl, a, it) (
-  n = clamp(floor(L - 0.5), 2, MAX_DELAY - 2);
+  n = clamp(floor(L - 0.5), 1, MAX_DELAY - 2);
   d = clamp(L - n, 0.5, 1.5);
   dl = d;
   a = 0;
@@ -310,7 +310,7 @@ function thiran_split(which, L, w) instance(delay_len delay_len2 tune_d tune_d2 
   );
 );
 
-function voice_tune(keep_decay) instance(hz0 damp_b delay_len delay_len2 loop_gain loop_gain2 modes mhz mt60 jet_bias jet_boost mesh_c2 mesh_omega ap_a
+function voice_tune(keep_decay) instance(hz0 damp_b delay_len delay_len2 loop_gain loop_gain2 modes mhz mt60 jet_bias jet_boost mesh_c2 mesh_omega ap_a ap_count
   vel_raw lip_a1 lip_a2 lip_g maxv dc_r refl_b bell_b rad_k)
   local(hz, m, k, ratio, pos_w, b, total, x, sharp, w, a, det, hzA, hzB, wA, wB, t, press, note, mult, drive, f, r) (
   hz = hz0 * bend_ratio;
@@ -378,7 +378,7 @@ function voice_tune(keep_decay) instance(hz0 damp_b delay_len delay_len2 loop_ga
     mesh_omega = w;
   ) : (
     // stiff string: two strings detuned by +/- half the unison detune
-    b = (0.05 + 0.6 * piano_damping) * clamp(sqrt(262 / hz), 0.15, 1);
+    b = (0.05 + 0.6 * piano_damping) * clamp(sqrt(262 / hz), 0.15, 1) * min(1, pow(2093 / hz, 3));
     damp_b = b;
     a = dispersion_coef(hz, stiff_b(hz, piano_inharmonicity), b);
     ap_a = a;
@@ -387,12 +387,15 @@ function voice_tune(keep_decay) instance(hz0 damp_b delay_len delay_len2 loop_ga
     hzB = hz / det;
     wA = (2 * $pi * hzA) / srate;
     wB = (2 * $pi * hzB) / srate;
-    this.thiran_split(0, srate / hzA - lp1_phase_delay(b, wA) - N_AP * ap1_phase_delay(a, wA), wA);
-    this.thiran_split(1, srate / hzB - lp1_phase_delay(b, wB) - N_AP * ap1_phase_delay(a, wB), wB);
+    // without dispersion (top notes) the all-passes are bypassed (each is still a 1-sample delay)
+    ap_count = a === 0 ? 0 : N_AP;
+    this.thiran_split(0, srate / hzA - lp1_phase_delay(b, wA) - ap_count * ap1_phase_delay(a, wA), wA);
+    this.thiran_split(1, srate / hzB - lp1_phase_delay(b, wB) - ap_count * ap1_phase_delay(a, wB), wB);
     !keep_decay ? (
       t = max(piano_decay_ms, 1) * clamp(pow(220 / hz, 0.4), 0.25, 2) * 0.001;
-      loop_gain = exp(-6.907755 / (hzA * t));
-      loop_gain2 = exp(-6.907755 / (hzB * t));
+      // divide out what the loop low-pass takes off the fundamental (adds up in the top octaves)
+      loop_gain = min(0.99999, exp(-6.907755 / (hzA * t)) / ((1 - b) / sqrt(1 - 2 * b * cos(wA) + b * b)));
+      loop_gain2 = min(0.99999, exp(-6.907755 / (hzB * t)) / ((1 - b) / sqrt(1 - 2 * b * cos(wB) + b * b)));
     );
   );
 );
@@ -436,7 +439,7 @@ function voice_op(op, a, b) instance(idx vel hz0 level frames lp_z lp_z2 loop_ga
   exc_t exc_len exc modes mhz mt60 maxv slope mesh_u mesh_up mesh_un mesh_sig mesh_omega jet_boost flut hiss_lp
   vel_raw lip_y1 lip_y2 dc_x dc_y bell_z refl_z rad_x steep steep_w)
   local(v, n, bright, aa, pick, norm, lp, i, j, c, x, width, ia, ib, hard, g_rel, k, R, amp, sx, sy, d, len, decay, sb_a, sb_env,
-    v0, scale, total, hp_a, hp_z, hp_z2, hp_z3, hp_z4, w0, re, im) (
+    v0, scale, total, hp_a, hp_z, hp_z2, hp_z3, hp_z4, w0, re, im, mag, around, m, top, want, blen, burst) (
   op === 0 ? (
     idx = a;
     this.line.delay_init(MAX_DELAY);
@@ -611,16 +614,59 @@ function voice_op(op, a, b) instance(idx vel hz0 level frames lp_z lp_z2 loop_ga
         exc[i] = x;
         i += 1;
       );
-      w0 = (2 * $pi * hz0) / srate;
-      re = 0;
-      im = 0;
-      i = 0;
-      loop(total,
-        re += exc[i] * cos(w0 * i);
-        im += exc[i] * sin(w0 * i);
-        i += 1;
+      // top octaves: fade towards a windowed sine burst at the fundamental (see phys.js)
+      top = clamp((hz0 - srate / 16) / (srate / 10 - srate / 16), 0, 1);
+      top > 0 ? (
+        mag = 0;
+        around = 0;
+        k = 0;
+        loop(5,
+          w0 = (2 * $pi * hz0 * (0.8 + 0.1 * k)) / srate;
+          re = 0;
+          im = 0;
+          i = 0;
+          loop(total,
+            re += exc[i] * cos(w0 * i);
+            im += exc[i] * sin(w0 * i);
+            i += 1;
+          );
+          m = sqrt(re * re + im * im);
+          k === 2 ? mag = m;
+          m > around ? around = m;
+          k += 1;
+        );
+        want = max(mag, 0.3 * around);
+        blen = min(total, max(len, ceil((2 * srate) / hz0)));
+        amp = want / (blen / 4);
+        w0 = (2 * $pi * hz0) / srate;
+        i = 0;
+        loop(total,
+          burst = i < blen ? amp * (0.5 - 0.5 * cos((2 * $pi * i) / blen)) * sin(w0 * i) : 0;
+          exc[i] = (1 - top) * exc[i] + top * burst;
+          i += 1;
+        );
       );
-      scale = (HAM_GAIN * pow(clamp(hz0 / 262, 0.35, 8), -1.5) * pow(v0 / 2, 0.6)) / max(0.000000000001, sqrt(re * re + im * im));
+      // magnitude at the fundamental, at least 30 % of the level around it (spectral notch)
+      mag = 0;
+      around = 0;
+      k = 0;
+      loop(5,
+        w0 = (2 * $pi * hz0 * (0.8 + 0.1 * k)) / srate;
+        re = 0;
+        im = 0;
+        i = 0;
+        loop(total,
+          re += exc[i] * cos(w0 * i);
+          im += exc[i] * sin(w0 * i);
+          i += 1;
+        );
+        m = sqrt(re * re + im * im);
+        k === 2 ? mag = m;
+        m > around ? around = m;
+        k += 1;
+      );
+      mag = max(mag, 0.3 * around);
+      scale = (HAM_GAIN * pow(clamp(hz0 / 262, 0.35, 8), -1.5) * pow(v0 / 2, 0.6)) / max(0.000000000001, mag);
       decay = exp(-1 / (0.004 * srate));
       sb_a = 1 - exp((-2 * $pi * 600) / srate);
       sb_env = 0.02 * v;
@@ -813,7 +859,7 @@ function render_mesh() instance(mesh_u mesh_up mesh_un mesh_c2 mesh_sig mesh_ome
   un[mesh_pick] * mesh_omega * K_MESH;
 );
 
-function render_stiff() instance(ap_a delay_len delay_len2 tune_a tune_a2 tune_d tune_d2 lp_z lp_z2 damp_b loop_gain loop_gain2 read_gain exc exc_t exc_len)
+function render_stiff() instance(ap_a ap_count delay_len delay_len2 tune_a tune_a2 tune_d tune_d2 lp_z lp_z2 damp_b loop_gain loop_gain2 read_gain exc exc_t exc_len)
   local(a, nA, nB, tA, tB, t, x, y, fa, fb, e) (
   a = ap_a;
   nA = delay_len;
@@ -835,14 +881,18 @@ function render_stiff() instance(ap_a delay_len delay_len2 tune_a tune_a2 tune_d
   e = 0;
   exc_t < exc_len ? ( e = exc[exc_t]; exc_t += 1; );
   x = this.tuneA.ap1_process(this.line.delay_read(nA), tA);
-  x = this.apA0.ap1_process(x, a); x = this.apA1.ap1_process(x, a);
-  x = this.apA2.ap1_process(x, a); x = this.apA3.ap1_process(x, a);
+  ap_count > 0 ? (
+    x = this.apA0.ap1_process(x, a); x = this.apA1.ap1_process(x, a);
+    x = this.apA2.ap1_process(x, a); x = this.apA3.ap1_process(x, a);
+  );
   lp_z = (1 - damp_b) * x + damp_b * lp_z;
   fa = lp_z * loop_gain + 0.5 * e;
   this.line.delay_write(fa);
   y = this.tuneB.ap1_process(this.line2.delay_read(nB), tB);
-  y = this.apB0.ap1_process(y, a); y = this.apB1.ap1_process(y, a);
-  y = this.apB2.ap1_process(y, a); y = this.apB3.ap1_process(y, a);
+  ap_count > 0 ? (
+    y = this.apB0.ap1_process(y, a); y = this.apB1.ap1_process(y, a);
+    y = this.apB2.ap1_process(y, a); y = this.apB3.ap1_process(y, a);
+  );
   lp_z2 = (1 - damp_b) * y + damp_b * lp_z2;
   fb = lp_z2 * loop_gain2 + 0.32 * e;
   this.line2.delay_write(fb);

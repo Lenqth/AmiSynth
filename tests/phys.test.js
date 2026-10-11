@@ -396,3 +396,20 @@ test('piano: no click at the start of treble notes (the hammer pulse below the f
     assert.ok(head < 8, `note ${note}: first 5 ms ${head.toFixed(1)} dB above the tone`);
   }
 });
+
+test('piano: the top octaves ring (no lone click), stay in tune and at an even level', () => {
+  const levels = [];
+  for (const note of [100, 108, 116, 124]) {
+    const s = make({ phys_model: 5, piano_unison_detune_cents: 0 });
+    phys_note_on(s, note, 100);
+    const x = render(s, SR * 0.15);
+    const peak = (a, b) => Math.max(...x.slice(a, b).map(Math.abs));
+    const head = 20 * Math.log10(peak(0, 240) / peak(SR * 0.05, SR * 0.15));
+    assert.ok(head < 9, `note ${note}: first 5 ms ${head.toFixed(1)} dB above the tone`);
+    levels.push(20 * Math.log10(peak(0, SR * 0.15)));
+    const f1 = phys_snapshot(s).f1;
+    const hz = 440 * 2 ** ((note - 69) / 12);
+    assert.ok(Math.abs(cents(f1, hz)) < 1, `note ${note}: loop tuned to ${f1} Hz vs ${hz}`);
+  }
+  assert.ok(Math.max(...levels) - Math.min(...levels) < 12, `levels ${levels.map((l) => l.toFixed(0)).join(' ')}`);
+});
