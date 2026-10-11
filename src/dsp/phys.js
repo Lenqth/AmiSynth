@@ -66,6 +66,9 @@ const N_AP = 4; // dispersion all-passes per stiff string
 const EXC_MAX = 16384; // piano excitation buffer (hammer + strike comb, up to 192 kHz)
 const BRASS_GAIN = 2.5;
 const BRASS_STEEP = 1.5; // wave steepening per unit pressure
+const BRASS_BOOST = 6; // extra lip gain right after the tongue release
+const BRASS_BOOST_PERIODS = 10;
+const BRASS_SEED = 0.15; // bore wave set moving by the tongue (x mouth pressure)
 const STEEP_LEN = 4096; // power of two
 const HAM_SUB = 4; // hammer integration sub-steps per sample
 const PIANO_HP = 4; // high-pass stages on the hammer excitation
@@ -128,7 +131,7 @@ function voice_create() {
     mesh_c2: 0, mesh_sig: 0, mesh_omega: 0, jet_bias: 0, jet_boost: 1, flut: 0, hiss_lp: 0,
     // brass lips (two-pole resonator), dc blocker, bell low-pass
     lip_y1: 0, lip_y2: 0, lip_a1: 0, lip_a2: 0, lip_g: 0, dc_x: 0, dc_y: 0, dc_r: 0, bell_b: 0, bell_z: 0,
-    refl_b: 0, refl_z: 0, rad_x: 0, rad_k: 1, steep: { buf: new Float64Array(STEEP_LEN), w: 0 },
+    refl_b: 0, refl_z: 0, rad_x: 0, rad_k: 1, boost: 0, boost_c: 0, steep: { buf: new Float64Array(STEEP_LEN), w: 0 },
     // stiff string
     ap_a: 0, n_ap: N_AP, apA: [], apB: [], tuneA: {}, tuneB: {}, tune_a: 0, tune_a2: 0, tune_d: 1, tune_d2: 1,
     exc: new Float64Array(EXC_MAX), hp: new Float64Array(PIANO_HP),
@@ -692,6 +695,19 @@ export function phys_note_on(s, note, velocity) {
       v.steep.w = 0;
       v.env.value = 0;
     }
+    // The tongue: lips at rest only start to buzz once a tiny disturbance has grown, which took
+    // 50 - 400 ms (longer for soft and low notes). A player's tongue release sets the air in
+    // the bore moving at once and the lips respond more readily for the first moments: seed
+    // the bore with the wave of the note and boost the lip gain, decaying over the attack time
+    // (at least BRASS_BOOST_PERIODS periods).
+    v.boost = BRASS_BOOST;
+    // (time constant a third of that, so it is gone by the time the note has settled)
+    v.boost_c = Math.exp(-3 / Math.max(p.brass_attack_ms * 0.001 * sr, (BRASS_BOOST_PERIODS * sr) / v.hz));
+    if (v.env.stage === 0) {
+      const n = Math.ceil(v.delay_len);
+      const w = (TWO_PI * 2) / v.delay_len;
+      for (let i = 0; i < n; i++) delay_write(v.line, BRASS_SEED * 0.3 * v.maxv * Math.sin(w * i));
+    }
     adsr_set(v.env, p.brass_attack_ms, 1, 1, Math.min(p.phys_release_ms, 400), sr);
     adsr_gate_on(v.env);
   } else if (model === MODEL_WIND) {
@@ -964,7 +980,8 @@ function render_brass(v, vib) {
   v.lip_y1 = y;
   // the lip opening grows with the square of the lip position and saturates smoothly
   // (a hard clip at 1 held the lips wide open for a third of each period: flat tops, harsh)
-  const u = v.lip_g * y;
+  v.boost *= v.boost_c;
+  const u = v.lip_g * (1 + v.boost) * y;
   const open = 1 - Math.exp(-u * u);
   v.slip = open;
   // open lips pass the mouth pressure, closed lips reflect the bore

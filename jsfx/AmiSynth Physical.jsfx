@@ -88,6 +88,9 @@ N_AP = 4;
 MODEL_STRING = 0; MODEL_MODAL = 1; MODEL_BOWED = 2; MODEL_WIND = 3; MODEL_MESH = 4; MODEL_STIFF = 5; MODEL_BRASS = 6;
 BRASS_GAIN = 2.5;
 BRASS_STEEP = 1.5;
+BRASS_BOOST = 6;
+BRASS_BOOST_PERIODS = 10;
+BRASS_SEED = 0.15;
 STEEP_LEN = 4096;
 // brass: minimum lip drive per note (notes 28, 32, .. 104), drive multiples, tuning residual
 // (cents sharp, 4 multiples x 20 notes) - see phys.js
@@ -437,7 +440,7 @@ function hammer_force(out, hz, v0, hardness, beta) local(m, Z, K, dt, lag, max_n
 // op: 0 init(index), 1 start(note, velocity), 2 note off, 3 retune for pitch bend
 function voice_op(op, a, b) instance(idx vel hz0 level frames lp_z lp_z2 loop_gain loop_gain2 damp_b delay_len delay_len2 read_gain
   exc_t exc_len exc modes mhz mt60 maxv slope mesh_u mesh_up mesh_un mesh_sig mesh_omega jet_boost flut hiss_lp
-  vel_raw lip_y1 lip_y2 dc_x dc_y bell_z refl_z rad_x steep steep_w)
+  vel_raw lip_y1 lip_y2 dc_x dc_y bell_z refl_z rad_x steep steep_w boost boost_c)
   local(v, n, bright, aa, pick, norm, lp, i, j, c, x, width, ia, ib, hard, g_rel, k, R, amp, sx, sy, d, len, decay, sb_a, sb_env,
     v0, scale, total, hp_a, hp_z, hp_z2, hp_z3, hp_z4, w0, re, im, mag, around, m, top, want, blen, burst) (
   op === 0 ? (
@@ -527,6 +530,15 @@ function voice_op(op, a, b) instance(idx vel hz0 level frames lp_z lp_z2 loop_ga
         memset(steep, 0, STEEP_LEN);
         steep_w = 0;
         this.env.value = 0;
+      );
+      // the tongue release: bore set moving at the note, lips boosted for the first moments
+      boost = BRASS_BOOST;
+      boost_c = exp(-3 / max(brass_attack_ms * 0.001 * srate, (BRASS_BOOST_PERIODS * srate) / hz0));
+      this.env.stage === 0 ? (
+        n = ceil(delay_len);
+        w0 = (2 * $pi * 2) / delay_len;
+        i = 0;
+        loop(n, this.line.delay_write(BRASS_SEED * 0.3 * maxv * sin(w0 * i)); i += 1;);
       );
       this.env.adsr_set(brass_attack_ms, 1, 1, min(phys_release_ms, 400));
       this.env.adsr_gate_on();
@@ -755,7 +767,7 @@ function render_bowed() instance(maxv slope lp_z damp_b delay_len delay_len2)
 );
 
 function render_brass() instance(vel maxv delay_len lip_y1 lip_y2 lip_a1 lip_a2 lip_g dc_x dc_y dc_r bell_b bell_z refl_b refl_z rad_k rad_x
-  steep steep_w)
+  steep steep_w boost boost_c)
   local(mouth, at_bell, bore, y, u, open, x, d, rad, per, d0, dd, pos, i0, i1, sv) (
   mouth = 0.3 * maxv * this.env.adsr_process();
   // the wave at the bell: its low part reflects back, the bell radiates its rate of change
@@ -777,7 +789,8 @@ function render_brass() instance(vel maxv delay_len lip_y1 lip_y2 lip_a1 lip_a2 
   y = mouth - bore - lip_a1 * lip_y1 - lip_a2 * lip_y2;
   lip_y2 = lip_y1;
   lip_y1 = y;
-  u = lip_g * y;
+  boost *= boost_c;
+  u = lip_g * (1 + boost) * y;
   open = 1 - exp(-u * u);
   x = open * mouth + (1 - open) * bore;
   d = x - dc_x + dc_r * dc_y;

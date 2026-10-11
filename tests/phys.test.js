@@ -413,3 +413,21 @@ test('piano: the top octaves ring (no lone click), stay in tune and at an even l
   }
   assert.ok(Math.max(...levels) - Math.min(...levels) < 12, `levels ${levels.map((l) => l.toFixed(0)).join(' ')}`);
 });
+
+test('brass: speaks within ~100 ms whatever the velocity (tongue release), soft and loud alike', () => {
+  for (const note of [55, 67, 79]) {
+    const onset = (velocity) => {
+      const s = make({ phys_model: 6, brass_attack_ms: 25, phys_vibrato_cents: 0 });
+      phys_note_on(s, note, velocity);
+      const x = render(s, SR * 0.6);
+      let m = 0;
+      const env = x.map((v) => (m = Math.max(m * 0.999, Math.abs(v))));
+      const steady = Math.max(...env.slice(-4800));
+      return env.findIndex((v) => v >= steady * 0.7) / (SR / 1000);
+    };
+    const soft = onset(30);
+    const loud = onset(127);
+    assert.ok(soft < 100 && loud < 100, `note ${note}: ${soft.toFixed(0)} ms (pp) / ${loud.toFixed(0)} ms (ff)`);
+    assert.ok(Math.abs(soft - loud) < 30, `note ${note}: velocity changes the onset by ${Math.abs(soft - loud).toFixed(0)} ms`);
+  }
+});
