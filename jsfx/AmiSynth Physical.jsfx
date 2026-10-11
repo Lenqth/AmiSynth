@@ -436,7 +436,7 @@ function voice_op(op, a, b) instance(idx vel hz0 level frames lp_z lp_z2 loop_ga
   exc_t exc_len exc modes mhz mt60 maxv slope mesh_u mesh_up mesh_un mesh_sig mesh_omega jet_boost flut hiss_lp
   vel_raw lip_y1 lip_y2 dc_x dc_y bell_z refl_z rad_x steep steep_w)
   local(v, n, bright, aa, pick, norm, lp, i, j, c, x, width, ia, ib, hard, g_rel, k, R, amp, sx, sy, d, len, decay, sb_a, sb_env,
-    v0, scale, total, hp_a, hp_z, w0, re, im) (
+    v0, scale, total, hp_a, hp_z, hp_z2, hp_z3, hp_z4, w0, re, im) (
   op === 0 ? (
     idx = a;
     this.line.delay_init(MAX_DELAY);
@@ -597,12 +597,18 @@ function voice_op(op, a, b) instance(idx vel hz0 level frames lp_z lp_z2 loop_ga
         exc[i] -= exc[i - pick];
         i -= 1;
       );
-      hp_a = 1 - exp((-2 * $pi * 0.5 * hz0) / srate);
-      hp_z = 0;
+      // 4 one-pole high-passes at 0.8 x the fundamental: what the pulse has below it is not a
+      // string mode and would only be heard as a click (treble: contact longer than a period)
+      hp_a = 1 - exp((-2 * $pi * 0.8 * hz0) / srate);
+      hp_z = hp_z2 = hp_z3 = hp_z4 = 0;
       i = 0;
       loop(total,
-        hp_z += hp_a * (exc[i] - hp_z);
-        exc[i] -= hp_z;
+        x = exc[i];
+        hp_z += hp_a * (x - hp_z); x -= hp_z;
+        hp_z2 += hp_a * (x - hp_z2); x -= hp_z2;
+        hp_z3 += hp_a * (x - hp_z3); x -= hp_z3;
+        hp_z4 += hp_a * (x - hp_z4); x -= hp_z4;
+        exc[i] = x;
         i += 1;
       );
       w0 = (2 * $pi * hz0) / srate;
@@ -840,7 +846,7 @@ function render_stiff() instance(ap_a delay_len delay_len2 tune_a tune_a2 tune_d
   lp_z2 = (1 - damp_b) * y + damp_b * lp_z2;
   fb = lp_z2 * loop_gain2 + 0.32 * e;
   this.line2.delay_write(fb);
-  (fa + fb + 0.3 * e) * read_gain;
+  (fa + fb) * read_gain;
 );
 
 function voice_render() instance(idx level frames gl gr) local(y, a) (

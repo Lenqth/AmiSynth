@@ -68,6 +68,7 @@ const BRASS_GAIN = 2.5;
 const BRASS_STEEP = 1.5; // wave steepening per unit pressure
 const STEEP_LEN = 4096; // power of two
 const HAM_SUB = 4; // hammer integration sub-steps per sample
+const PIANO_HP = 4; // high-pass stages on the hammer excitation
 const HAM_GAIN = 63;
 const SB_MODES = 16; // soundboard resonances
 // hammer force history at sub-step resolution (only used inside note-on)
@@ -130,7 +131,7 @@ function voice_create() {
     refl_b: 0, refl_z: 0, rad_x: 0, rad_k: 1, steep: { buf: new Float64Array(STEEP_LEN), w: 0 },
     // stiff string
     ap_a: 0, apA: [], apB: [], tuneA: {}, tuneB: {}, tune_a: 0, tune_a2: 0, tune_d: 1, tune_d2: 1,
-    exc: new Float64Array(EXC_MAX),
+    exc: new Float64Array(EXC_MAX), hp: new Float64Array(PIANO_HP),
     gl: 1, gr: 1,
   };
   delay_init(v.line, MAX_DELAY);
@@ -756,11 +757,19 @@ export function phys_note_on(s, note, velocity) {
     const total = Math.min(EXC_MAX, Math.max(len + pick + 1, Math.round(0.03 * sr)));
     for (let i = len; i < total; i++) e[i] = 0;
     for (let i = total - 1; i >= pick; i--) e[i] -= e[i - pick];
-    const hp_a = 1 - Math.exp((-TWO_PI * 0.5 * v.hz) / sr);
-    let hp_z = 0;
+    // High-pass (PIANO_HP one-poles at 0.8 x the fundamental): in the treble the hammer stays on
+    // the string for several periods, and what the pulse has below the fundamental is not a
+    // string mode - it only passes through the loop and is heard as a click at the start.
+    const hp_a = 1 - Math.exp((-TWO_PI * 0.8 * v.hz) / sr);
+    const hp = v.hp;
+    for (let k = 0; k < PIANO_HP; k++) hp[k] = 0;
     for (let i = 0; i < total; i++) {
-      hp_z += hp_a * (e[i] - hp_z);
-      e[i] -= hp_z;
+      let x = e[i];
+      for (let k = 0; k < PIANO_HP; k++) {
+        hp[k] += hp_a * (x - hp[k]);
+        x -= hp[k];
+      }
+      e[i] = x;
     }
     // Normalise at the fundamental: the level follows the velocity (Velocity Amount, as on the
     // other models) and is even across the keyboard, while the hammer physics decides how
@@ -1027,8 +1036,7 @@ function render_stiff(v, vib) {
   v.lp_z2 = (1 - v.damp_b) * y + v.damp_b * v.lp_z2;
   const fb = v.lp_z2 * v.loop_gain2 + 0.32 * exc;
   delay_write(v.line2, fb);
-  // plus a little of the soundboard heard directly (the attack "thump")
-  return (fa + fb + 0.3 * exc) * v.read_gain;
+  return (fa + fb) * v.read_gain;
 }
 
 export function phys_render(s) {
