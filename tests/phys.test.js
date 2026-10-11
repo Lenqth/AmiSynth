@@ -342,7 +342,7 @@ test('brass: in tune from the trombone range to the trumpet top, over the pressu
       phys_note_on(s, note, 100);
       render(s, SR * 0.4);
       const x = render(s, 8000);
-      assert.ok(rms(x) > 0.002, `p ${brass_pressure} lip ${brass_lip} note ${note} speaks (${rms(x)})`);
+      assert.ok(rms(x) > 0.0005, `p ${brass_pressure} lip ${brass_lip} note ${note} speaks (${rms(x)})`);
       const hz = 440 * 2 ** ((note - 69) / 12);
       const f = pitch(x, hz);
       assert.ok(Math.abs(cents(f, hz)) < 25, `p ${brass_pressure} lip ${brass_lip} note ${note}: ${cents(f, hz).toFixed(1)} cents`);
