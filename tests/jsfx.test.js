@@ -83,6 +83,12 @@ test('JSFX physical model matches JS with stress settings (vibrato, voice steali
   }
 });
 
+test('JSFX piano matches JS up to the top of the MIDI range', { skip: !HAVE && 'jsfx_render not built' }, () => {
+  const top = [96, 103, 108, 112, 116, 120, 124, 127].map((n, i) => [i * 2400, 0x90, n, 60 + i * 8]);
+  check('phys', scenario('phys', { phys_model: 5 }), top, 0.5, 'phys/piano top notes');
+  check('phys', scenario('phys', { phys_model: 5, piano_inharmonicity: 1, piano_hammer_hardness: 1 }), top, 0.5, 'phys/piano top notes, hard', 44100);
+});
+
 test('JSFX drums match JS for every kit and part', { skip: !HAVE && 'jsfx_render not built' }, () => {
   const hits = DRUM_PARTS.map((part, i) => [i * 2400, 0x90, part.note, 60 + (i % 3) * 30]);
   hits.push([30000, 0x90, 46, 120], [31000, 0x90, 42, 100]); // choke

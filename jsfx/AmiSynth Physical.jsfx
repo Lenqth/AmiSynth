@@ -87,57 +87,64 @@ SB_MODES = 16;
 N_AP = 4;
 MODEL_STRING = 0; MODEL_MODAL = 1; MODEL_BOWED = 2; MODEL_WIND = 3; MODEL_MESH = 4; MODEL_STIFF = 5; MODEL_BRASS = 6;
 BRASS_GAIN = 2.5;
-BRASS_MAX_DRIVE = 0.02;
-// brass tuning residual (cents sharp): 4 drives x 13 notes (30, 36, .. 102), see phys.js
-brass_drives = mem_alloc(4);
-brass_drives[0] = 0.006; brass_drives[1] = 0.009; brass_drives[2] = 0.013; brass_drives[3] = 0.02;
-brass_sharp = mem_alloc(4 * 13);
-function brass_row(j, a0, a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12) local(o) (
-  o = j * 13;
+BRASS_STEEP = 1.5;
+BRASS_BOOST = 6;
+BRASS_BOOST_PERIODS = 10;
+BRASS_SEED = 0.15;
+STEEP_LEN = 4096;
+// brass: minimum lip drive per note (notes 28, 32, .. 104), drive multiples, tuning residual
+// (cents sharp, 4 multiples x 20 notes) - see phys.js
+brass_min = mem_alloc(20);
+function brass_min_row(a0, a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16, a17, a18, a19) (
+  brass_min[0] = a0; brass_min[1] = a1; brass_min[2] = a2; brass_min[3] = a3; brass_min[4] = a4;
+  brass_min[5] = a5; brass_min[6] = a6; brass_min[7] = a7; brass_min[8] = a8; brass_min[9] = a9;
+  brass_min[10] = a10; brass_min[11] = a11; brass_min[12] = a12; brass_min[13] = a13; brass_min[14] = a14;
+  brass_min[15] = a15; brass_min[16] = a16; brass_min[17] = a17; brass_min[18] = a18; brass_min[19] = a19;
+);
+brass_min_row(0.0542, 0.0308, 0.0275, 0.0219, 0.0175, 0.0124, 0.0099, 0.0079, 0.0063, 0.005,
+  0.0045, 0.004, 0.004, 0.004, 0.004, 0.004, 0.004, 0.004, 0.004, 0.004);
+brass_mults = mem_alloc(4);
+brass_mults[0] = 1.1; brass_mults[1] = 1.6; brass_mults[2] = 2.2; brass_mults[3] = 3;
+brass_sharp = mem_alloc(4 * 20);
+function brass_row(j, a0, a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16, a17, a18, a19) local(o) (
+  o = j * 20;
   brass_sharp[o] = a0; brass_sharp[o + 1] = a1; brass_sharp[o + 2] = a2; brass_sharp[o + 3] = a3; brass_sharp[o + 4] = a4;
   brass_sharp[o + 5] = a5; brass_sharp[o + 6] = a6; brass_sharp[o + 7] = a7; brass_sharp[o + 8] = a8; brass_sharp[o + 9] = a9;
-  brass_sharp[o + 10] = a10; brass_sharp[o + 11] = a11; brass_sharp[o + 12] = a12;
+  brass_sharp[o + 10] = a10; brass_sharp[o + 11] = a11; brass_sharp[o + 12] = a12; brass_sharp[o + 13] = a13; brass_sharp[o + 14] = a14;
+  brass_sharp[o + 15] = a15; brass_sharp[o + 16] = a16; brass_sharp[o + 17] = a17; brass_sharp[o + 18] = a18; brass_sharp[o + 19] = a19;
 );
-brass_row(0, 173.8, 161.8, 126.3, 111.9, 89.3, 79.1, 51.5, 37, 38.6, 42.9, 45.6, 46.8, 26.5);
-brass_row(1, 173.8, 161.8, 126.3, 111.9, 89.3, 79.1, 51.5, 37, 38.6, 42.9, 45.6, 46.8, 26.5);
-brass_row(2, 173.8, 161.8, 126.3, 111.9, 99.6, 56.9, 34.2, 31.5, 36.4, 49.1, 49, 46.3, 25.1);
-brass_row(3, 173.8, 161.8, 140.1, 122.8, 107.4, 46.4, 31.2, 26.5, 33, 54.7, 51.2, 50.6, 28.4);
-// minimum lip drive per note (low notes only speak with enough drive)
-brass_min_n = mem_alloc(7);
-brass_min_d = mem_alloc(7);
-brass_min_n[0] = 30; brass_min_n[1] = 33; brass_min_n[2] = 36; brass_min_n[3] = 43; brass_min_n[4] = 48; brass_min_n[5] = 55; brass_min_n[6] = 60;
-brass_min_d[0] = 0.02; brass_min_d[1] = 0.019; brass_min_d[2] = 0.0165; brass_min_d[3] = 0.012; brass_min_d[4] = 0.0098; brass_min_d[5] = 0.0073; brass_min_d[6] = 0.0062;
+brass_row(0, 86.5, 70.6, 73.9, 69.7, 67.9, 62.6, 59.1, 56.9, 54.9, 47.9, 44.1, 40.2, 39.7, 38.9, 37.9, 37.3, 36.7, 37.1, 39.8, 42.5);
+brass_row(1, 68.9, 71.7, 75.5, 75.2, 74.7, 72.6, 71.2, 69.5, 67.8, 60.7, 55.6, 50.3, 48.4, 46.3, 44.5, 43.3, 42.4, 42.7, 46.2, 49.7);
+brass_row(2, 70.8, 74.4, 72.5, 75.9, 77, 79.5, 79.5, 78.2, 76.5, 69.5, 63.6, 57.7, 54.6, 51.6, 48.9, 47.3, 46, 46.4, 50.8, 51.1);
+brass_row(3, 59.4, 67.1, 61.5, 62.4, 60.8, 70.2, 70.9, 71.4, 71.8, 69.2, 63.5, 62.3, 59.2, 55.4, 52.1, 50, 48.5, 49, 54.2, 43.9);
 
-function brass_pressure_of(vel_raw) local(amt) (
-  amt = phys_velocity_amount;
-  clamp((0.2 + 0.8 * brass_pressure) * (1 - 0.6 * amt + 0.6 * amt * vel_raw), 0.2, 1);
+/** mouth pressure: the knob, scaled by the velocity over up to 20 dB (Velocity Amount) */
+function brass_pressure_of(vel_raw) (
+  clamp((0.2 + 0.8 * brass_pressure) * pow(10, phys_velocity_amount * (vel_raw - 1)), 0.05, 1);
 );
 
-function brass_min_drive(note) local(i, r, done) (
-  note <= brass_min_n[0] ? brass_min_d[0] : (
-    r = brass_min_d[6];
-    done = 0;
-    i = 1;
-    while (i < 7 && !done) (
-      note <= brass_min_n[i] ? (
-        r = brass_min_d[i - 1] + ((brass_min_d[i] - brass_min_d[i - 1]) * (note - brass_min_n[i - 1])) / (brass_min_n[i] - brass_min_n[i - 1]);
-        done = 1;
-      );
-      i += 1;
-    );
-    r;
-  );
+/** drive multiple 1.1 .. 3 from Lip Buzz and the pressure, half each */
+function brass_mult_of(press) (
+  1.1 + 1.9 * clamp(0.5 * brass_lip + (0.5 * (press - 0.2)) / 0.8, 0, 1);
 );
 
-function brass_sharp_of(note, drive) local(u, i, fu, j, fv, a, b) (
-  u = clamp((note - 30) / 6, 0, 13 - 1.000001);
+function brass_col(note) ( clamp((note - 28) / 4, 0, 20 - 1.000001); );
+
+function brass_min_drive(note) local(u, i) (
+  u = brass_col(note);
+  i = floor(u);
+  brass_min[i] + (brass_min[i + 1] - brass_min[i]) * (u - i);
+);
+
+function brass_sharp_of(note, mult) local(u, i, fu, j, fv, a, b) (
+  u = brass_col(note);
   i = floor(u);
   fu = u - i;
   j = 0;
-  while (j < 2 && drive > brass_drives[j + 1]) ( j += 1; );
-  fv = clamp(log(drive / brass_drives[j]) / log(brass_drives[j + 1] / brass_drives[j]), 0, 1);
-  a = j * 13;
-  b = (j + 1) * 13;
+  while (j < 2 && mult > brass_mults[j + 1]) ( j += 1; );
+  fv = clamp((mult - brass_mults[j]) / (brass_mults[j + 1] - brass_mults[j]), 0, 1);
+  a = j * 20;
+  b = (j + 1) * 20;
   (brass_sharp[a + i] * (1 - fu) + brass_sharp[a + i + 1] * fu) * (1 - fv) + (brass_sharp[b + i] * (1 - fu) + brass_sharp[b + i + 1] * fu) * fv;
 );
 noise_seed(12345);
@@ -290,7 +297,7 @@ function dispersion_coef(hz, B, b_lp) local(w1, n, wn, period, target, room, lo,
 
 /** integer delay + Thiran all-pass for the fraction (refined at w); which 0 / 1 = string A / B */
 function thiran_split(which, L, w) instance(delay_len delay_len2 tune_d tune_d2 tune_a tune_a2) local(n, d, dl, a, it) (
-  n = clamp(floor(L - 0.5), 2, MAX_DELAY - 2);
+  n = clamp(floor(L - 0.5), 1, MAX_DELAY - 2);
   d = clamp(L - n, 0.5, 1.5);
   dl = d;
   a = 0;
@@ -306,9 +313,9 @@ function thiran_split(which, L, w) instance(delay_len delay_len2 tune_d tune_d2 
   );
 );
 
-function voice_tune(keep_decay) instance(hz0 damp_b delay_len delay_len2 loop_gain loop_gain2 modes mhz mt60 jet_bias jet_boost mesh_c2 mesh_omega ap_a
-  vel_raw lip_a1 lip_a2 lip_g maxv dc_r refl_b bell_b)
-  local(hz, m, k, ratio, pos_w, b, total, x, sharp, w, a, det, hzA, hzB, wA, wB, t, press, note, drive, f, r) (
+function voice_tune(keep_decay) instance(hz0 damp_b delay_len delay_len2 loop_gain loop_gain2 modes mhz mt60 jet_bias jet_boost mesh_c2 mesh_omega ap_a ap_count
+  vel_raw lip_a1 lip_a2 lip_g maxv dc_r refl_b bell_b rad_k)
+  local(hz, m, k, ratio, pos_w, b, total, x, sharp, w, a, det, hzA, hzB, wA, wB, t, press, note, mult, drive, f, r) (
   hz = hz0 * bend_ratio;
   model === MODEL_STRING ? (
     damp_b = string_damp_b;
@@ -334,13 +341,15 @@ function voice_tune(keep_decay) instance(hz0 damp_b delay_len delay_len2 loop_ga
     delay_len = clamp(total * bow_position, 2, MAX_DELAY - 2);
     delay_len2 = clamp(total * (1 - bow_position), 2, MAX_DELAY - 2);
   ) : model === MODEL_BRASS ? (
-    // lip drive = lip gain * sqrt(pressure); bore + lips scaled together by the tuning residual
+    // lip drive = a multiple of what the note needs to speak; bore + lips scaled together by
+    // the tuning residual; lip bandwidth 42 Hz, narrower (Q ~7) for low notes
     press = brass_pressure_of(vel_raw);
     note = 69 + (12 * log(hz / 440)) / log(2);
-    drive = clamp((0.01 + 0.01 * brass_lip) * sqrt(press), brass_min_drive(note), BRASS_MAX_DRIVE);
-    f = hz * pow(2, -brass_sharp_of(note, drive) / 1200);
+    mult = brass_mult_of(press);
+    drive = brass_min_drive(note) * mult;
+    f = hz * pow(2, -brass_sharp_of(note, mult) / 1200);
     delay_len = clamp((2 * srate) / f, 2, MAX_DELAY - 2);
-    r = exp((-$pi * 42) / srate);
+    r = exp((-$pi * min(42, 0.15 * f)) / srate);
     w = (2 * $pi * f) / srate;
     lip_a1 = -2 * r * cos(w);
     lip_a2 = r * r;
@@ -348,6 +357,7 @@ function voice_tune(keep_decay) instance(hz0 damp_b delay_len delay_len2 loop_ga
     maxv = press;
     dc_r = exp((-2 * $pi * 0.05 * f) / srate);
     refl_b = exp((-2 * $pi * max(1500, 5 * f)) / srate);
+    rad_k = 1 / (2 * sin(w / 2));
     bell_b = exp((-2 * $pi * (1500 + 6000 * brass_bell)) / srate);
   ) : model === MODEL_WIND ? (
     wind_type < 0.5 ? (
@@ -371,7 +381,7 @@ function voice_tune(keep_decay) instance(hz0 damp_b delay_len delay_len2 loop_ga
     mesh_omega = w;
   ) : (
     // stiff string: two strings detuned by +/- half the unison detune
-    b = (0.05 + 0.6 * piano_damping) * clamp(sqrt(262 / hz), 0.15, 1);
+    b = (0.05 + 0.6 * piano_damping) * clamp(sqrt(262 / hz), 0.15, 1) * min(1, pow(2093 / hz, 3));
     damp_b = b;
     a = dispersion_coef(hz, stiff_b(hz, piano_inharmonicity), b);
     ap_a = a;
@@ -380,12 +390,15 @@ function voice_tune(keep_decay) instance(hz0 damp_b delay_len delay_len2 loop_ga
     hzB = hz / det;
     wA = (2 * $pi * hzA) / srate;
     wB = (2 * $pi * hzB) / srate;
-    this.thiran_split(0, srate / hzA - lp1_phase_delay(b, wA) - N_AP * ap1_phase_delay(a, wA), wA);
-    this.thiran_split(1, srate / hzB - lp1_phase_delay(b, wB) - N_AP * ap1_phase_delay(a, wB), wB);
+    // without dispersion (top notes) the all-passes are bypassed (each is still a 1-sample delay)
+    ap_count = a === 0 ? 0 : N_AP;
+    this.thiran_split(0, srate / hzA - lp1_phase_delay(b, wA) - ap_count * ap1_phase_delay(a, wA), wA);
+    this.thiran_split(1, srate / hzB - lp1_phase_delay(b, wB) - ap_count * ap1_phase_delay(a, wB), wB);
     !keep_decay ? (
       t = max(piano_decay_ms, 1) * clamp(pow(220 / hz, 0.4), 0.25, 2) * 0.001;
-      loop_gain = exp(-6.907755 / (hzA * t));
-      loop_gain2 = exp(-6.907755 / (hzB * t));
+      // divide out what the loop low-pass takes off the fundamental (adds up in the top octaves)
+      loop_gain = min(0.99999, exp(-6.907755 / (hzA * t)) / ((1 - b) / sqrt(1 - 2 * b * cos(wA) + b * b)));
+      loop_gain2 = min(0.99999, exp(-6.907755 / (hzB * t)) / ((1 - b) / sqrt(1 - 2 * b * cos(wB) + b * b)));
     );
   );
 );
@@ -427,9 +440,9 @@ function hammer_force(out, hz, v0, hardness, beta) local(m, Z, K, dt, lag, max_n
 // op: 0 init(index), 1 start(note, velocity), 2 note off, 3 retune for pitch bend
 function voice_op(op, a, b) instance(idx vel hz0 level frames lp_z lp_z2 loop_gain loop_gain2 damp_b delay_len delay_len2 read_gain
   exc_t exc_len exc modes mhz mt60 maxv slope mesh_u mesh_up mesh_un mesh_sig mesh_omega jet_boost flut hiss_lp
-  vel_raw lip_y1 lip_y2 dc_x dc_y bell_z refl_z)
+  vel_raw lip_y1 lip_y2 dc_x dc_y bell_z refl_z rad_x steep steep_w boost boost_c)
   local(v, n, bright, aa, pick, norm, lp, i, j, c, x, width, ia, ib, hard, g_rel, k, R, amp, sx, sy, d, len, decay, sb_a, sb_env,
-    v0, scale, total, hp_a, hp_z, w0, re, im) (
+    v0, scale, total, hp_a, hp_z, hp_z2, hp_z3, hp_z4, w0, re, im, mag, around, m, top, want, blen, burst) (
   op === 0 ? (
     idx = a;
     this.line.delay_init(MAX_DELAY);
@@ -441,6 +454,8 @@ function voice_op(op, a, b) instance(idx vel hz0 level frames lp_z lp_z2 loop_ga
     mesh_up = mem_alloc(MESH_CELLS);
     mesh_un = mem_alloc(MESH_CELLS);
     exc = mem_alloc(EXC_MAX);
+    steep = mem_alloc(STEEP_LEN);
+    steep_w = 0;
   ) : op === 1 ? (
     v = b / 127;
     vel_raw = v;
@@ -511,7 +526,19 @@ function voice_op(op, a, b) instance(idx vel hz0 level frames lp_z lp_z2 loop_ga
         dc_y = 0;
         bell_z = 0;
         refl_z = 0;
+        rad_x = 0;
+        memset(steep, 0, STEEP_LEN);
+        steep_w = 0;
         this.env.value = 0;
+      );
+      // the tongue release: bore set moving at the note, lips boosted for the first moments
+      boost = BRASS_BOOST;
+      boost_c = exp(-3 / max(brass_attack_ms * 0.001 * srate, (BRASS_BOOST_PERIODS * srate) / hz0));
+      this.env.stage === 0 ? (
+        n = ceil(delay_len);
+        w0 = (2 * $pi * 2) / delay_len;
+        i = 0;
+        loop(n, this.line.delay_write(BRASS_SEED * 0.3 * maxv * sin(w0 * i)); i += 1;);
       );
       this.env.adsr_set(brass_attack_ms, 1, 1, min(phys_release_ms, 400));
       this.env.adsr_gate_on();
@@ -585,24 +612,73 @@ function voice_op(op, a, b) instance(idx vel hz0 level frames lp_z lp_z2 loop_ga
         exc[i] -= exc[i - pick];
         i -= 1;
       );
-      hp_a = 1 - exp((-2 * $pi * 0.5 * hz0) / srate);
-      hp_z = 0;
+      // 4 one-pole high-passes at 0.8 x the fundamental: what the pulse has below it is not a
+      // string mode and would only be heard as a click (treble: contact longer than a period)
+      hp_a = 1 - exp((-2 * $pi * 0.8 * hz0) / srate);
+      hp_z = hp_z2 = hp_z3 = hp_z4 = 0;
       i = 0;
       loop(total,
-        hp_z += hp_a * (exc[i] - hp_z);
-        exc[i] -= hp_z;
+        x = exc[i];
+        hp_z += hp_a * (x - hp_z); x -= hp_z;
+        hp_z2 += hp_a * (x - hp_z2); x -= hp_z2;
+        hp_z3 += hp_a * (x - hp_z3); x -= hp_z3;
+        hp_z4 += hp_a * (x - hp_z4); x -= hp_z4;
+        exc[i] = x;
         i += 1;
       );
-      w0 = (2 * $pi * hz0) / srate;
-      re = 0;
-      im = 0;
-      i = 0;
-      loop(total,
-        re += exc[i] * cos(w0 * i);
-        im += exc[i] * sin(w0 * i);
-        i += 1;
+      // top octaves: fade towards a windowed sine burst at the fundamental (see phys.js)
+      top = clamp((hz0 - srate / 16) / (srate / 10 - srate / 16), 0, 1);
+      top > 0 ? (
+        mag = 0;
+        around = 0;
+        k = 0;
+        loop(5,
+          w0 = (2 * $pi * hz0 * (0.8 + 0.1 * k)) / srate;
+          re = 0;
+          im = 0;
+          i = 0;
+          loop(total,
+            re += exc[i] * cos(w0 * i);
+            im += exc[i] * sin(w0 * i);
+            i += 1;
+          );
+          m = sqrt(re * re + im * im);
+          k === 2 ? mag = m;
+          m > around ? around = m;
+          k += 1;
+        );
+        want = max(mag, 0.3 * around);
+        blen = min(total, max(len, ceil((2 * srate) / hz0)));
+        amp = want / (blen / 4);
+        w0 = (2 * $pi * hz0) / srate;
+        i = 0;
+        loop(total,
+          burst = i < blen ? amp * (0.5 - 0.5 * cos((2 * $pi * i) / blen)) * sin(w0 * i) : 0;
+          exc[i] = (1 - top) * exc[i] + top * burst;
+          i += 1;
+        );
       );
-      scale = (HAM_GAIN * pow(clamp(hz0 / 262, 0.35, 8), -1.5) * pow(v0 / 2, 0.6)) / max(0.000000000001, sqrt(re * re + im * im));
+      // magnitude at the fundamental, at least 30 % of the level around it (spectral notch)
+      mag = 0;
+      around = 0;
+      k = 0;
+      loop(5,
+        w0 = (2 * $pi * hz0 * (0.8 + 0.1 * k)) / srate;
+        re = 0;
+        im = 0;
+        i = 0;
+        loop(total,
+          re += exc[i] * cos(w0 * i);
+          im += exc[i] * sin(w0 * i);
+          i += 1;
+        );
+        m = sqrt(re * re + im * im);
+        k === 2 ? mag = m;
+        m > around ? around = m;
+        k += 1;
+      );
+      mag = max(mag, 0.3 * around);
+      scale = (HAM_GAIN * pow(clamp(hz0 / 262, 0.35, 8), -1.5) * pow(v0 / 2, 0.6)) / max(0.000000000001, mag);
       decay = exp(-1 / (0.004 * srate));
       sb_a = 1 - exp((-2 * $pi * 600) / srate);
       sb_env = 0.02 * v;
@@ -690,24 +766,40 @@ function render_bowed() instance(maxv slope lp_z damp_b delay_len delay_len2)
   (bridge_out + 1.2 * this.body1.bp + 0.8 * this.body2.bp) * 1.6;
 );
 
-function render_brass() instance(vel maxv delay_len lip_y1 lip_y2 lip_a1 lip_a2 lip_g dc_x dc_y dc_r bell_b bell_z refl_b refl_z)
-  local(mouth, bore, y, open, x, d) (
+function render_brass() instance(vel maxv delay_len lip_y1 lip_y2 lip_a1 lip_a2 lip_g dc_x dc_y dc_r bell_b bell_z refl_b refl_z rad_k rad_x
+  steep steep_w boost boost_c)
+  local(mouth, at_bell, bore, y, u, open, x, d, rad, per, d0, dd, pos, i0, i1, sv) (
   mouth = 0.3 * maxv * this.env.adsr_process();
-  refl_z = (1 - refl_b) * this.line.delay_read(delay_len / vib) + refl_b * refl_z;
+  // the wave at the bell: its low part reflects back, the bell radiates its rate of change
+  at_bell = this.line.delay_read(delay_len / vib);
+  // wave steepening ("brassiness"): a delay shortened by the pressure, outside the loop
+  steep[steep_w] = at_bell;
+  steep_w = (steep_w + 1) & (STEEP_LEN - 1);
+  per = delay_len * 0.5;
+  d0 = min(STEEP_LEN * 0.4, per * 0.5 + 2);
+  dd = clamp(d0 - BRASS_STEEP * at_bell * per, 1, 2 * d0);
+  pos = steep_w - dd;
+  pos < 0 ? pos += STEEP_LEN;
+  i0 = floor(pos);
+  i1 = (i0 + 1) & (STEEP_LEN - 1);
+  sv = steep[i0] + (pos - i0) * (steep[i1] - steep[i0]);
+  refl_z = (1 - refl_b) * at_bell + refl_b * refl_z;
   bore = 0.85 * refl_z;
-  // lips: resonator driven by the pressure difference; opening = (gain * position)^2, clipped
+  // lips: resonator driven by the pressure difference; opening saturates smoothly
   y = mouth - bore - lip_a1 * lip_y1 - lip_a2 * lip_y2;
   lip_y2 = lip_y1;
   lip_y1 = y;
-  open = lip_g * y;
-  open *= open;
-  open > 1 ? open = 1;
+  boost *= boost_c;
+  u = lip_g * (1 + boost) * y;
+  open = 1 - exp(-u * u);
   x = open * mouth + (1 - open) * bore;
   d = x - dc_x + dc_r * dc_y;
   dc_x = x;
   dc_y = d;
   this.line.delay_write(d);
-  bell_z = (1 - bell_b) * d + bell_b * bell_z;
+  rad = (sv - rad_x) * rad_k;
+  rad_x = sv;
+  bell_z = (1 - bell_b) * rad + bell_b * bell_z;
   bell_z * BRASS_GAIN * vel;
 );
 
@@ -780,7 +872,7 @@ function render_mesh() instance(mesh_u mesh_up mesh_un mesh_c2 mesh_sig mesh_ome
   un[mesh_pick] * mesh_omega * K_MESH;
 );
 
-function render_stiff() instance(ap_a delay_len delay_len2 tune_a tune_a2 tune_d tune_d2 lp_z lp_z2 damp_b loop_gain loop_gain2 read_gain exc exc_t exc_len)
+function render_stiff() instance(ap_a ap_count delay_len delay_len2 tune_a tune_a2 tune_d tune_d2 lp_z lp_z2 damp_b loop_gain loop_gain2 read_gain exc exc_t exc_len)
   local(a, nA, nB, tA, tB, t, x, y, fa, fb, e) (
   a = ap_a;
   nA = delay_len;
@@ -802,18 +894,22 @@ function render_stiff() instance(ap_a delay_len delay_len2 tune_a tune_a2 tune_d
   e = 0;
   exc_t < exc_len ? ( e = exc[exc_t]; exc_t += 1; );
   x = this.tuneA.ap1_process(this.line.delay_read(nA), tA);
-  x = this.apA0.ap1_process(x, a); x = this.apA1.ap1_process(x, a);
-  x = this.apA2.ap1_process(x, a); x = this.apA3.ap1_process(x, a);
+  ap_count > 0 ? (
+    x = this.apA0.ap1_process(x, a); x = this.apA1.ap1_process(x, a);
+    x = this.apA2.ap1_process(x, a); x = this.apA3.ap1_process(x, a);
+  );
   lp_z = (1 - damp_b) * x + damp_b * lp_z;
   fa = lp_z * loop_gain + 0.5 * e;
   this.line.delay_write(fa);
   y = this.tuneB.ap1_process(this.line2.delay_read(nB), tB);
-  y = this.apB0.ap1_process(y, a); y = this.apB1.ap1_process(y, a);
-  y = this.apB2.ap1_process(y, a); y = this.apB3.ap1_process(y, a);
+  ap_count > 0 ? (
+    y = this.apB0.ap1_process(y, a); y = this.apB1.ap1_process(y, a);
+    y = this.apB2.ap1_process(y, a); y = this.apB3.ap1_process(y, a);
+  );
   lp_z2 = (1 - damp_b) * y + damp_b * lp_z2;
   fb = lp_z2 * loop_gain2 + 0.32 * e;
   this.line2.delay_write(fb);
-  (fa + fb + 0.3 * e) * read_gain;
+  (fa + fb) * read_gain;
 );
 
 function voice_render() instance(idx level frames gl gr) local(y, a) (

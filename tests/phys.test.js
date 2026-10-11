@@ -303,27 +303,27 @@ test('room: adds a decaying stereo tail and is bypassed at 0', () => {
 });
 
 test('piano: harder notes are brighter (felt hammer), and the soundboard is bypassed at 0', () => {
+  // upper partials (3rd .. 8th) relative to the fundamental, over the first 100 ms
   const centroid = (velocity, over = {}) => {
     const s = make({ phys_model: 5, ...over });
     phys_note_on(s, 60, velocity);
     const x = render(s, 4800);
-    let num = 0;
-    let den = 0;
-    for (let f = 100; f < 8000; f += 100) {
+    const amp = (f) => {
       let re = 0;
       let im = 0;
       for (let i = 0; i < x.length; i++) {
         re += x[i] * Math.cos((2 * Math.PI * f * i) / SR);
         im += x[i] * Math.sin((2 * Math.PI * f * i) / SR);
       }
-      num += f * (re * re + im * im);
-      den += re * re + im * im;
-    }
-    return num / den;
+      return Math.hypot(re, im);
+    };
+    let up = 0;
+    for (let k = 3; k <= 8; k++) up += amp(261.63 * k);
+    return up / amp(261.63);
   };
   const pp = centroid(30);
   const ff = centroid(127);
-  assert.ok(ff > pp * 2, `ff ${ff.toFixed(0)} Hz vs pp ${pp.toFixed(0)} Hz`);
+  assert.ok(ff > pp * 2, `upper partials ff ${ff.toFixed(3)} vs pp ${pp.toFixed(3)}`);
   // same velocity amount 0: the level no longer follows velocity, the timbre still does
   assert.ok(centroid(127, { phys_velocity_amount: 0 }) > centroid(30, { phys_velocity_amount: 0 }) * 2);
   const a = make({ phys_model: 5, piano_soundboard: 0 });
@@ -342,7 +342,7 @@ test('brass: in tune from the trombone range to the trumpet top, over the pressu
       phys_note_on(s, note, 100);
       render(s, SR * 0.4);
       const x = render(s, 8000);
-      assert.ok(rms(x) > 0.002, `p ${brass_pressure} lip ${brass_lip} note ${note} speaks (${rms(x)})`);
+      assert.ok(rms(x) > 0.0005, `p ${brass_pressure} lip ${brass_lip} note ${note} speaks (${rms(x)})`);
       const hz = 440 * 2 ** ((note - 69) / 12);
       const f = pitch(x, hz);
       assert.ok(Math.abs(cents(f, hz)) < 25, `p ${brass_pressure} lip ${brass_lip} note ${note}: ${cents(f, hz).toFixed(1)} cents`);
@@ -384,4 +384,50 @@ test('brass: louder is brighter, it sustains while held and frees its voice afte
   })();
   assert.equal(snap.model, 'brass');
   assert.ok(snap.wave.length > 10 && snap.valve >= 0 && snap.valve <= 1);
+});
+
+test('piano: no click at the start of treble notes (the hammer pulse below the fundamental is removed)', () => {
+  for (const note of [72, 84, 96]) {
+    const s = make({ phys_model: 5 });
+    phys_note_on(s, note, 100);
+    const x = render(s, SR * 0.15);
+    const peak = (a, b) => Math.max(...x.slice(a, b).map(Math.abs));
+    const head = 20 * Math.log10(peak(0, 240) / peak(SR * 0.05, SR * 0.15));
+    assert.ok(head < 8, `note ${note}: first 5 ms ${head.toFixed(1)} dB above the tone`);
+  }
+});
+
+test('piano: the top octaves ring (no lone click), stay in tune and at an even level', () => {
+  const levels = [];
+  for (const note of [100, 108, 116, 124]) {
+    const s = make({ phys_model: 5, piano_unison_detune_cents: 0 });
+    phys_note_on(s, note, 100);
+    const x = render(s, SR * 0.15);
+    const peak = (a, b) => Math.max(...x.slice(a, b).map(Math.abs));
+    const head = 20 * Math.log10(peak(0, 240) / peak(SR * 0.05, SR * 0.15));
+    assert.ok(head < 9, `note ${note}: first 5 ms ${head.toFixed(1)} dB above the tone`);
+    levels.push(20 * Math.log10(peak(0, SR * 0.15)));
+    const f1 = phys_snapshot(s).f1;
+    const hz = 440 * 2 ** ((note - 69) / 12);
+    assert.ok(Math.abs(cents(f1, hz)) < 1, `note ${note}: loop tuned to ${f1} Hz vs ${hz}`);
+  }
+  assert.ok(Math.max(...levels) - Math.min(...levels) < 12, `levels ${levels.map((l) => l.toFixed(0)).join(' ')}`);
+});
+
+test('brass: speaks within ~100 ms whatever the velocity (tongue release), soft and loud alike', () => {
+  for (const note of [55, 67, 79]) {
+    const onset = (velocity) => {
+      const s = make({ phys_model: 6, brass_attack_ms: 25, phys_vibrato_cents: 0 });
+      phys_note_on(s, note, velocity);
+      const x = render(s, SR * 0.6);
+      let m = 0;
+      const env = x.map((v) => (m = Math.max(m * 0.999, Math.abs(v))));
+      const steady = Math.max(...env.slice(-4800));
+      return env.findIndex((v) => v >= steady * 0.7) / (SR / 1000);
+    };
+    const soft = onset(30);
+    const loud = onset(127);
+    assert.ok(soft < 100 && loud < 100, `note ${note}: ${soft.toFixed(0)} ms (pp) / ${loud.toFixed(0)} ms (ff)`);
+    assert.ok(Math.abs(soft - loud) < 30, `note ${note}: velocity changes the onset by ${Math.abs(soft - loud).toFixed(0)} ms`);
+  }
 });

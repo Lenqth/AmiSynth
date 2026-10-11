@@ -65,7 +65,13 @@ const FLUTE_JET_GAIN = 1.6;
 const N_AP = 4; // dispersion all-passes per stiff string
 const EXC_MAX = 16384; // piano excitation buffer (hammer + strike comb, up to 192 kHz)
 const BRASS_GAIN = 2.5;
+const BRASS_STEEP = 1.5; // wave steepening per unit pressure
+const BRASS_BOOST = 6; // extra lip gain right after the tongue release
+const BRASS_BOOST_PERIODS = 10;
+const BRASS_SEED = 0.15; // bore wave set moving by the tongue (x mouth pressure)
+const STEEP_LEN = 4096; // power of two
 const HAM_SUB = 4; // hammer integration sub-steps per sample
+const PIANO_HP = 4; // high-pass stages on the hammer excitation
 const HAM_GAIN = 63;
 const SB_MODES = 16; // soundboard resonances
 // hammer force history at sub-step resolution (only used inside note-on)
@@ -79,20 +85,21 @@ export const MODEL_MESH = 4;
 export const MODEL_STIFF = 5;
 export const MODEL_BRASS = 6;
 
-// Brass tuning: the pitch settles between the bore resonance and the lip resonance, so it
-// depends on the note and on the lip drive D = lip gain * sqrt(pressure). Measured residual
-// (cents sharp) on a grid of notes x drives, applied by scaling bore + lips together.
-const BRASS_NOTES0 = 30; // grid notes 30, 36, ... 102
-const BRASS_DRIVES = [0.006, 0.009, 0.013, 0.02];
+// Brass lip drive: every note needs a minimum drive to speak (measured on notes 28, 32, .. 104);
+// Lip Buzz and the blowing pressure choose a multiple of it (BRASS_MULTS range).
+const BRASS_NOTE0 = 28;
+const BRASS_MIN_DRIVE = [0.0542, 0.0308, 0.0275, 0.0219, 0.0175, 0.0124, 0.0099, 0.0079, 0.0063, 0.005,
+  0.0045, 0.004, 0.004, 0.004, 0.004, 0.004, 0.004, 0.004, 0.004, 0.004];
+// Brass tuning: the pitch settles between the bore and the lip resonance, so it depends on the
+// note and the drive. Measured residual (cents sharp) per drive multiple x note; bore and lips
+// are scaled together by it so the pitch lands on the note.
+const BRASS_MULTS = [1.1, 1.6, 2.2, 3];
 export const BRASS_SHARP = [
-  [173.8, 161.8, 126.3, 111.9, 89.3, 79.1, 51.5, 37, 38.6, 42.9, 45.6, 46.8, 26.5],
-  [173.8, 161.8, 126.3, 111.9, 89.3, 79.1, 51.5, 37, 38.6, 42.9, 45.6, 46.8, 26.5],
-  [173.8, 161.8, 126.3, 111.9, 99.6, 56.9, 34.2, 31.5, 36.4, 49.1, 49, 46.3, 25.1],
-  [173.8, 161.8, 140.1, 122.8, 107.4, 46.4, 31.2, 26.5, 33, 54.7, 51.2, 50.6, 28.4],
+  [86.5, 70.6, 73.9, 69.7, 67.9, 62.6, 59.1, 56.9, 54.9, 47.9, 44.1, 40.2, 39.7, 38.9, 37.9, 37.3, 36.7, 37.1, 39.8, 42.5],
+  [68.9, 71.7, 75.5, 75.2, 74.7, 72.6, 71.2, 69.5, 67.8, 60.7, 55.6, 50.3, 48.4, 46.3, 44.5, 43.3, 42.4, 42.7, 46.2, 49.7],
+  [70.8, 74.4, 72.5, 75.9, 77, 79.5, 79.5, 78.2, 76.5, 69.5, 63.6, 57.7, 54.6, 51.6, 48.9, 47.3, 46, 46.4, 50.8, 51.1],
+  [59.4, 67.1, 61.5, 62.4, 60.8, 70.2, 70.9, 71.4, 71.8, 69.2, 63.5, 62.3, 59.2, 55.4, 52.1, 50, 48.5, 49, 54.2, 43.9],
 ];
-// low notes only speak with enough lip drive: [note, minimum drive]
-const BRASS_MIN_DRIVE = [[30, 0.02], [33, 0.019], [36, 0.0165], [43, 0.012], [48, 0.0098], [55, 0.0073], [60, 0.0062]];
-const BRASS_MAX_DRIVE = 0.02;
 
 /** ratios: frequency / fundamental; gains: relative excitation; (values are textbook approximations) */
 export const MATERIALS = [
@@ -124,10 +131,10 @@ function voice_create() {
     mesh_c2: 0, mesh_sig: 0, mesh_omega: 0, jet_bias: 0, jet_boost: 1, flut: 0, hiss_lp: 0,
     // brass lips (two-pole resonator), dc blocker, bell low-pass
     lip_y1: 0, lip_y2: 0, lip_a1: 0, lip_a2: 0, lip_g: 0, dc_x: 0, dc_y: 0, dc_r: 0, bell_b: 0, bell_z: 0,
-    refl_b: 0, refl_z: 0,
+    refl_b: 0, refl_z: 0, rad_x: 0, rad_k: 1, boost: 0, boost_c: 0, steep: { buf: new Float64Array(STEEP_LEN), w: 0 },
     // stiff string
-    ap_a: 0, apA: [], apB: [], tuneA: {}, tuneB: {}, tune_a: 0, tune_a2: 0, tune_d: 1, tune_d2: 1,
-    exc: new Float64Array(EXC_MAX),
+    ap_a: 0, n_ap: N_AP, apA: [], apB: [], tuneA: {}, tuneB: {}, tune_a: 0, tune_a2: 0, tune_d: 1, tune_d2: 1,
+    exc: new Float64Array(EXC_MAX), hp: new Float64Array(PIANO_HP),
     gl: 1, gr: 1,
   };
   delay_init(v.line, MAX_DELAY);
@@ -280,7 +287,7 @@ function mesh_setup(s, n, shape) {
  * phase delay at w makes up the rest (Thiran: a = (1-d)/(1+d), refined at w).
  */
 function thiran_split(v, which, L, w) {
-  const n = clamp(Math.floor(L - 0.5), 2, MAX_DELAY - 2);
+  const n = clamp(Math.floor(L - 0.5), 1, MAX_DELAY - 2);
   const d = clamp(L - n, 0.5, 1.5);
   let dl = d;
   let a = 0;
@@ -418,36 +425,44 @@ function soundboard_process(s, x) {
   s.sb_r = r;
 }
 
+/** mouth pressure: the knob, scaled by the velocity over up to 20 dB (Velocity Amount) */
 function brass_pressure(p, vel_raw) {
-  const amt = p.phys_velocity_amount;
-  return clamp((0.2 + 0.8 * p.brass_pressure) * (1 - 0.6 * amt + 0.6 * amt * vel_raw), 0.2, 1);
+  return clamp((0.2 + 0.8 * p.brass_pressure) * Math.pow(10, p.phys_velocity_amount * (vel_raw - 1)), 0.05, 1);
 }
 
-function brass_lip_gain(p) {
-  return 0.01 + 0.01 * p.brass_lip;
+/** drive multiple 1.1 .. 3 from Lip Buzz and the (velocity scaled) pressure, half each */
+function brass_mult(p, press) {
+  const x = clamp(0.5 * p.brass_lip + (0.5 * (press - 0.2)) / 0.8, 0, 1);
+  return BRASS_MULTS[0] + (BRASS_MULTS[BRASS_MULTS.length - 1] - BRASS_MULTS[0]) * x;
+}
+
+/** position on the BRASS_MIN_DRIVE / BRASS_SHARP note grid */
+function brass_col(note) {
+  return clamp((note - BRASS_NOTE0) / 4, 0, BRASS_MIN_DRIVE.length - 1.000001);
 }
 
 function brass_min_drive(note) {
-  const t = BRASS_MIN_DRIVE;
-  if (note <= t[0][0]) return t[0][1];
-  for (let i = 1; i < t.length; i++) {
-    if (note <= t[i][0]) return t[i - 1][1] + ((t[i][1] - t[i - 1][1]) * (note - t[i - 1][0])) / (t[i][0] - t[i - 1][0]);
-  }
-  return t[t.length - 1][1];
+  const u = brass_col(note);
+  const i = Math.floor(u);
+  return BRASS_MIN_DRIVE[i] + (BRASS_MIN_DRIVE[i + 1] - BRASS_MIN_DRIVE[i]) * (u - i);
 }
 
-/** bilinear lookup in BRASS_SHARP: notes on a 6-semitone grid, drives on a log grid */
-function brass_sharp(note, drive) {
-  const cols = BRASS_SHARP[0].length;
-  const u = clamp((note - BRASS_NOTES0) / 6, 0, cols - 1.000001);
+/** bilinear lookup in BRASS_SHARP (note grid x drive multiples) */
+function brass_sharp(note, mult) {
+  const u = brass_col(note);
   const i = Math.floor(u);
   const fu = u - i;
   let j = 0;
-  while (j < BRASS_DRIVES.length - 2 && drive > BRASS_DRIVES[j + 1]) j++;
-  const fv = clamp(Math.log(drive / BRASS_DRIVES[j]) / Math.log(BRASS_DRIVES[j + 1] / BRASS_DRIVES[j]), 0, 1);
+  while (j < BRASS_MULTS.length - 2 && mult > BRASS_MULTS[j + 1]) j++;
+  const fv = clamp((mult - BRASS_MULTS[j]) / (BRASS_MULTS[j + 1] - BRASS_MULTS[j]), 0, 1);
   const a = BRASS_SHARP[j];
   const b = BRASS_SHARP[j + 1];
   return (a[i] * (1 - fu) + a[i + 1] * fu) * (1 - fv) + (b[i] * (1 - fu) + b[i + 1] * fu) * fv;
+}
+
+/** gain of the one-pole low-pass y = (1-b)x + b*y1 at w */
+function lp1_gain(b, w) {
+  return (1 - b) / Math.sqrt(1 - 2 * b * Math.cos(w) + b * b);
 }
 
 /** Mesh damping s for a T60 of `ms`: (1-s)/(1+s) = coef^2. */
@@ -487,14 +502,17 @@ function voice_tune(s, v, keep_decay) {
     v.delay_len = clamp(total * p.bow_position, 2, MAX_DELAY - 2); // bridge side
     v.delay_len2 = clamp(total * (1 - p.bow_position), 2, MAX_DELAY - 2); // nut side
   } else if (model === MODEL_BRASS) {
-    // drive: lip gain (Lip Buzz) * sqrt(pressure); pressure also follows the velocity
+    // drive: a multiple of what this note needs to speak, set by Lip Buzz and the pressure
+    // (which also follows the velocity)
     const press = brass_pressure(p, v.vel_raw);
     const note = 69 + (12 * Math.log(hz / 440)) / Math.LN2;
-    const drive = clamp(brass_lip_gain(p) * Math.sqrt(press), brass_min_drive(note), BRASS_MAX_DRIVE);
+    const mult = brass_mult(p, press);
+    const drive = brass_min_drive(note) * mult;
     // bore and lips scaled together by the measured residual -> the pitch lands on the note
-    const f = hz * Math.pow(2, -brass_sharp(note, drive) / 1200);
+    const f = hz * Math.pow(2, -brass_sharp(note, mult) / 1200);
     v.delay_len = clamp((2 * sr) / f, 2, MAX_DELAY - 2);
-    const r = Math.exp((-Math.PI * 42) / sr); // lip bandwidth ~42 Hz
+    // lip bandwidth: 42 Hz, narrower (Q ~7) for low notes so they still buzz
+    const r = Math.exp((-Math.PI * Math.min(42, 0.15 * f)) / sr);
     const w = (TWO_PI * f) / sr;
     v.lip_a1 = -2 * r * Math.cos(w);
     v.lip_a2 = r * r;
@@ -504,6 +522,7 @@ function voice_tune(s, v, keep_decay) {
     v.dc_r = Math.exp((-TWO_PI * 0.05 * f) / sr);
     // high frequencies leave through the bell instead of reflecting back down the bore
     v.refl_b = Math.exp((-TWO_PI * Math.max(1500, 5 * f)) / sr);
+    v.rad_k = 1 / (2 * Math.sin(w / 2));
     v.bell_b = Math.exp((-TWO_PI * (1500 + 6000 * p.brass_bell)) / sr);
   } else if (model === MODEL_WIND) {
     if (p.wind_type < 0.5) {
@@ -536,7 +555,8 @@ function voice_tune(s, v, keep_decay) {
     // stiff string: two strings, detuned by +/- half the unison detune
     // the loop low-pass costs a high string far more per second (many more round trips),
     // so it is relaxed above middle C to keep the treble ringing
-    const b = (0.05 + 0.6 * p.piano_damping) * clamp(Math.sqrt(262 / hz), 0.15, 1);
+    // (and much more above C7, where even the fundamental makes thousands of trips per second)
+    const b = (0.05 + 0.6 * p.piano_damping) * clamp(Math.sqrt(262 / hz), 0.15, 1) * Math.min(1, Math.pow(2093 / hz, 3));
     v.damp_b = b;
     // dispersion all-pass coefficient (< 0 = upper partials sharp) for this note's target B
     const a = dispersion_coef(hz, stiff_b(hz, p.piano_inharmonicity), b, sr);
@@ -548,13 +568,19 @@ function voice_tune(s, v, keep_decay) {
     const wB = (TWO_PI * hzB) / sr;
     // integer delay + a tuning all-pass for the fraction (linear interpolation would damp
     // the treble strings, which make many round trips per second)
-    thiran_split(v, 0, sr / hzA - lp1_phase_delay(b, wA) - N_AP * ap1_phase_delay(a, wA), wA);
-    thiran_split(v, 1, sr / hzB - lp1_phase_delay(b, wB) - N_AP * ap1_phase_delay(a, wB), wB);
+    // without dispersion (top notes) the all-passes are bypassed: each would still be a
+    // one-sample delay, and the loop of a C9 string is under 6 samples
+    v.n_ap = a === 0 ? 0 : N_AP;
+    thiran_split(v, 0, sr / hzA - lp1_phase_delay(b, wA) - v.n_ap * ap1_phase_delay(a, wA), wA);
+    thiran_split(v, 1, sr / hzB - lp1_phase_delay(b, wB) - v.n_ap * ap1_phase_delay(a, wB), wB);
     if (!keep_decay) {
       // higher strings decay faster
       const t = Math.max(p.piano_decay_ms, 1) * clamp(Math.pow(220 / hz, 0.4), 0.25, 2) * 0.001;
-      v.loop_gain = Math.exp(-6.907755 / (hzA * t));
-      v.loop_gain2 = Math.exp(-6.907755 / (hzB * t));
+      // the loop low-pass also takes a little off the fundamental on every round trip, which
+      // adds up in the top octaves (thousands of trips per second): divide it back out so the
+      // fundamental decays in the set time (C9 used to die within ~50 ms, leaving a click)
+      v.loop_gain = Math.min(0.99999, Math.exp(-6.907755 / (hzA * t)) / lp1_gain(b, wA));
+      v.loop_gain2 = Math.min(0.99999, Math.exp(-6.907755 / (hzB * t)) / lp1_gain(b, wB));
     }
   }
 }
@@ -664,7 +690,23 @@ export function phys_note_on(s, note, velocity) {
       v.dc_y = 0;
       v.bell_z = 0;
       v.refl_z = 0;
+      v.rad_x = 0;
+      v.steep.buf.fill(0);
+      v.steep.w = 0;
       v.env.value = 0;
+    }
+    // The tongue: lips at rest only start to buzz once a tiny disturbance has grown, which took
+    // 50 - 400 ms (longer for soft and low notes). A player's tongue release sets the air in
+    // the bore moving at once and the lips respond more readily for the first moments: seed
+    // the bore with the wave of the note and boost the lip gain, decaying over the attack time
+    // (at least BRASS_BOOST_PERIODS periods).
+    v.boost = BRASS_BOOST;
+    // (time constant a third of that, so it is gone by the time the note has settled)
+    v.boost_c = Math.exp(-3 / Math.max(p.brass_attack_ms * 0.001 * sr, (BRASS_BOOST_PERIODS * sr) / v.hz));
+    if (v.env.stage === 0) {
+      const n = Math.ceil(v.delay_len);
+      const w = (TWO_PI * 2) / v.delay_len;
+      for (let i = 0; i < n; i++) delay_write(v.line, BRASS_SEED * 0.3 * v.maxv * Math.sin(w * i));
     }
     adsr_set(v.env, p.brass_attack_ms, 1, 1, Math.min(p.phys_release_ms, 400), sr);
     adsr_gate_on(v.env);
@@ -743,25 +785,70 @@ export function phys_note_on(s, note, velocity) {
     const total = Math.min(EXC_MAX, Math.max(len + pick + 1, Math.round(0.03 * sr)));
     for (let i = len; i < total; i++) e[i] = 0;
     for (let i = total - 1; i >= pick; i--) e[i] -= e[i - pick];
-    const hp_a = 1 - Math.exp((-TWO_PI * 0.5 * v.hz) / sr);
-    let hp_z = 0;
+    // High-pass (PIANO_HP one-poles at 0.8 x the fundamental): in the treble the hammer stays on
+    // the string for several periods, and what the pulse has below the fundamental is not a
+    // string mode - it only passes through the loop and is heard as a click at the start.
+    const hp_a = 1 - Math.exp((-TWO_PI * 0.8 * v.hz) / sr);
+    const hp = v.hp;
+    for (let k = 0; k < PIANO_HP; k++) hp[k] = 0;
     for (let i = 0; i < total; i++) {
-      hp_z += hp_a * (e[i] - hp_z);
-      e[i] -= hp_z;
+      let x = e[i];
+      for (let k = 0; k < PIANO_HP; k++) {
+        hp[k] += hp_a * (x - hp[k]);
+        x -= hp[k];
+      }
+      e[i] = x;
     }
     // Normalise at the fundamental: the level follows the velocity (Velocity Amount, as on the
     // other models) and is even across the keyboard, while the hammer physics decides how
     // strong the upper partials are (a long, soft contact in the treble barely excites them).
-    const w0 = (TWO_PI * v.hz) / sr;
-    let re = 0;
-    let im = 0;
-    for (let i = 0; i < total; i++) {
-      re += e[i] * Math.cos(w0 * i);
-      im += e[i] * Math.sin(w0 * i);
+    // Top octaves (from sr/16, ~G7 at 48 kHz, fully from sr/10): only a few harmonics are left
+    // below Nyquist and the hammer stays on for many periods, so most of the pulse is nowhere
+    // near a string mode (heard as a click) and the fundamental may even sit in a notch of its
+    // spectrum. Fade towards a burst at the fundamental (a sine under a raised-cosine window as
+    // long as the contact) carrying the fundamental the pulse has, or 30 % of the level around it.
+    const top = clamp((v.hz - sr / 16) / (sr / 10 - sr / 16), 0, 1);
+    if (top > 0) {
+      const w0 = (TWO_PI * v.hz) / sr;
+      const at = (w) => {
+        let re = 0;
+        let im = 0;
+        for (let i = 0; i < total; i++) {
+          re += e[i] * Math.cos(w * i);
+          im += e[i] * Math.sin(w * i);
+        }
+        return Math.sqrt(re * re + im * im);
+      };
+      let around = 0;
+      for (let k = 0; k < 5; k++) around = Math.max(around, at(w0 * (0.8 + 0.1 * k)));
+      const want = Math.max(at(w0), 0.3 * around);
+      const blen = Math.min(total, Math.max(len, Math.ceil((2 * sr) / v.hz)));
+      const amp = want / (blen / 4); // |burst at f0| ~ amp * blen / 4
+      for (let i = 0; i < total; i++) {
+        const burst = i < blen ? amp * (0.5 - 0.5 * Math.cos((TWO_PI * i) / blen)) * Math.sin(w0 * i) : 0;
+        e[i] = (1 - top) * e[i] + top * burst;
+      }
     }
+    // (if the fundamental falls into a notch of the pulse spectrum - the contact time is close to
+    // a multiple of the period - use 30 % of the level around it, or the note would blow up)
+    let mag = 0;
+    let around = 0;
+    for (let k = 0; k < 5; k++) {
+      const w = (TWO_PI * v.hz * (0.8 + 0.1 * k)) / sr;
+      let re = 0;
+      let im = 0;
+      for (let i = 0; i < total; i++) {
+        re += e[i] * Math.cos(w * i);
+        im += e[i] * Math.sin(w * i);
+      }
+      const m = Math.sqrt(re * re + im * im);
+      if (k === 2) mag = m;
+      if (m > around) around = m;
+    }
+    mag = Math.max(mag, 0.3 * around);
     // (bass strings build up more per hit: -9 dB / octave keeps the keyboard even; a faster
     // hammer is also somewhat louder, on top of Velocity Amount, for a piano-like dynamic range)
-    const scale = (HAM_GAIN * Math.pow(clamp(v.hz / 262, 0.35, 8), -1.5) * Math.pow(v0 / 2, 0.6)) / Math.max(1e-12, Math.sqrt(re * re + im * im));
+    const scale = (HAM_GAIN * Math.pow(clamp(v.hz / 262, 0.35, 8), -1.5) * Math.pow(v0 / 2, 0.6)) / Math.max(1e-12, mag);
     // plus a little key / action thump (decaying low-passed noise)
     const decay = Math.exp(-1 / (0.004 * sr));
     const thump_a = 1 - Math.exp((-TWO_PI * 600) / sr);
@@ -868,15 +955,34 @@ function render_bowed(v, vib) {
 
 function render_brass(v, vib) {
   const mouth = 0.3 * v.maxv * adsr_process(v.env);
-  v.refl_z = (1 - v.refl_b) * delay_read(v.line, v.delay_len / vib) + v.refl_b * v.refl_z;
+  // the wave arriving at the bell: its low part reflects back down the bore, and what the
+  // bell radiates is (roughly) its rate of change
+  const at_bell = delay_read(v.line, v.delay_len / vib);
+  // nonlinear propagation ("brassiness"): loud parts of the wave travel faster, so the wave
+  // front steepens on its way out - what makes loud brass blare. A delay shortened by the
+  // pressure (outside the loop, so the tuning is unaffected).
+  const steep = v.steep;
+  steep.buf[steep.w] = at_bell;
+  steep.w = (steep.w + 1) & (STEEP_LEN - 1);
+  const per = v.delay_len * 0.5;
+  const d0 = Math.min(STEEP_LEN * 0.4, per * 0.5 + 2);
+  const dd = clamp(d0 - BRASS_STEEP * at_bell * per, 1, 2 * d0);
+  let pos = steep.w - dd;
+  if (pos < 0) pos += STEEP_LEN;
+  const i0 = Math.floor(pos);
+  const i1 = (i0 + 1) & (STEEP_LEN - 1);
+  const sv = steep.buf[i0] + (pos - i0) * (steep.buf[i1] - steep.buf[i0]);
+  v.refl_z = (1 - v.refl_b) * at_bell + v.refl_b * v.refl_z;
   const bore = 0.85 * v.refl_z;
   // lips: resonator driven by the pressure difference; opening = (gain * position)^2, clipped
   const y = mouth - bore - v.lip_a1 * v.lip_y1 - v.lip_a2 * v.lip_y2;
   v.lip_y2 = v.lip_y1;
   v.lip_y1 = y;
-  let open = v.lip_g * y;
-  open *= open;
-  if (open > 1) open = 1;
+  // the lip opening grows with the square of the lip position and saturates smoothly
+  // (a hard clip at 1 held the lips wide open for a third of each period: flat tops, harsh)
+  v.boost *= v.boost_c;
+  const u = v.lip_g * (1 + v.boost) * y;
+  const open = 1 - Math.exp(-u * u);
   v.slip = open;
   // open lips pass the mouth pressure, closed lips reflect the bore
   const x = open * mouth + (1 - open) * bore;
@@ -884,8 +990,10 @@ function render_brass(v, vib) {
   v.dc_x = x;
   v.dc_y = d;
   delay_write(v.line, d);
-  // the bell: low-passed radiation
-  v.bell_z = (1 - v.bell_b) * d + v.bell_b * v.bell_z;
+  // radiation: first difference (normalised to keep the fundamental level), then the bell
+  const rad = (sv - v.rad_x) * v.rad_k;
+  v.rad_x = sv;
+  v.bell_z = (1 - v.bell_b) * rad + v.bell_b * v.bell_z;
   return v.bell_z * BRASS_GAIN * v.vel;
 }
 
@@ -985,17 +1093,16 @@ function render_stiff(v, vib) {
   let exc = 0;
   if (v.exc_t < v.exc_len) exc = v.exc[v.exc_t++];
   let x = ap1_process(v.tuneA, delay_read(v.line, nA), tA);
-  for (let k = 0; k < N_AP; k++) x = ap1_process(v.apA[k], x, a);
+  for (let k = 0; k < v.n_ap; k++) x = ap1_process(v.apA[k], x, a);
   v.lp_z = (1 - v.damp_b) * x + v.damp_b * v.lp_z;
   const fa = v.lp_z * v.loop_gain + 0.5 * exc;
   delay_write(v.line, fa);
   let y = ap1_process(v.tuneB, delay_read(v.line2, nB), tB);
-  for (let k = 0; k < N_AP; k++) y = ap1_process(v.apB[k], y, a);
+  for (let k = 0; k < v.n_ap; k++) y = ap1_process(v.apB[k], y, a);
   v.lp_z2 = (1 - v.damp_b) * y + v.damp_b * v.lp_z2;
   const fb = v.lp_z2 * v.loop_gain2 + 0.32 * exc;
   delay_write(v.line2, fb);
-  // plus a little of the soundboard heard directly (the attack "thump")
-  return (fa + fb + 0.3 * exc) * v.read_gain;
+  return (fa + fb) * v.read_gain;
 }
 
 export function phys_render(s) {
@@ -1117,7 +1224,7 @@ function line_wave(line, len, points) {
 function stiff_partials(s, v, count) {
   const sr = s.sr;
   const total = (w) =>
-    w * (v.delay_len + ap1_phase_delay(v.tune_a, w) + lp1_phase_delay(v.damp_b, w) + N_AP * ap1_phase_delay(v.ap_a, w));
+    w * (v.delay_len + ap1_phase_delay(v.tune_a, w) + lp1_phase_delay(v.damp_b, w) + v.n_ap * ap1_phase_delay(v.ap_a, w));
   const out = [];
   for (let k = 1; k <= count; k++) {
     let lo = 1e-6;
