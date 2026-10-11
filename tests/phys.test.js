@@ -334,3 +334,54 @@ test('piano: harder notes are brighter (felt hammer), and the soundboard is bypa
   const xb = render(b, 4800);
   assert.ok(xa.some((x, i) => Math.abs(x - xb[i]) > 1e-4), 'soundboard changes the sound');
 });
+
+test('brass: in tune from the trombone range to the trumpet top, over the pressure / lip range', () => {
+  for (const [brass_pressure, brass_lip] of [[0.6, 0.5], [0.1, 0], [1, 1]]) {
+    for (const note of [36, 43, 50, 57, 64, 71, 78, 85, 92]) {
+      const s = make({ phys_model: 6, brass_pressure, brass_lip });
+      phys_note_on(s, note, 100);
+      render(s, SR * 0.4);
+      const x = render(s, 8000);
+      assert.ok(rms(x) > 0.002, `p ${brass_pressure} lip ${brass_lip} note ${note} speaks (${rms(x)})`);
+      const hz = 440 * 2 ** ((note - 69) / 12);
+      const f = pitch(x, hz);
+      assert.ok(Math.abs(cents(f, hz)) < 25, `p ${brass_pressure} lip ${brass_lip} note ${note}: ${cents(f, hz).toFixed(1)} cents`);
+    }
+  }
+});
+
+test('brass: louder is brighter, it sustains while held and frees its voice after release', () => {
+  const tone = (velocity) => {
+    const s = make({ phys_model: 6, phys_release_ms: 100 });
+    phys_note_on(s, 60, velocity);
+    render(s, SR * 0.4);
+    return { s, x: render(s, 9600) };
+  };
+  const bright = (x) => {
+    const amp = (k) => {
+      let re = 0;
+      let im = 0;
+      for (let i = 0; i < x.length; i++) {
+        re += x[i] * Math.cos((2 * Math.PI * 261.63 * k * i) / SR);
+        im += x[i] * Math.sin((2 * Math.PI * 261.63 * k * i) / SR);
+      }
+      return Math.hypot(re, im);
+    };
+    return (amp(3) + amp(4) + amp(5)) / amp(1);
+  };
+  const soft = tone(40);
+  const loud = tone(127);
+  assert.ok(rms(loud.x) > 2 * rms(soft.x), 'louder');
+  assert.ok(bright(loud.x) > bright(soft.x), `brighter ${bright(loud.x).toFixed(3)} vs ${bright(soft.x).toFixed(3)}`);
+  phys_note_off(loud.s, 60);
+  render(loud.s, SR);
+  assert.equal(loud.s.voices.filter((v) => v.active).length, 0);
+  const snap = (() => {
+    const s = make({ phys_model: 6 });
+    phys_note_on(s, 60, 100);
+    render(s, 2000);
+    return phys_snapshot(s);
+  })();
+  assert.equal(snap.model, 'brass');
+  assert.ok(snap.wave.length > 10 && snap.valve >= 0 && snap.valve <= 1);
+});

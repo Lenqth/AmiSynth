@@ -145,9 +145,9 @@ export const MODAL_MATERIALS = ['Marimba Bar', 'Vibraphone Bar', 'Glockenspiel (
 export const PHYS_PARAMS = /** @type {ParamDef[]} */ ([
   ...TUNING_PARAMS,
 
-  { id: 'phys_model', name: 'Physical Model', group: 'Model', min: 0, max: 5, default: 0, step: 1, unit: '',
-    options: ['String (Karplus-Strong)', 'Modal (resonators)', 'Bowed String', 'Wind (reed / jet)', 'Membrane / Plate (2D mesh)', 'Stiff String (piano)'],
-    description: 'String: plucked delay-line loop. Modal: tuned resonators struck by a mallet. Bowed: delay lines + bow friction. Wind: bore + reed/jet. Mesh: 2D wave equation on a grid. Stiff string: string with dispersion (inharmonic partials).' },
+  { id: 'phys_model', name: 'Physical Model', group: 'Model', min: 0, max: 6, default: 0, step: 1, unit: '',
+    options: ['String (Karplus-Strong)', 'Modal (resonators)', 'Bowed String', 'Wind (reed / jet)', 'Membrane / Plate (2D mesh)', 'Stiff String (piano)', 'Brass (lip reed)'],
+    description: 'String: plucked delay-line loop. Modal: tuned resonators struck by a mallet. Bowed: delay lines + bow friction. Wind: bore + reed/jet. Mesh: 2D wave equation on a grid. Stiff string: string with dispersion (inharmonic partials). Brass: bore + buzzing lips.' },
 
   { id: 'string_excitation', name: 'String Excitation', group: 'String', min: 0, max: 1, default: 0, step: 1, unit: '', options: ['Pluck (noise burst)', 'Strike (hammer pulse)'],
     description: 'What initially fills the delay line: a burst of noise (plucked) or a smooth pulse (hammered).' },
@@ -193,7 +193,7 @@ export const PHYS_PARAMS = /** @type {ParamDef[]} */ ([
   { id: 'wind_attack_ms', name: 'Breath Attack', group: 'Wind', min: 1, max: 2000, default: 40, step: 0.1, unit: 'ms', scale: 'log',
     description: 'Time for the breath pressure to build up.' },
   { id: 'wind_embouchure', name: 'Embouchure', group: 'Wind', min: 0, max: 1, default: 0.5, step: 0.001, unit: '',
-    description: 'Reed stiffness (clarinet) or jet length (flute); changes the response and the overblowing point.' },
+    description: 'Reed stiffness (clarinet) or the air jet offset against the edge (flute: more even harmonics).' },
 
   { id: 'mesh_shape', name: 'Mesh Shape', group: 'Mesh', min: 0, max: 1, default: 0, step: 1, unit: '', options: ['Circular drum', 'Square plate'],
     description: 'Shape of the vibrating 2D surface (fixed edges).' },
@@ -243,6 +243,16 @@ export const PHYS_PARAMS = /** @type {ParamDef[]} */ ([
     description: 'Reverberation time (T60) of the room.' },
   { id: 'phys_volume_db', name: 'Volume', group: 'Output', min: -60, max: 6, default: -8, step: 0.1, unit: 'dB',
     description: 'Output volume of the physical model instrument.' },
+
+  // (appended so the JSFX slider numbers of the older parameters stay the same)
+  { id: 'brass_pressure', name: 'Brass Blowing Pressure', group: 'Brass', min: 0, max: 1, default: 0.6, step: 0.001, unit: '',
+    description: 'Mouth pressure: louder and brighter (brass get brassier the harder they are blown). Velocity adds to it.' },
+  { id: 'brass_lip', name: 'Brass Lip Buzz', group: 'Brass', min: 0, max: 1, default: 0.5, step: 0.001, unit: '',
+    description: 'How easily the lips open: more = a buzzier, edgier tone.' },
+  { id: 'brass_attack_ms', name: 'Brass Attack', group: 'Brass', min: 1, max: 1000, default: 30, step: 0.1, unit: 'ms', scale: 'log',
+    description: 'How fast the pressure builds up (short = a tongued attack).' },
+  { id: 'brass_bell', name: 'Brass Bell Brightness', group: 'Brass', min: 0, max: 1, default: 0.5, step: 0.001, unit: '',
+    description: 'Low-pass of the sound leaving the bell; low values sound like a mute or a horn played into the hand.' },
 ]);
 
 // ---------------------------------------------------------------------------

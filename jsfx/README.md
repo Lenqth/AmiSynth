@@ -5,8 +5,8 @@
 
 | ファイル | 内容 |
 | --- | --- |
-| `AmiSynth Synth.jsfx` | 8 ボイスの減算式シンセ。2 オシレーター、シンク / FM、ユニゾン、LP / HP / BP / ノッチのフィルター、LFO、グライド。スライダー 49 本 |
-| `AmiSynth Physical.jsfx` | 物理モデル音源。弦(Karplus-Strong)、モーダル合成(8 モード × 8 素材)、擦弦、管楽器(クラリネット / フルート)、2D 膜 / 板、硬い弦(ピアノ)。スライダー 49 本 |
+| `AmiSynth Synth.jsfx` | 8 ボイスの減算式シンセ。2 オシレーター、シンク / FM、ユニゾン、LP / HP / BP / ノッチのフィルター、LFO、グライド。スライダー 53 本 |
+| `AmiSynth Physical.jsfx` | 物理モデル音源。弦(Karplus-Strong)、モーダル合成(8 モード × 8 素材)、擦弦、管楽器(クラリネット / フルート)、2D 膜 / 板、硬い弦(ピアノ)、金管。スライダー 53 本 |
 | `AmiSynth Drums.jsfx` | 合成ドラム 13 パーツ(GM 配置)。スライダー 74 本 |
 | `amisynth_lib.jsfx-inc` | 共通 DSP。上の 3 つすべてが `import` します |
 

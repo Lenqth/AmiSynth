@@ -74,6 +74,8 @@ test('JSFX physical model matches JS with stress settings (vibrato, voice steali
     ['circular mesh', { phys_model: 4, mesh_shape: 0, mesh_size: 16, mesh_high_damping: 1, mesh_hardness: 1 }],
     ['square mesh', { phys_model: 4, mesh_shape: 1, mesh_size: 7, mesh_strike_x: 0.9, mesh_strike_y: 0.1 }],
     ['stiff+vibrato', { phys_model: 5, piano_inharmonicity: 1, piano_unison_detune_cents: 10, phys_vibrato_cents: 25 }],
+    ['brass+vibrato', { phys_model: 6, brass_pressure: 1, brass_lip: 1, brass_bell: 0, phys_vibrato_cents: 30, tuning_divisions: 19 }],
+    ['brass soft', { phys_model: 6, brass_pressure: 0, brass_lip: 0, brass_attack_ms: 3 }],
   ];
   for (const [label, over] of cases) {
     check('phys', scenario('phys', over), busy, 0.7, `phys/${label}`);

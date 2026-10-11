@@ -27,7 +27,7 @@
       if (snap.model === 'string') drawString(ctx, w, h, dpr, snap);
       else if (snap.model === 'modal') drawModal(ctx, w, h, dpr, snap);
       else if (snap.model === 'bowed') drawBowed(ctx, w, h, dpr, snap);
-      else if (snap.model === 'wind') drawWind(ctx, w, h, dpr, snap);
+      else if (snap.model === 'wind' || snap.model === 'brass') drawWind(ctx, w, h, dpr, snap);
       else if (snap.model === 'mesh') drawMesh(ctx, w, h, dpr, snap);
       else if (snap.model === 'stiff') drawStiff(ctx, w, h, dpr, snap);
     };
@@ -177,16 +177,19 @@
     const wave = s.wave.map((v) => v - mean);
     const scale = (h / 2 - 2 * pad) / Math.max(peakOf(wave), 0.05);
     plot(ctx, wave, x0, x1, mid, scale, '#ffb547', 2 * dpr);
-    // the valve: reed opening (clarinet) or jet deflection (flute), -1..1
+    // the valve: reed opening (clarinet), jet deflection (flute), -1..1, or lip opening (brass) 0..1
     const vh = (h - 3 * pad) / 2;
     ctx.fillStyle = '#5ad1c8';
     const vy = mid - Math.max(-1, Math.min(1, s.valve)) * vh;
     ctx.fillRect(pad, Math.min(mid, vy), 24 * dpr, Math.abs(vy - mid) + 1);
     ctx.fillStyle = '#8b95a8';
-    ctx.fillText(s.flute ? 'ジェット' : 'リード', pad, h - 6 * dpr);
+    const brass = s.model === 'brass';
+    ctx.fillText(brass ? '唇' : s.flute ? 'ジェット' : 'リード', pad, h - 6 * dpr);
     const t = s.flute ? '開いた端 →' : 'ベル →';
     ctx.fillText(t, x1 - ctx.measureText(t).width, h - 6 * dpr);
-    info = s.flute
+    info = brass
+      ? `金管 ${s.hz.toFixed(1)} Hz · 曲線 = 管内の圧力波 · 左の棒 = 唇の開き。唇は音程に合わせた共振器で、マウスピースの圧力差で開閉し (バズ)、開いたときだけ息を管へ送ります。管は 2 周期ぶんの長さで、音は管の第 2 共鳴に乗ります。強く吹くほど唇が大きく開いて閉じ、明るい音になります · 圧力 ${s.breath.toFixed(2)}`
+      : s.flute
       ? `フルート ${s.hz.toFixed(1)} Hz · 曲線 = 管内の圧力波 · 左の棒 = 息の流れ (ジェット) が歌口のエッジの内/外どちらに振れているか。管の圧力がジェットを揺らし、ジェットが管を押す帰還で発音します · 息 ${s.breath.toFixed(2)}`
       : `クラリネット ${s.hz.toFixed(1)} Hz · 曲線 = 管内の圧力波 · 左の棒 = リードの開き具合。片側が閉じた円筒管なので波長は管の 4 倍、奇数倍音が中心になります · 息 ${s.breath.toFixed(2)}`;
     if (!s.gate) info += ' · 離鍵';

@@ -48,4 +48,12 @@ export const PHYS_PRESETS = [
     params: { phys_model: 5, piano_inharmonicity: 0.45, piano_hammer_hardness: 0.85, piano_strike_position: 0.1, piano_decay_ms: 6000, piano_damping: 0.3, piano_unison_detune_cents: 9, phys_release_ms: 200, phys_room_mix: 0.15 } },
   { name: 'Bell-ish Strings', category: 'Keys', description: 'Inharmonicity at maximum: the stretched partials start to sound like a bell.',
     params: { phys_model: 5, piano_inharmonicity: 1, piano_hammer_hardness: 0.75, piano_strike_position: 0.08, piano_decay_ms: 12000, piano_damping: 0.15, piano_unison_detune_cents: 2, phys_release_ms: 1500, phys_room_mix: 0.3 } },
+  { name: 'Trumpet', category: 'Brass', description: 'Buzzing lips on a bore two periods long, bright bell, a touch of vibrato. Brighter the harder you play.',
+    params: { phys_model: 6, brass_pressure: 0.65, brass_lip: 0.6, brass_attack_ms: 25, brass_bell: 0.7, phys_vibrato_cents: 8, phys_vibrato_rate_hz: 5.2, phys_release_ms: 120, phys_room_mix: 0.25 } },
+  { name: 'Trombone', category: 'Brass', description: 'Softer lips and a darker bell; play it low.',
+    params: { phys_model: 6, brass_pressure: 0.55, brass_lip: 0.4, brass_attack_ms: 45, brass_bell: 0.45, phys_release_ms: 180, phys_room_mix: 0.25 } },
+  { name: 'French Horn', category: 'Brass', description: 'Gentle lips and a hand in the bell (very dark), slow attack, bigger room.',
+    params: { phys_model: 6, brass_pressure: 0.45, brass_lip: 0.3, brass_attack_ms: 70, brass_bell: 0.12, phys_release_ms: 250, phys_room_mix: 0.4, phys_room_decay_ms: 2000 } },
+  { name: 'Flugelhorn', category: 'Brass', description: 'Mellow: little lip buzz, soft attack, round bell.',
+    params: { phys_model: 6, brass_pressure: 0.4, brass_lip: 0.15, brass_attack_ms: 60, brass_bell: 0.3, phys_vibrato_cents: 6, phys_vibrato_rate_hz: 5, phys_release_ms: 160, phys_room_mix: 0.25 } },
 ];

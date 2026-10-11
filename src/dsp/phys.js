@@ -38,6 +38,12 @@
 //   Karplus-Strong plus four first-order all-pass filters in the loop: they delay low
 //   frequencies more than high ones (dispersion), so the partials are stretched sharp as on
 //   a stiff steel string. Two strings per note, slightly detuned, beat against each other.
+//
+// Model 6 - Brass (lip reed, after the STK Brass / Cook's HosePlayer)
+//   The lips are a mass-spring valve: a two-pole resonator tuned to the note, driven by the
+//   pressure difference between the mouth and the mouthpiece. Their opening (squared, clipped)
+//   lets mouth pressure into the bore, a delay line two periods long (the note is the bore's
+//   2nd resonance, as on a real trumpet). Blowing harder saturates the lips more: brighter.
 
 import {
   adsr_gate_off, adsr_gate_on, adsr_init, adsr_process, adsr_set, ap1_init, ap1_phase_delay, ap1_process,
@@ -58,6 +64,7 @@ const FLUTE_JET_RATIO = 1.03;
 const FLUTE_JET_GAIN = 1.6;
 const N_AP = 4; // dispersion all-passes per stiff string
 const EXC_MAX = 16384; // piano excitation buffer (hammer + strike comb, up to 192 kHz)
+const BRASS_GAIN = 2.5;
 const HAM_SUB = 4; // hammer integration sub-steps per sample
 const HAM_GAIN = 63;
 const SB_MODES = 16; // soundboard resonances
@@ -70,6 +77,22 @@ export const MODEL_BOWED = 2;
 export const MODEL_WIND = 3;
 export const MODEL_MESH = 4;
 export const MODEL_STIFF = 5;
+export const MODEL_BRASS = 6;
+
+// Brass tuning: the pitch settles between the bore resonance and the lip resonance, so it
+// depends on the note and on the lip drive D = lip gain * sqrt(pressure). Measured residual
+// (cents sharp) on a grid of notes x drives, applied by scaling bore + lips together.
+const BRASS_NOTES0 = 30; // grid notes 30, 36, ... 102
+const BRASS_DRIVES = [0.006, 0.009, 0.013, 0.02];
+export const BRASS_SHARP = [
+  [173.8, 161.8, 126.3, 111.9, 89.3, 79.1, 51.5, 37, 38.6, 42.9, 45.6, 46.8, 26.5],
+  [173.8, 161.8, 126.3, 111.9, 89.3, 79.1, 51.5, 37, 38.6, 42.9, 45.6, 46.8, 26.5],
+  [173.8, 161.8, 126.3, 111.9, 99.6, 56.9, 34.2, 31.5, 36.4, 49.1, 49, 46.3, 25.1],
+  [173.8, 161.8, 140.1, 122.8, 107.4, 46.4, 31.2, 26.5, 33, 54.7, 51.2, 50.6, 28.4],
+];
+// low notes only speak with enough lip drive: [note, minimum drive]
+const BRASS_MIN_DRIVE = [[30, 0.02], [33, 0.019], [36, 0.0165], [43, 0.012], [48, 0.0098], [55, 0.0073], [60, 0.0062]];
+const BRASS_MAX_DRIVE = 0.02;
 
 /** ratios: frequency / fundamental; gains: relative excitation; (values are textbook approximations) */
 export const MATERIALS = [
@@ -99,6 +122,9 @@ function voice_create() {
     // mesh
     mesh_u: new Float64Array(MESH_CELLS), mesh_up: new Float64Array(MESH_CELLS), mesh_un: new Float64Array(MESH_CELLS),
     mesh_c2: 0, mesh_sig: 0, mesh_omega: 0, jet_bias: 0, jet_boost: 1, flut: 0, hiss_lp: 0,
+    // brass lips (two-pole resonator), dc blocker, bell low-pass
+    lip_y1: 0, lip_y2: 0, lip_a1: 0, lip_a2: 0, lip_g: 0, dc_x: 0, dc_y: 0, dc_r: 0, bell_b: 0, bell_z: 0,
+    refl_b: 0, refl_z: 0,
     // stiff string
     ap_a: 0, apA: [], apB: [], tuneA: {}, tuneB: {}, tune_a: 0, tune_a2: 0, tune_d: 1, tune_d2: 1,
     exc: new Float64Array(EXC_MAX),
@@ -392,6 +418,38 @@ function soundboard_process(s, x) {
   s.sb_r = r;
 }
 
+function brass_pressure(p, vel_raw) {
+  const amt = p.phys_velocity_amount;
+  return clamp((0.2 + 0.8 * p.brass_pressure) * (1 - 0.6 * amt + 0.6 * amt * vel_raw), 0.2, 1);
+}
+
+function brass_lip_gain(p) {
+  return 0.01 + 0.01 * p.brass_lip;
+}
+
+function brass_min_drive(note) {
+  const t = BRASS_MIN_DRIVE;
+  if (note <= t[0][0]) return t[0][1];
+  for (let i = 1; i < t.length; i++) {
+    if (note <= t[i][0]) return t[i - 1][1] + ((t[i][1] - t[i - 1][1]) * (note - t[i - 1][0])) / (t[i][0] - t[i - 1][0]);
+  }
+  return t[t.length - 1][1];
+}
+
+/** bilinear lookup in BRASS_SHARP: notes on a 6-semitone grid, drives on a log grid */
+function brass_sharp(note, drive) {
+  const cols = BRASS_SHARP[0].length;
+  const u = clamp((note - BRASS_NOTES0) / 6, 0, cols - 1.000001);
+  const i = Math.floor(u);
+  const fu = u - i;
+  let j = 0;
+  while (j < BRASS_DRIVES.length - 2 && drive > BRASS_DRIVES[j + 1]) j++;
+  const fv = clamp(Math.log(drive / BRASS_DRIVES[j]) / Math.log(BRASS_DRIVES[j + 1] / BRASS_DRIVES[j]), 0, 1);
+  const a = BRASS_SHARP[j];
+  const b = BRASS_SHARP[j + 1];
+  return (a[i] * (1 - fu) + a[i + 1] * fu) * (1 - fv) + (b[i] * (1 - fu) + b[i + 1] * fu) * fv;
+}
+
 /** Mesh damping s for a T60 of `ms`: (1-s)/(1+s) = coef^2. */
 function mesh_sigma(ms, sr) {
   const c = t60_coef(ms, sr);
@@ -428,6 +486,25 @@ function voice_tune(s, v, keep_decay) {
     const total = sr / hz - lp_phase_delay(b, hz, sr);
     v.delay_len = clamp(total * p.bow_position, 2, MAX_DELAY - 2); // bridge side
     v.delay_len2 = clamp(total * (1 - p.bow_position), 2, MAX_DELAY - 2); // nut side
+  } else if (model === MODEL_BRASS) {
+    // drive: lip gain (Lip Buzz) * sqrt(pressure); pressure also follows the velocity
+    const press = brass_pressure(p, v.vel_raw);
+    const note = 69 + (12 * Math.log(hz / 440)) / Math.LN2;
+    const drive = clamp(brass_lip_gain(p) * Math.sqrt(press), brass_min_drive(note), BRASS_MAX_DRIVE);
+    // bore and lips scaled together by the measured residual -> the pitch lands on the note
+    const f = hz * Math.pow(2, -brass_sharp(note, drive) / 1200);
+    v.delay_len = clamp((2 * sr) / f, 2, MAX_DELAY - 2);
+    const r = Math.exp((-Math.PI * 42) / sr); // lip bandwidth ~42 Hz
+    const w = (TWO_PI * f) / sr;
+    v.lip_a1 = -2 * r * Math.cos(w);
+    v.lip_a2 = r * r;
+    // peak gain normalised (so low and high notes saturate alike), divided by the mouth pressure
+    v.lip_g = (drive * hz * 2 * Math.sin(w) * (1 - r)) / (0.3 * press);
+    v.maxv = press;
+    v.dc_r = Math.exp((-TWO_PI * 0.05 * f) / sr);
+    // high frequencies leave through the bell instead of reflecting back down the bore
+    v.refl_b = Math.exp((-TWO_PI * Math.max(1500, 5 * f)) / sr);
+    v.bell_b = Math.exp((-TWO_PI * (1500 + 6000 * p.brass_bell)) / sr);
   } else if (model === MODEL_WIND) {
     if (p.wind_type < 0.5) {
       // clarinet: inverting reflection at the bell -> period = 2 x (bore + reflection low-pass).
@@ -578,6 +655,19 @@ export function phys_note_on(s, note, velocity) {
     v.slope = 5 - 4 * p.bow_pressure;
     svf_set(v.body1, 290, 0.6, sr);
     svf_set(v.body2, 1150, 0.9, sr);
+  } else if (model === MODEL_BRASS) {
+    if (v.env.stage === 0) {
+      delay_clear(v.line);
+      v.lip_y1 = 0;
+      v.lip_y2 = 0;
+      v.dc_x = 0;
+      v.dc_y = 0;
+      v.bell_z = 0;
+      v.refl_z = 0;
+      v.env.value = 0;
+    }
+    adsr_set(v.env, p.brass_attack_ms, 1, 1, Math.min(p.phys_release_ms, 400), sr);
+    adsr_gate_on(v.env);
   } else if (model === MODEL_WIND) {
     if (v.env.stage === 0) {
       delay_clear(v.line);
@@ -703,7 +793,7 @@ export function phys_note_off(s, note) {
         v.mode_t60[k] = Math.min(v.mode_t60[k], p.phys_release_ms);
         reson_set_decay(v.modes[k], v.mode_hz[k], v.mode_t60[k], s.sr);
       }
-    } else if (model === MODEL_BOWED || model === MODEL_WIND) {
+    } else if (model === MODEL_BOWED || model === MODEL_WIND || model === MODEL_BRASS) {
       adsr_gate_off(v.env);
     } else if (model === MODEL_MESH) {
       v.mesh_sig = Math.max(v.mesh_sig, mesh_sigma(Math.min(p.mesh_decay_ms, p.phys_release_ms), s.sr));
@@ -774,6 +864,29 @@ function render_bowed(v, vib) {
   svf_process(v.body1, bridge_out);
   svf_process(v.body2, bridge_out);
   return (bridge_out + 1.2 * v.body1.bp + 0.8 * v.body2.bp) * 1.6;
+}
+
+function render_brass(v, vib) {
+  const mouth = 0.3 * v.maxv * adsr_process(v.env);
+  v.refl_z = (1 - v.refl_b) * delay_read(v.line, v.delay_len / vib) + v.refl_b * v.refl_z;
+  const bore = 0.85 * v.refl_z;
+  // lips: resonator driven by the pressure difference; opening = (gain * position)^2, clipped
+  const y = mouth - bore - v.lip_a1 * v.lip_y1 - v.lip_a2 * v.lip_y2;
+  v.lip_y2 = v.lip_y1;
+  v.lip_y1 = y;
+  let open = v.lip_g * y;
+  open *= open;
+  if (open > 1) open = 1;
+  v.slip = open;
+  // open lips pass the mouth pressure, closed lips reflect the bore
+  const x = open * mouth + (1 - open) * bore;
+  const d = x - v.dc_x + v.dc_r * v.dc_y;
+  v.dc_x = x;
+  v.dc_y = d;
+  delay_write(v.line, d);
+  // the bell: low-passed radiation
+  v.bell_z = (1 - v.bell_b) * d + v.bell_b * v.bell_z;
+  return v.bell_z * BRASS_GAIN * v.vel;
 }
 
 function render_wind(s, v, vib, flute, noise_amt) {
@@ -907,6 +1020,7 @@ export function phys_render(s) {
     else if (model === MODEL_MODAL) y = render_modal(v);
     else if (model === MODEL_BOWED) y = render_bowed(v, vib);
     else if (model === MODEL_WIND) y = render_wind(s, v, vib, flute, p.breath_noise);
+    else if (model === MODEL_BRASS) y = render_brass(v, vib);
     else if (model === MODEL_MESH) y = render_mesh(s, v);
     else y = render_stiff(v, vib);
     l += y * v.gl;
@@ -1026,7 +1140,7 @@ function stiff_partials(s, v, count) {
 export function phys_snapshot(s, points = 192) {
   const v = s.voices[s.last_voice];
   const model = Math.floor(s.p.phys_model + 0.5);
-  const names = ['string', 'modal', 'bowed', 'wind', 'mesh', 'stiff'];
+  const names = ['string', 'modal', 'bowed', 'wind', 'mesh', 'stiff', 'brass'];
   if (!v || !v.active) return { active: false, model: names[model] };
   const base = { active: true, model: names[model], note: v.note, hz: v.hz * s.bend_ratio, gate: v.gate, sr: s.sr };
   if (model === MODEL_STRING) {
@@ -1048,6 +1162,9 @@ export function phys_snapshot(s, points = 192) {
   }
   if (model === MODEL_WIND) {
     return { ...base, wave: line_wave(v.line, v.delay_len, points), flute: s.p.wind_type >= 0.5, valve: v.slip, breath: v.env.value * v.maxv };
+  }
+  if (model === MODEL_BRASS) {
+    return { ...base, wave: line_wave(v.line, v.delay_len, points), valve: v.slip, breath: v.env.value * v.maxv };
   }
   if (model === MODEL_MESH) {
     const n = s.mesh_n;
