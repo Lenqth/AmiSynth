@@ -1,17 +1,18 @@
-desc:AmiSynth Physical (string / modal / bowed / wind / 2D mesh / piano string)
+desc:AmiSynth Physical (string / modal / bowed / wind / 2D mesh / piano string / brass)
 //tags: instrument synthesizer physical-modeling
 //author: AmiSynth
 // Port of src/dsp/phys.js (8 voices; the 2D mesh uses at most 3).
 // 0 extended Karplus-Strong string, 1 modal (8 resonators per voice), 2 bowed string
 // (waveguide + bow friction), 3 wind (clarinet reed / flute jet + bore), 4 membrane / plate
-// (2D finite-difference wave equation), 5 stiff string (dispersion all-passes, 2 strings per note).
+// (2D finite-difference wave equation), 5 stiff string (dispersion all-passes, 2 strings per note),
+// 6 brass (buzzing lip resonator + bore two periods long).
 
 // <generated sliders>
 slider1:tuning_divisions=12<1,72,1>Tuning Divisions Per Period [steps]
 slider2:tuning_period_cents=1200<100,2400,0.001>Tuning Period [cents]
 slider3:tuning_ref_note=69<0,127,1>Tuning Reference Note [note]
 slider4:tuning_ref_hz=440<100,1000,0.01>Tuning Reference Frequency [Hz]
-slider5:phys_model=0<0,5,1{String (Karplus-Strong),Modal (resonators),Bowed String,Wind (reed / jet),Membrane / Plate (2D mesh),Stiff String (piano)}>Physical Model
+slider5:phys_model=0<0,6,1{String (Karplus-Strong),Modal (resonators),Bowed String,Wind (reed / jet),Membrane / Plate (2D mesh),Stiff String (piano),Brass (lip reed)}>Physical Model
 slider6:string_excitation=0<0,1,1{Pluck (noise burst),Strike (hammer pulse)}>String Excitation
 slider7:string_decay_ms=3000<100,20000,1:log>String Decay [ms]
 slider8:string_damping=0.35<0,1,0.001>String Damping
@@ -41,7 +42,7 @@ slider31:mesh_strike_x=0.3<0,1,0.001>Mesh Strike X
 slider32:mesh_strike_y=0.42<0,1,0.001>Mesh Strike Y
 slider33:mesh_hardness=0.5<0,1,0.001>Mesh Mallet Hardness
 slider34:piano_inharmonicity=0.35<0,1,0.001>Piano Inharmonicity
-slider35:piano_hammer_hardness=0.6<0,1,0.001>Piano Hammer Hardness
+slider35:piano_hammer_hardness=0.5<0,1,0.001>Piano Hammer Hardness
 slider36:piano_strike_position=0.12<0.02,0.5,0.001>Piano Strike Position
 slider37:piano_decay_ms=8000<200,30000,1:log>Piano Decay [ms]
 slider38:piano_damping=0.25<0,1,0.001>Piano Damping
@@ -56,6 +57,10 @@ slider46:phys_pitch_bend_range_cents=200<0,2400,1>Pitch Bend Range [cents]
 slider47:phys_room_mix=0<0,1,0.001>Room
 slider48:phys_room_decay_ms=1300<200,6000,1:log>Room Decay [ms]
 slider49:phys_volume_db=-8<-60,6,0.1>Volume [dB]
+slider50:brass_pressure=0.6<0,1,0.001>Brass Blowing Pressure
+slider51:brass_lip=0.5<0,1,0.001>Brass Lip Buzz
+slider52:brass_attack_ms=30<1,1000,0.1:log>Brass Attack [ms]
+slider53:brass_bell=0.5<0,1,0.001>Brass Bell Brightness
 // </generated sliders>
 
 import amisynth_lib.jsfx-inc
@@ -77,11 +82,64 @@ FLUTE_JET_RATIO = 1.03;
 FLUTE_JET_GAIN = 1.6;
 EXC_MAX = 16384;
 HAM_SUB = 4;
-HAM_GAIN = 1.7;
-HAM_TILT = 0.42;
+HAM_GAIN = 63;
 SB_MODES = 16;
 N_AP = 4;
-MODEL_STRING = 0; MODEL_MODAL = 1; MODEL_BOWED = 2; MODEL_WIND = 3; MODEL_MESH = 4; MODEL_STIFF = 5;
+MODEL_STRING = 0; MODEL_MODAL = 1; MODEL_BOWED = 2; MODEL_WIND = 3; MODEL_MESH = 4; MODEL_STIFF = 5; MODEL_BRASS = 6;
+BRASS_GAIN = 2.5;
+BRASS_MAX_DRIVE = 0.02;
+// brass tuning residual (cents sharp): 4 drives x 13 notes (30, 36, .. 102), see phys.js
+brass_drives = mem_alloc(4);
+brass_drives[0] = 0.006; brass_drives[1] = 0.009; brass_drives[2] = 0.013; brass_drives[3] = 0.02;
+brass_sharp = mem_alloc(4 * 13);
+function brass_row(j, a0, a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12) local(o) (
+  o = j * 13;
+  brass_sharp[o] = a0; brass_sharp[o + 1] = a1; brass_sharp[o + 2] = a2; brass_sharp[o + 3] = a3; brass_sharp[o + 4] = a4;
+  brass_sharp[o + 5] = a5; brass_sharp[o + 6] = a6; brass_sharp[o + 7] = a7; brass_sharp[o + 8] = a8; brass_sharp[o + 9] = a9;
+  brass_sharp[o + 10] = a10; brass_sharp[o + 11] = a11; brass_sharp[o + 12] = a12;
+);
+brass_row(0, 173.8, 161.8, 126.3, 111.9, 89.3, 79.1, 51.5, 37, 38.6, 42.9, 45.6, 46.8, 26.5);
+brass_row(1, 173.8, 161.8, 126.3, 111.9, 89.3, 79.1, 51.5, 37, 38.6, 42.9, 45.6, 46.8, 26.5);
+brass_row(2, 173.8, 161.8, 126.3, 111.9, 99.6, 56.9, 34.2, 31.5, 36.4, 49.1, 49, 46.3, 25.1);
+brass_row(3, 173.8, 161.8, 140.1, 122.8, 107.4, 46.4, 31.2, 26.5, 33, 54.7, 51.2, 50.6, 28.4);
+// minimum lip drive per note (low notes only speak with enough drive)
+brass_min_n = mem_alloc(7);
+brass_min_d = mem_alloc(7);
+brass_min_n[0] = 30; brass_min_n[1] = 33; brass_min_n[2] = 36; brass_min_n[3] = 43; brass_min_n[4] = 48; brass_min_n[5] = 55; brass_min_n[6] = 60;
+brass_min_d[0] = 0.02; brass_min_d[1] = 0.019; brass_min_d[2] = 0.0165; brass_min_d[3] = 0.012; brass_min_d[4] = 0.0098; brass_min_d[5] = 0.0073; brass_min_d[6] = 0.0062;
+
+function brass_pressure_of(vel_raw) local(amt) (
+  amt = phys_velocity_amount;
+  clamp((0.2 + 0.8 * brass_pressure) * (1 - 0.6 * amt + 0.6 * amt * vel_raw), 0.2, 1);
+);
+
+function brass_min_drive(note) local(i, r, done) (
+  note <= brass_min_n[0] ? brass_min_d[0] : (
+    r = brass_min_d[6];
+    done = 0;
+    i = 1;
+    while (i < 7 && !done) (
+      note <= brass_min_n[i] ? (
+        r = brass_min_d[i - 1] + ((brass_min_d[i] - brass_min_d[i - 1]) * (note - brass_min_n[i - 1])) / (brass_min_n[i] - brass_min_n[i - 1]);
+        done = 1;
+      );
+      i += 1;
+    );
+    r;
+  );
+);
+
+function brass_sharp_of(note, drive) local(u, i, fu, j, fv, a, b) (
+  u = clamp((note - 30) / 6, 0, 13 - 1.000001);
+  i = floor(u);
+  fu = u - i;
+  j = 0;
+  while (j < 2 && drive > brass_drives[j + 1]) ( j += 1; );
+  fv = clamp(log(drive / brass_drives[j]) / log(brass_drives[j + 1] / brass_drives[j]), 0, 1);
+  a = j * 13;
+  b = (j + 1) * 13;
+  (brass_sharp[a + i] * (1 - fu) + brass_sharp[a + i + 1] * fu) * (1 - fv) + (brass_sharp[b + i] * (1 - fu) + brass_sharp[b + i + 1] * fu) * fv;
+);
 noise_seed(12345);
 
 // material tables: ratio / gain, 8 modes each (same values as MATERIALS in phys.js)
@@ -248,8 +306,9 @@ function thiran_split(which, L, w) instance(delay_len delay_len2 tune_d tune_d2 
   );
 );
 
-function voice_tune(keep_decay) instance(hz0 damp_b delay_len delay_len2 loop_gain loop_gain2 modes mhz mt60 jet_bias jet_boost mesh_c2 mesh_omega ap_a)
-  local(hz, m, k, ratio, pos_w, b, total, x, sharp, w, a, det, hzA, hzB, wA, wB, t) (
+function voice_tune(keep_decay) instance(hz0 damp_b delay_len delay_len2 loop_gain loop_gain2 modes mhz mt60 jet_bias jet_boost mesh_c2 mesh_omega ap_a
+  vel_raw lip_a1 lip_a2 lip_g maxv dc_r refl_b bell_b)
+  local(hz, m, k, ratio, pos_w, b, total, x, sharp, w, a, det, hzA, hzB, wA, wB, t, press, note, drive, f, r) (
   hz = hz0 * bend_ratio;
   model === MODEL_STRING ? (
     damp_b = string_damp_b;
@@ -274,6 +333,22 @@ function voice_tune(keep_decay) instance(hz0 damp_b delay_len delay_len2 loop_ga
     total = srate / hz - lp_phase_delay(b, hz);
     delay_len = clamp(total * bow_position, 2, MAX_DELAY - 2);
     delay_len2 = clamp(total * (1 - bow_position), 2, MAX_DELAY - 2);
+  ) : model === MODEL_BRASS ? (
+    // lip drive = lip gain * sqrt(pressure); bore + lips scaled together by the tuning residual
+    press = brass_pressure_of(vel_raw);
+    note = 69 + (12 * log(hz / 440)) / log(2);
+    drive = clamp((0.01 + 0.01 * brass_lip) * sqrt(press), brass_min_drive(note), BRASS_MAX_DRIVE);
+    f = hz * pow(2, -brass_sharp_of(note, drive) / 1200);
+    delay_len = clamp((2 * srate) / f, 2, MAX_DELAY - 2);
+    r = exp((-$pi * 42) / srate);
+    w = (2 * $pi * f) / srate;
+    lip_a1 = -2 * r * cos(w);
+    lip_a2 = r * r;
+    lip_g = (drive * hz * 2 * sin(w) * (1 - r)) / (0.3 * press);
+    maxv = press;
+    dc_r = exp((-2 * $pi * 0.05 * f) / srate);
+    refl_b = exp((-2 * $pi * max(1500, 5 * f)) / srate);
+    bell_b = exp((-2 * $pi * (1500 + 6000 * brass_bell)) / srate);
   ) : model === MODEL_WIND ? (
     wind_type < 0.5 ? (
       // clarinet: inverting, low-passed reflection (tone holes / bell let the highs escape)
@@ -322,7 +397,7 @@ ham_hist = mem_alloc(EXC_MAX * HAM_SUB);
 function hammer_force(out, hz, v0, hardness, beta) local(m, Z, K, dt, lag, max_n, vh, d, i, n, acc, F, back, done) (
   m = clamp(0.0087 * pow(262 / hz, 0.3), 0.004, 0.012);
   Z = 2 * pow(262 / hz, 0.2);
-  K = 400000000 * pow(100, hardness - 0.5);
+  K = 250000000 * pow(100, hardness - 0.5);
   dt = 1 / (srate * HAM_SUB);
   lag = max(1, floor((beta * srate * HAM_SUB) / hz + 0.5));
   max_n = min(EXC_MAX, floor(0.03 * srate));
@@ -351,9 +426,10 @@ function hammer_force(out, hz, v0, hardness, beta) local(m, Z, K, dt, lag, max_n
 
 // op: 0 init(index), 1 start(note, velocity), 2 note off, 3 retune for pitch bend
 function voice_op(op, a, b) instance(idx vel hz0 level frames lp_z lp_z2 loop_gain loop_gain2 damp_b delay_len delay_len2 read_gain
-  exc_t exc_len exc modes mhz mt60 maxv slope mesh_u mesh_up mesh_un mesh_sig mesh_omega jet_boost flut hiss_lp)
+  exc_t exc_len exc modes mhz mt60 maxv slope mesh_u mesh_up mesh_un mesh_sig mesh_omega jet_boost flut hiss_lp
+  vel_raw lip_y1 lip_y2 dc_x dc_y bell_z refl_z)
   local(v, n, bright, aa, pick, norm, lp, i, j, c, x, width, ia, ib, hard, g_rel, k, R, amp, sx, sy, d, len, decay, sb_a, sb_env,
-    v0, scale, total, hp_a, hp_z) (
+    v0, scale, total, hp_a, hp_z, w0, re, im) (
   op === 0 ? (
     idx = a;
     this.line.delay_init(MAX_DELAY);
@@ -367,6 +443,7 @@ function voice_op(op, a, b) instance(idx vel hz0 level frames lp_z lp_z2 loop_ga
     exc = mem_alloc(EXC_MAX);
   ) : op === 1 ? (
     v = b / 127;
+    vel_raw = v;
     vel = 1 - phys_velocity_amount + phys_velocity_amount * v;
     hz0 = tuning_note_to_hz(a);
     frames = 0;
@@ -425,6 +502,19 @@ function voice_op(op, a, b) instance(idx vel hz0 level frames lp_z lp_z2 loop_ga
       slope = 5 - 4 * bow_pressure;
       this.body1.svf_set(290, 0.6);
       this.body2.svf_set(1150, 0.9);
+    ) : model === MODEL_BRASS ? (
+      this.env.stage === 0 ? (
+        this.line.delay_clear();
+        lip_y1 = 0;
+        lip_y2 = 0;
+        dc_x = 0;
+        dc_y = 0;
+        bell_z = 0;
+        refl_z = 0;
+        this.env.value = 0;
+      );
+      this.env.adsr_set(brass_attack_ms, 1, 1, min(phys_release_ms, 400));
+      this.env.adsr_gate_on();
     ) : model === MODEL_WIND ? (
       this.env.stage === 0 ? (
         this.line.delay_clear();
@@ -480,25 +570,16 @@ function voice_op(op, a, b) instance(idx vel hz0 level frames lp_z lp_z2 loop_ga
       this.apB0.ap1_init(); this.apB1.ap1_init(); this.apB2.ap1_init(); this.apB3.ap1_init();
       this.tuneA.ap1_init();
       this.tuneB.ap1_init();
-      // felt hammer (see hammer_force): its force pulse as string velocity, with the strike
-      // position comb, a little key / action thump, and the DC removed (no DC mode on a string)
+      // felt hammer (see hammer_force): its force pulse as string velocity through the strike
+      // position comb with the DC removed, normalised at the fundamental (level follows the
+      // velocity, the hammer decides the upper partials), plus a little key / action thump
       n = ceil(delay_len);
-      v0 = 0.3 * pow(20, v);
+      v0 = 0.3 + 4.7 * v * v * v;
       len = hammer_force(exc, hz0, v0, piano_hammer_hardness, piano_strike_position);
       pick = max(1, floor(piano_strike_position * n + 0.5));
-      scale = (HAM_GAIN * pow(2, HAM_TILT * abs(log(hz0 / 262) / log(2)))) / v0;
       total = min(EXC_MAX, max(len + pick + 1, floor(0.03 * srate + 0.5)));
-      decay = exp(-1 / (0.004 * srate));
-      sb_a = 1 - exp((-2 * $pi * 600) / srate);
-      sb_env = 0.08 * v;
-      lp = 0;
-      i = 0;
-      loop(total,
-        lp += sb_a * (noise_white() - lp);
-        exc[i] = (i < len ? exc[i] * scale : 0) + lp * sb_env;
-        sb_env *= decay;
-        i += 1;
-      );
+      i = len;
+      loop(total - len, exc[i] = 0; i += 1;);
       i = total - 1;
       while (i >= pick) (
         exc[i] -= exc[i - pick];
@@ -510,6 +591,27 @@ function voice_op(op, a, b) instance(idx vel hz0 level frames lp_z lp_z2 loop_ga
       loop(total,
         hp_z += hp_a * (exc[i] - hp_z);
         exc[i] -= hp_z;
+        i += 1;
+      );
+      w0 = (2 * $pi * hz0) / srate;
+      re = 0;
+      im = 0;
+      i = 0;
+      loop(total,
+        re += exc[i] * cos(w0 * i);
+        im += exc[i] * sin(w0 * i);
+        i += 1;
+      );
+      scale = (HAM_GAIN * pow(clamp(hz0 / 262, 0.35, 8), -1.5) * pow(v0 / 2, 0.6)) / max(0.000000000001, sqrt(re * re + im * im));
+      decay = exp(-1 / (0.004 * srate));
+      sb_a = 1 - exp((-2 * $pi * 600) / srate);
+      sb_env = 0.02 * v;
+      lp = 0;
+      i = 0;
+      loop(total,
+        lp += sb_a * (noise_white() - lp);
+        exc[i] = exc[i] * scale + lp * sb_env;
+        sb_env *= decay;
         i += 1;
       );
       exc_len = total;
@@ -527,7 +629,7 @@ function voice_op(op, a, b) instance(idx vel hz0 level frames lp_z lp_z2 loop_ga
         rmem_set_decay(modes + k * 6, mhz[k], mt60[k]);
         k += 1;
       );
-    ) : model === MODEL_BOWED || model === MODEL_WIND ? (
+    ) : model === MODEL_BOWED || model === MODEL_WIND || model === MODEL_BRASS ? (
       this.env.adsr_gate_off();
     ) : model === MODEL_MESH ? (
       mesh_sig = max(mesh_sig, mesh_sigma(min(mesh_decay_ms, phys_release_ms)));
@@ -586,6 +688,27 @@ function render_bowed() instance(maxv slope lp_z damp_b delay_len delay_len2)
   this.body1.svf_process(bridge_out);
   this.body2.svf_process(bridge_out);
   (bridge_out + 1.2 * this.body1.bp + 0.8 * this.body2.bp) * 1.6;
+);
+
+function render_brass() instance(vel maxv delay_len lip_y1 lip_y2 lip_a1 lip_a2 lip_g dc_x dc_y dc_r bell_b bell_z refl_b refl_z)
+  local(mouth, bore, y, open, x, d) (
+  mouth = 0.3 * maxv * this.env.adsr_process();
+  refl_z = (1 - refl_b) * this.line.delay_read(delay_len / vib) + refl_b * refl_z;
+  bore = 0.85 * refl_z;
+  // lips: resonator driven by the pressure difference; opening = (gain * position)^2, clipped
+  y = mouth - bore - lip_a1 * lip_y1 - lip_a2 * lip_y2;
+  lip_y2 = lip_y1;
+  lip_y1 = y;
+  open = lip_g * y;
+  open *= open;
+  open > 1 ? open = 1;
+  x = open * mouth + (1 - open) * bore;
+  d = x - dc_x + dc_r * dc_y;
+  dc_x = x;
+  dc_y = d;
+  this.line.delay_write(d);
+  bell_z = (1 - bell_b) * d + bell_b * bell_z;
+  bell_z * BRASS_GAIN * vel;
 );
 
 function render_wind() instance(vel maxv slope lp_z damp_b delay_len delay_len2 jet_bias flut hiss_lp)
@@ -699,6 +822,7 @@ function voice_render() instance(idx level frames gl gr) local(y, a) (
       : model === MODEL_MODAL ? this.render_modal()
       : model === MODEL_BOWED ? this.render_bowed()
       : model === MODEL_WIND ? this.render_wind()
+      : model === MODEL_BRASS ? this.render_brass()
       : model === MODEL_MESH ? this.render_mesh()
       : this.render_stiff();
     mix_l += y * gl;

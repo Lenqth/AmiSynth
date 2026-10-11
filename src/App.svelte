@@ -39,7 +39,7 @@
   );
   // Physical tab: show only the controls of the selected model
   // only the knobs of the selected model (+ shared ones) are shown
-  const PHYS_MODEL_GROUPS = ['String', 'Modal', 'Bowed', 'Wind', 'Mesh', 'Stiff String'];
+  const PHYS_MODEL_GROUPS = ['String', 'Modal', 'Bowed', 'Wind', 'Mesh', 'Stiff String', 'Brass'];
   const physModel = $derived(Math.round(app.phys.phys_model));
   const physGroups = $derived(['Model', PHYS_MODEL_GROUPS[Math.round(app.phys.phys_model)] ?? 'String', 'Output']);
 
@@ -52,6 +52,7 @@
   function selectTab(id) {
     app.tab = id;
     if (id === 'synth' || id === 'phys') setMelodic(id);
+    persist();
   }
 
   // ---- full-screen keyboard -------------------------------------------------
@@ -574,6 +575,12 @@
           弦と違い、2 次元の固有振動は整数倍に並ばない (円形膜なら 1 : 1.59 : 2.14 : 2.30 …) ので、音程感の薄い打楽器らしい音になります。
           形・叩く位置・マレットの硬さを変えると、どのモードが鳴るかが変わります。計算量が多いので同時発音は 3 音まで、格子は 16×16 までです。
         </p>
+      {:else if physModel === 6}
+        <p class="explain">
+          <b>金管 (唇リード)</b>: 唇を「音程に合わせた共振器」として扱い、マウスピースの中との圧力差で震わせます (バズ)。唇が開いた瞬間だけ口の圧力が管へ入り、閉じている間は管から戻ってきた波を跳ね返します。
+          管は遅延線で、長さは 2 周期ぶん。音は管の第 2 共鳴に乗ります (トランペットも実際は第 2 共鳴より上で吹きます)。高い音はベルから外へ逃げるので、管の反射にはローパスがかかっています。
+          強く吹くほど唇が大きく開閉して倍音が増え、金管らしい「パリッ」とした音になります。Lip Buzz は唇の開きやすさ、Bell Brightness はベルから出る音の明るさ (下げるとミュートやホルンの手のような音) です。
+        </p>
       {:else}
         <p class="explain">
           <b>硬い弦 (ピアノ)</b>: Karplus-Strong の弦に、オールパスフィルターによる「分散」を加えたモデルです。
@@ -584,7 +591,7 @@
       {#if app.physViz}
         <PhysViz />
       {:else}
-        <p class="muted hint">可視化 ON にすると、最後に弾いた音の内部 (弦や管の中を進む波 / 各モードの振幅 / 膜の変位 / 倍音のずれ) をリアルタイムで表示します。OFF の間は追加の負荷はありません。</p>
+        <p class="muted hint">可視化 ON にすると、最後に弾いた音の内部 (弦や管の中を進む波 / 弓・リード・唇の状態 / 各モードの振幅 / 膜の変位 / 倍音のずれ) をリアルタイムで表示します。OFF の間は追加の負荷はありません。</p>
       {/if}
     </section>
     <ParamPanel defs={PHYS_PARAMS} values={app.phys} groups={physGroups} onchange={(id, v) => setParam('phys', id, v)} />

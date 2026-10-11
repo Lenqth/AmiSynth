@@ -15,7 +15,9 @@
       if (!m.has(d.group)) m.set(d.group, []);
       m.get(d.group).push(d);
     }
-    return [...m.entries()];
+    // in the order the caller lists the groups (definition order otherwise)
+    const entries = [...m.entries()];
+    return groups ? entries.sort((a, b) => groups.indexOf(a[0]) - groups.indexOf(b[0])) : entries;
   });
 </script>
 
