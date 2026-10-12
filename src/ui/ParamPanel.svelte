@@ -19,12 +19,33 @@
     const entries = [...m.entries()];
     return groups ? entries.sort((a, b) => groups.indexOf(a[0]) - groups.indexOf(b[0])) : entries;
   });
+
+  /** A group made only of Off/On switches (arp rhythm steps, drum outputs) is shown as toggle buttons. */
+  const isToggleGroup = (items) => items.length > 1 && items.every((d) => d.options?.length === 2 && d.options[0] === 'Off');
+  const shortName = (def, items) => {
+    // "Arp Step 3" -> "3", "Kick Out In Main Mix" -> "Kick Out"
+    const words = items.map((d) => d.name.split(' '));
+    let common = 0;
+    while (words.every((w) => w[common] === words[0][common])) common++;
+    const rest = def.name.split(' ').slice(common).join(' ');
+    return rest.replace(/ In Main Mix$/, '') || def.name;
+  };
 </script>
 
 <div class="panel">
   {#each grouped as [group, items] (group)}
     <section class="card">
       <h3>{group}</h3>
+      {#if isToggleGroup(items)}
+        <div class="toggles">
+          {#each items as def (def.id)}
+            <button class="toggle" class:active={values[def.id] >= 0.5} title={`${def.name}
+${def.description}
+[${def.id}]`}
+              onclick={() => onchange(def.id, values[def.id] >= 0.5 ? 0 : 1)}>{shortName(def, items)}</button>
+          {/each}
+        </div>
+      {:else}
       <div class="controls">
         {#each items as def (def.id)}
           {#if def.options}
@@ -41,6 +62,7 @@
           {/if}
         {/each}
       </div>
+      {/if}
     </section>
   {/each}
 </div>
@@ -56,6 +78,16 @@
     flex-wrap: wrap;
     gap: 6px 4px;
     align-items: flex-start;
+  }
+  .toggles {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+  .toggle {
+    min-width: 34px;
+    padding: 4px 6px;
+    font-size: 11px;
   }
   .enum {
     display: flex;

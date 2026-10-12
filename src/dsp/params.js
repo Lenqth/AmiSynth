@@ -1,7 +1,7 @@
 // Single source of truth for every parameter of AmiSynth (synth + drums).
 //
 // Each entry maps 1:1 to a JSFX slider declaration:
-//   sliderN:<id>=<default><<min>,<max>,<step>[:log]{options}>-<name> [unit]
+//   sliderN:<id>=<default><<min>,<max>,<step>{options}>-<name> [unit]
 // (see scripts/gen-jsfx-sliders.js). Keep ids snake_case and self-describing so
 // that REAPER automation lanes / MCP tools / LLMs can understand them without docs.
 //
@@ -13,13 +13,23 @@
 //   default     default value
 //   step        slider step (1 for integers / enums)
 //   unit        unit string ('' if none)
-//   scale       'log' for exponential knobs (JSFX ':log')
+//   scale       'log' for exponential knobs in the web UI. The JSFX slider stays linear on purpose so
+//               that REAPER automation / MCP take the real value (1800 for 1800 Hz, not ln(1800)).
 //   options     enum labels (value = index)
 //   description one-line explanation (for docs / LLM tools)
 
 /** @typedef {{id:string,name:string,group:string,min:number,max:number,default:number,step:number,unit:string,scale?:'log',options?:string[],description:string}} ParamDef */
 
 const WAVES = ['Saw', 'Pulse', 'Triangle', 'Sine'];
+
+/** Note values for the tempo-synced LFO, in beats (quarter notes). Index 0 = free running. */
+export const LFO_SYNC_BEATS = [0, 16, 8, 4, 2, 3, 4 / 3, 1, 1.5, 2 / 3, 0.5, 0.75, 1 / 3, 0.25, 0.375, 1 / 6, 0.125];
+const LFO_SYNC_NAMES = ['Off', '4 bars', '2 bars', '1/1', '1/2', '1/2 dotted', '1/2 triplet', '1/4', '1/4 dotted', '1/4 triplet',
+  '1/8', '1/8 dotted', '1/8 triplet', '1/16', '1/16 dotted', '1/16 triplet', '1/32'];
+
+/** Arpeggiator step lengths in beats. */
+export const ARP_RATE_BEATS = [1, 0.5, 1 / 3, 0.75, 0.25, 1 / 6, 0.125];
+const ARP_RATE_NAMES = ['1/4', '1/8', '1/8 triplet', '1/8 dotted', '1/16', '1/16 triplet', '1/32'];
 
 /** Tuning is shared by synth & piano roll. 12-EDO is just the default. */
 export const TUNING_PARAMS = /** @type {ParamDef[]} */ ([
@@ -101,10 +111,10 @@ export const SYNTH_PARAMS = /** @type {ParamDef[]} */ ([
   { id: 'amp_velocity_amount', name: 'Amp Velocity Amount', group: 'Amp Envelope', min: 0, max: 1, default: 0.7, step: 0.001, unit: '',
     description: 'How much note velocity scales loudness (0 = ignore velocity).' },
 
-  { id: 'lfo_waveform', name: 'LFO Waveform', group: 'LFO', min: 0, max: 4, default: 0, step: 1, unit: '', options: ['Sine', 'Triangle', 'Saw Down', 'Square', 'Sample & Hold'],
-    description: 'Shape of the global LFO.' },
+  { id: 'lfo_waveform', name: 'LFO Waveform', group: 'LFO', min: 0, max: 5, default: 0, step: 1, unit: '', options: ['Sine', 'Triangle', 'Saw Down', 'Square', 'Sample & Hold', 'Duck (pump)'],
+    description: 'Shape of the global LFO. Duck drops at the start of every cycle and recovers (sidechain-style pumping; use it with LFO Tremolo Depth and LFO Sync).' },
   { id: 'lfo_rate_hz', name: 'LFO Rate', group: 'LFO', min: 0.05, max: 20, default: 5, step: 0.01, unit: 'Hz', scale: 'log',
-    description: 'Rate of the global LFO.' },
+    description: 'Rate of the global LFO (used while LFO Sync is Off).' },
   { id: 'lfo_pitch_cents', name: 'LFO Pitch Depth', group: 'LFO', min: 0, max: 1200, default: 0, step: 0.1, unit: 'cents',
     description: 'Constant vibrato depth (independent of the mod wheel).' },
   { id: 'lfo_filter_oct', name: 'LFO Filter Depth', group: 'LFO', min: 0, max: 4, default: 0, step: 0.01, unit: 'oct',
@@ -125,8 +135,8 @@ export const SYNTH_PARAMS = /** @type {ParamDef[]} */ ([
     description: 'Maximum polyphony (1 = mono).' },
   { id: 'glide_ms', name: 'Glide Time', group: 'Voice', min: 0, max: 1000, default: 0, step: 1, unit: 'ms',
     description: 'Portamento time from the previously played note (0 = off).' },
-  { id: 'unison_voices', name: 'Unison Voices', group: 'Voice', min: 1, max: 4, default: 1, step: 1, unit: 'voices',
-    description: 'Stacked detuned copies of both oscillators per note (supersaw-style thickness).' },
+  { id: 'unison_voices', name: 'Unison Voices', group: 'Voice', min: 1, max: 9, default: 1, step: 1, unit: 'voices',
+    description: 'Stacked detuned copies of both oscillators per note (supersaw-style thickness). CPU grows with Max Voices x Unison Voices.' },
   { id: 'unison_detune_cents', name: 'Unison Detune', group: 'Voice', min: 0, max: 100, default: 15, step: 0.1, unit: 'cents',
     description: 'Total detune spread across the unison copies.' },
   { id: 'unison_stereo_width', name: 'Unison Stereo Width', group: 'Voice', min: 0, max: 1, default: 0.7, step: 0.001, unit: '',
@@ -134,6 +144,38 @@ export const SYNTH_PARAMS = /** @type {ParamDef[]} */ ([
 
   { id: 'master_volume_db', name: 'Master Volume', group: 'Master', min: -60, max: 6, default: -6, step: 0.1, unit: 'dB',
     description: 'Output volume of the synth.' },
+
+  // ---- added later: kept at the end so existing REAPER projects keep their slider numbers
+  { id: 'transpose_semitones', name: 'Transpose', group: 'Voice', min: -24, max: 24, default: 0, step: 1, unit: 'semitones',
+    description: 'Shifts incoming notes by this many MIDI note numbers (= semitones in 12-EDO, scale steps in other tunings). Applied at note-on, so automating it never cuts off or hangs sounding notes.' },
+  { id: 'voice_mode', name: 'Voice Mode', group: 'Voice', min: 0, max: 2, default: 0, step: 1, unit: '', options: ['Poly', 'Mono', 'Legato'],
+    description: 'Poly: chords. Mono: one note at a time (last note wins, returns to a still-held note), envelopes restart on every note. Legato: like Mono, but overlapping notes only change pitch (no envelope restart).' },
+  { id: 'glide_mode', name: 'Glide Mode', group: 'Voice', min: 0, max: 1, default: 0, step: 1, unit: '', options: ['Always', 'Legato only'],
+    description: 'Always: every note glides from the previous one. Legato only: glide only when the new note overlaps a held note.' },
+  { id: 'unison_detune_curve', name: 'Unison Detune Curve', group: 'Voice', min: 0, max: 1, default: 0, step: 0.001, unit: '',
+    description: 'Spacing of the unison copies: 0 = even, 1 = bunched near the centre pitch with a few far-out copies (supersaw-like).' },
+  { id: 'unison_side_level', name: 'Unison Side Level', group: 'Voice', min: 0, max: 1, default: 1, step: 0.001, unit: '',
+    description: 'Level of the outer unison copies relative to the centre one(s) (1 = all equal).' },
+  { id: 'lfo_sync', name: 'LFO Sync', group: 'LFO', min: 0, max: LFO_SYNC_BEATS.length - 1, default: 0, step: 1, unit: '', options: LFO_SYNC_NAMES,
+    description: 'Lock the LFO to the host tempo: one cycle per note value, phase locked to the beat grid (so it restarts on the beat). Off = free running at LFO Rate.' },
+
+  { id: 'arp_mode', name: 'Arp Mode', group: 'Arpeggiator', min: 0, max: 6, default: 0, step: 1, unit: '',
+    options: ['Off', 'Up', 'Down', 'Up-Down', 'Random', 'As Played', 'Chord'],
+    description: 'Arpeggiator on the held notes, in time with the host tempo. Chord repeats the whole chord on every step (stabs; shape the rhythm with the Arp Step switches).' },
+  { id: 'arp_rate', name: 'Arp Rate', group: 'Arpeggiator', min: 0, max: ARP_RATE_BEATS.length - 1, default: 4, step: 1, unit: '', options: ARP_RATE_NAMES,
+    description: 'Length of one arpeggiator step (note value, tempo synced).' },
+  { id: 'arp_octaves', name: 'Arp Octave Range', group: 'Arpeggiator', min: 1, max: 4, default: 1, step: 1, unit: 'oct',
+    description: 'How many octaves (tuning periods) the arpeggio climbs.' },
+  { id: 'arp_gate', name: 'Arp Gate', group: 'Arpeggiator', min: 0.05, max: 1, default: 0.5, step: 0.001, unit: '',
+    description: 'Note length as a fraction of the step (1 = notes touch; with Voice Mode Legato they slur).' },
+  { id: 'arp_swing_percent', name: 'Arp Swing', group: 'Arpeggiator', min: 50, max: 75, default: 50, step: 0.1, unit: '%',
+    description: 'Share of each pair of steps given to the first one (50 = straight, 66.7 = triplet shuffle).' },
+  { id: 'arp_steps', name: 'Arp Pattern Length', group: 'Arpeggiator', min: 1, max: 16, default: 16, step: 1, unit: 'steps',
+    description: 'Length of the step on/off pattern (Arp Step 1..16). The pattern restarts every this many steps, counted from beat 0 of the host.' },
+  ...Array.from({ length: 16 }, (_, i) => ({
+    id: `arp_step_${i + 1}`, name: `Arp Step ${i + 1}`, group: 'Arp Rhythm', min: 0, max: 1, default: 1, step: 1, unit: '', options: ['Off', 'On'],
+    description: `Rhythm gate: whether arpeggiator step ${i + 1} plays (Off = rest).`,
+  })),
 ]);
 
 // ---------------------------------------------------------------------------
@@ -275,6 +317,17 @@ export const DRUM_PARTS = [
   { key: 'shaker', name: 'Shaker', note: 70 },
 ];
 
+/**
+ * Separate outputs of the JSFX drums (pins 3..10): one stereo bus per group of parts. Outputs 1/2
+ * are the main mix; each bus can be left out of it (e.g. a kick-only sidechain source).
+ */
+export const DRUM_BUSES = [
+  { key: 'kick', name: 'Kick Out', parts: 'kick', pins: '3/4' },
+  { key: 'snare', name: 'Snare/Clap Out', parts: 'snare, clap and rimshot', pins: '5/6' },
+  { key: 'hats', name: 'Hats/Cymbals Out', parts: 'hi-hats, crash and ride', pins: '7/8' },
+  { key: 'perc', name: 'Toms/Perc Out', parts: 'toms, cowbell and shaker', pins: '9/10' },
+];
+
 /** Common per-part parameters: pitch, decay, tone, level, pan. */
 function partParams(key, label, p) {
   return /** @type {ParamDef[]} */ ([
@@ -399,6 +452,12 @@ export const DRUM_PARAMS = /** @type {ParamDef[]} */ ([
 
   { id: 'drum_master_volume_db', name: 'Drum Master Volume', group: 'Master', min: -60, max: 6, default: -4, step: 0.1, unit: 'dB',
     description: 'Output volume of the drum machine.' },
+
+  // ---- added later: kept at the end so existing REAPER projects keep their slider numbers
+  ...DRUM_BUSES.map((b) => ({
+    id: `${b.key}_bus_in_main`, name: `${b.name} In Main Mix`, group: 'In Main Mix (JSFX: separate outputs)', min: 0, max: 1, default: 1, step: 1, unit: '', options: ['Off', 'On'],
+    description: `Whether the ${b.parts} also play in the main mix (outputs 1/2). In the JSFX they always play on their own outputs ${b.pins}.`,
+  })),
 ]);
 
 /** @param {ParamDef[]} defs */

@@ -19,9 +19,11 @@ const num = (v) => String(Number(v.toFixed(6)));
 
 /** @param {import('../src/dsp/params.js').ParamDef} d */
 export function sliderLine(index, d) {
+  // No ':log' shape on purpose: REAPER reports shaped sliders to the API / automation in the
+  // shaped (ln) domain, so MCP tools would have to write ln(1800) instead of 1800. Plain sliders
+  // take the real value (Hz, ms, ...). The web UI still turns 'log' params with a log knob.
   let range = `${num(d.min)},${num(d.max)},${num(d.step)}`;
   if (d.options) range += `{${d.options.join(',')}}`;
-  else if (d.scale === 'log') range += ':log';
   const label = d.unit && !d.options ? `${d.name} [${d.unit}]` : d.name;
   return `slider${index}:${d.id}=${num(d.default)}<${range}>${label}`;
 }

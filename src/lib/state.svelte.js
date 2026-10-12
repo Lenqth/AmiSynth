@@ -158,6 +158,7 @@ export function startAudio() {
       try {
         await engine.start();
         engine.setParams('synth', app.synth);
+        engine.transport(app.pattern.bpm, false);
         engine.setParams('drums', app.drums);
         for (const d of SYNTH_PARAMS) if (d.id.startsWith('tuning_')) app.phys[d.id] = app.synth[d.id];
         engine.setParams('phys', app.phys);

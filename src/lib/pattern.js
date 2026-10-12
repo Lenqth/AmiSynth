@@ -108,6 +108,7 @@ export class Sequencer {
     this.startTime = 0;
     this.startStep = 0;
     this.stepDur = 0.125;
+    this.sendTransport = false;
   }
 
   start() {
@@ -116,6 +117,7 @@ export class Sequencer {
     this.nextStep = 0;
     this.nextTime = this.engine.time + 0.06;
     this.anchor(this.nextTime, 0);
+    this.sendTransport = true;
     this.tick();
     this.timer = setInterval(() => this.tick(), 25);
   }
@@ -125,6 +127,7 @@ export class Sequencer {
     this.playing = false;
     clearInterval(this.timer);
     this.engine.clear();
+    this.engine.transport(this.getPattern().bpm, false);
   }
 
   anchor(time, step) {
@@ -147,6 +150,7 @@ export class Sequencer {
       // tempo change: re-anchor the playhead clock at the next step
       this.stepDur = stepDur;
       this.anchor(this.nextTime, this.nextStep);
+      this.sendTransport = true;
     }
     const horizon = this.engine.time + 0.12;
     while (this.nextTime < horizon) {
@@ -158,6 +162,11 @@ export class Sequencer {
 
   scheduleStep(pattern, step, time, stepDur) {
     const inst = pattern.melodic === 'phys' ? 'phys' : 'synth';
+    // host transport for the arpeggiator / synced LFO: bar 1 of the pattern = beat 0
+    if (step === 0 || this.sendTransport) {
+      this.sendTransport = false;
+      this.engine.transport(pattern.bpm, true, step / STEPS_PER_BEAT, time);
+    }
     for (const n of pattern.notes) {
       if (n.start !== step) continue;
       this.engine.noteOn(inst, n.note, n.vel, time);

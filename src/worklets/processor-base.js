@@ -4,6 +4,8 @@
 // parameter values, i.e. exactly what a JSFX receives from REAPER:
 //   { type: 'midi', data: [status, d1, d2], time?: <AudioContext seconds> }
 //   { type: 'param', id, value }  /  { type: 'params', values: {...} }
+//   { type: 'transport', bpm, playing, beat, time? }  host tempo / beat position (JSFX tempo,
+//                                 play_state, beat_position), applied at its sample like MIDI
 //   { type: 'clear' }             drop scheduled events + all notes off
 //   { type: 'viz', on: bool }     (optional) post core.snapshot() to the main thread
 //                                 every few blocks while on; costs nothing when off
@@ -11,7 +13,8 @@
 
 /**
  * @param {string} name processor name
- * @param {{init:Function, update:Function, midi:Function, render:Function, message?:Function, panic:Function, defaults:Record<string,number>}} core
+ * @param {{init:Function, update:Function, midi:Function, render:Function, message?:Function, panic:Function,
+ *   transport?:Function, defaults:Record<string,number>}} core
  */
 export function registerAmiProcessor(name, core) {
   class AmiProcessor extends AudioWorkletProcessor {
@@ -38,14 +41,12 @@ export function registerAmiProcessor(name, core) {
           Object.assign(this.params, msg.values);
           this.dirty = true;
           break;
-        case 'midi': {
-          const frame = msg.time == null ? 0 : Math.round(msg.time * sampleRate);
-          const ev = { frame, data: msg.data };
-          let i = this.queue.length;
-          while (i > 0 && this.queue[i - 1].frame > frame) i--;
-          this.queue.splice(i, 0, ev);
+        case 'midi':
+          this.enqueue(msg.time, { data: msg.data });
           break;
-        }
+        case 'transport':
+          if (core.transport) this.enqueue(msg.time, { transport: [msg.bpm, msg.playing ? 1 : 0, msg.beat ?? 0] });
+          break;
         case 'viz':
           this.vizOn = !!msg.on && typeof core.snapshot === 'function';
           break;
@@ -56,6 +57,15 @@ export function registerAmiProcessor(name, core) {
         default:
           if (core.message) core.message(this.state, msg);
       }
+    }
+
+    /** @param {number | undefined} time AudioContext seconds (undefined = now) */
+    enqueue(time, ev) {
+      const frame = time == null ? 0 : Math.round(time * sampleRate);
+      ev.frame = frame;
+      let i = this.queue.length;
+      while (i > 0 && this.queue[i - 1].frame > frame) i--;
+      this.queue.splice(i, 0, ev);
     }
 
     process(_inputs, outputs) {
@@ -72,8 +82,9 @@ export function registerAmiProcessor(name, core) {
       for (let i = 0; i < n; i++) {
         const frame = currentFrame + i;
         while (q.length > 0 && q[0].frame <= frame) {
-          const d = q.shift().data;
-          core.midi(s, d[0], d[1], d[2]);
+          const ev = q.shift();
+          if (ev.transport) core.transport(s, ev.transport[0], ev.transport[1], ev.transport[2]);
+          else core.midi(s, ev.data[0], ev.data[1], ev.data[2]);
         }
         core.render(s);
         L[i] = s.out_l;

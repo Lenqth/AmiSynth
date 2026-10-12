@@ -3,28 +3,43 @@
 // Structure mirrors a JSFX plugin:
 //   synth_init        -> @init
 //   synth_update      -> @slider   (p = slider values keyed by param id)
+//   synth_transport   -> @block    (host tempo / beat position)
 //   synth_note_on/off -> @block MIDI handling (midirecv)
 //   synth_render      -> @sample   (one call per sample)
 //
+// Note path:  MIDI key -> [arpeggiator] -> transpose -> voice engine (poly, or mono/legato on voice 0)
 // Signal flow per voice:
 //   [osc1 + osc2] x unison (detuned, panned) + sub + noise -> drive -> SVF (12/24 dB, LP/HP/BP/notch) -> amp env
 //   osc2 can hard-sync to osc1 and phase-modulate osc1 (FM). The filter envelope can bend osc2 pitch.
+//
+// Voices are matched by "key" (the incoming MIDI note, or the arpeggiator's output note) and sound
+// at "pitch" (key + transpose), so changing the transpose while notes sound never leaves one hanging.
 
 import {
   adsr_gate_off, adsr_gate_on, adsr_init, adsr_process, adsr_set,
-  clamp, db_to_gain, lfo_init, lfo_process, noise_seed, noise_white, random_unit, osc_init, osc_process, osc_reset, osc_set_freq,
-  osc_sync_to, smoother_init, smoother_process, smoother_set, soft_clip, svf_copy_coefs,
+  clamp, db_to_gain, lfo_init, lfo_process, lfo_process_at, noise_seed, noise_white, random_unit, osc_init, osc_process, osc_reset,
+  osc_set_freq, osc_sync_to, smoother_init, smoother_process, smoother_set, soft_clip, svf_copy_coefs,
   svf_init, svf_output, svf_process, svf_reset, svf_set, tau_coef, TWO_PI, tuning_init, tuning_note_to_hz,
   tuning_set_edo, tuning_set_table,
 } from './lib.js';
+import { ARP_RATE_BEATS, LFO_SYNC_BEATS } from './params.js';
 
 export const MAX_VOICES = 8;
-export const MAX_UNISON = 4;
+export const MAX_UNISON = 9;
+/** Held keys remembered by the arpeggiator and by the mono note stack. */
+export const MAX_HELD = 16;
+
+const ARP_UP = 1;
+const ARP_DOWN = 2;
+const ARP_UPDOWN = 3;
+const ARP_RANDOM = 4;
+const ARP_CHORD = 6; // 5 = as played
 
 function voice_create() {
   const v = {
     active: 0, // 1 while the amp envelope runs
-    note: -1,
+    note: -1, // key the voice answers to (note-off matching)
+    pitch: 0, // note number it sounds at (key + transpose)
     gate: 0, // key held
     sustained: 0, // released while sustain pedal held
     velocity: 0,
@@ -74,9 +89,29 @@ export function synth_init(s, sr) {
   s.gain_smooth = {};
   smoother_init(s.gain_smooth, 0);
   smoother_set(s.gain_smooth, 20, sr);
-  s.unison_ratio = [1, 1, 1, 1];
-  s.unison_gl = [1, 1, 1, 1];
-  s.unison_gr = [1, 1, 1, 1];
+  s.unison_ratio = new Array(MAX_UNISON).fill(1);
+  s.unison_gl = new Array(MAX_UNISON).fill(1);
+  s.unison_gr = new Array(MAX_UNISON).fill(1);
+  s.unison_w = new Array(MAX_UNISON).fill(1);
+  // host transport: beats (quarter notes) advance every sample, resynced by synth_transport()
+  s.tempo = 120;
+  s.beat = 0;
+  s.beat_inc = 120 / 60 / sr;
+  // mono / legato note stack (last note priority)
+  s.stack_key = new Array(MAX_HELD).fill(0);
+  s.stack_pitch = new Array(MAX_HELD).fill(0);
+  s.stack_vel = new Array(MAX_HELD).fill(0);
+  s.stack_n = 0;
+  // arpeggiator: held keys in the order played, the notes it is sounding, the last step it played
+  s.arp = {
+    key: new Array(MAX_HELD).fill(0), vel: new Array(MAX_HELD).fill(0), n: 0,
+    snd: new Array(MAX_HELD).fill(0), snd_n: 0,
+    ord_key: new Array(MAX_HELD).fill(0), ord_vel: new Array(MAX_HELD).fill(0),
+    new_key: new Array(MAX_HELD).fill(0), new_vel: new Array(MAX_HELD).fill(0),
+    last: 0, off_pos: 0, idx: 0,
+  };
+  s.arp_pattern = new Array(16).fill(1);
+  s.arp_mode = 0;
   s.p = {};
   s.out_l = 0;
   s.out_r = 0;
@@ -94,29 +129,52 @@ export function synth_update(s, p) {
   const r = clamp(p.filter_resonance, 0, 1);
   s.filter_k = 2 - 1.98 * Math.sqrt(r);
   s.lfo.inc = p.lfo_rate_hz / s.sr;
+  s.lfo_sync_beats = LFO_SYNC_BEATS[clamp(Math.round(p.lfo_sync), 0, LFO_SYNC_BEATS.length - 1)];
   s.glide_coef = p.glide_ms > 0 ? tau_coef(p.glide_ms / 3, s.sr) : 0; // ~95% there after glide_ms
+  s.glide_legato = p.glide_mode >= 0.5 ? 1 : 0;
   s.drive_gain = 1 + 8 * p.filter_drive;
   s.drive_makeup = 1 / (1 + 1.5 * p.filter_drive);
   s.fm_cycles = p.fm_index / TWO_PI;
+  s.transpose = Math.round(p.transpose_semitones);
+  s.mono = p.voice_mode >= 0.5 ? 1 : 0;
+  s.legato = p.voice_mode >= 1.5 ? 1 : 0;
 
-  // Unison: copies spread evenly over +/- detune/2, panned across the stereo width.
+  // Unison: copies spread over +/- detune/2 (evenly, or bunched toward the centre by the curve),
+  // panned evenly across the stereo width. The centre copy (two for an even count) is at full level.
   const n = clamp(Math.round(p.unison_voices), 1, MAX_UNISON);
+  const curve = p.unison_detune_curve;
+  let wsum = 0;
   s.unison_n = n;
-  s.unison_norm = 1 / Math.sqrt(n);
   for (let u = 0; u < MAX_UNISON; u++) {
     const pos = n > 1 ? u / (n - 1) - 0.5 : 0; // -0.5..0.5
-    s.unison_ratio[u] = Math.pow(2, (pos * p.unison_detune_cents) / 1200);
+    let dpos = pos;
+    if (curve > 0) dpos = (pos < 0 ? -0.5 : 0.5) * Math.pow(Math.abs(2 * pos), 1 + 2 * curve);
+    s.unison_ratio[u] = Math.pow(2, (dpos * p.unison_detune_cents) / 1200);
     const a = (pos * p.unison_stereo_width + 0.5) * 0.5 * Math.PI; // 0..pi/2
     s.unison_gl[u] = Math.cos(a) * 1.41421356;
     s.unison_gr[u] = Math.sin(a) * 1.41421356;
+    s.unison_w[u] = Math.abs(u - (n - 1) / 2) < 0.75 ? 1 : p.unison_side_level;
+    if (u < n) wsum += s.unison_w[u] * s.unison_w[u];
   }
+  s.unison_norm = 1 / Math.sqrt(wsum);
   s.stereo = n > 1 && p.unison_stereo_width > 0 ? 1 : 0;
+
+  // Arpeggiator. Switching it on or off releases everything so no note is left hanging.
+  const mode = clamp(Math.round(p.arp_mode), 0, ARP_CHORD);
+  if (mode !== s.arp_mode && (mode === 0 || s.arp_mode === 0)) synth_release_all(s);
+  s.arp_mode = mode;
+  s.arp_step_beats = ARP_RATE_BEATS[clamp(Math.round(p.arp_rate), 0, ARP_RATE_BEATS.length - 1)];
+  s.arp_octaves = clamp(Math.round(p.arp_octaves), 1, 4);
+  s.arp_gate = clamp(p.arp_gate, 0.05, 1);
+  s.arp_swing = clamp((2 * p.arp_swing_percent) / 100 - 1, 0, 0.5); // delay of every 2nd step, in steps
+  s.arp_steps = clamp(Math.round(p.arp_steps), 1, 16);
+  for (let i = 0; i < 16; i++) s.arp_pattern[i] = p[`arp_step_${i + 1}`] >= 0.5 ? 1 : 0;
 
   for (let i = 0; i < MAX_VOICES; i++) {
     const v = s.voices[i];
     adsr_set(v.amp_env, p.amp_attack_ms, p.amp_decay_ms, p.amp_sustain, p.amp_release_ms, s.sr);
     adsr_set(v.filt_env, p.filter_env_attack_ms, p.filter_env_decay_ms, p.filter_env_sustain, p.filter_env_release_ms, s.sr);
-    if (v.active) v.base_hz = tuning_note_to_hz(s.tuning, v.note);
+    if (v.active) v.base_hz = tuning_note_to_hz(s.tuning, v.pitch);
   }
 }
 
@@ -131,8 +189,28 @@ export function synth_set_scale(s, cents_list, count) {
   synth_update(s, s.p);
 }
 
+/**
+ * Host transport (JSFX: tempo / play_state / beat_position at the start of @block).
+ * bpm > 0 sets the tempo; while playing, the beat position is resynced to the host's.
+ * When stopped the beat keeps counting at the last tempo, so the arpeggiator and a synced LFO still run.
+ */
+export function synth_transport(s, bpm, playing, beat) {
+  if (bpm > 0) {
+    s.tempo = bpm;
+    s.beat_inc = bpm / 60 / s.sr;
+  }
+  if (playing) s.beat = beat;
+}
+
+// ---------------------------------------------------------------------------
+// Voice engine (poly): voices answer to `key`, sound at `pitch`
+
+function voice_limit(s) {
+  return clamp(Math.round(s.p.voice_count || MAX_VOICES), 1, MAX_VOICES);
+}
+
 function voice_allocate(s) {
-  const n = clamp(Math.round(s.p.voice_count || MAX_VOICES), 1, MAX_VOICES);
+  const n = voice_limit(s);
   let best = -1;
   let best_score = -1;
   for (let i = 0; i < n; i++) {
@@ -148,41 +226,47 @@ function voice_allocate(s) {
   return best;
 }
 
-export function synth_note_on(s, note, velocity) {
-  if (velocity <= 0) {
-    synth_note_off(s, note);
-    return;
+function any_gate(s) {
+  for (let i = 0; i < MAX_VOICES; i++) if (s.voices[i].active && s.voices[i].gate) return 1;
+  return 0;
+}
+
+/** Fresh voice: restart oscillators and filters (a voice still ringing keeps them, no click). */
+function voice_reset(s, v) {
+  const spread = s.unison_n > 1;
+  for (let u = 0; u < MAX_UNISON; u++) {
+    // random phases make unison copies sound like a section instead of flanging in sync
+    osc_reset(v.osc1[u], spread ? random_unit() : 0);
+    osc_reset(v.osc2[u], random_unit());
+    v.prev2[u] = 0;
   }
-  const n = clamp(Math.round(s.p.voice_count || MAX_VOICES), 1, MAX_VOICES);
-  // Retrigger a voice already playing this note, otherwise allocate.
+  osc_reset(v.sub, 0);
+  svf_reset(v.filt_l1);
+  svf_reset(v.filt_l2);
+  svf_reset(v.filt_r1);
+  svf_reset(v.filt_r2);
+  v.amp_env.value = 0;
+  v.filt_env.value = 0;
+}
+
+function poly_note_on(s, key, pitch, velocity) {
+  const n = voice_limit(s);
+  const held = s.glide_legato ? any_gate(s) : 1;
+  // Retrigger a voice already playing this key, otherwise allocate.
   let idx = -1;
-  for (let i = 0; i < n; i++) if (s.voices[i].active && s.voices[i].note === note) idx = i;
+  for (let i = 0; i < n; i++) if (s.voices[i].active && s.voices[i].note === key) idx = i;
   if (idx < 0) idx = voice_allocate(s);
   const v = s.voices[idx];
-  const hz = tuning_note_to_hz(s.tuning, note);
-  if (!v.active) {
-    const spread = s.unison_n > 1;
-    for (let u = 0; u < MAX_UNISON; u++) {
-      // random phases make unison copies sound like a section instead of flanging in sync
-      osc_reset(v.osc1[u], spread ? random_unit() : 0);
-      osc_reset(v.osc2[u], random_unit());
-      v.prev2[u] = 0;
-    }
-    osc_reset(v.sub, 0);
-    svf_reset(v.filt_l1);
-    svf_reset(v.filt_l2);
-    svf_reset(v.filt_r1);
-    svf_reset(v.filt_r2);
-    v.amp_env.value = 0;
-    v.filt_env.value = 0;
-  }
+  const hz = tuning_note_to_hz(s.tuning, pitch);
+  if (!v.active) voice_reset(s, v);
   // Glide from the last played pitch (in octaves, decays to 0 in synth_render).
-  v.glide_oct = s.glide_coef > 0 && s.last_hz > 0 ? clamp(Math.log2(s.last_hz / hz), -8, 8) : 0;
+  v.glide_oct = s.glide_coef > 0 && s.last_hz > 0 && held ? clamp(Math.log2(s.last_hz / hz), -8, 8) : 0;
   s.last_hz = hz;
   v.active = 1;
   v.gate = 1;
   v.sustained = 0;
-  v.note = note;
+  v.note = key;
+  v.pitch = pitch;
   v.velocity = velocity / 127;
   v.age = ++s.age_counter;
   v.base_hz = hz;
@@ -190,10 +274,10 @@ export function synth_note_on(s, note, velocity) {
   adsr_gate_on(v.filt_env);
 }
 
-export function synth_note_off(s, note) {
+function poly_note_off(s, key) {
   for (let i = 0; i < MAX_VOICES; i++) {
     const v = s.voices[i];
-    if (v.active && v.gate && v.note === note) {
+    if (v.active && v.gate && v.note === key) {
       v.gate = 0;
       if (s.sustain_pedal) {
         v.sustained = 1;
@@ -205,7 +289,236 @@ export function synth_note_off(s, note) {
   }
 }
 
-export function synth_all_notes_off(s) {
+// ---------------------------------------------------------------------------
+// Mono / legato: voice 0 only, last-note priority with a stack of held keys
+
+/** Move voice 0 to a note. retrig: restart the envelopes; overlap: a key was still held (legato). */
+function mono_play(s, key, pitch, velocity, retrig, overlap) {
+  const v = s.voices[0];
+  const hz = tuning_note_to_hz(s.tuning, pitch);
+  if (!v.active) voice_reset(s, v);
+  if (s.glide_coef > 0 && (overlap || !s.glide_legato)) {
+    // glide from where the pitch is right now (it may still be gliding)
+    if (v.active) v.glide_oct = clamp(v.glide_oct + Math.log2(v.base_hz / hz), -8, 8);
+    else v.glide_oct = s.last_hz > 0 ? clamp(Math.log2(s.last_hz / hz), -8, 8) : 0;
+  } else {
+    v.glide_oct = 0;
+  }
+  s.last_hz = hz;
+  v.active = 1;
+  v.gate = 1;
+  v.sustained = 0;
+  v.note = key;
+  v.pitch = pitch;
+  v.age = ++s.age_counter;
+  v.base_hz = hz;
+  if (retrig) {
+    v.velocity = velocity / 127;
+    adsr_gate_on(v.amp_env);
+    adsr_gate_on(v.filt_env);
+  }
+}
+
+function stack_remove(s, key) {
+  let j = 0;
+  for (let i = 0; i < s.stack_n; i++) {
+    if (s.stack_key[i] !== key) {
+      s.stack_key[j] = s.stack_key[i];
+      s.stack_pitch[j] = s.stack_pitch[i];
+      s.stack_vel[j] = s.stack_vel[i];
+      j++;
+    }
+  }
+  s.stack_n = j;
+}
+
+function mono_note_on(s, key, pitch, velocity) {
+  stack_remove(s, key);
+  if (s.stack_n >= MAX_HELD) {
+    // forget the oldest key
+    for (let i = 1; i < MAX_HELD; i++) {
+      s.stack_key[i - 1] = s.stack_key[i];
+      s.stack_pitch[i - 1] = s.stack_pitch[i];
+      s.stack_vel[i - 1] = s.stack_vel[i];
+    }
+    s.stack_n = MAX_HELD - 1;
+  }
+  s.stack_key[s.stack_n] = key;
+  s.stack_pitch[s.stack_n] = pitch;
+  s.stack_vel[s.stack_n] = velocity;
+  s.stack_n++;
+  const v = s.voices[0];
+  const overlap = v.active && v.gate ? 1 : 0;
+  mono_play(s, key, pitch, velocity, s.legato && overlap ? 0 : 1, overlap);
+}
+
+function mono_note_off(s, key) {
+  stack_remove(s, key);
+  const v = s.voices[0];
+  if (v.active && v.gate && v.note === key && s.stack_n > 0) {
+    // back to the most recent key still held
+    const t = s.stack_n - 1;
+    mono_play(s, s.stack_key[t], s.stack_pitch[t], s.stack_vel[t], s.legato ? 0 : 1, 1);
+  }
+}
+
+function engine_on(s, key, pitch, velocity) {
+  if (s.mono) mono_note_on(s, key, pitch, velocity);
+  else poly_note_on(s, key, pitch, velocity);
+}
+
+function engine_off(s, key) {
+  if (s.mono) mono_note_off(s, key);
+  // releases voice 0 when no other key is held, and any voice left from a mode change
+  poly_note_off(s, key);
+}
+
+// ---------------------------------------------------------------------------
+// Arpeggiator: steps are locked to the host beat grid (step k starts at beat k * step_beats,
+// every 2nd step delayed by the swing). Each step plays the next note of the held chord.
+
+function arp_key_on(s, key, velocity) {
+  const a = s.arp;
+  for (let i = 0; i < a.n; i++) {
+    if (a.key[i] === key) {
+      a.vel[i] = velocity;
+      return;
+    }
+  }
+  if (a.n >= MAX_HELD) return;
+  if (a.n === 0) {
+    // first key: start from the bottom of the pattern and play the current step at once (a key
+    // pressed in the last 10 % of a step waits for the next one instead)
+    const pos = s.beat / s.arp_step_beats;
+    const k = Math.floor(pos + 0.000001);
+    a.idx = 0;
+    a.last = pos - k > 0.9 ? k : k - 1;
+  }
+  a.key[a.n] = key;
+  a.vel[a.n] = velocity;
+  a.n++;
+}
+
+function arp_key_off(s, key) {
+  const a = s.arp;
+  let j = 0;
+  for (let i = 0; i < a.n; i++) {
+    if (a.key[i] !== key) {
+      a.key[j] = a.key[i];
+      a.vel[j] = a.vel[i];
+      j++;
+    }
+  }
+  a.n = j;
+}
+
+function arp_release(s) {
+  const a = s.arp;
+  for (let i = 0; i < a.snd_n; i++) engine_off(s, a.snd[i]);
+  a.snd_n = 0;
+}
+
+/** Play one step: work out the new notes, then hand over from the notes of the previous step. */
+function arp_fire(s) {
+  const a = s.arp;
+  const n = a.n;
+  let m = 0;
+  if (s.arp_mode === ARP_CHORD) {
+    for (let i = 0; i < n; i++) {
+      a.new_key[i] = a.key[i] + s.transpose;
+      a.new_vel[i] = a.vel[i];
+    }
+    m = n;
+  } else {
+    // order: as played, or sorted low to high (insertion sort keeps equal keys in play order)
+    for (let i = 0; i < n; i++) {
+      let j = i;
+      if (s.arp_mode !== 5) {
+        while (j > 0 && a.ord_key[j - 1] > a.key[i]) {
+          a.ord_key[j] = a.ord_key[j - 1];
+          a.ord_vel[j] = a.ord_vel[j - 1];
+          j--;
+        }
+      }
+      a.ord_key[j] = a.key[i];
+      a.ord_vel[j] = a.vel[i];
+    }
+    const len = n * s.arp_octaves;
+    let i;
+    if (s.arp_mode === ARP_DOWN) i = len - 1 - (a.idx % len);
+    else if (s.arp_mode === ARP_UPDOWN) {
+      if (len > 1) {
+        const cycle = 2 * len - 2;
+        const j = a.idx % cycle;
+        i = j < len ? j : cycle - j;
+      } else i = 0;
+    } else if (s.arp_mode === ARP_RANDOM) i = Math.min(len - 1, Math.floor(random_unit() * len));
+    else i = a.idx % len;
+    a.idx++;
+    const oct = Math.floor(i / n);
+    const k = i - oct * n;
+    a.new_key[0] = a.ord_key[k] + oct * s.tuning.size + s.transpose;
+    a.new_vel[0] = a.ord_vel[k];
+    m = 1;
+  }
+  // 1. notes struck again are released first (so they restart)
+  for (let j = 0; j < a.snd_n; j++) {
+    for (let i = 0; i < m; i++) {
+      if (a.snd[j] === a.new_key[i]) {
+        engine_off(s, a.snd[j]);
+        a.snd[j] = -1000;
+      }
+    }
+  }
+  // 2. new notes, 3. then the rest of the old ones (overlapping, so Legato mode slurs at gate 1)
+  for (let i = 0; i < m; i++) engine_on(s, a.new_key[i], a.new_key[i], a.new_vel[i]);
+  for (let j = 0; j < a.snd_n; j++) if (a.snd[j] !== -1000) engine_off(s, a.snd[j]);
+  for (let i = 0; i < m; i++) a.snd[i] = a.new_key[i];
+  a.snd_n = m;
+}
+
+/** Once per sample (before the voices render). */
+function arp_tick(s) {
+  const a = s.arp;
+  const pos = s.beat / s.arp_step_beats;
+  const k = Math.floor(pos + 0.000001);
+  let fired = 0;
+  if (a.n > 0 && k !== a.last) {
+    const odd = k - 2 * Math.floor(k / 2);
+    const start = k + odd * s.arp_swing;
+    if (pos >= start - 0.000001) {
+      a.last = k;
+      const step = k - s.arp_steps * Math.floor(k / s.arp_steps);
+      if (s.arp_pattern[step]) {
+        fired = 1;
+        a.off_pos = start + s.arp_gate * (odd ? 1 - s.arp_swing : 1 + s.arp_swing);
+        arp_fire(s);
+      }
+    }
+  }
+  // end of the gate (also when the host jumped back, e.g. a loop)
+  if (!fired && a.snd_n > 0 && (pos >= a.off_pos - 0.000001 || pos < a.off_pos - 4)) arp_release(s);
+}
+
+// ---------------------------------------------------------------------------
+// MIDI input
+
+export function synth_note_on(s, note, velocity) {
+  if (velocity <= 0) {
+    synth_note_off(s, note);
+    return;
+  }
+  if (s.arp_mode > 0) arp_key_on(s, note, velocity);
+  else engine_on(s, note, note + s.transpose, velocity);
+}
+
+export function synth_note_off(s, note) {
+  if (s.arp_mode > 0) arp_key_off(s, note);
+  else engine_off(s, note);
+}
+
+/** Release every voice and forget held keys (all-notes-off, arpeggiator switched on/off). */
+function synth_release_all(s) {
   for (let i = 0; i < MAX_VOICES; i++) {
     const v = s.voices[i];
     v.gate = 0;
@@ -213,6 +526,13 @@ export function synth_all_notes_off(s) {
     adsr_gate_off(v.amp_env);
     adsr_gate_off(v.filt_env);
   }
+  s.stack_n = 0;
+  s.arp.n = 0;
+  s.arp.snd_n = 0;
+}
+
+export function synth_all_notes_off(s) {
+  synth_release_all(s);
 }
 
 /** value -1..1 */
@@ -244,8 +564,17 @@ export function synth_render(s) {
   const p = s.p;
   const sr = s.sr;
 
+  if (s.arp_mode > 0) arp_tick(s);
+
   // ---- global modulation (once per sample)
-  const lfo = lfo_process(s.lfo, p.lfo_waveform);
+  let lfo;
+  if (s.lfo_sync_beats > 0) {
+    let ph = s.beat / s.lfo_sync_beats;
+    ph -= Math.floor(ph);
+    lfo = lfo_process_at(s.lfo, p.lfo_waveform, ph);
+  } else {
+    lfo = lfo_process(s.lfo, p.lfo_waveform);
+  }
   const pitch_cents = s.bend * p.pitch_bend_range_cents + lfo * (p.lfo_pitch_cents + s.modwheel * p.modwheel_vibrato_cents);
   const pitch_ratio = Math.pow(2, pitch_cents / 1200);
   const osc2_cents = p.osc2_transpose_cents + p.osc2_detune_cents;
@@ -299,7 +628,7 @@ export function synth_render(s) {
       if (sync && o1.wrapped) osc_sync_to(o2, o1);
       const y2 = osc_process(o2, w2, pw2, 0);
       v.prev2[u] = y2;
-      const y = y1 * l1 + y2 * l2;
+      const y = (y1 * l1 + y2 * l2) * s.unison_w[u];
       if (stereo) {
         xl += y * s.unison_gl[u];
         xr += y * s.unison_gr[u];
@@ -370,4 +699,5 @@ export function synth_render(s) {
   const g = smoother_process(s.gain_smooth, s.master_gain) * 0.5 * tremolo;
   s.out_l = soft_clip(mix_l * g);
   s.out_r = soft_clip(mix_r * g);
+  s.beat += s.beat_inc;
 }

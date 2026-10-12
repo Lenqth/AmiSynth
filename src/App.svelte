@@ -31,8 +31,16 @@
     ...(app.synth.osc1_waveform === 1 ? [] : ['osc1_pulse_width']),
     ...(app.synth.osc2_waveform === 1 ? [] : ['osc2_pulse_width']),
     ...(app.synth.osc1_waveform === 1 || app.synth.osc2_waveform === 1 ? [] : ['lfo_pulse_width']),
-    ...(app.synth.unison_voices > 1 ? [] : ['unison_detune_cents', 'unison_stereo_width']),
+    ...(app.synth.unison_voices > 1 ? [] : ['unison_detune_cents', 'unison_stereo_width', 'unison_detune_curve', 'unison_side_level']),
+    ...(app.synth.lfo_sync > 0 ? ['lfo_rate_hz'] : []),
+    ...(app.synth.arp_mode > 0 ? [] : ['arp_octaves', 'arp_gate', 'arp_swing_percent', 'arp_steps']),
   ]);
+  // CPU grows with (notes sounding) x (unison copies): show the worst case
+  const synthLoad = $derived.by(() => {
+    const voices = app.synth.voice_mode >= 0.5 ? 1 : Math.round(app.synth.voice_count);
+    const unison = Math.round(app.synth.unison_voices);
+    return { voices, unison, total: voices * unison };
+  });
   const isoSettings = $derived(app.kbLayout === 'grid' || app.kbLayout === 'hex' ? app.iso[app.kbLayout] : null);
   const isoResolved = $derived(
     isoSettings ? { ...isoSteps(app.kbLayout, isoSettings.preset, tuning, isoSettings), rows: isoSettings.rows } : undefined,
@@ -506,7 +514,11 @@
     <button class:active={app.playing} onclick={togglePlay} title="Space">{app.playing ? '■ Stop' : '▶ Play'}</button>
     <label class="bpm">BPM
       <input type="number" min="40" max="240" step="1" value={app.pattern.bpm}
-        onchange={(e) => { app.pattern.bpm = Math.max(40, Math.min(240, Number(e.currentTarget.value) || 120)); persist(); }} />
+        onchange={(e) => {
+          app.pattern.bpm = Math.max(40, Math.min(240, Number(e.currentTarget.value) || 120));
+          if (!seq.playing) engine.transport(app.pattern.bpm, false);
+          persist();
+        }} />
     </label>
     <button onclick={enableMidi} title="Web MIDI 入力 (ch10 はドラムへ)">MIDI</button>
   </div>
@@ -531,6 +543,11 @@
       <TuningPanel values={app.synth} scale={app.scale} {tuning}
         onchange={(id, v) => setParam('synth', id, v)} onscale={setScale} />
       <div class="grow">
+        <p class="muted hint load" class:heavy={synthLoad.total > 24}
+          title="同時に鳴るノート数 × ユニゾン数 = 最大で同時に動くオシレーター組の数 (CPU 負荷の目安)">
+          実効発音数: 最大 {synthLoad.voices} ノート × ユニゾン {synthLoad.unison} = {synthLoad.total}
+          {#if app.synth.arp_mode > 0} · アルペジエーター ON (テンポは BPM / ピアノロールに同期){/if}
+        </p>
         <ParamPanel defs={SYNTH_PARAMS} values={app.synth} groups={synthGroups} onchange={(id, v) => setParam('synth', id, v)}
           disabledIds={synthDisabled} />
       </div>
@@ -712,6 +729,8 @@
   h1 { margin: 0; font-size: 20px; letter-spacing: 0.02em; }
   .brand p { margin: 0; font-size: 11px; }
   .transport { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .load { margin: 0 0 8px; font-size: 12px; }
+  .load.heavy { color: var(--accent); }
   .bpm { display: flex; gap: 6px; align-items: center; font-size: 12px; color: var(--muted); }
   .bpm input { width: 64px; }
   .scope { height: 48px; min-width: 120px; background: #0b0e14; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }

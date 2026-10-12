@@ -96,3 +96,58 @@ test('JSFX drums match JS for every kit and part', { skip: !HAVE && 'jsfx_render
     check('drums', resolvePreset(INSTRUMENTS.drums.defs, kit), hits, 0.8, `drums/${kit.name}`);
   }
 });
+
+function checkHost(name, params, events, seconds, label, host) {
+  const inst = INSTRUMENTS[name];
+  const frames = Math.round(SR * seconds);
+  const r = compare(renderJs(inst, params, events, SR, frames, host), renderJsfx(BIN, inst, params, events, SR, frames, host));
+  assert.ok(r.rms > 1e-4, `${label}: silent?`);
+  assert.ok(r.snrDb > MIN_SNR_DB, `${label}: JSFX differs from JS (SNR ${r.snrDb.toFixed(1)} dB, max diff ${r.maxDiff})`);
+}
+
+// a chord held over several steps, a key added and released while it runs, then a second chord
+const ARP_PLAY = [
+  [0, 0x90, 60, 100], [0, 0x90, 64, 90], [0, 0x90, 67, 80],
+  [9000, 0x90, 71, 70], [15000, 0x80, 71, 0],
+  [21000, 0x80, 60, 0], [21000, 0x80, 64, 0], [21000, 0x80, 67, 0],
+  [23500, 0x90, 57, 110], [23500, 0x90, 62, 100], [30000, 0x80, 57, 0], [30000, 0x80, 62, 0],
+];
+
+test('JSFX synth matches JS: arpeggiator in every mode, synced to the host tempo', { skip: !HAVE && 'jsfx_render not built' }, () => {
+  const pluck = { amp_attack_ms: 1, amp_decay_ms: 200, amp_sustain: 0.3, amp_release_ms: 60 };
+  for (let mode = 1; mode <= 6; mode++) {
+    const p = scenario('synth', { ...pluck, arp_mode: mode, arp_octaves: 2, arp_rate: 4 });
+    checkHost('synth', p, ARP_PLAY, 0.75, `synth/arp mode ${mode} playing`, { tempo: 155, playing: 1 });
+    checkHost('synth', p, ARP_PLAY, 0.75, `synth/arp mode ${mode} stopped`, { tempo: 128, playing: 0 });
+  }
+  // swing, rhythm gate, gate 1 + legato glide, transpose, 1/8 triplets
+  const p = scenario('synth', {
+    ...pluck, arp_mode: 3, arp_octaves: 3, arp_rate: 5, arp_swing_percent: 62, arp_steps: 5, arp_step_2: 0, arp_step_4: 0,
+    arp_gate: 1, voice_mode: 2, glide_ms: 40, glide_mode: 1, transpose_semitones: 5,
+  });
+  checkHost('synth', p, ARP_PLAY, 0.75, 'synth/arp swing + pattern + legato', { tempo: 140, playing: 1 });
+  const chord = scenario('synth', { ...pluck, arp_mode: 6, arp_rate: 2, arp_gate: 0.3, arp_steps: 3, arp_step_3: 0, tuning_divisions: 19 });
+  checkHost('synth', chord, ARP_PLAY, 0.75, 'synth/arp chord stabs 19-EDO', { tempo: 155, playing: 1 });
+});
+
+test('JSFX synth matches JS: mono / legato, transpose, 9-voice unison, synced LFO', { skip: !HAVE && 'jsfx_render not built' }, () => {
+  const lines = [
+    ['mono', { voice_mode: 1, glide_ms: 60 }],
+    ['legato + glide legato only', { voice_mode: 2, glide_ms: 80, glide_mode: 1, transpose_semitones: -12 }],
+    ['poly glide legato only', { glide_ms: 50, glide_mode: 1, transpose_semitones: 7 }],
+    ['unison 9 curved', { unison_voices: 9, unison_detune_cents: 40, unison_detune_curve: 0.8, unison_side_level: 0.6 }],
+    ['unison 6 mono-width', { unison_voices: 6, unison_stereo_width: 0, unison_side_level: 0.3 }],
+    ['duck 1/4', { lfo_waveform: 5, lfo_sync: 7, lfo_amp: 0.9 }],
+    ['S&H 1/16 synced', { lfo_waveform: 4, lfo_sync: 13, lfo_filter_oct: 2 }],
+    ['triangle 1/8 dotted vibrato', { lfo_waveform: 1, lfo_sync: 11, lfo_pitch_cents: 40 }],
+  ];
+  for (const [label, over] of lines) {
+    checkHost('synth', scenario('synth', over), PERFORMANCE, 0.7, `synth/${label}`, { tempo: 155, playing: 1 });
+  }
+  checkHost('synth', scenario('synth', { lfo_waveform: 5, lfo_sync: 4, lfo_amp: 1 }), PERFORMANCE, 0.7, 'synth/duck stopped', { tempo: 90, playing: 0 });
+});
+
+test('JSFX drums match JS with groups left out of the main mix (separate outputs)', { skip: !HAVE && 'jsfx_render not built' }, () => {
+  const hits = DRUM_PARTS.map((part, i) => [i * 2400, 0x90, part.note, 100]);
+  check('drums', scenario('drums', { kick_bus_in_main: 0, hats_bus_in_main: 0 }), hits, 0.8, 'drums/buses off');
+});
