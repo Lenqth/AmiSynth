@@ -5,87 +5,101 @@ desc:AmiSynth Drums (13 synthesized parts, GM notes)
 // 45/47/50 toms, 46 open hat (choked by 42), 49 crash, 51 ride, 56 cowbell, 70 shaker.
 
 // <generated sliders>
-slider1:kick_pitch_hz=50<25,200,0.1:log>Kick Pitch [Hz]
-slider2:kick_decay_ms=450<30,2000,1:log>Kick Decay [ms]
+slider1:kick_pitch_hz=50<25,200,0.1>Kick Pitch [Hz]
+slider2:kick_decay_ms=450<30,2000,1>Kick Decay [ms]
 slider3:kick_tone=0.3<0,1,0.001>Kick Tone
 slider4:kick_level_db=0<-60,6,0.1>Kick Level [dB]
 slider5:kick_pan=0<-1,1,0.01>Kick Pan
 slider6:kick_sweep_oct=2.5<0,6,0.01>Kick Pitch Sweep Depth [oct]
-slider7:kick_sweep_ms=35<2,300,0.1:log>Kick Pitch Sweep Time [ms]
-slider8:snare_pitch_hz=190<80,600,0.1:log>Snare Pitch [Hz]
-slider9:snare_decay_ms=220<30,1500,1:log>Snare Decay [ms]
+slider7:kick_sweep_ms=35<2,300,0.1>Kick Pitch Sweep Time [ms]
+slider8:snare_pitch_hz=190<80,600,0.1>Snare Pitch [Hz]
+slider9:snare_decay_ms=220<30,1500,1>Snare Decay [ms]
 slider10:snare_tone=0.5<0,1,0.001>Snare Tone
 slider11:snare_level_db=-1<-60,6,0.1>Snare Level [dB]
 slider12:snare_pan=0<-1,1,0.01>Snare Pan
 slider13:snare_snappy=0.6<0,1,0.001>Snare Snappy
-slider14:clap_pitch_hz=1200<400,5000,0.1:log>Clap Pitch [Hz]
-slider15:clap_decay_ms=280<30,2000,1:log>Clap Decay [ms]
+slider14:clap_pitch_hz=1200<400,5000,0.1>Clap Pitch [Hz]
+slider15:clap_decay_ms=280<30,2000,1>Clap Decay [ms]
 slider16:clap_tone=0.4<0,1,0.001>Clap Tone
 slider17:clap_level_db=-2<-60,6,0.1>Clap Level [dB]
 slider18:clap_pan=0.1<-1,1,0.01>Clap Pan
 slider19:clap_spread_ms=11<2,40,0.1>Clap Burst Spread [ms]
-slider20:closed_hat_pitch_hz=330<100,1000,0.1:log>Closed Hi-Hat Pitch [Hz]
-slider21:closed_hat_decay_ms=60<10,500,1:log>Closed Hi-Hat Decay [ms]
+slider20:closed_hat_pitch_hz=330<100,1000,0.1>Closed Hi-Hat Pitch [Hz]
+slider21:closed_hat_decay_ms=60<10,500,1>Closed Hi-Hat Decay [ms]
 slider22:closed_hat_tone=0.55<0,1,0.001>Closed Hi-Hat Tone
 slider23:closed_hat_level_db=-4<-60,6,0.1>Closed Hi-Hat Level [dB]
 slider24:closed_hat_pan=-0.25<-1,1,0.01>Closed Hi-Hat Pan
 slider25:closed_hat_metal_mix=0.6<0,1,0.001>Closed Hi-Hat Metal Mix
-slider26:open_hat_pitch_hz=330<100,1000,0.1:log>Open Hi-Hat Pitch [Hz]
-slider27:open_hat_decay_ms=550<50,3000,1:log>Open Hi-Hat Decay [ms]
+slider26:open_hat_pitch_hz=330<100,1000,0.1>Open Hi-Hat Pitch [Hz]
+slider27:open_hat_decay_ms=550<50,3000,1>Open Hi-Hat Decay [ms]
 slider28:open_hat_tone=0.5<0,1,0.001>Open Hi-Hat Tone
 slider29:open_hat_level_db=-6<-60,6,0.1>Open Hi-Hat Level [dB]
 slider30:open_hat_pan=-0.25<-1,1,0.01>Open Hi-Hat Pan
 slider31:open_hat_metal_mix=0.6<0,1,0.001>Open Hi-Hat Metal Mix
-slider32:low_tom_pitch_hz=90<40,600,0.1:log>Low Tom Pitch [Hz]
-slider33:low_tom_decay_ms=420<40,3000,1:log>Low Tom Decay [ms]
+slider32:low_tom_pitch_hz=90<40,600,0.1>Low Tom Pitch [Hz]
+slider33:low_tom_decay_ms=420<40,3000,1>Low Tom Decay [ms]
 slider34:low_tom_tone=0.4<0,1,0.001>Low Tom Tone
 slider35:low_tom_level_db=-3<-60,6,0.1>Low Tom Level [dB]
 slider36:low_tom_pan=-0.3<-1,1,0.01>Low Tom Pan
-slider37:mid_tom_pitch_hz=135<40,600,0.1:log>Mid Tom Pitch [Hz]
-slider38:mid_tom_decay_ms=420<40,3000,1:log>Mid Tom Decay [ms]
+slider37:mid_tom_pitch_hz=135<40,600,0.1>Mid Tom Pitch [Hz]
+slider38:mid_tom_decay_ms=420<40,3000,1>Mid Tom Decay [ms]
 slider39:mid_tom_tone=0.4<0,1,0.001>Mid Tom Tone
 slider40:mid_tom_level_db=-3<-60,6,0.1>Mid Tom Level [dB]
 slider41:mid_tom_pan=0<-1,1,0.01>Mid Tom Pan
-slider42:high_tom_pitch_hz=200<40,600,0.1:log>High Tom Pitch [Hz]
-slider43:high_tom_decay_ms=420<40,3000,1:log>High Tom Decay [ms]
+slider42:high_tom_pitch_hz=200<40,600,0.1>High Tom Pitch [Hz]
+slider43:high_tom_decay_ms=420<40,3000,1>High Tom Decay [ms]
 slider44:high_tom_tone=0.4<0,1,0.001>High Tom Tone
 slider45:high_tom_level_db=-3<-60,6,0.1>High Tom Level [dB]
 slider46:high_tom_pan=0.3<-1,1,0.01>High Tom Pan
-slider47:rimshot_pitch_hz=1700<400,4000,0.1:log>Rimshot Pitch [Hz]
-slider48:rimshot_decay_ms=40<5,300,1:log>Rimshot Decay [ms]
+slider47:rimshot_pitch_hz=1700<400,4000,0.1>Rimshot Pitch [Hz]
+slider48:rimshot_decay_ms=40<5,300,1>Rimshot Decay [ms]
 slider49:rimshot_tone=0.5<0,1,0.001>Rimshot Tone
 slider50:rimshot_level_db=-6<-60,6,0.1>Rimshot Level [dB]
 slider51:rimshot_pan=0.1<-1,1,0.01>Rimshot Pan
-slider52:cowbell_pitch_hz=540<200,1500,0.1:log>Cowbell Pitch [Hz]
-slider53:cowbell_decay_ms=300<30,2000,1:log>Cowbell Decay [ms]
+slider52:cowbell_pitch_hz=540<200,1500,0.1>Cowbell Pitch [Hz]
+slider53:cowbell_decay_ms=300<30,2000,1>Cowbell Decay [ms]
 slider54:cowbell_tone=0.4<0,1,0.001>Cowbell Tone
 slider55:cowbell_level_db=-8<-60,6,0.1>Cowbell Level [dB]
 slider56:cowbell_pan=0.2<-1,1,0.01>Cowbell Pan
-slider57:crash_pitch_hz=420<100,1000,0.1:log>Crash Pitch [Hz]
-slider58:crash_decay_ms=1800<200,8000,1:log>Crash Decay [ms]
+slider57:crash_pitch_hz=420<100,1000,0.1>Crash Pitch [Hz]
+slider58:crash_decay_ms=1800<200,8000,1>Crash Decay [ms]
 slider59:crash_tone=0.35<0,1,0.001>Crash Tone
 slider60:crash_level_db=-9<-60,6,0.1>Crash Level [dB]
 slider61:crash_pan=-0.35<-1,1,0.01>Crash Pan
 slider62:crash_metal_mix=0.35<0,1,0.001>Crash Metal Mix
-slider63:ride_pitch_hz=520<100,1000,0.1:log>Ride Pitch [Hz]
-slider64:ride_decay_ms=2200<200,8000,1:log>Ride Decay [ms]
+slider63:ride_pitch_hz=520<100,1000,0.1>Ride Pitch [Hz]
+slider64:ride_decay_ms=2200<200,8000,1>Ride Decay [ms]
 slider65:ride_tone=0.6<0,1,0.001>Ride Tone
 slider66:ride_level_db=-7<-60,6,0.1>Ride Level [dB]
 slider67:ride_pan=0.35<-1,1,0.01>Ride Pan
 slider68:ride_metal_mix=0.85<0,1,0.001>Ride Metal Mix
-slider69:shaker_pitch_hz=6500<1500,15000,0.1:log>Shaker Pitch [Hz]
-slider70:shaker_decay_ms=70<10,500,1:log>Shaker Decay [ms]
+slider69:shaker_pitch_hz=6500<1500,15000,0.1>Shaker Pitch [Hz]
+slider70:shaker_decay_ms=70<10,500,1>Shaker Decay [ms]
 slider71:shaker_tone=0.4<0,1,0.001>Shaker Tone
 slider72:shaker_level_db=-10<-60,6,0.1>Shaker Level [dB]
 slider73:shaker_pan=0.25<-1,1,0.01>Shaker Pan
 slider74:drum_master_volume_db=-4<-60,6,0.1>Drum Master Volume [dB]
+slider75:kick_bus_in_main=1<0,1,1{Off,On}>Kick Out In Main Mix
+slider76:snare_bus_in_main=1<0,1,1{Off,On}>Snare/Clap Out In Main Mix
+slider77:hats_bus_in_main=1<0,1,1{Off,On}>Hats/Cymbals Out In Main Mix
+slider78:perc_bus_in_main=1<0,1,1{Off,On}>Toms/Perc Out In Main Mix
 // </generated sliders>
 
 import amisynth_lib.jsfx-inc
 
 in_pin:none
-out_pin:Left
-out_pin:Right
+// 1/2 = main mix; 3..10 = one stereo pair per group of parts (always on; the *_bus_in_main
+// sliders decide whether a group is also in the main mix). Give the track 10 channels to use them.
+out_pin:Main L
+out_pin:Main R
+out_pin:Kick L
+out_pin:Kick R
+out_pin:Snare/Clap/Rim L
+out_pin:Snare/Clap/Rim R
+out_pin:Hats/Cymbals L
+out_pin:Hats/Cymbals R
+out_pin:Toms/Perc L
+out_pin:Toms/Perc R
 
 @init
 noise_seed(12345);
@@ -219,6 +233,10 @@ function note_on(note, velocity) local(vel, vgain) (
 
 @slider
 master_gain = db_to_gain(drum_master_volume_db);
+main_kick = kick_bus_in_main >= 0.5 ? 1 : 0;
+main_snare = snare_bus_in_main >= 0.5 ? 1 : 0;
+main_hats = hats_bus_in_main >= 0.5 ? 1 : 0;
+main_perc = perc_bus_in_main >= 0.5 ? 1 : 0;
 
 kick.pan_gains(kick_pan);
 kick.gain = db_to_gain(kick_level_db);
@@ -272,8 +290,11 @@ while (midi_pop()) (
 );
 midi_tick();
 
-l = 0;
-r = 0;
+// one stereo bus per output group
+kick_l = 0; kick_r = 0;
+sn_l = 0; sn_r = 0;
+hat_l = 0; hat_r = 0;
+perc_l = 0; perc_r = 0;
 
 // kick
 kick.env.value > 0 ? (
@@ -284,8 +305,8 @@ kick.env.value > 0 ? (
   y += kick.click_hp.onepole_hp(noise_white()) * kick.click.decay_env_process() * kick_tone * 0.6;
   drive = 1 + 3 * kick_tone;
   y = soft_clip(y * drive) / soft_clip(drive) * kick.vel * kick.gain;
-  l += y * kick.gl;
-  r += y * kick.gr;
+  kick_l += y * kick.gl;
+  kick_r += y * kick.gr;
 );
 
 // snare
@@ -298,8 +319,8 @@ snare.noise_env.value > 0 || snare.body_env.value > 0 ? (
   snare.bp.svf_process(noise_white());
   nz = snare.hp.onepole_hp(snare.bp.bp + 0.3 * snare.bp.hp) * snare.noise_env.decay_env_process() * 2.5;
   y = (body * (1 - snare_snappy) + nz * snare_snappy) * snare.vel * snare.gain;
-  l += y * snare.gl;
-  r += y * snare.gr;
+  sn_l += y * snare.gl;
+  sn_r += y * snare.gr;
 );
 
 // clap: 3 short bursts, then a 4th that becomes the tail
@@ -315,20 +336,20 @@ clap.t >= 0 ? (
   );
   clap.bp.svf_process(noise_white());
   y = clap.bp.bp * env * clap.vel * clap.gain * 3.5;
-  l += y * clap.gl;
-  r += y * clap.gr;
+  sn_l += y * clap.gl;
+  sn_r += y * clap.gr;
 );
 
-y = closed_hat.hat_render(closed_hat_metal_mix); l += y * closed_hat.gl; r += y * closed_hat.gr;
-y = open_hat.hat_render(open_hat_metal_mix); l += y * open_hat.gl; r += y * open_hat.gr;
-y = crash.hat_render(crash_metal_mix); l += y * crash.gl; r += y * crash.gr;
-y = ride.hat_render(ride_metal_mix); l += y * ride.gl; r += y * ride.gr;
+y = closed_hat.hat_render(closed_hat_metal_mix); hat_l += y * closed_hat.gl; hat_r += y * closed_hat.gr;
+y = open_hat.hat_render(open_hat_metal_mix); hat_l += y * open_hat.gl; hat_r += y * open_hat.gr;
+y = crash.hat_render(crash_metal_mix); hat_l += y * crash.gl; hat_r += y * crash.gr;
+y = ride.hat_render(ride_metal_mix); hat_l += y * ride.gl; hat_r += y * ride.gr;
 
 lt = low_tom.tom_render(low_tom_pitch_hz, low_tom_tone);
 mt = mid_tom.tom_render(mid_tom_pitch_hz, mid_tom_tone);
 ht = high_tom.tom_render(high_tom_pitch_hz, high_tom_tone);
-l += lt * low_tom.gl + mt * mid_tom.gl + ht * high_tom.gl;
-r += lt * low_tom.gr + mt * mid_tom.gr + ht * high_tom.gr;
+perc_l += lt * low_tom.gl + mt * mid_tom.gl + ht * high_tom.gl;
+perc_r += lt * low_tom.gr + mt * mid_tom.gr + ht * high_tom.gr;
 
 // rimshot
 rimshot.env.value > 0 ? (
@@ -337,8 +358,8 @@ rimshot.env.value > 0 ? (
   click = rimshot.hp.onepole_hp(noise_white()) * rimshot.click.decay_env_process() * 0.5;
   drive = 1 + 4 * rimshot_tone;
   y = (soft_clip((body + click) * drive) / soft_clip(drive)) * rimshot.vel * rimshot.gain;
-  l += y * rimshot.gl;
-  r += y * rimshot.gr;
+  sn_l += y * rimshot.gl;
+  sn_r += y * rimshot.gr;
 );
 
 // cowbell
@@ -346,8 +367,8 @@ cowbell.slow.value > 0 ? (
   env = 0.6 * cowbell.fast.decay_env_process() + 0.4 * cowbell.slow.decay_env_process();
   cowbell.bp.svf_process((cowbell.osc1.square_naive_process() + cowbell.osc2.square_naive_process()) * 0.5);
   y = cowbell.bp.bp * env * cowbell.vel * cowbell.gain * 2;
-  l += y * cowbell.gl;
-  r += y * cowbell.gr;
+  perc_l += y * cowbell.gl;
+  perc_r += y * cowbell.gr;
 );
 
 // shaker
@@ -360,10 +381,20 @@ shaker.env.value > 0 ? (
   );
   shaker.bp.svf_process(noise_white());
   y = shaker.bp.bp * env * shaker.vel * shaker.gain * 2.5;
-  l += y * shaker.gl;
-  r += y * shaker.gr;
+  perc_l += y * shaker.gl;
+  perc_r += y * shaker.gr;
 );
 
 g = master_gain * 0.8;
+l = kick_l * main_kick + sn_l * main_snare + hat_l * main_hats + perc_l * main_perc;
+r = kick_r * main_kick + sn_r * main_snare + hat_r * main_hats + perc_r * main_perc;
 spl0 = soft_clip(l * g);
 spl1 = soft_clip(r * g);
+spl2 = soft_clip(kick_l * g);
+spl3 = soft_clip(kick_r * g);
+spl4 = soft_clip(sn_l * g);
+spl5 = soft_clip(sn_r * g);
+spl6 = soft_clip(hat_l * g);
+spl7 = soft_clip(hat_r * g);
+spl8 = soft_clip(perc_l * g);
+spl9 = soft_clip(perc_r * g);

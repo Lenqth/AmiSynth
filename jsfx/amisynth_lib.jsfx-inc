@@ -150,21 +150,39 @@ function square_naive_process() instance(phase inc) local(y) (
 );
 
 // ---------------------------------------------------------------------------
-// LFO: 0 sine, 1 triangle, 2 saw down, 3 square, 4 sample & hold
+// LFO: 0 sine, 1 triangle, 2 saw down, 3 square, 4 sample & hold, 5 duck (sidechain-style pump:
+// falls from +1 to -1 in the first 3 % of the cycle, then recovers along a curve)
 
-function lfo_process(waveform) instance(phase inc held) local(t, y) (
-  t = phase;
-  waveform < 0.5 ? (y = sin(2 * $pi * t))
-  : waveform < 1.5 ? (y = 1 - 4 * abs(t - 0.5))
-  : waveform < 2.5 ? (y = 1 - 2 * t)
-  : waveform < 3.5 ? (y = (t < 0.5 ? 1 : -1))
-  : (y = held);
+function lfo_wave(waveform, t, held) local(u, u2) (
+  waveform < 0.5 ? sin(2 * $pi * t)
+  : waveform < 1.5 ? 1 - 4 * abs(t - 0.5)
+  : waveform < 2.5 ? 1 - 2 * t
+  : waveform < 3.5 ? (t < 0.5 ? 1 : -1)
+  : waveform < 4.5 ? held
+  : t < 0.03 ? 1 - t * 66.66666666666667
+  : (
+    u = (1 - t) * 1.0309278350515465; // 1 / 0.97
+    u2 = u * u;
+    1 - 2 * u2 * u2;
+  );
+);
+
+/** free running: value at the current phase, then advance by inc */
+function lfo_process(waveform) instance(phase inc held) local(y) (
+  y = lfo_wave(waveform, phase, held);
   phase += inc;
   phase >= 1 ? (
     phase -= 1;
     held = noise_white();
   );
   y;
+);
+
+/** tempo synced: the phase comes from the host beat position; new S&H value at each wrap */
+function lfo_process_at(waveform, ph) instance(phase held) (
+  ph < phase ? held = noise_white();
+  phase = ph;
+  lfo_wave(waveform, ph, held);
 );
 
 // ---------------------------------------------------------------------------

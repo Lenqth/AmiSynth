@@ -56,6 +56,15 @@ export class AudioEngine {
     this.midi(target, [0x80, note, 0], time);
   }
 
+  /**
+   * Tempo / beat position for the synth's arpeggiator and synced LFO (like REAPER's transport).
+   * @param {number} bpm @param {boolean} playing @param {number} [beat] beat (quarter note) at `time`
+   * @param {number} [time] AudioContext time (default: now)
+   */
+  transport(bpm, playing, beat = 0, time) {
+    this.synth?.port.postMessage({ type: 'transport', bpm, playing, beat, time });
+  }
+
   setParam(target, id, value) {
     this[target]?.port.postMessage({ type: 'param', id, value });
   }

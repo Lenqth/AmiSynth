@@ -2,14 +2,17 @@
 // (and the same event timing as the Sequencer), for WAV / MP3 export.
 
 import { DRUM_PARAMS, PHYS_PARAMS, SYNTH_PARAMS, defaultValues } from '../dsp/params.js';
-import { synth_init, synth_render, synth_set_scale, synth_update } from '../dsp/synth.js';
+import { synth_init, synth_render, synth_set_scale, synth_transport, synth_update } from '../dsp/synth.js';
 import { phys_init, phys_render, phys_set_scale, phys_update } from '../dsp/phys.js';
 import { drums_init, drums_render, drums_update } from '../dsp/drums.js';
 import { drums_midi, phys_midi, synth_midi } from '../dsp/midi.js';
 import { STEPS, STEPS_PER_BEAT } from './pattern.js';
 
 const CORES = {
-  synth: { defs: SYNTH_PARAMS, init: synth_init, update: synth_update, render: synth_render, midi: synth_midi, scale: synth_set_scale },
+  synth: {
+    defs: SYNTH_PARAMS, init: synth_init, update: synth_update, render: synth_render, midi: synth_midi, scale: synth_set_scale,
+    transport: synth_transport,
+  },
   phys: { defs: PHYS_PARAMS, init: phys_init, update: phys_update, render: phys_render, midi: phys_midi, scale: phys_set_scale },
   drums: { defs: DRUM_PARAMS, init: drums_init, update: drums_update, render: drums_render, midi: drums_midi, scale: null },
 };
@@ -60,6 +63,8 @@ export function renderPattern(opts, onProgress = () => {}) {
     const p = { ...defaultValues(core.defs), ...(opts.params?.[k] || {}) };
     core.update(s, p);
     if (core.scale && opts.scaleCents) core.scale(s, opts.scaleCents, opts.scaleCents.length);
+    // playing from beat 0 at the pattern tempo (arpeggiator / synced LFO), like the Sequencer
+    if (core.transport) core.transport(s, opts.pattern.bpm, 1, 0);
     return { core, s, events: ev[k], next: 0 };
   });
   const cap = length + maxTail;

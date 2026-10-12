@@ -11,7 +11,8 @@ import { defaultValues, DRUM_PARAMS, PHYS_PARAMS, SYNTH_PARAMS } from '../src/ds
 import { drums_init, drums_note_on, drums_render, drums_update } from '../src/dsp/drums.js';
 import { phys_init, phys_note_off, phys_note_on, phys_pitch_bend, phys_render, phys_update } from '../src/dsp/phys.js';
 import {
-  synth_init, synth_mod_wheel, synth_note_off, synth_note_on, synth_pitch_bend, synth_render, synth_sustain_pedal, synth_update,
+  synth_init, synth_mod_wheel, synth_note_off, synth_note_on, synth_pitch_bend, synth_render, synth_sustain_pedal, synth_transport,
+  synth_update,
 } from '../src/dsp/synth.js';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -19,6 +20,7 @@ const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 export const INSTRUMENTS = {
   synth: {
     file: 'AmiSynth Synth.jsfx', defs: SYNTH_PARAMS, init: synth_init, update: synth_update, render: synth_render,
+    transport: synth_transport,
     midi(s, st, d1, d2) {
       const t = st & 0xf0;
       if (t === 0x90) synth_note_on(s, d1, d2);
@@ -30,6 +32,16 @@ export const INSTRUMENTS = {
   },
   drums: {
     file: 'AmiSynth Drums.jsfx', defs: DRUM_PARAMS, init: drums_init, update: drums_update, render: drums_render,
+    // main mix + kick, snare/clap/rim, hats/cymbals, toms/perc (JSFX out pins 1..10)
+    channels: 10,
+    out(s, o, i) {
+      o[i] = s.out_l;
+      o[i + 1] = s.out_r;
+      for (let b = 0; b < 4; b++) {
+        o[i + 2 + 2 * b] = s.bus_l[b];
+        o[i + 3 + 2 * b] = s.bus_r[b];
+      }
+    },
     midi(s, st, d1, d2) {
       if ((st & 0xf0) === 0x90 && d2 > 0) drums_note_on(s, d1, d2);
     },
@@ -45,30 +57,41 @@ export const INSTRUMENTS = {
   },
 };
 
-/** JS render with the same event semantics as the worklet / JSFX (events before the sample at their frame). */
-export function renderJs(inst, params, events, sr, frames) {
+const BLOCK = 128; // jsfx_render's block size: the host transport is read once per block (@block)
+
+/**
+ * JS render with the same event semantics as the worklet / JSFX (events before the sample at their frame).
+ * host: { tempo, playing } like REAPER's tempo / play_state (default 120 bpm, stopped).
+ */
+export function renderJs(inst, params, events, sr, frames, host = { tempo: 120, playing: 0 }) {
   const s = {};
   inst.init(s, sr);
   inst.update(s, params);
-  const out = new Float64Array(frames * 2);
+  const ch = inst.channels ?? 2;
+  const out = new Float64Array(frames * ch);
   let e = 0;
   for (let i = 0; i < frames; i++) {
+    if (inst.transport && i % BLOCK === 0) inst.transport(s, host.tempo, host.playing, (i * host.tempo) / 60 / sr);
     while (e < events.length && events[e][0] <= i) {
       const [, a, b, c] = events[e++];
       inst.midi(s, a, b, c);
     }
     inst.render(s);
-    out[i * 2] = s.out_l;
-    out[i * 2 + 1] = s.out_r;
+    if (inst.out) inst.out(s, out, i * ch);
+    else {
+      out[i * 2] = s.out_l;
+      out[i * 2 + 1] = s.out_r;
+    }
   }
   return out;
 }
 
-export function renderJsfx(renderBin, inst, params, events, sr, frames) {
+export function renderJsfx(renderBin, inst, params, events, sr, frames, host = { tempo: 120, playing: 0 }) {
   const dir = mkdtempSync(join(tmpdir(), 'amijsfx-'));
   const script = [
     // ysfx knows 64 sliders; beyond that (REAPER allows 256) the ids are plain variables
     ...inst.defs.map((d, i) => (i < 64 ? `slider ${i + 1} ${params[d.id]}` : `var ${d.id} ${params[d.id]}`)),
+    `tempo ${host.tempo} ${host.playing ? 1 : 0}`,
     ...events.map(([f, a, b, c]) => `midi ${f} ${a} ${b} ${c}`),
   ].join('\n');
   writeFileSync(join(dir, 'script.txt'), script);

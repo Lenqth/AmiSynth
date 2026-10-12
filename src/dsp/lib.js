@@ -204,7 +204,10 @@ export function square_naive_process(o) {
 }
 
 // ----------------------------------------------------------------------------
-// LFO: 0 sine, 1 triangle, 2 saw down, 3 square, 4 sample & hold. Output -1..1.
+// LFO: 0 sine, 1 triangle, 2 saw down, 3 square, 4 sample & hold, 5 duck. Output -1..1.
+// Duck is a sidechain-style pump: it falls from +1 to -1 at the start of each cycle (in the
+// first 3 %, so the gain change does not click) and recovers along a curve. Used as a tremolo
+// it makes the sound "breathe" with the beat when the LFO is tempo synced.
 
 export function lfo_init(o) {
   o.phase = 0;
@@ -212,20 +215,35 @@ export function lfo_init(o) {
   o.held = 0;
 }
 
+/** Shape of the LFO at phase t (0..1). held = current sample & hold value. */
+export function lfo_wave(waveform, t, held) {
+  if (waveform < 0.5) return Math.sin(TWO_PI * t);
+  if (waveform < 1.5) return 1 - 4 * Math.abs(t - 0.5);
+  if (waveform < 2.5) return 1 - 2 * t;
+  if (waveform < 3.5) return t < 0.5 ? 1 : -1;
+  if (waveform < 4.5) return held;
+  if (t < 0.03) return 1 - t * 66.66666666666667;
+  const u = (1 - t) * 1.0309278350515465; // 1 / 0.97
+  const u2 = u * u;
+  return 1 - 2 * u2 * u2;
+}
+
+/** Free-running LFO: returns the value at the current phase, then advances by o.inc. */
 export function lfo_process(o, waveform) {
-  const t = o.phase;
-  let y;
-  if (waveform < 0.5) y = Math.sin(TWO_PI * t);
-  else if (waveform < 1.5) y = 1 - 4 * Math.abs(t - 0.5);
-  else if (waveform < 2.5) y = 1 - 2 * t;
-  else if (waveform < 3.5) y = t < 0.5 ? 1 : -1;
-  else y = o.held;
+  const y = lfo_wave(waveform, o.phase, o.held);
   o.phase += o.inc;
   if (o.phase >= 1) {
     o.phase -= 1;
     o.held = noise_white();
   }
   return y;
+}
+
+/** Tempo-synced LFO: the phase comes from the host beat position; a new S&H value at each wrap. */
+export function lfo_process_at(o, waveform, phase) {
+  if (phase < o.phase) o.held = noise_white();
+  o.phase = phase;
+  return lfo_wave(waveform, phase, o.held);
 }
 
 // ----------------------------------------------------------------------------

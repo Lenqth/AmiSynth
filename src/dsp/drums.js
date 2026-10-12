@@ -59,6 +59,9 @@ export function drums_init(d, sr) {
   d.p = {};
   d.out_l = 0;
   d.out_r = 0;
+  d.bus_l = [0, 0, 0, 0];
+  d.bus_r = [0, 0, 0, 0];
+  d.bus_main = [1, 1, 1, 1];
 
   d.kick = { osc: { phase: 0, inc: 0 }, env: {}, pitch_env: 0, pitch_coef: 0, click: {}, click_hp: {}, vel: 0, gl: 1, gr: 1 };
   decay_env_init(d.kick.env);
@@ -103,6 +106,10 @@ export function drums_update(d, p) {
   d.p = p;
   const sr = d.sr;
   d.master_gain = db_to_gain(p.drum_master_volume_db);
+  d.bus_main[0] = p.kick_bus_in_main >= 0.5 ? 1 : 0;
+  d.bus_main[1] = p.snare_bus_in_main >= 0.5 ? 1 : 0;
+  d.bus_main[2] = p.hats_bus_in_main >= 0.5 ? 1 : 0;
+  d.bus_main[3] = p.perc_bus_in_main >= 0.5 ? 1 : 0;
 
   // Kick
   pan_gains(d.kick, p.kick_pan);
@@ -276,8 +283,15 @@ function hat_render(h, metal_mix) {
 export function drums_render(d) {
   const p = d.p;
   const sr = d.sr;
-  let l = 0;
-  let r = 0;
+  // one stereo bus per output group (see DRUM_BUSES in params.js)
+  let kick_l = 0;
+  let kick_r = 0;
+  let sn_l = 0;
+  let sn_r = 0;
+  let hat_l = 0;
+  let hat_r = 0;
+  let perc_l = 0;
+  let perc_r = 0;
 
   // Kick
   const k = d.kick;
@@ -289,8 +303,8 @@ export function drums_render(d) {
     y += onepole_hp(k.click_hp, noise_white()) * decay_env_process(k.click) * p.kick_tone * 0.6;
     const drive = 1 + 3 * p.kick_tone;
     y = soft_clip(y * drive) / soft_clip(drive) * k.vel * k.gain;
-    l += y * k.gl;
-    r += y * k.gr;
+    kick_l += y * k.gl;
+    kick_r += y * k.gr;
   }
 
   // Snare
@@ -304,8 +318,8 @@ export function drums_render(d) {
     svf_process(s.bp, noise_white());
     const noise = onepole_hp(s.hp, s.bp.bp + 0.3 * s.bp.hp) * decay_env_process(s.noise_env) * 2.5;
     const y = (body * (1 - p.snare_snappy) + noise * p.snare_snappy) * s.vel * s.gain;
-    l += y * s.gl;
-    r += y * s.gr;
+    sn_l += y * s.gl;
+    sn_r += y * s.gr;
   }
 
   // Clap: 3 short bursts, then a 4th burst that becomes the long tail
@@ -325,29 +339,29 @@ export function drums_render(d) {
     }
     svf_process(c.bp, noise_white());
     const y = c.bp.bp * env * c.vel * c.gain * 3.5;
-    l += y * c.gl;
-    r += y * c.gr;
+    sn_l += y * c.gl;
+    sn_r += y * c.gr;
   }
 
   const ch = hat_render(d.closed_hat, p.closed_hat_metal_mix);
-  l += ch * d.closed_hat.gl;
-  r += ch * d.closed_hat.gr;
+  hat_l += ch * d.closed_hat.gl;
+  hat_r += ch * d.closed_hat.gr;
   const oh = hat_render(d.open_hat, p.open_hat_metal_mix);
-  l += oh * d.open_hat.gl;
-  r += oh * d.open_hat.gr;
+  hat_l += oh * d.open_hat.gl;
+  hat_r += oh * d.open_hat.gr;
 
   const cr = hat_render(d.crash, p.crash_metal_mix);
-  l += cr * d.crash.gl;
-  r += cr * d.crash.gr;
+  hat_l += cr * d.crash.gl;
+  hat_r += cr * d.crash.gr;
   const rd = hat_render(d.ride, p.ride_metal_mix);
-  l += rd * d.ride.gl;
-  r += rd * d.ride.gr;
+  hat_l += rd * d.ride.gl;
+  hat_r += rd * d.ride.gr;
 
   const lt = tom_render(d.low_tom, p.low_tom_pitch_hz, p.low_tom_tone, sr);
   const mt = tom_render(d.mid_tom, p.mid_tom_pitch_hz, p.mid_tom_tone, sr);
   const ht = tom_render(d.high_tom, p.high_tom_pitch_hz, p.high_tom_tone, sr);
-  l += lt * d.low_tom.gl + mt * d.mid_tom.gl + ht * d.high_tom.gl;
-  r += lt * d.low_tom.gr + mt * d.mid_tom.gr + ht * d.high_tom.gr;
+  perc_l += lt * d.low_tom.gl + mt * d.mid_tom.gl + ht * d.high_tom.gl;
+  perc_r += lt * d.low_tom.gr + mt * d.mid_tom.gr + ht * d.high_tom.gr;
 
   // Rimshot
   const rs = d.rimshot;
@@ -357,8 +371,8 @@ export function drums_render(d) {
     const click = onepole_hp(rs.hp, noise_white()) * decay_env_process(rs.click) * 0.5;
     const drive = 1 + 4 * p.rimshot_tone;
     const y = (soft_clip((body + click) * drive) / soft_clip(drive)) * rs.vel * rs.gain;
-    l += y * rs.gl;
-    r += y * rs.gr;
+    sn_l += y * rs.gl;
+    sn_r += y * rs.gr;
   }
 
   // Cowbell
@@ -367,8 +381,8 @@ export function drums_render(d) {
     const env = 0.6 * decay_env_process(cb.fast) + 0.4 * decay_env_process(cb.slow);
     svf_process(cb.bp, (square_naive_process(cb.osc1) + square_naive_process(cb.osc2)) * 0.5);
     const y = cb.bp.bp * env * cb.vel * cb.gain * 2;
-    l += y * cb.gl;
-    r += y * cb.gr;
+    perc_l += y * cb.gl;
+    perc_r += y * cb.gr;
   }
 
   // Shaker
@@ -383,11 +397,22 @@ export function drums_render(d) {
     }
     svf_process(sh.bp, noise_white());
     const y = sh.bp.bp * env * sh.vel * sh.gain * 2.5;
-    l += y * sh.gl;
-    r += y * sh.gr;
+    perc_l += y * sh.gl;
+    perc_r += y * sh.gr;
   }
 
   const g = d.master_gain * 0.8;
+  const l = kick_l * d.bus_main[0] + sn_l * d.bus_main[1] + hat_l * d.bus_main[2] + perc_l * d.bus_main[3];
+  const r = kick_r * d.bus_main[0] + sn_r * d.bus_main[1] + hat_r * d.bus_main[2] + perc_r * d.bus_main[3];
   d.out_l = soft_clip(l * g);
   d.out_r = soft_clip(r * g);
+  // separate outputs (JSFX pins 3..10); the web player only uses the main mix
+  d.bus_l[0] = soft_clip(kick_l * g);
+  d.bus_r[0] = soft_clip(kick_r * g);
+  d.bus_l[1] = soft_clip(sn_l * g);
+  d.bus_r[1] = soft_clip(sn_r * g);
+  d.bus_l[2] = soft_clip(hat_l * g);
+  d.bus_r[2] = soft_clip(hat_r * g);
+  d.bus_l[3] = soft_clip(perc_l * g);
+  d.bus_r[3] = soft_clip(perc_r * g);
 }

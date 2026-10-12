@@ -176,4 +176,63 @@ export const SYNTH_PRESETS = [
       filter_env_amount_oct: 0, lfo_waveform: 4, lfo_rate_hz: 8, lfo_filter_oct: 2.2, amp_sustain: 1, amp_release_ms: 300,
     },
   },
+  {
+    name: 'Hyper Saw',
+    category: 'Lead',
+    description: '7 unison saws bunched around the centre pitch (supersaw), quieter outer copies, wide stereo.',
+    params: {
+      master_volume_db: -8,
+      osc2_waveform: 0, osc2_level: 0.6, osc2_detune_cents: -6, unison_voices: 7, unison_detune_cents: 45,
+      unison_detune_curve: 0.6, unison_side_level: 0.75, unison_stereo_width: 1, filter_cutoff_hz: 5000,
+      filter_resonance: 0.1, filter_env_amount_oct: 1, filter_env_sustain: 0.6, amp_attack_ms: 3, amp_sustain: 0.9,
+      amp_release_ms: 260, voice_count: 6,
+    },
+  },
+  {
+    name: 'Eurobeat Arp',
+    category: 'Arp',
+    description: 'Hold a chord: 1/16 up-arpeggio over 2 octaves in time with the host tempo. Short bright pluck.',
+    params: {
+      master_volume_db: -4,
+      osc2_waveform: 0, osc2_level: 0.5, osc2_detune_cents: 9, filter_cutoff_hz: 900, filter_resonance: 0.3,
+      filter_env_amount_oct: 4, filter_env_attack_ms: 1, filter_env_decay_ms: 160, filter_env_sustain: 0,
+      amp_attack_ms: 1, amp_decay_ms: 220, amp_sustain: 0.2, amp_release_ms: 80,
+      arp_mode: 1, arp_rate: 4, arp_octaves: 2, arp_gate: 0.6,
+    },
+  },
+  {
+    name: 'Off-beat Stabs',
+    category: 'Arp',
+    description: 'Hold a chord: the Chord arpeggiator plays it on the 8th-note off-beats (rhythm gate), detuned saws.',
+    params: {
+      master_volume_db: -6,
+      osc2_waveform: 0, osc2_level: 0.7, osc2_detune_cents: 12, unison_voices: 3, unison_detune_cents: 20,
+      filter_cutoff_hz: 1500, filter_resonance: 0.2, filter_env_amount_oct: 2.5, filter_env_attack_ms: 1,
+      filter_env_decay_ms: 250, filter_env_sustain: 0.1, amp_attack_ms: 1, amp_decay_ms: 300, amp_sustain: 0.4,
+      amp_release_ms: 90, arp_mode: 6, arp_rate: 1, arp_gate: 0.45, arp_steps: 2, arp_step_1: 0,
+    },
+  },
+  {
+    name: 'Pumping Pad',
+    category: 'Pad',
+    description: 'Wide saw pad that ducks on every beat (synced Duck LFO on the volume), like a kick sidechain.',
+    params: {
+      master_volume_db: -8,
+      osc2_waveform: 0, osc2_level: 0.7, unison_voices: 5, unison_detune_cents: 25, unison_stereo_width: 1,
+      filter_cutoff_hz: 2200, filter_resonance: 0.1, filter_env_amount_oct: 0.5, amp_attack_ms: 150, amp_sustain: 1,
+      amp_release_ms: 900, lfo_waveform: 5, lfo_sync: 7, lfo_amp: 0.85,
+    },
+  },
+  {
+    name: 'Octave Legato Bass',
+    category: 'Bass',
+    description: 'Mono legato saw bass: overlapping notes slide without restarting the envelope (glide only when legato).',
+    params: {
+      master_volume_db: -6,
+      osc2_waveform: 1, osc2_level: 0.5, osc2_detune_cents: 4, sub_osc_level: 0.3, filter_cutoff_hz: 500,
+      filter_resonance: 0.35, filter_env_amount_oct: 3, filter_env_attack_ms: 1, filter_env_decay_ms: 200,
+      filter_env_sustain: 0.2, amp_attack_ms: 1, amp_sustain: 0.9, amp_release_ms: 60,
+      voice_mode: 2, glide_ms: 45, glide_mode: 1,
+    },
+  },
 ];
