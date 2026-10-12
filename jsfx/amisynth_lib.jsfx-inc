@@ -75,6 +75,87 @@ function tuning_set_edo(divisions, period) local(i) (
   );
 );
 
+/** count degrees from tuning_tmp (Scala order: degrees 1..N, the last one is the period) */
+tuning_tmp = mem_alloc(256);
+function tuning_set_table(count) local(i) (
+  count = max(1, min(255, count));
+  tuning_size = count;
+  tuning_table[0] = 0;
+  i = 1;
+  loop(count - 1, tuning_table[i] = tuning_tmp[i - 1]; i += 1;);
+  tuning_period = tuning_tmp[count - 1];
+);
+
+// ---- Scala (.scl) reader for the shared scale file REAPER/Data/AmiSynth/tuning.txt
+// (a .txt name because JSFX only reads text files with that extension).
+// Lines starting with '!' are comments; then a description line, the number of notes, and one
+// pitch per line: cents if it contains a '.', otherwise a ratio "a/b" or a whole number.
+
+/** parse a number at tp_pos of #tuning_line into tp_val; tp_dot = 1 if it had a '.'; returns 1 if any digit */
+function tuning_parse_number() local(c, sign, any, scale) (
+  tp_val = 0; tp_dot = 0; any = 0; sign = 1; scale = 0.1;
+  c = str_getchar(#tuning_line, tp_pos);
+  c === 45 ? ( sign = -1; tp_pos += 1; ) : c === 43 ? tp_pos += 1;
+  c = str_getchar(#tuning_line, tp_pos);
+  while ((c >= 48 && c <= 57) || (c === 46 && !tp_dot)) (
+    c === 46 ? tp_dot = 1 : (
+      any = 1;
+      tp_dot ? ( tp_val += (c - 48) * scale; scale *= 0.1; ) : tp_val = tp_val * 10 + (c - 48);
+    );
+    tp_pos += 1;
+    c = str_getchar(#tuning_line, tp_pos);
+  );
+  tp_val *= sign;
+  any;
+);
+
+function tuning_skip_space() local(c) (
+  c = str_getchar(#tuning_line, tp_pos);
+  while (c === 32 || c === 9) ( tp_pos += 1; c = str_getchar(#tuning_line, tp_pos); );
+);
+
+/** pitch line -> tp_cents; returns 1 if it held a pitch */
+function tuning_parse_pitch() local(a, b) (
+  tp_pos = 0;
+  tuning_skip_space();
+  tuning_parse_number() ? (
+    tp_dot ? tp_cents = tp_val : (
+      a = tp_val;
+      b = 1;
+      str_getchar(#tuning_line, tp_pos) === 47 ? ( tp_pos += 1; tuning_parse_number() ? b = tp_val; );
+      tp_cents = a > 0 && b > 0 ? 1200 * log(a / b) / log(2) : 0;
+    );
+    1;
+  ) : 0;
+);
+
+/** read the shared scale file into the tuning table; returns 1 on success */
+function tuning_load_file() local(h, stage, count, k, ok) (
+  ok = 0;
+  h = file_open("AmiSynth/tuning.txt");
+  h >= 0 ? (
+    file_text(h) ? (
+      stage = 0; count = 0; k = 0;
+      while ((stage < 2 || k < count) && file_string(h, #tuning_line) > 0) (
+        str_getchar(#tuning_line, 0) !== 33 ? (
+          stage === 0 ? (
+            stage = 1; // description
+          ) : stage === 1 ? (
+            tp_pos = 0;
+            tuning_skip_space();
+            tuning_parse_number() ? ( count = min(255, floor(tp_val)); stage = 2; );
+          ) : (
+            tuning_parse_pitch() ? ( tuning_tmp[k] = tp_cents; k += 1; );
+          );
+        );
+      );
+      count > 0 && k === count && tuning_tmp[count - 1] > 0 ? ( tuning_set_table(count); ok = 1; );
+    );
+    file_close(h);
+  );
+  ok;
+);
+
 function tuning_note_cents(note) local(steps, period, degree) (
   steps = note - tuning_ref_note;
   period = floor(steps / tuning_size);

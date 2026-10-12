@@ -18,7 +18,7 @@ slider7:string_decay_ms=3000<100,20000,1>String Decay [ms]
 slider8:string_damping=0.35<0,1,0.001>String Damping
 slider9:string_pick_position=0.13<0.02,0.5,0.001>String Pick Position
 slider10:string_brightness=0.7<0,1,0.001>String Pick Brightness
-slider11:modal_material=0<0,7,1{Marimba Bar,Vibraphone Bar,Glockenspiel (free bar),Wine Glass,Church Bell,Drum Membrane,Harmonic (string-like),Kalimba Tine}>Modal Material
+slider11:modal_material=0<0,10,1{Marimba Bar,Vibraphone Bar,Glockenspiel (free bar),Wine Glass,Church Bell,Drum Membrane,Harmonic (string-like),Kalimba Tine,Gong Ageng (gamelan),Kettle Gong (bonang),Tam-tam}>Modal Material
 slider12:modal_decay_ms=1500<50,20000,1>Modal Decay [ms]
 slider13:modal_high_damping=0.5<0,1,0.001>Modal High Mode Damping
 slider14:modal_hardness=0.5<0,1,0.001>Modal Mallet Hardness
@@ -61,6 +61,7 @@ slider50:brass_pressure=0.6<0,1,0.001>Brass Blowing Pressure
 slider51:brass_lip=0.5<0,1,0.001>Brass Lip Buzz
 slider52:brass_attack_ms=30<1,1000,0.1>Brass Attack [ms]
 slider53:brass_bell=0.5<0,1,0.001>Brass Bell Brightness
+slider54:tuning_source=0<0,1,1{EDO sliders,Scale file (Data/AmiSynth/tuning.txt)}>Tuning Source
 // </generated sliders>
 
 import amisynth_lib.jsfx-inc
@@ -150,8 +151,9 @@ function brass_sharp_of(note, mult) local(u, i, fu, j, fv, a, b) (
 noise_seed(12345);
 
 // material tables: ratio / gain, 8 modes each (same values as MATERIALS in phys.js)
-mat_ratio = mem_alloc(8 * NMODES);
-mat_gain = mem_alloc(8 * NMODES);
+NMATERIALS = 11;
+mat_ratio = mem_alloc(8 * NMATERIALS);
+mat_gain = mem_alloc(8 * NMATERIALS);
 function mat_row(m, r0, r1, r2, r3, r4, r5, r6, r7) (
   mat_ratio[m * 8] = r0; mat_ratio[m * 8 + 1] = r1; mat_ratio[m * 8 + 2] = r2; mat_ratio[m * 8 + 3] = r3;
   mat_ratio[m * 8 + 4] = r4; mat_ratio[m * 8 + 5] = r5; mat_ratio[m * 8 + 6] = r6; mat_ratio[m * 8 + 7] = r7;
@@ -168,6 +170,9 @@ mat_row(4, 0.5, 1, 1.183, 1.506, 2, 2.514, 2.662, 3.011);         mat_gains(4, 0
 mat_row(5, 1, 1.593, 2.136, 2.296, 2.653, 2.918, 3.156, 3.501);   mat_gains(5, 1, 0.7, 0.55, 0.5, 0.4, 0.35, 0.3, 0.25);     // membrane
 mat_row(6, 1, 2, 3, 4, 5, 6, 7, 8);                               mat_gains(6, 1, 0.5, 0.33, 0.25, 0.2, 0.17, 0.14, 0.12);   // harmonic
 mat_row(7, 1, 5.93, 13.0, 21.9, 32.6, 45.2, 59.6, 75.8);          mat_gains(7, 1, 0.35, 0.12, 0.05, 0.03, 0.02, 0.01, 0.01); // kalimba
+mat_row(8, 1, 1.004, 2.01, 2.94, 3.98, 4.62, 5.86, 7.12);         mat_gains(8, 1, 0.85, 0.4, 0.3, 0.18, 0.12, 0.08, 0.05);   // gong ageng
+mat_row(9, 1, 1.005, 2.06, 2.73, 3.02, 4.17, 5.11, 6.32);         mat_gains(9, 1, 0.6, 0.45, 0.4, 0.35, 0.15, 0.1, 0.06);    // kettle gong
+mat_row(10, 1, 1.38, 1.83, 2.27, 2.76, 3.31, 3.93, 4.62);         mat_gains(10, 0.7, 0.8, 0.85, 0.8, 0.75, 0.7, 0.6, 0.5);   // tam-tam
 
 v_active = mem_alloc(MAX_VOICES);
 v_note = mem_alloc(MAX_VOICES);
@@ -322,7 +327,7 @@ function voice_tune(keep_decay) instance(hz0 damp_b delay_len delay_len2 loop_ga
     delay_len = clamp(srate / hz - lp_phase_delay(damp_b, hz), 2, MAX_DELAY - 2);
     !keep_decay ? loop_gain = exp(-6.907755 / (hz * max(string_decay_ms, 1) * 0.001));
   ) : model === MODEL_MODAL ? (
-    m = clamp(floor(modal_material + 0.5), 0, 7);
+    m = clamp(floor(modal_material + 0.5), 0, NMATERIALS - 1);
     k = 0;
     loop(NMODES,
       // stretch: ratio^(1+x) bends the series away from / toward harmonic
@@ -1085,7 +1090,9 @@ function handle_midi(m1, m2, m3) local(type) (
 );
 
 @slider
-tuning_set_edo(tuning_divisions, tuning_period_cents);
+// shared scale file (falls back to the EDO sliders when it cannot be read)
+tuning_file_ok = tuning_source >= 0.5 ? tuning_load_file() : 0;
+!tuning_file_ok ? tuning_set_edo(tuning_divisions, tuning_period_cents);
 out_gain = db_to_gain(phys_volume_db);
 string_damp_b = 0.05 + 0.9 * string_damping; // one-pole coefficient in the loop
 model = floor(phys_model + 0.5);

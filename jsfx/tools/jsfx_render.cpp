@@ -10,6 +10,7 @@
 //   midi <frame> <status> <d1> <d2>
 //   tempo <bpm> <playing 0|1>  host tempo; while playing, beat_position = frame * bpm / 60 / sr
 //                             at the start of each block (default: 120 bpm, stopped)
+//   dataroot <dir>            REAPER's Data folder (where file_open("...") looks)
 // Output: interleaved float32 (raw), one channel per out_pin (2 for the synth, 10 for the drums).
 #include "ysfx.h"
 #include <cstdio>
@@ -40,6 +41,7 @@ int main(int argc, char **argv) {
     std::vector<Ev> events;
     double tempo = 120;
     int playing = 0;
+    std::string dataRoot;
     if (argc > 5) {
         FILE *f = std::fopen(argv[5], "r");
         if (!f) { std::perror("script"); return 2; }
@@ -53,6 +55,12 @@ int main(int argc, char **argv) {
             } else if (!std::strcmp(kind, "var")) {
                 char name[256]; double v;
                 if (std::sscanf(line, "%*s %255s %lf", name, &v) == 2) vars.push_back({name, v});
+            } else if (!std::strcmp(kind, "dataroot")) {
+                char dir[1024];
+                if (std::sscanf(line, "%*s %1023[^\r\n]", dir) == 1) {
+                    dataRoot = dir;
+                    if (!dataRoot.empty() && dataRoot.back() != '/' && dataRoot.back() != '\\') dataRoot += '/';
+                }
             } else if (!std::strcmp(kind, "tempo")) {
                 std::sscanf(line, "%*s %lf %d", &tempo, &playing);
             } else if (!std::strcmp(kind, "midi")) {
@@ -68,6 +76,7 @@ int main(int argc, char **argv) {
     ysfx_config_t *config = ysfx_config_new();
     ysfx_set_log_reporter(config, &log_reporter);
     ysfx_guess_file_roots(config, path);
+    if (!dataRoot.empty()) ysfx_set_data_root(config, dataRoot.c_str());
     ysfx_t *fx = ysfx_new(config);
     ysfx_config_free(config);
     if (!ysfx_load_file(fx, path, 0)) { std::fprintf(stderr, "load failed\n"); return 1; }

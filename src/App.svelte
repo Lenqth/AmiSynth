@@ -154,7 +154,7 @@
       a.click();
       setTimeout(() => URL.revokeObjectURL(url), 2000);
       const db = 20 * Math.log10(Math.max(m.peak, 1e-9));
-      exportMsg = `${m.seconds.toFixed(1)} 秒 · ピーク ${db.toFixed(1)} dBFS${m.peak > 1 ? ' (クリップあり: ノーマライズ推奨)' : ''}`;
+      exportMsg = `${m.seconds.toFixed(1)} 秒 · ピーク ${db.toFixed(1)} dBFS · ${Number.isFinite(m.lufs) ? m.lufs.toFixed(1) : '-inf'} LUFS${m.peak > 1 ? ' (クリップあり: ノーマライズ推奨)' : ''}`;
     };
     worker.onerror = (e) => {
       worker.terminate();

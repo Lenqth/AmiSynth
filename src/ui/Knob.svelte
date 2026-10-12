@@ -14,6 +14,10 @@
   let dragging = $state(false);
   let startY = 0;
   let startNorm = 0;
+  // Double tap / double click resets to the default. Detected from pointer events because the
+  // `playable` action cancels touchstart (for multi-finger playing), so touch never gets dblclick.
+  let lastDownTime = 0;
+  let lastDownY = 0;
 
   function arc(a0, a1, r = 20) {
     const p = (a) => {
@@ -28,6 +32,14 @@
 
   function pointerdown(e) {
     if (disabled || e.button !== 0) return;
+    const now = e.timeStamp;
+    if (now - lastDownTime < 350 && Math.abs(e.clientY - lastDownY) < 24) {
+      lastDownTime = 0;
+      if (value !== def.default) onchange(def.default);
+      return;
+    }
+    lastDownTime = now;
+    lastDownY = e.clientY;
     e.currentTarget.setPointerCapture(e.pointerId);
     e.currentTarget.focus();
     dragging = true;
@@ -76,7 +88,7 @@
   }
 </script>
 
-<div class="knob" class:disabled title={`${def.name}\n${def.description}\n[${def.id}] ダブルクリックで既定値、値をクリックで数値入力、Shift+ドラッグで微調整`}>
+<div class="knob" class:disabled title={`${def.name}\n${def.description}\n[${def.id}] ダブルクリック / ダブルタップで既定値、値をクリックで数値入力、Shift+ドラッグで微調整`}>
   <div
     use:playable
     class="dial"
@@ -93,7 +105,6 @@
     onpointermove={pointermove}
     onpointerup={pointerup}
     onpointercancel={pointerup}
-    ondblclick={() => !disabled && onchange(def.default)}
     onkeydown={keydown}
     onwheel={wheel}
   >

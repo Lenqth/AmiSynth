@@ -3,7 +3,8 @@
 // Skipped automatically when the tool is not available (e.g. Cloudflare builds).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { compare, INSTRUMENTS, renderJs, renderJsfx, scenario } from '../scripts/jsfx-compare.js';
 import { JSFX_FILES, withSliders } from '../scripts/gen-jsfx-sliders.js';
@@ -12,6 +13,7 @@ import { SYNTH_PRESETS } from '../src/presets/synth.js';
 import { PHYS_PRESETS } from '../src/presets/phys.js';
 import { DRUM_PRESETS } from '../src/presets/drums.js';
 import { DRUM_PARTS } from '../src/dsp/params.js';
+import { parseScale } from '../src/lib/tuning.js';
 
 const BIN = process.env.JSFX_RENDER || join(import.meta.dirname, '..', '.cache', process.platform === 'win32' ? 'jsfx_render.exe' : 'jsfx_render');
 const HAVE = existsSync(BIN);
@@ -150,4 +152,60 @@ test('JSFX synth matches JS: mono / legato, transpose, 9-voice unison, synced LF
 test('JSFX drums match JS with groups left out of the main mix (separate outputs)', { skip: !HAVE && 'jsfx_render not built' }, () => {
   const hits = DRUM_PARTS.map((part, i) => [i * 2400, 0x90, part.note, 100]);
   check('drums', scenario('drums', { kick_bus_in_main: 0, hats_bus_in_main: 0 }), hits, 0.8, 'drums/buses off');
+});
+
+// a Scala file the way people write them: comments, a blank-ish description, ratios, cents, a whole number
+const SCALA_7 = `! slendro-ish 7 note test scale
+!
+Test scale for AmiSynth
+ 7
+!
+ 9/8
+ 233.5 cents
+ 6/5
+ 498.04
+ 3/2
+ 813.686
+ 2
+`;
+
+test('JSFX reads the shared Scala scale file (Data/AmiSynth/tuning.txt) like the web scale loader', { skip: !HAVE && 'jsfx_render not built' }, () => {
+  const dataRoot = mkdtempSync(join(tmpdir(), 'amidata-'));
+  mkdirSync(join(dataRoot, 'AmiSynth'));
+  writeFileSync(join(dataRoot, 'AmiSynth', 'tuning.txt'), SCALA_7.replace(/\n/g, '\r\n'));
+  const { cents } = parseScale(SCALA_7);
+  const host = { tempo: 120, playing: 0, scale: { cents, dataRoot } };
+  checkHost('synth', scenario('synth', { tuning_source: 1, tuning_ref_note: 60, tuning_ref_hz: 261.6256 }), PERFORMANCE, 0.7, 'synth/scale file', host);
+  checkHost('phys', scenario('phys', { tuning_source: 1, phys_model: 1, modal_material: 9 }), PERFORMANCE, 0.7, 'phys/scale file', host);
+  // the file really changes the pitch: compare against the 12-EDO render
+  const inst = INSTRUMENTS.synth;
+  const frames = SR * 0.3;
+  const withFile = renderJsfx(BIN, inst, scenario('synth', { tuning_source: 1 }), PERFORMANCE, SR, frames, host);
+  const edo = renderJsfx(BIN, inst, scenario('synth'), PERFORMANCE, SR, frames, host);
+  assert.ok(compare(withFile, edo).snrDb < 20, 'scale file had no effect');
+  // missing file: falls back to the EDO sliders
+  const missing = { tempo: 120, playing: 0, scale: { cents, dataRoot: join(dataRoot, 'nowhere') } };
+  const r = compare(renderJs(inst, scenario('synth', { tuning_divisions: 19 }), PERFORMANCE, SR, frames),
+    renderJsfx(BIN, inst, scenario('synth', { tuning_source: 1, tuning_divisions: 19 }), PERFORMANCE, SR, frames, missing));
+  assert.ok(r.snrDb > MIN_SNR_DB, `fallback differs (SNR ${r.snrDb.toFixed(1)} dB)`);
+});
+
+test('JSFX synth matches JS: chip / S&H noise, noise filter, cutoff CC', { skip: !HAVE && 'jsfx_render not built' }, () => {
+  const sweep = [...PERFORMANCE, [3000, 0xb0, 74, 0], [8000, 0xb0, 74, 127], [15000, 0xb0, 74, 90], [21000, 0xb0, 71, 10]]
+    .sort((a, b) => a[0] - b[0]);
+  const cases = [
+    ['chip long', { noise_type: 1, noise_level: 0.8, osc1_level: 0, osc2_level: 0 }],
+    ['chip short + band-pass', { noise_type: 2, noise_level: 0.8, noise_clock_oct: -1, noise_filter_mode: 3, noise_filter_hz: 2500 }],
+    ['S&H + high-pass, glide', { noise_type: 3, noise_level: 0.6, noise_clock_oct: 2, noise_filter_mode: 2, glide_ms: 80 }],
+    ['white + low-pass', { noise_level: 0.5, noise_filter_mode: 1, noise_filter_hz: 800 }],
+    ['cutoff CC74', { cc_cutoff_depth_oct: 6 }],
+    ['cutoff CC71', { cc_cutoff_number: 71, filter_resonance: 0.8 }],
+  ];
+  for (const [label, over] of cases) check('synth', scenario('synth', over), sweep, 0.7, `synth/${label}`);
+});
+
+test('JSFX physical model matches JS for the gong materials', { skip: !HAVE && 'jsfx_render not built' }, () => {
+  for (const m of [8, 9, 10]) {
+    check('phys', scenario('phys', { phys_model: 1, modal_material: m, modal_decay_ms: 6000 }), PERFORMANCE, 0.7, `phys/material ${m}`);
+  }
 });

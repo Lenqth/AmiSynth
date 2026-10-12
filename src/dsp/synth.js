@@ -50,6 +50,8 @@ function voice_create() {
     sub: {},
     filt_l1: {}, filt_l2: {}, filt_r1: {}, filt_r2: {},
     amp_env: {}, filt_env: {},
+    // chip / S&H noise: shift register, clock phase, current output; noise-only filter
+    nz_reg: 1, nz_phase: 0, nz_out: 0, nz_filt: {},
   };
   for (let u = 0; u < MAX_UNISON; u++) {
     v.osc1.push({});
@@ -65,7 +67,35 @@ function voice_create() {
   svf_init(v.filt_r2);
   adsr_init(v.amp_env);
   adsr_init(v.filt_env);
+  svf_init(v.nz_filt);
   return v;
+}
+
+// Clock of the chip / S&H noise in multiples of the note frequency (at Noise Clock 0).
+// Chip Short repeats every 93 clocks, so x93 puts its tone on the note.
+const NOISE_CLOCK = [0, 32, 93, 8];
+
+/**
+ * One sample of the voice's chip / S&H noise. The 15-bit shift register of 8-bit consoles is
+ * done in plain arithmetic (no bit operators) so that EEL2 computes exactly the same thing:
+ * feedback = bit0 XOR bit1 (long, 32767 steps) or bit0 XOR bit6 (short, 93 steps).
+ */
+function voice_noise(s, v, hz) {
+  v.nz_phase += Math.min(1, (hz * s.noise_clock) / s.sr);
+  if (v.nz_phase >= 1) {
+    v.nz_phase -= 1;
+    if (s.noise_type === 3) {
+      v.nz_out = noise_white();
+    } else {
+      const r = v.nz_reg;
+      const tap = s.noise_type === 2 ? 64 : 2;
+      const b0 = r - 2 * Math.floor(r / 2);
+      const bx = Math.floor(r / tap) - 2 * Math.floor(r / (2 * tap));
+      v.nz_reg = Math.floor(r / 2) + (b0 === bx ? 0 : 16384);
+      v.nz_out = v.nz_reg - 2 * Math.floor(v.nz_reg / 2) ? 1 : -1;
+    }
+  }
+  return v.nz_out;
 }
 
 export function synth_init(s, sr) {
@@ -112,6 +142,8 @@ export function synth_init(s, sr) {
   };
   s.arp_pattern = new Array(16).fill(1);
   s.arp_mode = 0;
+  s.cc_cutoff_value = 64; // last value of the cutoff CC (64 = centre, no change)
+  s.cc_mult = 1;
   s.p = {};
   s.out_l = 0;
   s.out_r = 0;
@@ -136,6 +168,11 @@ export function synth_update(s, p) {
   s.drive_makeup = 1 / (1 + 1.5 * p.filter_drive);
   s.fm_cycles = p.fm_index / TWO_PI;
   s.transpose = Math.round(p.transpose_semitones);
+  s.noise_type = clamp(Math.round(p.noise_type), 0, 3);
+  s.noise_clock = NOISE_CLOCK[s.noise_type] * Math.pow(2, p.noise_clock_oct);
+  s.noise_filter = clamp(Math.round(p.noise_filter_mode), 0, 3);
+  s.cc_cutoff_num = Math.round(p.cc_cutoff_number);
+  s.cc_mult = Math.pow(2, clamp((s.cc_cutoff_value - 64) / 63, -1, 1) * p.cc_cutoff_depth_oct);
   s.mono = p.voice_mode >= 0.5 ? 1 : 0;
   s.legato = p.voice_mode >= 1.5 ? 1 : 0;
 
@@ -174,6 +211,7 @@ export function synth_update(s, p) {
     const v = s.voices[i];
     adsr_set(v.amp_env, p.amp_attack_ms, p.amp_decay_ms, p.amp_sustain, p.amp_release_ms, s.sr);
     adsr_set(v.filt_env, p.filter_env_attack_ms, p.filter_env_decay_ms, p.filter_env_sustain, p.filter_env_release_ms, s.sr);
+    svf_set(v.nz_filt, p.noise_filter_hz, 1, s.sr);
     if (v.active) v.base_hz = tuning_note_to_hz(s.tuning, v.pitch);
   }
 }
@@ -241,6 +279,10 @@ function voice_reset(s, v) {
     v.prev2[u] = 0;
   }
   osc_reset(v.sub, 0);
+  v.nz_reg = 1;
+  v.nz_phase = 0;
+  v.nz_out = 0;
+  svf_reset(v.nz_filt);
   svf_reset(v.filt_l1);
   svf_reset(v.filt_l2);
   svf_reset(v.filt_r1);
@@ -531,6 +573,14 @@ function synth_release_all(s) {
   s.arp.snd_n = 0;
 }
 
+/** Control change (the ones not handled by synth_midi): the cutoff CC. */
+export function synth_cc(s, number, value) {
+  if (s.cc_cutoff_num > 0 && number === s.cc_cutoff_num) {
+    s.cc_cutoff_value = value;
+    s.cc_mult = Math.pow(2, clamp((value - 64) / 63, -1, 1) * s.p.cc_cutoff_depth_oct);
+  }
+}
+
 export function synth_all_notes_off(s) {
   synth_release_all(s);
 }
@@ -580,7 +630,7 @@ export function synth_render(s) {
   const osc2_cents = p.osc2_transpose_cents + p.osc2_detune_cents;
   const osc2_env = p.osc2_env_pitch_cents;
   const osc2_ratio = Math.pow(2, osc2_cents / 1200);
-  const cutoff = smoother_process(s.cutoff_smooth, s.cutoff_target);
+  const cutoff = smoother_process(s.cutoff_smooth, s.cutoff_target * s.cc_mult);
   const lfo_filter_oct = lfo * (p.lfo_filter_oct + s.modwheel * p.modwheel_filter_oct);
   const pw_mod = lfo * p.lfo_pulse_width;
   const pw1 = clamp(p.osc1_pulse_width + pw_mod, 0.02, 0.98);
@@ -644,7 +694,14 @@ export function synth_render(s) {
       osc_set_freq(v.sub, hz * 0.5, sr);
       common += osc_process(v.sub, 1, 0.5, 0) * p.sub_osc_level;
     }
-    if (p.noise_level > 0) common += noise_white() * p.noise_level;
+    if (p.noise_level > 0) {
+      let nz = s.noise_type === 0 ? noise_white() : voice_noise(s, v, hz);
+      if (s.noise_filter > 0) {
+        svf_process(v.nz_filt, nz);
+        nz = svf_output(v.nz_filt, s.noise_filter - 1);
+      }
+      common += nz * p.noise_level;
+    }
     xl += common;
     if (stereo) xr += common;
     if (drive) {

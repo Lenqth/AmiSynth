@@ -111,6 +111,12 @@ export const MATERIALS = [
   { name: 'Drum Membrane', ratios: [1, 1.593, 2.136, 2.296, 2.653, 2.918, 3.156, 3.501], gains: [1, 0.7, 0.55, 0.5, 0.4, 0.35, 0.3, 0.25] },
   { name: 'Harmonic (string-like)', ratios: [1, 2, 3, 4, 5, 6, 7, 8], gains: [1, 0.5, 0.33, 0.25, 0.2, 0.17, 0.14, 0.12] },
   { name: 'Kalimba Tine', ratios: [1, 5.93, 13.0, 21.9, 32.6, 45.2, 59.6, 75.8], gains: [1, 0.35, 0.12, 0.05, 0.03, 0.02, 0.01, 0.01] },
+  // Gongs (approximate): a large bossed gamelan gong has a strong fundamental with a near twin
+  // 0.4 % above it (the slow beating, "ombak"), then roughly harmonic partials; a small kettle gong
+  // is brighter with a cluster near 2.7-3x; a flat tam-tam is a dense, nearly even spread of modes.
+  { name: 'Gong Ageng (gamelan)', ratios: [1, 1.004, 2.01, 2.94, 3.98, 4.62, 5.86, 7.12], gains: [1, 0.85, 0.4, 0.3, 0.18, 0.12, 0.08, 0.05] },
+  { name: 'Kettle Gong (bonang)', ratios: [1, 1.005, 2.06, 2.73, 3.02, 4.17, 5.11, 6.32], gains: [1, 0.6, 0.45, 0.4, 0.35, 0.15, 0.1, 0.06] },
+  { name: 'Tam-tam', ratios: [1, 1.38, 1.83, 2.27, 2.76, 3.31, 3.93, 4.62], gains: [0.7, 0.8, 0.85, 0.8, 0.75, 0.7, 0.6, 0.5] },
 ];
 
 const MESH_CELLS = MESH_W * MESH_W;
