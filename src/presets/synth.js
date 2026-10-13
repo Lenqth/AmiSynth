@@ -264,4 +264,108 @@ export const SYNTH_PRESETS = [
       filter_env_amount_oct: 0, amp_attack_ms: 0.5, amp_decay_ms: 400, amp_sustain: 0.3, amp_release_ms: 120,
     },
   },
+  {
+    name: 'Rubber Mono Bass', category: 'Bass',
+    description: 'Rounded pulse/sub bass with a quick resonant envelope. Detached notes punch; overlaps slide.',
+    params: {
+      master_volume_db: -0.9, osc1_waveform: 1, osc1_pulse_width: 0.42, osc2_level: 0, sub_osc_level: 0.35,
+      filter_cutoff_hz: 180, filter_resonance: 0.48, filter_env_amount_oct: 3.5, filter_env_attack_ms: 1,
+      filter_env_decay_ms: 140, filter_env_sustain: 0, filter_drive: 0.15, amp_attack_ms: 1,
+      amp_decay_ms: 260, amp_sustain: 0.6, amp_release_ms: 50, voice_mode: 1, glide_ms: 65, glide_mode: 1,
+    },
+  },
+  {
+    name: 'Reese Bass', category: 'Bass',
+    description: 'Detuned saw pair with a sub foundation and slow filter movement. Play single low notes.',
+    params: {
+      master_volume_db: -6.2, osc2_waveform: 0, osc2_level: 0.8, osc2_detune_cents: -18, sub_osc_level: 0.25,
+      unison_voices: 3, unison_detune_cents: 22, unison_stereo_width: 0.45, filter_cutoff_hz: 650,
+      filter_resonance: 0.18, filter_env_amount_oct: 0, filter_drive: 0.25, lfo_rate_hz: 0.18,
+      lfo_filter_oct: 0.35, amp_attack_ms: 8, amp_sustain: 1, amp_release_ms: 100, voice_mode: 1,
+    },
+  },
+  {
+    name: 'Hollow Pulse Lead', category: 'Lead',
+    description: 'Narrow pulse with triangle body and gentle PWM; mono legato for lyrical melodies.',
+    params: {
+      master_volume_db: -7.9, osc1_waveform: 1, osc1_pulse_width: 0.22, osc2_waveform: 2,
+      osc2_level: 0.35, osc2_detune_cents: 3, filter_cutoff_hz: 3800, filter_resonance: 0.15,
+      filter_env_amount_oct: 0.7, lfo_rate_hz: 4.8, lfo_pulse_width: 0.08, modwheel_vibrato_cents: 45,
+      amp_attack_ms: 12, amp_sustain: 0.85, amp_release_ms: 160, voice_mode: 2, glide_ms: 75, glide_mode: 1,
+    },
+  },
+  {
+    name: 'Soft Sine Lead', category: 'Lead',
+    description: 'Pure sine with a faint octave overtone, slow legato slides and mod-wheel vibrato.',
+    params: {
+      master_volume_db: -9.3, osc1_waveform: 3, osc1_level: 1, osc2_waveform: 3, osc2_level: 0.12,
+      osc2_transpose_cents: 1200, osc2_detune_cents: 0, filter_cutoff_hz: 6000, filter_resonance: 0,
+      filter_env_amount_oct: 0, amp_attack_ms: 15, amp_sustain: 1, amp_release_ms: 220,
+      voice_mode: 2, glide_ms: 110, glide_mode: 1, modwheel_vibrato_cents: 35,
+    },
+  },
+  {
+    name: 'Poly Chord Stab', category: 'Chord',
+    description: 'Short saw/pulse chord hits without an arpeggiator. Use off-beat MIDI chords for house or pop.',
+    params: {
+      master_volume_db: 2.7, osc2_waveform: 1, osc2_pulse_width: 0.35, osc2_level: 0.55,
+      unison_voices: 3, unison_detune_cents: 14, unison_stereo_width: 0.8, filter_cutoff_hz: 700,
+      filter_resonance: 0.2, filter_env_amount_oct: 3, filter_env_attack_ms: 1, filter_env_decay_ms: 180,
+      filter_env_sustain: 0, amp_attack_ms: 1, amp_decay_ms: 340, amp_sustain: 0.08, amp_release_ms: 90,
+    },
+  },
+  {
+    name: 'Slow Chord Wash', category: 'Pad',
+    description: 'Soft triangle/pulse layers, rising filter and subtle stereo drift. Release before the next large chord.',
+    params: {
+      master_volume_db: -10.3, osc1_waveform: 2, osc2_waveform: 1, osc2_pulse_width: 0.4, osc2_level: 0.45,
+      unison_voices: 4, unison_detune_cents: 11, unison_stereo_width: 1, filter_cutoff_hz: 1100,
+      filter_resonance: 0.08, filter_env_amount_oct: 1.4, filter_env_attack_ms: 1100,
+      filter_env_decay_ms: 2200, filter_env_sustain: 0.6, filter_env_release_ms: 1800,
+      amp_attack_ms: 650, amp_sustain: 0.9, amp_release_ms: 1600, lfo_rate_hz: 0.22, lfo_pulse_width: 0.12,
+    },
+  },
+  {
+    name: 'Glass Pluck', category: 'Keys',
+    description: 'Octave-ratio sine FM with a short glassy transient; play individual notes or small chords.',
+    params: {
+      master_volume_db: -1.8, osc1_waveform: 3, osc1_level: 1, osc2_waveform: 3, osc2_level: 0,
+      osc2_transpose_cents: 1200, osc2_detune_cents: 0, fm_index: 1.8, filter_cutoff_hz: 10000,
+      filter_resonance: 0, filter_env_amount_oct: 0, amp_attack_ms: 1, amp_decay_ms: 650,
+      amp_sustain: 0, amp_release_ms: 260, amp_velocity_amount: 0.9,
+    },
+  },
+  {
+    name: 'Dusty Keys', category: 'Keys',
+    description: 'Dark triangle/pulse keys with a little filtered noise and slow pitch wobble. No samples or bit crusher.',
+    params: {
+      master_volume_db: -2.3, osc1_waveform: 2, osc2_waveform: 1, osc2_level: 0.18, osc2_detune_cents: -5,
+      noise_level: 0.025, noise_filter_mode: 1, noise_filter_hz: 1200, filter_cutoff_hz: 1300,
+      filter_resonance: 0.12, filter_env_amount_oct: 0.6, filter_env_decay_ms: 450,
+      amp_attack_ms: 6, amp_decay_ms: 1300, amp_sustain: 0.25, amp_release_ms: 350,
+      lfo_rate_hz: 0.7, lfo_pitch_cents: 5,
+    },
+  },
+  {
+    name: 'Triplet Cascade', category: 'Arp',
+    description: 'Hold a chord for a descending two-octave triplet arpeggio; short pulse/triangle plucks.',
+    params: {
+      master_volume_db: -3.8, osc1_waveform: 1, osc1_pulse_width: 0.3, osc2_waveform: 2, osc2_level: 0.4,
+      filter_cutoff_hz: 1400, filter_resonance: 0.22, filter_env_amount_oct: 2,
+      filter_env_attack_ms: 1, filter_env_decay_ms: 120, filter_env_sustain: 0,
+      amp_attack_ms: 1, amp_decay_ms: 210, amp_sustain: 0.1, amp_release_ms: 60,
+      arp_mode: 2, arp_rate: 5, arp_octaves: 2, arp_gate: 0.55,
+    },
+  },
+  {
+    name: 'Rhythmic Steps', category: 'Arp',
+    description: 'Hold a chord for a swung, five-step up/down pattern with a rest on step 3. Follows host tempo.',
+    params: {
+      master_volume_db: 2.3, osc2_waveform: 0, osc2_level: 0.35, filter_cutoff_hz: 850,
+      filter_resonance: 0.4, filter_env_amount_oct: 2.8, filter_env_attack_ms: 1,
+      filter_env_decay_ms: 110, filter_env_sustain: 0, amp_attack_ms: 1, amp_decay_ms: 200,
+      amp_sustain: 0.15, amp_release_ms: 50, arp_mode: 3, arp_rate: 4, arp_octaves: 2,
+      arp_gate: 0.5, arp_swing_percent: 60, arp_steps: 5, arp_step_3: 0,
+    },
+  },
 ];

@@ -35,6 +35,21 @@
 
 開いた時点の FX に固定して操作します。FX を移動・削除したら開き直してください。パラメーターの名前・範囲がカタログと違う旧版には適用しません。各変更は実値で読み返して検証し、失敗時は元の値へ戻します。
 
+追加の音色は Web 版と Companion の両方で選択できます。全体で Synth 33種、Physical 39種、Drums 8キットです。新しい17種の用途は次のとおりです。
+
+| 音源・用途 | プリセット | 演奏のヒント |
+| --- | --- | --- |
+| Synth / Bass | Rubber Mono Bass、Reese Bass | 低い単音。前者は短い打ち込みと重ねたノートのグライド、後者は持続するリフ向け |
+| Synth / Lead | Hollow Pulse Lead、Soft Sine Lead | ノートを重ねてレガート。Mod Wheel でビブラートを追加 |
+| Synth / Chord / Pad | Poly Chord Stab、Slow Chord Wash | 短い裏拍コード／緩やかな持続コード。Wash は長いリリースが重なるので8ボイスの表示を確認 |
+| Synth / Keys | Glass Pluck、Dusty Keys | 明るいFMプラック／暗めの鍵盤。小さな和音や単音のフレーズに |
+| Synth / Arp | Triplet Cascade、Rhythmic Steps | 和音を押さえると2オクターブの下降3連符／休符入りのスウィング5ステップ。ホストのテンポに同期 |
+| Physical / String / Keys | Muted Nylon、Felt Piano | 短い指弾き風の伴奏／柔らかいハンマーのピアノ風テクスチャ |
+| Physical / Mallet / Wind | Glass Atmosphere、Pure Flute | 長く響くガラス系の打音／息のノイズが少ないフルート風の旋律 |
+| Drums / Kit | Dry House、Synthwave Arena、Soft Percussion | 短いハウス用／長めのスネアとタムのレトロポップ用／控えめなシンバルと前に出るシェイカー |
+
+音量は既存と同じ試験フレーズで約−18 LUFSに調整しています。曲中の音量は音域・和音数・ベロシティ・演奏密度でも変わるので、メーターを見ながら合わせてください。
+
 ### MCP 向けのカタログ・設定検証
 
 `generated/automation.json` は、最小／最大値・単位・列挙値・機能グループに加え、`slider`(1始まり)、`paramIndex`(0始まり)、`valueDomain`、プリセットの id→実値、マクロの対象を含みます。`npm run gen:jsfx` で元定義から再生成します。従来の `params.json` / `presets.json` も維持しています。
