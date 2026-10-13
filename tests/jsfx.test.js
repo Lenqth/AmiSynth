@@ -221,3 +221,55 @@ test('JSFX physical model matches JS through every guitar amp type', { skip: !HA
     }
   }
 });
+
+// ---- shared scales: an AmiSynth Tuning instance runs before the instrument (jsfx_render "pre")
+
+test('JSFX instruments follow a shared AmiSynth Tuning slot, also when it changes mid-song', { skip: !HAVE && 'jsfx_render not built' }, () => {
+  const cents = [175.4, 351, 498, 702, 877.4, 1053, 1200];
+  const changed = [175.4, 351, 520, 702, 877.4, 1053, 1200];
+  const sliders = { tuning_slot: 2, scale_size: 7, scale_ref_note: 60, scale_ref_hz: 261.6256 };
+  cents.forEach((c, i) => (sliders[`scale_degree_${i + 1}`] = c));
+  const pre = { sliders, timed: [[12800, 'scale_degree_3', 520], [12800, 'scale_ref_hz', 270]] };
+  // the instrument's own reference and EDO sliders must be ignored while it follows the slot
+  const own = { tuning_source: 2, tuning_slot: 2, tuning_divisions: 19, tuning_ref_note: 69, tuning_ref_hz: 440 };
+  const inst = INSTRUMENTS.synth;
+  const frames = Math.round(SR * 0.7);
+  const host = {
+    tempo: 120, playing: 0,
+    onBlock(s, frame) {
+      if (frame === 0) inst.scale(s, cents, cents.length);
+      if (frame === 12800) {
+        s.p = { ...s.p, tuning_ref_hz: 270 };
+        inst.scale(s, changed, changed.length);
+      }
+    },
+  };
+  const js = renderJs(inst, scenario('synth', { ...own, tuning_ref_note: 60, tuning_ref_hz: 261.6256 }), PERFORMANCE, SR, frames, host);
+  const jsfx = renderJsfx(BIN, inst, scenario('synth', own), PERFORMANCE, SR, frames, { tempo: 120, playing: 0, pre });
+  const r = compare(js, jsfx);
+  assert.ok(r.rms > 1e-4 && r.snrDb > MIN_SNR_DB, `shared slot: SNR ${r.snrDb.toFixed(1)} dB`);
+  // it really is the shared scale (not the 19-EDO sliders)
+  const edo = renderJsfx(BIN, inst, scenario('synth', { tuning_divisions: 19 }), PERFORMANCE, SR, frames);
+  assert.ok(compare(jsfx, edo).snrDb < 20, 'the slot had no effect');
+});
+
+test('JSFX AmiSynth Tuning reads a Scala file chosen by name, and an empty slot falls back to EDO', { skip: !HAVE && 'jsfx_render not built' }, () => {
+  const dataRoot = mkdtempSync(join(tmpdir(), 'amidata-'));
+  mkdirSync(join(dataRoot, 'AmiSynth'));
+  writeFileSync(join(dataRoot, 'AmiSynth', 'a_other.txt'), 'other\n 2\n 600.0\n 2/1\n');
+  writeFileSync(join(dataRoot, 'AmiSynth', 'slendro7.txt'), SCALA_7);
+  const { cents } = parseScale(SCALA_7);
+  // files are listed alphabetically: 0 = a_other.txt, 1 = slendro7.txt
+  const pre = { sliders: { tuning_slot: 3, scale_source: 1, scale_file: 1, scale_ref_note: 62, scale_ref_hz: 293.6648, scale_size: 2 } };
+  const own = { tuning_source: 2, tuning_slot: 3, phys_model: 1, modal_material: 9 };
+  const host = { tempo: 120, playing: 0, scale: { cents, dataRoot }, pre };
+  const inst = INSTRUMENTS.phys;
+  const frames = Math.round(SR * 0.7);
+  const r = compare(renderJs(inst, scenario('phys', { ...own, tuning_ref_note: 62, tuning_ref_hz: 293.6648 }), PERFORMANCE, SR, frames, host),
+    renderJsfx(BIN, inst, scenario('phys', own), PERFORMANCE, SR, frames, host));
+  assert.ok(r.rms > 1e-4 && r.snrDb > MIN_SNR_DB, `scale file via AmiSynth Tuning: SNR ${r.snrDb.toFixed(1)} dB`);
+  // following slot 5, which nobody publishes: the instrument's own EDO sliders
+  const empty = compare(renderJs(INSTRUMENTS.synth, scenario('synth', { tuning_divisions: 19 }), PERFORMANCE, SR, frames),
+    renderJsfx(BIN, INSTRUMENTS.synth, scenario('synth', { tuning_source: 2, tuning_slot: 5, tuning_divisions: 19 }), PERFORMANCE, SR, frames, { pre }));
+  assert.ok(empty.snrDb > MIN_SNR_DB, `empty slot fallback: SNR ${empty.snrDb.toFixed(1)} dB`);
+});

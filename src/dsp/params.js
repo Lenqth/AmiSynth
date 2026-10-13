@@ -43,14 +43,23 @@ export const TUNING_PARAMS = /** @type {ParamDef[]} */ ([
     description: 'Frequency of the reference note.' },
 ]);
 
+/** Number of shared scale slots (one "AmiSynth Tuning" JSFX per slot). */
+export const TUNING_SLOTS = 8;
+/** Notes per period an AmiSynth Tuning instance can hold in its sliders (files can hold more). */
+export const TUNING_MAX_DEGREES = 32;
+
 /**
- * JSFX only: read the scale from a shared Scala file instead of the EDO sliders, so every track of
- * a microtonal song follows one file. The web app loads scales in its Tuning panel instead.
+ * JSFX only: where the scale comes from, so every track of a microtonal song can follow one
+ * definition. The web app loads scales in its Tuning panel instead.
  */
 const TUNING_SOURCE = /** @type {ParamDef} */ ({
-  id: 'tuning_source', name: 'Tuning Source', group: 'Tuning', min: 0, max: 1, default: 0, step: 1, unit: '',
-  options: ['EDO sliders', 'Scale file (Data/AmiSynth/tuning.txt)'],
-  description: 'EDO sliders: Tuning Divisions / Period. Scale file: a Scala (.scl) scale saved as REAPER/Data/AmiSynth/tuning.txt, shared by every instance set to it (re-read on playback start or any slider change; falls back to the EDO sliders if the file is missing). Reference note / frequency still apply.',
+  id: 'tuning_source', name: 'Tuning Source', group: 'Tuning', min: 0, max: 2, default: 0, step: 1, unit: '',
+  options: ['EDO sliders', 'Scale file (Data/AmiSynth/tuning.txt)', 'Shared (AmiSynth Tuning)'],
+  description: 'EDO sliders: Tuning Divisions / Period. Scale file: a Scala (.scl) scale saved as REAPER/Data/AmiSynth/tuning.txt (re-read on playback start or any slider change). Shared: the scale (and reference note / frequency) published by an "AmiSynth Tuning" JSFX on any track for the slot in Tuning Slot; changes there apply at once. Falls back to the EDO sliders when the file / slot is empty.',
+});
+const TUNING_SLOT = /** @type {ParamDef} */ ({
+  id: 'tuning_slot', name: 'Tuning Slot', group: 'Tuning', min: 1, max: TUNING_SLOTS, default: 1, step: 1, unit: '',
+  description: 'Which AmiSynth Tuning instance to follow when Tuning Source is Shared (its Slot number), so one song can use several scales.',
 });
 
 export const SYNTH_PARAMS = /** @type {ParamDef[]} */ ([
@@ -201,6 +210,7 @@ export const SYNTH_PARAMS = /** @type {ParamDef[]} */ ([
   { id: 'cc_cutoff_depth_oct', name: 'Cutoff CC Depth', group: 'Filter', min: 0, max: 8, default: 4, step: 0.01, unit: 'oct',
     description: 'How far the cutoff CC moves the cutoff: CC 0 = this many octaves down, CC 127 = up.' },
   TUNING_SOURCE,
+  TUNING_SLOT,
 ]);
 
 // ---------------------------------------------------------------------------
@@ -333,6 +343,34 @@ export const PHYS_PARAMS = /** @type {ParamDef[]} */ ([
     description: 'Brightness of the speaker cabinet (its high-frequency roll-off).' },
   { id: 'amp_level_db', name: 'Amp Level', group: 'Amp', min: -24, max: 12, default: 0, step: 0.1, unit: 'dB',
     description: 'Output level of the amp.' },
+  TUNING_SLOT,
+]);
+
+// ---------------------------------------------------------------------------
+// AmiSynth Tuning (JSFX only): holds a scale and shares it with the instruments
+
+/**
+ * Parameters of "AmiSynth Tuning". The scale is kept in sliders (real cents values, so MCP tools
+ * can write it by name) or read from a Scala file in REAPER/Data/AmiSynth/ chosen by name.
+ * `file` marks a JSFX file-chooser slider (its value is the index of the file in that folder).
+ */
+export const TUNING_HOLDER_PARAMS = /** @type {(ParamDef & {file?: {dir:string, default:string}})[]} */ ([
+  { id: 'tuning_slot', name: 'Slot', group: 'Shared Scale', min: 1, max: TUNING_SLOTS, default: 1, step: 1, unit: '',
+    description: 'Slot this scale is published to. Instruments with Tuning Source = Shared and the same Tuning Slot follow it.' },
+  { id: 'scale_source', name: 'Scale Source', group: 'Shared Scale', min: 0, max: 1, default: 0, step: 1, unit: '', options: ['Sliders', 'File'],
+    description: 'Sliders: Scale Size + Degree 1..N below. File: the Scala file chosen in Scale File (falls back to the sliders if it cannot be read).' },
+  { id: 'scale_file', name: 'Scale File', group: 'Shared Scale', min: 0, max: 0, default: 0, step: 1, unit: '', file: { dir: '/AmiSynth', default: 'tuning.txt' },
+    description: 'A Scala (.scl) scale saved with a .txt name in REAPER/Data/AmiSynth/ (the value is its position in that folder, alphabetical).' },
+  { id: 'scale_ref_note', name: 'Reference Note', group: 'Shared Scale', min: 0, max: 127, default: 69, step: 1, unit: 'note',
+    description: 'MIDI note that sounds at the reference frequency (replaces the instruments\' own reference while they follow this slot).' },
+  { id: 'scale_ref_hz', name: 'Reference Frequency', group: 'Shared Scale', min: 100, max: 1000, default: 440, step: 0.01, unit: 'Hz',
+    description: 'Frequency of the reference note.' },
+  { id: 'scale_size', name: 'Scale Size', group: 'Shared Scale', min: 1, max: TUNING_MAX_DEGREES, default: 12, step: 1, unit: 'notes',
+    description: 'Notes per period (Degree 1..this; the last one is the period, e.g. 1200 cents for an octave).' },
+  ...Array.from({ length: TUNING_MAX_DEGREES }, (_, i) => ({
+    id: `scale_degree_${i + 1}`, name: `Degree ${i + 1}`, group: 'Degrees', min: 0, max: 4800, default: (i + 1) * 100, step: 0.001, unit: 'cents',
+    description: `Pitch of scale degree ${i + 1} above the reference, in cents (Scala order: degree 0 = 0 cents is implied; degree Scale Size = the period).`,
+  })),
 ]);
 
 // ---------------------------------------------------------------------------

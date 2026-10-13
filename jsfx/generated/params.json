@@ -1083,15 +1083,27 @@
       "name": "Tuning Source",
       "group": "Tuning",
       "min": 0,
-      "max": 1,
+      "max": 2,
       "default": 0,
       "step": 1,
       "unit": "",
       "options": [
         "EDO sliders",
-        "Scale file (Data/AmiSynth/tuning.txt)"
+        "Scale file (Data/AmiSynth/tuning.txt)",
+        "Shared (AmiSynth Tuning)"
       ],
-      "description": "EDO sliders: Tuning Divisions / Period. Scale file: a Scala (.scl) scale saved as REAPER/Data/AmiSynth/tuning.txt, shared by every instance set to it (re-read on playback start or any slider change; falls back to the EDO sliders if the file is missing). Reference note / frequency still apply."
+      "description": "EDO sliders: Tuning Divisions / Period. Scale file: a Scala (.scl) scale saved as REAPER/Data/AmiSynth/tuning.txt (re-read on playback start or any slider change). Shared: the scale (and reference note / frequency) published by an \"AmiSynth Tuning\" JSFX on any track for the slot in Tuning Slot; changes there apply at once. Falls back to the EDO sliders when the file / slot is empty."
+    },
+    {
+      "id": "tuning_slot",
+      "name": "Tuning Slot",
+      "group": "Tuning",
+      "min": 1,
+      "max": 8,
+      "default": 1,
+      "step": 1,
+      "unit": "",
+      "description": "Which AmiSynth Tuning instance to follow when Tuning Source is Shared (its Slot number), so one song can use several scales."
     }
   ],
   "phys": [
@@ -1726,15 +1738,16 @@
       "name": "Tuning Source",
       "group": "Tuning",
       "min": 0,
-      "max": 1,
+      "max": 2,
       "default": 0,
       "step": 1,
       "unit": "",
       "options": [
         "EDO sliders",
-        "Scale file (Data/AmiSynth/tuning.txt)"
+        "Scale file (Data/AmiSynth/tuning.txt)",
+        "Shared (AmiSynth Tuning)"
       ],
-      "description": "EDO sliders: Tuning Divisions / Period. Scale file: a Scala (.scl) scale saved as REAPER/Data/AmiSynth/tuning.txt, shared by every instance set to it (re-read on playback start or any slider change; falls back to the EDO sliders if the file is missing). Reference note / frequency still apply."
+      "description": "EDO sliders: Tuning Divisions / Period. Scale file: a Scala (.scl) scale saved as REAPER/Data/AmiSynth/tuning.txt (re-read on playback start or any slider change). Shared: the scale (and reference note / frequency) published by an \"AmiSynth Tuning\" JSFX on any track for the slot in Tuning Slot; changes there apply at once. Falls back to the EDO sliders when the file / slot is empty."
     },
     {
       "id": "amp_type",
@@ -1786,6 +1799,17 @@
       "step": 0.1,
       "unit": "dB",
       "description": "Output level of the amp."
+    },
+    {
+      "id": "tuning_slot",
+      "name": "Tuning Slot",
+      "group": "Tuning",
+      "min": 1,
+      "max": 8,
+      "default": 1,
+      "step": 1,
+      "unit": "",
+      "description": "Which AmiSynth Tuning instance to follow when Tuning Source is Shared (its Slot number), so one song can use several scales."
     }
   ],
   "drums": [
@@ -2689,6 +2713,434 @@
         "On"
       ],
       "description": "Whether the toms, cowbell and shaker also play in the main mix (outputs 1/2). In the JSFX they always play on their own outputs 9/10."
+    }
+  ],
+  "tuning": [
+    {
+      "id": "tuning_slot",
+      "name": "Slot",
+      "group": "Shared Scale",
+      "min": 1,
+      "max": 8,
+      "default": 1,
+      "step": 1,
+      "unit": "",
+      "description": "Slot this scale is published to. Instruments with Tuning Source = Shared and the same Tuning Slot follow it."
+    },
+    {
+      "id": "scale_source",
+      "name": "Scale Source",
+      "group": "Shared Scale",
+      "min": 0,
+      "max": 1,
+      "default": 0,
+      "step": 1,
+      "unit": "",
+      "options": [
+        "Sliders",
+        "File"
+      ],
+      "description": "Sliders: Scale Size + Degree 1..N below. File: the Scala file chosen in Scale File (falls back to the sliders if it cannot be read)."
+    },
+    {
+      "id": "scale_file",
+      "name": "Scale File",
+      "group": "Shared Scale",
+      "min": 0,
+      "max": 0,
+      "default": 0,
+      "step": 1,
+      "unit": "",
+      "file": {
+        "dir": "/AmiSynth",
+        "default": "tuning.txt"
+      },
+      "description": "A Scala (.scl) scale saved with a .txt name in REAPER/Data/AmiSynth/ (the value is its position in that folder, alphabetical)."
+    },
+    {
+      "id": "scale_ref_note",
+      "name": "Reference Note",
+      "group": "Shared Scale",
+      "min": 0,
+      "max": 127,
+      "default": 69,
+      "step": 1,
+      "unit": "note",
+      "description": "MIDI note that sounds at the reference frequency (replaces the instruments' own reference while they follow this slot)."
+    },
+    {
+      "id": "scale_ref_hz",
+      "name": "Reference Frequency",
+      "group": "Shared Scale",
+      "min": 100,
+      "max": 1000,
+      "default": 440,
+      "step": 0.01,
+      "unit": "Hz",
+      "description": "Frequency of the reference note."
+    },
+    {
+      "id": "scale_size",
+      "name": "Scale Size",
+      "group": "Shared Scale",
+      "min": 1,
+      "max": 32,
+      "default": 12,
+      "step": 1,
+      "unit": "notes",
+      "description": "Notes per period (Degree 1..this; the last one is the period, e.g. 1200 cents for an octave)."
+    },
+    {
+      "id": "scale_degree_1",
+      "name": "Degree 1",
+      "group": "Degrees",
+      "min": 0,
+      "max": 4800,
+      "default": 100,
+      "step": 0.001,
+      "unit": "cents",
+      "description": "Pitch of scale degree 1 above the reference, in cents (Scala order: degree 0 = 0 cents is implied; degree Scale Size = the period)."
+    },
+    {
+      "id": "scale_degree_2",
+      "name": "Degree 2",
+      "group": "Degrees",
+      "min": 0,
+      "max": 4800,
+      "default": 200,
+      "step": 0.001,
+      "unit": "cents",
+      "description": "Pitch of scale degree 2 above the reference, in cents (Scala order: degree 0 = 0 cents is implied; degree Scale Size = the period)."
+    },
+    {
+      "id": "scale_degree_3",
+      "name": "Degree 3",
+      "group": "Degrees",
+      "min": 0,
+      "max": 4800,
+      "default": 300,
+      "step": 0.001,
+      "unit": "cents",
+      "description": "Pitch of scale degree 3 above the reference, in cents (Scala order: degree 0 = 0 cents is implied; degree Scale Size = the period)."
+    },
+    {
+      "id": "scale_degree_4",
+      "name": "Degree 4",
+      "group": "Degrees",
+      "min": 0,
+      "max": 4800,
+      "default": 400,
+      "step": 0.001,
+      "unit": "cents",
+      "description": "Pitch of scale degree 4 above the reference, in cents (Scala order: degree 0 = 0 cents is implied; degree Scale Size = the period)."
+    },
+    {
+      "id": "scale_degree_5",
+      "name": "Degree 5",
+      "group": "Degrees",
+      "min": 0,
+      "max": 4800,
+      "default": 500,
+      "step": 0.001,
+      "unit": "cents",
+      "description": "Pitch of scale degree 5 above the reference, in cents (Scala order: degree 0 = 0 cents is implied; degree Scale Size = the period)."
+    },
+    {
+      "id": "scale_degree_6",
+      "name": "Degree 6",
+      "group": "Degrees",
+      "min": 0,
+      "max": 4800,
+      "default": 600,
+      "step": 0.001,
+      "unit": "cents",
+      "description": "Pitch of scale degree 6 above the reference, in cents (Scala order: degree 0 = 0 cents is implied; degree Scale Size = the period)."
+    },
+    {
+      "id": "scale_degree_7",
+      "name": "Degree 7",
+      "group": "Degrees",
+      "min": 0,
+      "max": 4800,
+      "default": 700,
+      "step": 0.001,
+      "unit": "cents",
+      "description": "Pitch of scale degree 7 above the reference, in cents (Scala order: degree 0 = 0 cents is implied; degree Scale Size = the period)."
+    },
+    {
+      "id": "scale_degree_8",
+      "name": "Degree 8",
+      "group": "Degrees",
+      "min": 0,
+      "max": 4800,
+      "default": 800,
+      "step": 0.001,
+      "unit": "cents",
+      "description": "Pitch of scale degree 8 above the reference, in cents (Scala order: degree 0 = 0 cents is implied; degree Scale Size = the period)."
+    },
+    {
+      "id": "scale_degree_9",
+      "name": "Degree 9",
+      "group": "Degrees",
+      "min": 0,
+      "max": 4800,
+      "default": 900,
+      "step": 0.001,
+      "unit": "cents",
+      "description": "Pitch of scale degree 9 above the reference, in cents (Scala order: degree 0 = 0 cents is implied; degree Scale Size = the period)."
+    },
+    {
+      "id": "scale_degree_10",
+      "name": "Degree 10",
+      "group": "Degrees",
+      "min": 0,
+      "max": 4800,
+      "default": 1000,
+      "step": 0.001,
+      "unit": "cents",
+      "description": "Pitch of scale degree 10 above the reference, in cents (Scala order: degree 0 = 0 cents is implied; degree Scale Size = the period)."
+    },
+    {
+      "id": "scale_degree_11",
+      "name": "Degree 11",
+      "group": "Degrees",
+      "min": 0,
+      "max": 4800,
+      "default": 1100,
+      "step": 0.001,
+      "unit": "cents",
+      "description": "Pitch of scale degree 11 above the reference, in cents (Scala order: degree 0 = 0 cents is implied; degree Scale Size = the period)."
+    },
+    {
+      "id": "scale_degree_12",
+      "name": "Degree 12",
+      "group": "Degrees",
+      "min": 0,
+      "max": 4800,
+      "default": 1200,
+      "step": 0.001,
+      "unit": "cents",
+      "description": "Pitch of scale degree 12 above the reference, in cents (Scala order: degree 0 = 0 cents is implied; degree Scale Size = the period)."
+    },
+    {
+      "id": "scale_degree_13",
+      "name": "Degree 13",
+      "group": "Degrees",
+      "min": 0,
+      "max": 4800,
+      "default": 1300,
+      "step": 0.001,
+      "unit": "cents",
+      "description": "Pitch of scale degree 13 above the reference, in cents (Scala order: degree 0 = 0 cents is implied; degree Scale Size = the period)."
+    },
+    {
+      "id": "scale_degree_14",
+      "name": "Degree 14",
+      "group": "Degrees",
+      "min": 0,
+      "max": 4800,
+      "default": 1400,
+      "step": 0.001,
+      "unit": "cents",
+      "description": "Pitch of scale degree 14 above the reference, in cents (Scala order: degree 0 = 0 cents is implied; degree Scale Size = the period)."
+    },
+    {
+      "id": "scale_degree_15",
+      "name": "Degree 15",
+      "group": "Degrees",
+      "min": 0,
+      "max": 4800,
+      "default": 1500,
+      "step": 0.001,
+      "unit": "cents",
+      "description": "Pitch of scale degree 15 above the reference, in cents (Scala order: degree 0 = 0 cents is implied; degree Scale Size = the period)."
+    },
+    {
+      "id": "scale_degree_16",
+      "name": "Degree 16",
+      "group": "Degrees",
+      "min": 0,
+      "max": 4800,
+      "default": 1600,
+      "step": 0.001,
+      "unit": "cents",
+      "description": "Pitch of scale degree 16 above the reference, in cents (Scala order: degree 0 = 0 cents is implied; degree Scale Size = the period)."
+    },
+    {
+      "id": "scale_degree_17",
+      "name": "Degree 17",
+      "group": "Degrees",
+      "min": 0,
+      "max": 4800,
+      "default": 1700,
+      "step": 0.001,
+      "unit": "cents",
+      "description": "Pitch of scale degree 17 above the reference, in cents (Scala order: degree 0 = 0 cents is implied; degree Scale Size = the period)."
+    },
+    {
+      "id": "scale_degree_18",
+      "name": "Degree 18",
+      "group": "Degrees",
+      "min": 0,
+      "max": 4800,
+      "default": 1800,
+      "step": 0.001,
+      "unit": "cents",
+      "description": "Pitch of scale degree 18 above the reference, in cents (Scala order: degree 0 = 0 cents is implied; degree Scale Size = the period)."
+    },
+    {
+      "id": "scale_degree_19",
+      "name": "Degree 19",
+      "group": "Degrees",
+      "min": 0,
+      "max": 4800,
+      "default": 1900,
+      "step": 0.001,
+      "unit": "cents",
+      "description": "Pitch of scale degree 19 above the reference, in cents (Scala order: degree 0 = 0 cents is implied; degree Scale Size = the period)."
+    },
+    {
+      "id": "scale_degree_20",
+      "name": "Degree 20",
+      "group": "Degrees",
+      "min": 0,
+      "max": 4800,
+      "default": 2000,
+      "step": 0.001,
+      "unit": "cents",
+      "description": "Pitch of scale degree 20 above the reference, in cents (Scala order: degree 0 = 0 cents is implied; degree Scale Size = the period)."
+    },
+    {
+      "id": "scale_degree_21",
+      "name": "Degree 21",
+      "group": "Degrees",
+      "min": 0,
+      "max": 4800,
+      "default": 2100,
+      "step": 0.001,
+      "unit": "cents",
+      "description": "Pitch of scale degree 21 above the reference, in cents (Scala order: degree 0 = 0 cents is implied; degree Scale Size = the period)."
+    },
+    {
+      "id": "scale_degree_22",
+      "name": "Degree 22",
+      "group": "Degrees",
+      "min": 0,
+      "max": 4800,
+      "default": 2200,
+      "step": 0.001,
+      "unit": "cents",
+      "description": "Pitch of scale degree 22 above the reference, in cents (Scala order: degree 0 = 0 cents is implied; degree Scale Size = the period)."
+    },
+    {
+      "id": "scale_degree_23",
+      "name": "Degree 23",
+      "group": "Degrees",
+      "min": 0,
+      "max": 4800,
+      "default": 2300,
+      "step": 0.001,
+      "unit": "cents",
+      "description": "Pitch of scale degree 23 above the reference, in cents (Scala order: degree 0 = 0 cents is implied; degree Scale Size = the period)."
+    },
+    {
+      "id": "scale_degree_24",
+      "name": "Degree 24",
+      "group": "Degrees",
+      "min": 0,
+      "max": 4800,
+      "default": 2400,
+      "step": 0.001,
+      "unit": "cents",
+      "description": "Pitch of scale degree 24 above the reference, in cents (Scala order: degree 0 = 0 cents is implied; degree Scale Size = the period)."
+    },
+    {
+      "id": "scale_degree_25",
+      "name": "Degree 25",
+      "group": "Degrees",
+      "min": 0,
+      "max": 4800,
+      "default": 2500,
+      "step": 0.001,
+      "unit": "cents",
+      "description": "Pitch of scale degree 25 above the reference, in cents (Scala order: degree 0 = 0 cents is implied; degree Scale Size = the period)."
+    },
+    {
+      "id": "scale_degree_26",
+      "name": "Degree 26",
+      "group": "Degrees",
+      "min": 0,
+      "max": 4800,
+      "default": 2600,
+      "step": 0.001,
+      "unit": "cents",
+      "description": "Pitch of scale degree 26 above the reference, in cents (Scala order: degree 0 = 0 cents is implied; degree Scale Size = the period)."
+    },
+    {
+      "id": "scale_degree_27",
+      "name": "Degree 27",
+      "group": "Degrees",
+      "min": 0,
+      "max": 4800,
+      "default": 2700,
+      "step": 0.001,
+      "unit": "cents",
+      "description": "Pitch of scale degree 27 above the reference, in cents (Scala order: degree 0 = 0 cents is implied; degree Scale Size = the period)."
+    },
+    {
+      "id": "scale_degree_28",
+      "name": "Degree 28",
+      "group": "Degrees",
+      "min": 0,
+      "max": 4800,
+      "default": 2800,
+      "step": 0.001,
+      "unit": "cents",
+      "description": "Pitch of scale degree 28 above the reference, in cents (Scala order: degree 0 = 0 cents is implied; degree Scale Size = the period)."
+    },
+    {
+      "id": "scale_degree_29",
+      "name": "Degree 29",
+      "group": "Degrees",
+      "min": 0,
+      "max": 4800,
+      "default": 2900,
+      "step": 0.001,
+      "unit": "cents",
+      "description": "Pitch of scale degree 29 above the reference, in cents (Scala order: degree 0 = 0 cents is implied; degree Scale Size = the period)."
+    },
+    {
+      "id": "scale_degree_30",
+      "name": "Degree 30",
+      "group": "Degrees",
+      "min": 0,
+      "max": 4800,
+      "default": 3000,
+      "step": 0.001,
+      "unit": "cents",
+      "description": "Pitch of scale degree 30 above the reference, in cents (Scala order: degree 0 = 0 cents is implied; degree Scale Size = the period)."
+    },
+    {
+      "id": "scale_degree_31",
+      "name": "Degree 31",
+      "group": "Degrees",
+      "min": 0,
+      "max": 4800,
+      "default": 3100,
+      "step": 0.001,
+      "unit": "cents",
+      "description": "Pitch of scale degree 31 above the reference, in cents (Scala order: degree 0 = 0 cents is implied; degree Scale Size = the period)."
+    },
+    {
+      "id": "scale_degree_32",
+      "name": "Degree 32",
+      "group": "Degrees",
+      "min": 0,
+      "max": 4800,
+      "default": 3200,
+      "step": 0.001,
+      "unit": "cents",
+      "description": "Pitch of scale degree 32 above the reference, in cents (Scala order: degree 0 = 0 cents is implied; degree Scale Size = the period)."
     }
   ]
 }

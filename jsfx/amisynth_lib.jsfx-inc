@@ -58,11 +58,15 @@ function pan_gains(pan) instance(gl gr) local(a) (
 
 // ---------------------------------------------------------------------------
 // Tuning: a table of degrees (cents) + period; EDO fills the table evenly.
-// Uses the slider variables tuning_ref_note / tuning_ref_hz directly.
+// The reference (tuning_rnote / tuning_rhz) is set by tuning_apply(): the instrument's
+// tuning_ref_note / tuning_ref_hz sliders, or the ones of a shared AmiSynth Tuning slot.
 
 tuning_table = mem_alloc(256);
 tuning_size = 12;
 tuning_period = 1200;
+tuning_rnote = 69;
+tuning_rhz = 440;
+tuning_seen = -1; // serial of the shared slot last read
 
 function tuning_set_edo(divisions, period) local(i) (
   divisions = max(1, min(255, floor(divisions + 0.5)));
@@ -129,10 +133,12 @@ function tuning_parse_pitch() local(a, b) (
   ) : 0;
 );
 
-/** read the shared scale file into the tuning table; returns 1 on success */
-function tuning_load_file() local(h, stage, count, k, ok) (
+/**
+ * Read a Scala scale from an open file handle (closes it) into tuning_tmp; returns the number of
+ * degrees (0 if the file could not be read). tuning_set_table(n) then makes it the tuning.
+ */
+function tuning_read_scala(h) local(stage, count, k, ok) (
   ok = 0;
-  h = file_open("AmiSynth/tuning.txt");
   h >= 0 ? (
     file_text(h) ? (
       stage = 0; count = 0; k = 0;
@@ -149,15 +155,70 @@ function tuning_load_file() local(h, stage, count, k, ok) (
           );
         );
       );
-      count > 0 && k === count && tuning_tmp[count - 1] > 0 ? ( tuning_set_table(count); ok = 1; );
+      count > 0 && k === count && tuning_tmp[count - 1] > 0 ? ok = count;
     );
     file_close(h);
   );
   ok;
 );
 
+/** read REAPER/Data/AmiSynth/tuning.txt into the tuning table; returns 1 on success */
+function tuning_load_file() local(n) (
+  n = tuning_read_scala(file_open("AmiSynth/tuning.txt"));
+  n > 0 ? tuning_set_table(n);
+  n > 0;
+);
+
+// ---- Shared scales between AmiSynth JSFX (gmem, namespace "AmiSynth" via options:gmem).
+// Slot s (1..8) at gmem[s * 512]: [serial, size, ref note, ref Hz, degree 1 .. degree size (cents)].
+// The AmiSynth Tuning JSFX writes the data and then bumps the serial; instruments re-read a slot
+// whenever its serial changes (reading the serial first, so a slot being rewritten is read again).
+
+function tuning_publish(slot, count, ref_note, ref_hz) local(b, i) (
+  b = slot * 512;
+  gmem[b + 1] = count;
+  gmem[b + 2] = ref_note;
+  gmem[b + 3] = ref_hz;
+  i = 0;
+  loop(count, gmem[b + 4 + i] = tuning_tmp[i]; i += 1;);
+  gmem[b] += 1;
+);
+
+/** take the scale of a shared slot; returns 1 if the slot holds one */
+function tuning_follow(slot) local(b, n, i) (
+  b = slot * 512;
+  tuning_seen = gmem[b];
+  n = floor(gmem[b + 1]);
+  tuning_seen > 0 && n >= 1 && n <= 255 && gmem[b + 3 + n] > 0 ? (
+    i = 0;
+    loop(n, tuning_tmp[i] = gmem[b + 4 + i]; i += 1;);
+    tuning_set_table(n);
+    tuning_rnote = gmem[b + 2];
+    tuning_rhz = gmem[b + 3];
+    1;
+  ) : 0;
+);
+
+/** 1 when the instrument follows a shared slot that changed since it was last read (call in @block) */
+function tuning_shared_changed() (
+  tuning_source >= 1.5 && gmem[clamp(floor(tuning_slot + 0.5), 1, 8) * 512] !== tuning_seen;
+);
+
+/**
+ * Set the instrument's tuning from its sliders (call in @slider, and in @block when
+ * tuning_shared_changed()): EDO sliders, the scale file, or a shared slot; EDO if those fail.
+ */
+function tuning_apply() local(ok) (
+  tuning_rnote = tuning_ref_note;
+  tuning_rhz = tuning_ref_hz;
+  ok = tuning_source >= 1.5 ? tuning_follow(clamp(floor(tuning_slot + 0.5), 1, 8))
+    : tuning_source >= 0.5 ? tuning_load_file() : 0;
+  !ok ? tuning_set_edo(tuning_divisions, tuning_period_cents);
+  tuning_ok = ok;
+);
+
 function tuning_note_cents(note) local(steps, period, degree) (
-  steps = note - tuning_ref_note;
+  steps = note - tuning_rnote;
   period = floor(steps / tuning_size);
   degree = steps - period * tuning_size;
   period * tuning_period + tuning_table[degree];
@@ -168,7 +229,7 @@ function tuning_note_to_hz(note) local(base, frac, c) (
   frac = note - base;
   c = tuning_note_cents(base);
   frac > 0 ? c += frac * (tuning_note_cents(base + 1) - c);
-  tuning_ref_hz * pow(2, c / 1200);
+  tuning_rhz * pow(2, c / 1200);
 );
 
 // ---------------------------------------------------------------------------

@@ -1,0 +1,70 @@
+desc:AmiSynth Tuning (shared scale for AmiSynth Synth / Physical)
+//tags: utility tuning microtonal
+//author: AmiSynth
+// Holds one scale and shares it with every AmiSynth Synth / Physical whose Tuning Source is
+// "Shared" and whose Tuning Slot is this Slot. Put one instance anywhere in the project (e.g. on the
+// first track); it passes audio and MIDI through untouched. Several instances with different
+// Slots give one song several scales. The scale is in the sliders below (cents, so MCP tools can
+// write it by name) or in a Scala file in REAPER/Data/AmiSynth/ (Scale Source = File).
+// Slider block generated from TUNING_HOLDER_PARAMS in src/dsp/params.js (npm run gen:jsfx).
+options:gmem=AmiSynth
+
+// <generated sliders>
+slider1:tuning_slot=1<1,8,1>Slot
+slider2:scale_source=0<0,1,1{Sliders,File}>Scale Source
+slider3:/AmiSynth:tuning.txt:Scale File
+slider4:scale_ref_note=69<0,127,1>Reference Note [note]
+slider5:scale_ref_hz=440<100,1000,0.01>Reference Frequency [Hz]
+slider6:scale_size=12<1,32,1>Scale Size [notes]
+slider7:scale_degree_1=100<0,4800,0.001>Degree 1 [cents]
+slider8:scale_degree_2=200<0,4800,0.001>Degree 2 [cents]
+slider9:scale_degree_3=300<0,4800,0.001>Degree 3 [cents]
+slider10:scale_degree_4=400<0,4800,0.001>Degree 4 [cents]
+slider11:scale_degree_5=500<0,4800,0.001>Degree 5 [cents]
+slider12:scale_degree_6=600<0,4800,0.001>Degree 6 [cents]
+slider13:scale_degree_7=700<0,4800,0.001>Degree 7 [cents]
+slider14:scale_degree_8=800<0,4800,0.001>Degree 8 [cents]
+slider15:scale_degree_9=900<0,4800,0.001>Degree 9 [cents]
+slider16:scale_degree_10=1000<0,4800,0.001>Degree 10 [cents]
+slider17:scale_degree_11=1100<0,4800,0.001>Degree 11 [cents]
+slider18:scale_degree_12=1200<0,4800,0.001>Degree 12 [cents]
+slider19:scale_degree_13=1300<0,4800,0.001>Degree 13 [cents]
+slider20:scale_degree_14=1400<0,4800,0.001>Degree 14 [cents]
+slider21:scale_degree_15=1500<0,4800,0.001>Degree 15 [cents]
+slider22:scale_degree_16=1600<0,4800,0.001>Degree 16 [cents]
+slider23:scale_degree_17=1700<0,4800,0.001>Degree 17 [cents]
+slider24:scale_degree_18=1800<0,4800,0.001>Degree 18 [cents]
+slider25:scale_degree_19=1900<0,4800,0.001>Degree 19 [cents]
+slider26:scale_degree_20=2000<0,4800,0.001>Degree 20 [cents]
+slider27:scale_degree_21=2100<0,4800,0.001>Degree 21 [cents]
+slider28:scale_degree_22=2200<0,4800,0.001>Degree 22 [cents]
+slider29:scale_degree_23=2300<0,4800,0.001>Degree 23 [cents]
+slider30:scale_degree_24=2400<0,4800,0.001>Degree 24 [cents]
+slider31:scale_degree_25=2500<0,4800,0.001>Degree 25 [cents]
+slider32:scale_degree_26=2600<0,4800,0.001>Degree 26 [cents]
+slider33:scale_degree_27=2700<0,4800,0.001>Degree 27 [cents]
+slider34:scale_degree_28=2800<0,4800,0.001>Degree 28 [cents]
+slider35:scale_degree_29=2900<0,4800,0.001>Degree 29 [cents]
+slider36:scale_degree_30=3000<0,4800,0.001>Degree 30 [cents]
+slider37:scale_degree_31=3100<0,4800,0.001>Degree 31 [cents]
+slider38:scale_degree_32=3200<0,4800,0.001>Degree 32 [cents]
+// </generated sliders>
+
+import amisynth_lib.jsfx-inc
+
+@slider
+// the file (slider3 is the Scale File chooser), or the Degree sliders when it cannot be read
+n = scale_source >= 0.5 ? tuning_read_scala(file_open(slider3)) : 0;
+n <= 0 ? (
+  n = clamp(floor(scale_size + 0.5), 1, 32);
+  tuning_tmp[0] = scale_degree_1; tuning_tmp[1] = scale_degree_2; tuning_tmp[2] = scale_degree_3; tuning_tmp[3] = scale_degree_4;
+  tuning_tmp[4] = scale_degree_5; tuning_tmp[5] = scale_degree_6; tuning_tmp[6] = scale_degree_7; tuning_tmp[7] = scale_degree_8;
+  tuning_tmp[8] = scale_degree_9; tuning_tmp[9] = scale_degree_10; tuning_tmp[10] = scale_degree_11; tuning_tmp[11] = scale_degree_12;
+  tuning_tmp[12] = scale_degree_13; tuning_tmp[13] = scale_degree_14; tuning_tmp[14] = scale_degree_15; tuning_tmp[15] = scale_degree_16;
+  tuning_tmp[16] = scale_degree_17; tuning_tmp[17] = scale_degree_18; tuning_tmp[18] = scale_degree_19; tuning_tmp[19] = scale_degree_20;
+  tuning_tmp[20] = scale_degree_21; tuning_tmp[21] = scale_degree_22; tuning_tmp[22] = scale_degree_23; tuning_tmp[23] = scale_degree_24;
+  tuning_tmp[24] = scale_degree_25; tuning_tmp[25] = scale_degree_26; tuning_tmp[26] = scale_degree_27; tuning_tmp[27] = scale_degree_28;
+  tuning_tmp[28] = scale_degree_29; tuning_tmp[29] = scale_degree_30; tuning_tmp[30] = scale_degree_31; tuning_tmp[31] = scale_degree_32;
+);
+scale_count = n;
+tuning_publish(clamp(floor(tuning_slot + 0.5), 1, 8), n, scale_ref_note, scale_ref_hz);

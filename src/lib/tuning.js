@@ -49,6 +49,23 @@ export function scaleToScala(scale, divisions, period) {
   return lines.join('\n') + '\n';
 }
 
+/**
+ * Slider values of the "AmiSynth Tuning" JSFX for the current tuning (for MCP tools / LLMs:
+ * set them by name on the AmiSynth Tuning instance). null if the scale has more than 32 notes
+ * (use a Scala file then).
+ * @param {{name:string,cents:number[]} | null} scale
+ * @param {{tuning_divisions:number, tuning_period_cents:number, tuning_ref_note:number, tuning_ref_hz:number}} values
+ */
+export function scaleToHolderParams(scale, values) {
+  const d = values.tuning_divisions;
+  const cents = scale ? scale.cents : Array.from({ length: d }, (_, i) => ((i + 1) * values.tuning_period_cents) / d);
+  if (cents.length > 32) return null;
+  /** @type {Record<string, number>} */
+  const out = { scale_source: 0, scale_ref_note: values.tuning_ref_note, scale_ref_hz: values.tuning_ref_hz, scale_size: cents.length };
+  cents.forEach((c, i) => (out[`scale_degree_${i + 1}`] = Number(c.toFixed(3))));
+  return out;
+}
+
 export const TUNING_PRESETS = [
   { name: '12-EDO (standard)', divisions: 12, period: 1200 },
   { name: '5-EDO (slendro-like)', divisions: 5, period: 1200 },

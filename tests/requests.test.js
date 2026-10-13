@@ -299,3 +299,14 @@ test('guitar amp: distortion squashes the dynamics (soft and hard picking come o
   assert.ok(range[2] < range[1] && range[3] < range[2] && range[4] < range[3], 'more gain, less dynamics');
   assert.ok(range[4] < 0.5, `distortion squashes: ${range[4].toFixed(2)} dB`);
 });
+
+test('web "AmiSynth Tuning の値をコピー": every key is a slider of the AmiSynth Tuning JSFX', async () => {
+  const { scaleToHolderParams } = await import('../src/lib/tuning.js');
+  const { TUNING_HOLDER_PARAMS } = await import('../src/dsp/params.js');
+  const ids = new Set(TUNING_HOLDER_PARAMS.map((d) => d.id));
+  const p = scaleToHolderParams({ name: 'x', cents: [100, 300, 1200] }, { tuning_divisions: 12, tuning_period_cents: 1200, tuning_ref_note: 60, tuning_ref_hz: 261.63 });
+  for (const k of Object.keys(p)) assert.ok(ids.has(k), k);
+  assert.equal(p.scale_size, 3);
+  assert.equal(p.scale_degree_3, 1200);
+  assert.equal(scaleToHolderParams(null, { tuning_divisions: 53, tuning_period_cents: 1200, tuning_ref_note: 69, tuning_ref_hz: 440 }), null);
+});
