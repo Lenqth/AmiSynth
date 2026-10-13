@@ -5790,6 +5790,39 @@
           "slider": 59,
           "paramIndex": 58,
           "valueDomain": "real"
+        },
+        {
+          "id": "phys_sustain_mode",
+          "name": "Sustain Pedal",
+          "group": "Output",
+          "min": 0,
+          "max": 2,
+          "default": 1,
+          "step": 1,
+          "unit": "",
+          "options": [
+            "Off",
+            "Auto (strings / piano / modal)",
+            "On (all models)"
+          ],
+          "description": "MIDI CC64 delays note-off damping until pedal release. Auto supports plucked strings, piano and modal materials except Drum Membrane; bowed, wind, brass and mesh ignore it. On sustains all models. Natural decay still continues.",
+          "slider": 60,
+          "paramIndex": 59,
+          "valueDomain": "real",
+          "enumValues": [
+            {
+              "value": 0,
+              "label": "Off"
+            },
+            {
+              "value": 1,
+              "label": "Auto (strings / piano / modal)"
+            },
+            {
+              "value": 2,
+              "label": "On (all models)"
+            }
+          ]
         }
       ],
       "presets": [
@@ -5850,7 +5883,8 @@
             "amp_type": 0,
             "amp_gain": 0.5,
             "amp_tone": 0.5,
-            "amp_level_db": 0
+            "amp_level_db": 0,
+            "phys_sustain_mode": 1
           }
         },
         {
@@ -5910,7 +5944,8 @@
             "amp_type": 0,
             "amp_gain": 0.5,
             "amp_tone": 0.5,
-            "amp_level_db": 0
+            "amp_level_db": 0,
+            "phys_sustain_mode": 1
           }
         },
         {
@@ -5970,7 +6005,8 @@
             "amp_type": 0,
             "amp_gain": 0.5,
             "amp_tone": 0.5,
-            "amp_level_db": 0
+            "amp_level_db": 0,
+            "phys_sustain_mode": 1
           }
         },
         {
@@ -6030,7 +6066,8 @@
             "amp_type": 0,
             "amp_gain": 0.5,
             "amp_tone": 0.5,
-            "amp_level_db": 0
+            "amp_level_db": 0,
+            "phys_sustain_mode": 1
           }
         },
         {
@@ -6090,7 +6127,8 @@
             "amp_type": 0,
             "amp_gain": 0.5,
             "amp_tone": 0.5,
-            "amp_level_db": 0
+            "amp_level_db": 0,
+            "phys_sustain_mode": 1
           }
         },
         {
@@ -6150,7 +6188,8 @@
             "amp_type": 1,
             "amp_gain": 0.4,
             "amp_tone": 0.7,
-            "amp_level_db": 0
+            "amp_level_db": 0,
+            "phys_sustain_mode": 1
           }
         },
         {
@@ -6210,7 +6249,8 @@
             "amp_type": 1,
             "amp_gain": 0.3,
             "amp_tone": 0.15,
-            "amp_level_db": 0
+            "amp_level_db": 0,
+            "phys_sustain_mode": 1
           }
         },
         {
@@ -6270,7 +6310,8 @@
             "amp_type": 2,
             "amp_gain": 0.55,
             "amp_tone": 0.55,
-            "amp_level_db": 0
+            "amp_level_db": 0,
+            "phys_sustain_mode": 1
           }
         },
         {
@@ -6330,7 +6371,8 @@
             "amp_type": 3,
             "amp_gain": 0.7,
             "amp_tone": 0.5,
-            "amp_level_db": 0
+            "amp_level_db": 0,
+            "phys_sustain_mode": 1
           }
         },
         {
@@ -6390,7 +6432,8 @@
             "amp_type": 4,
             "amp_gain": 0.6,
             "amp_tone": 0.45,
-            "amp_level_db": 0
+            "amp_level_db": 0,
+            "phys_sustain_mode": 1
           }
         },
         {
@@ -6450,7 +6493,8 @@
             "amp_type": 4,
             "amp_gain": 0.65,
             "amp_tone": 0.4,
-            "amp_level_db": 0
+            "amp_level_db": 0,
+            "phys_sustain_mode": 1
           }
         },
         {
@@ -6510,7 +6554,8 @@
             "amp_type": 0,
             "amp_gain": 0.5,
             "amp_tone": 0.5,
-            "amp_level_db": 0
+            "amp_level_db": 0,
+            "phys_sustain_mode": 1
           }
         },
         {
@@ -6570,7 +6615,8 @@
             "amp_type": 0,
             "amp_gain": 0.5,
             "amp_tone": 0.5,
-            "amp_level_db": 0
+            "amp_level_db": 0,
+            "phys_sustain_mode": 1
           }
         },
         {
@@ -6630,7 +6676,8 @@
             "amp_type": 0,
             "amp_gain": 0.5,
             "amp_tone": 0.5,
-            "amp_level_db": 0
+            "amp_level_db": 0,
+            "phys_sustain_mode": 1
           }
         },
         {
@@ -6690,7 +6737,8 @@
             "amp_type": 0,
             "amp_gain": 0.5,
             "amp_tone": 0.5,
-            "amp_level_db": 0
+            "amp_level_db": 0,
+            "phys_sustain_mode": 1
           }
         },
         {
@@ -6750,7 +6798,8 @@
             "amp_type": 0,
             "amp_gain": 0.5,
             "amp_tone": 0.5,
-            "amp_level_db": 0
+            "amp_level_db": 0,
+            "phys_sustain_mode": 1
           }
         },
         {
@@ -6810,7 +6859,8 @@
             "amp_type": 0,
             "amp_gain": 0.5,
             "amp_tone": 0.5,
-            "amp_level_db": 0
+            "amp_level_db": 0,
+            "phys_sustain_mode": 1
           }
         },
         {
@@ -6870,7 +6920,8 @@
             "amp_type": 0,
             "amp_gain": 0.5,
             "amp_tone": 0.5,
-            "amp_level_db": 0
+            "amp_level_db": 0,
+            "phys_sustain_mode": 1
           }
         },
         {
@@ -6930,7 +6981,8 @@
             "amp_type": 0,
             "amp_gain": 0.5,
             "amp_tone": 0.5,
-            "amp_level_db": 0
+            "amp_level_db": 0,
+            "phys_sustain_mode": 1
           }
         },
         {
@@ -6990,7 +7042,8 @@
             "amp_type": 0,
             "amp_gain": 0.5,
             "amp_tone": 0.5,
-            "amp_level_db": 0
+            "amp_level_db": 0,
+            "phys_sustain_mode": 1
           }
         },
         {
@@ -7050,7 +7103,8 @@
             "amp_type": 0,
             "amp_gain": 0.5,
             "amp_tone": 0.5,
-            "amp_level_db": 0
+            "amp_level_db": 0,
+            "phys_sustain_mode": 1
           }
         },
         {
@@ -7110,7 +7164,8 @@
             "amp_type": 0,
             "amp_gain": 0.5,
             "amp_tone": 0.5,
-            "amp_level_db": 0
+            "amp_level_db": 0,
+            "phys_sustain_mode": 1
           }
         },
         {
@@ -7170,7 +7225,8 @@
             "amp_type": 0,
             "amp_gain": 0.5,
             "amp_tone": 0.5,
-            "amp_level_db": 0
+            "amp_level_db": 0,
+            "phys_sustain_mode": 1
           }
         },
         {
@@ -7230,7 +7286,8 @@
             "amp_type": 0,
             "amp_gain": 0.5,
             "amp_tone": 0.5,
-            "amp_level_db": 0
+            "amp_level_db": 0,
+            "phys_sustain_mode": 1
           }
         },
         {
@@ -7290,7 +7347,8 @@
             "amp_type": 0,
             "amp_gain": 0.5,
             "amp_tone": 0.5,
-            "amp_level_db": 0
+            "amp_level_db": 0,
+            "phys_sustain_mode": 1
           }
         },
         {
@@ -7350,7 +7408,8 @@
             "amp_type": 0,
             "amp_gain": 0.5,
             "amp_tone": 0.5,
-            "amp_level_db": 0
+            "amp_level_db": 0,
+            "phys_sustain_mode": 1
           }
         },
         {
@@ -7410,7 +7469,8 @@
             "amp_type": 0,
             "amp_gain": 0.5,
             "amp_tone": 0.5,
-            "amp_level_db": 0
+            "amp_level_db": 0,
+            "phys_sustain_mode": 1
           }
         },
         {
@@ -7470,7 +7530,8 @@
             "amp_type": 0,
             "amp_gain": 0.5,
             "amp_tone": 0.5,
-            "amp_level_db": 0
+            "amp_level_db": 0,
+            "phys_sustain_mode": 1
           }
         },
         {
@@ -7530,7 +7591,8 @@
             "amp_type": 0,
             "amp_gain": 0.5,
             "amp_tone": 0.5,
-            "amp_level_db": 0
+            "amp_level_db": 0,
+            "phys_sustain_mode": 1
           }
         },
         {
@@ -7590,7 +7652,8 @@
             "amp_type": 0,
             "amp_gain": 0.5,
             "amp_tone": 0.5,
-            "amp_level_db": 0
+            "amp_level_db": 0,
+            "phys_sustain_mode": 1
           }
         },
         {
@@ -7650,7 +7713,8 @@
             "amp_type": 0,
             "amp_gain": 0.5,
             "amp_tone": 0.5,
-            "amp_level_db": 0
+            "amp_level_db": 0,
+            "phys_sustain_mode": 1
           }
         },
         {
@@ -7710,7 +7774,8 @@
             "amp_type": 0,
             "amp_gain": 0.5,
             "amp_tone": 0.5,
-            "amp_level_db": 0
+            "amp_level_db": 0,
+            "phys_sustain_mode": 1
           }
         },
         {
@@ -7770,7 +7835,8 @@
             "amp_type": 0,
             "amp_gain": 0.5,
             "amp_tone": 0.5,
-            "amp_level_db": 0
+            "amp_level_db": 0,
+            "phys_sustain_mode": 1
           }
         },
         {
@@ -7830,7 +7896,8 @@
             "amp_type": 0,
             "amp_gain": 0.5,
             "amp_tone": 0.5,
-            "amp_level_db": 0
+            "amp_level_db": 0,
+            "phys_sustain_mode": 1
           }
         },
         {
@@ -7890,7 +7957,8 @@
             "amp_type": 0,
             "amp_gain": 0.5,
             "amp_tone": 0.5,
-            "amp_level_db": 0
+            "amp_level_db": 0,
+            "phys_sustain_mode": 1
           }
         },
         {
@@ -7950,7 +8018,8 @@
             "amp_type": 0,
             "amp_gain": 0.5,
             "amp_tone": 0.5,
-            "amp_level_db": 0
+            "amp_level_db": 0,
+            "phys_sustain_mode": 1
           }
         },
         {
@@ -8010,7 +8079,8 @@
             "amp_type": 0,
             "amp_gain": 0.5,
             "amp_tone": 0.5,
-            "amp_level_db": 0
+            "amp_level_db": 0,
+            "phys_sustain_mode": 1
           }
         },
         {
@@ -8070,7 +8140,8 @@
             "amp_type": 0,
             "amp_gain": 0.5,
             "amp_tone": 0.5,
-            "amp_level_db": 0
+            "amp_level_db": 0,
+            "phys_sustain_mode": 1
           }
         },
         {
@@ -8130,7 +8201,8 @@
             "amp_type": 0,
             "amp_gain": 0.5,
             "amp_tone": 0.5,
-            "amp_level_db": 0
+            "amp_level_db": 0,
+            "phys_sustain_mode": 1
           }
         }
       ],

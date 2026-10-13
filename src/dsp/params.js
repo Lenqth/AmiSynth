@@ -344,6 +344,9 @@ export const PHYS_PARAMS = /** @type {ParamDef[]} */ ([
   { id: 'amp_level_db', name: 'Amp Level', group: 'Amp', min: -24, max: 12, default: 0, step: 0.1, unit: 'dB',
     description: 'Output level of the amp.' },
   TUNING_SLOT,
+  { id: 'phys_sustain_mode', name: 'Sustain Pedal', group: 'Output', min: 0, max: 2, default: 1, step: 1, unit: '',
+    options: ['Off', 'Auto (strings / piano / modal)', 'On (all models)'],
+    description: 'MIDI CC64 delays note-off damping until pedal release. Auto supports plucked strings, piano and modal materials except Drum Membrane; bowed, wind, brass and mesh ignore it. On sustains all models. Natural decay still continues.' },
 ]);
 
 // ---------------------------------------------------------------------------

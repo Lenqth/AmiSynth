@@ -9,7 +9,8 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { defaultValues, DRUM_PARAMS, PHYS_PARAMS, SYNTH_PARAMS, TUNING_HOLDER_PARAMS } from '../src/dsp/params.js';
 import { drums_init, drums_note_on, drums_render, drums_update } from '../src/dsp/drums.js';
-import { phys_init, phys_note_off, phys_note_on, phys_pitch_bend, phys_render, phys_set_scale, phys_update } from '../src/dsp/phys.js';
+import { phys_init, phys_render, phys_set_scale, phys_update } from '../src/dsp/phys.js';
+import { phys_midi } from '../src/dsp/midi.js';
 import {
   synth_cc, synth_init, synth_mod_wheel, synth_note_off, synth_note_on, synth_pitch_bend, synth_render, synth_set_scale,
   synth_sustain_pedal, synth_transport, synth_update,
@@ -51,12 +52,7 @@ export const INSTRUMENTS = {
   phys: {
     file: 'AmiSynth Physical.jsfx', defs: PHYS_PARAMS, init: phys_init, update: phys_update, render: phys_render,
     scale: phys_set_scale,
-    midi(s, st, d1, d2) {
-      const t = st & 0xf0;
-      if (t === 0x90) phys_note_on(s, d1, d2);
-      else if (t === 0x80) phys_note_off(s, d1);
-      else if (t === 0xe0) phys_pitch_bend(s, ((d2 << 7) | d1) / 8192 - 1);
-    },
+    midi: phys_midi,
   },
 };
 

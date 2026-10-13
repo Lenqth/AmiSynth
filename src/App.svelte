@@ -7,7 +7,7 @@
   import { codeToOffset, DRUM_KEYS, eventCode, isImeEvent, isoKeyCell, isTypingTarget } from './lib/pckeys.js';
   import {
     app, applyPreset, clearSeqHighlights, drumHit, flashDrum, flashSeqNote, persist, setBend, setMelodic, setModwheel,
-    setParam, setScale, startAudio, synthNoteOff, synthNoteOn,
+    setParam, setScale, setSustain, startAudio, synthNoteOff, synthNoteOn,
   } from './lib/state.svelte.js';
   import { makeTuning } from './lib/tuning.js';
   import { coarsePointerQuery } from './lib/keysize.js';
@@ -390,6 +390,11 @@
     else if (type === 0x80 || type === 0x90) delete app.held[d1];
     else if (type === 0xe0) app.bend = ((d2 << 7) | d1) / 8192 - 1;
     else if (type === 0xb0 && d1 === 1) app.modwheel = d2 / 127;
+    else if (type === 0xb0 && d1 === 64) app.sustain = d2 >= 64;
+    else if (type === 0xb0 && (d1 === 120 || d1 === 121 || d1 === 123)) {
+      setSustain(false);
+      if (d1 !== 121) app.held = {};
+    }
     engine.midi(app.melodic, [status, d1 ?? 0, d2 ?? 0]);
   }
 
@@ -480,7 +485,12 @@
 
 {#snippet playCard()}
   <section class="card play" class:fs-play={fullscreen}>
-    <Wheels bend={app.bend} modwheel={app.modwheel} onbend={setBend} onmod={setModwheel} height={fullscreen ? fsHeight : 150} />
+    <div class="performance-controls">
+    <Wheels bend={app.bend} modwheel={app.modwheel} onbend={setBend} onmod={setModwheel} height={fullscreen ? Math.max(50, fsHeight - 34) : 116} />
+    <button class:active={app.sustain} aria-pressed={app.sustain}
+      title="Sustain pedal (CC64): PhysicalはOutputのSustain Pedal設定に従います"
+      onclick={async () => { await startAudio(); setSustain(!app.sustain); }}>Sustain</button>
+    </div>
     <div class="kb">
       <Keyboard {tuning} baseNote={app.baseNote} held={app.held} playing={app.seqHeld} {noteOn} {noteOff} scale={app.keyScale}
         velMode={app.kbVelMode} velFixed={app.kbVelFixed} layout={app.kbLayout} iso={isoResolved} fillHeight={fullscreen ? fsHeight : 0} />
@@ -742,6 +752,8 @@
   .error { color: var(--danger); padding: 0 20px; }
   .status { padding: 0 20px; margin: 8px 0 0; font-size: 12px; }
   .play { display: flex; gap: 12px; align-items: stretch; }
+  .performance-controls { display: flex; flex-direction: column; gap: 6px; flex-shrink: 0; }
+  .performance-controls button { font-size: 11px; min-height: 28px; padding: 4px; }
   .kb { flex: 1; min-width: 0; overflow-x: auto; }
   .keysize { display: flex; align-items: center; gap: 6px; }
   .kbopt { display: flex; align-items: center; gap: 4px; }

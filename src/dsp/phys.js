@@ -136,7 +136,7 @@ const MESH_CELLS = MESH_W * MESH_W;
 
 function voice_create() {
   const v = {
-    active: 0, note: -1, gate: 0, age: 0, vel: 0, vel_raw: 0, hz: 0, level: 0, frames: 0,
+    active: 0, note: -1, gate: 0, sustained: 0, age: 0, vel: 0, vel_raw: 0, hz: 0, level: 0, frames: 0,
     // string / shared delay-line state
     line: {}, line2: {}, lp_z: 0, lp_z2: 0, loop_gain: 1, loop_gain2: 1, damp_b: 0,
     delay_len: 0, delay_len2: 0, read_gain: 1,
@@ -186,6 +186,7 @@ export function phys_init(s, sr) {
   tuning_init(s.tuning);
   s.custom_scale = 0;
   s.age_counter = 0;
+  s.sustain_pedal = 0;
   s.bend_ratio = 1;
   s.dc = {};
   onepole_init(s.dc);
@@ -215,6 +216,8 @@ export function phys_init(s, sr) {
 }
 
 export function phys_update(s, p) {
+  // Release deferred note-offs using the old voice model before changing it.
+  if (p.phys_model !== s.p.phys_model || (p.phys_model === MODEL_MODAL && p.modal_material !== s.p.modal_material) || !phys_pedal_enabled(p)) phys_flush_sustain(s);
   s.p = p;
   if (!s.custom_scale) tuning_set_edo(s.tuning, p.tuning_divisions, p.tuning_period_cents);
   s.tuning.ref_note = p.tuning_ref_note;
@@ -642,6 +645,7 @@ export function phys_note_on(s, note, velocity) {
   v.hz = tuning_note_to_hz(s.tuning, note);
   v.active = 1;
   v.gate = 1;
+  v.sustained = 0; // a retrigger/steal must not inherit the old note's deferred release
   v.age = ++s.age_counter;
   v.frames = 0;
   v.level = 1;
@@ -887,37 +891,64 @@ export function phys_note_on(s, note, velocity) {
   }
 }
 
-export function phys_note_off(s, note) {
+/** Auto is for ringing/damped instruments; continuous excitation needs explicit On. */
+export function phys_pedal_enabled(p) {
+  const mode = Math.round(p.phys_sustain_mode ?? 1);
+  const model = Math.round(p.phys_model);
+  return mode === 2 || (mode === 1 && (model === MODEL_STRING || model === MODEL_STIFF ||
+    (model === MODEL_MODAL && Math.round(p.modal_material) !== 5)));
+}
+
+function phys_release_voice(s, v) {
   const p = s.p;
   const model = Math.floor(p.phys_model + 0.5);
-  for (let i = 0; i < PHYS_MAX_VOICES; i++) {
-    const v = s.voices[i];
-    if (!v.active || !v.gate || v.note !== note) continue;
-    v.gate = 0;
-    if (model === MODEL_STRING) {
-      const g_rel = Math.exp(-6.907755 / (v.hz * p.phys_release_ms * 0.001));
-      v.loop_gain = Math.min(v.loop_gain, g_rel);
-    } else if (model === MODEL_MODAL) {
-      for (let k = 0; k < MAX_MODES; k++) {
-        v.mode_t60[k] = Math.min(v.mode_t60[k], p.phys_release_ms);
-        reson_set_decay(v.modes[k], v.mode_hz[k], v.mode_t60[k], s.sr);
-      }
-    } else if (model === MODEL_BOWED || model === MODEL_WIND || model === MODEL_BRASS) {
-      adsr_gate_off(v.env);
-    } else if (model === MODEL_MESH) {
-      v.mesh_sig = Math.max(v.mesh_sig, mesh_sigma(Math.min(p.mesh_decay_ms, p.phys_release_ms), s.sr));
-    } else {
-      const g_rel = Math.exp(-6.907755 / (v.hz * p.phys_release_ms * 0.001));
-      v.loop_gain = Math.min(v.loop_gain, g_rel);
-      v.loop_gain2 = Math.min(v.loop_gain2, g_rel);
+  if (model === MODEL_STRING) {
+    const g_rel = Math.exp(-6.907755 / (v.hz * p.phys_release_ms * 0.001));
+    v.loop_gain = Math.min(v.loop_gain, g_rel);
+  } else if (model === MODEL_MODAL) {
+    for (let k = 0; k < MAX_MODES; k++) {
+      v.mode_t60[k] = Math.min(v.mode_t60[k], p.phys_release_ms);
+      reson_set_decay(v.modes[k], v.mode_hz[k], v.mode_t60[k], s.sr);
     }
+  } else if (model === MODEL_BOWED || model === MODEL_WIND || model === MODEL_BRASS) {
+    adsr_gate_off(v.env);
+  } else if (model === MODEL_MESH) {
+    v.mesh_sig = Math.max(v.mesh_sig, mesh_sigma(Math.min(p.mesh_decay_ms, p.phys_release_ms), s.sr));
+  } else {
+    const g_rel = Math.exp(-6.907755 / (v.hz * p.phys_release_ms * 0.001));
+    v.loop_gain = Math.min(v.loop_gain, g_rel);
+    v.loop_gain2 = Math.min(v.loop_gain2, g_rel);
   }
 }
 
+function phys_flush_sustain(s) {
+  for (const v of s.voices) {
+    if (v.sustained && v.active) phys_release_voice(s, v);
+    v.sustained = 0;
+  }
+}
+
+export function phys_note_off(s, note) {
+  for (const v of s.voices) {
+    if (!v.active || !v.gate || v.note !== note) continue;
+    v.gate = 0;
+    if (s.sustain_pedal && phys_pedal_enabled(s.p)) v.sustained = 1;
+    else phys_release_voice(s, v);
+  }
+}
+
+export function phys_sustain_pedal(s, on) {
+  s.sustain_pedal = on ? 1 : 0;
+  if (!s.sustain_pedal) phys_flush_sustain(s);
+}
+
 export function phys_all_notes_off(s) {
-  for (let i = 0; i < PHYS_MAX_VOICES; i++) {
-    const v = s.voices[i];
-    if (v.active && v.gate) phys_note_off(s, v.note);
+  // Panic/All Notes Off must also release notes whose keys have already been lifted.
+  s.sustain_pedal = 0;
+  for (const v of s.voices) {
+    if (v.active && (v.gate || v.sustained)) phys_release_voice(s, v);
+    v.gate = 0;
+    v.sustained = 0;
   }
 }
 

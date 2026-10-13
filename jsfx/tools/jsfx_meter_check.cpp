@@ -89,6 +89,23 @@ int main(int argc, char **argv) {
     var(fx, "meter.power") = 0;
     const double silent_volume = var(fx, volume);
     click(fx, 180, 85); require(var(fx, volume) == silent_volume, "silence cannot increase gain");
+    if (!synth && !drums) {
+        // A patch change can alter mode and release simultaneously. Flush with
+        // the previous patch's damping, as phys_update does in the JS core.
+        uint8_t down[] = {0xb0, 64, 127}, off[] = {0x80, 60, 0};
+        ysfx_midi_event_t event{0, 0, 3, down}; ysfx_send_midi(fx, &event);
+        event.data = off; ysfx_send_midi(fx, &event);
+        ysfx_process_double(fx, ins, outs.data(), 0, channels, 128);
+        double pending = 0;
+        ysfx_read_vmem(fx, (uint32_t)var(fx, "v_sus"), &pending, 1);
+        require(pending == 1, "Physical defers note-off under CC64");
+        const double old_release = ysfx_slider_get_value(fx, 42);
+        const double expected = std::min(var(fx, "p0.loop_gain"), std::exp(-6.907755 / (var(fx, "p0.hz0") * old_release * 0.001)));
+        ysfx_slider_set_value(fx, 42, 10); ysfx_slider_set_value(fx, 59, 0);
+        ysfx_process_double(fx, ins, outs.data(), 0, channels, 128);
+        ysfx_read_vmem(fx, (uint32_t)var(fx, "v_sus"), &pending, 1);
+        require(pending == 0 && std::abs(var(fx, "p0.loop_gain") - expected) < 1e-12, "policy change flushes with previous release damping");
+    }
     std::printf("%s: @gfx, output RMS/peaks, capture, opt-in matching and silence checks passed\n", argv[2]);
     ysfx_free(fx);
 }

@@ -3,7 +3,7 @@
 import {
   synth_all_notes_off, synth_cc, synth_mod_wheel, synth_note_off, synth_note_on, synth_pitch_bend, synth_sustain_pedal,
 } from './synth.js';
-import { phys_all_notes_off, phys_note_off, phys_note_on, phys_pitch_bend } from './phys.js';
+import { phys_all_notes_off, phys_note_off, phys_note_on, phys_pitch_bend, phys_sustain_pedal } from './phys.js';
 import { drums_note_on } from './drums.js';
 
 export function synth_midi(s, status, d1, d2) {
@@ -24,7 +24,11 @@ export function phys_midi(s, status, d1, d2) {
   if (type === 0x90) phys_note_on(s, d1, d2);
   else if (type === 0x80) phys_note_off(s, d1);
   else if (type === 0xe0) phys_pitch_bend(s, ((d2 << 7) | d1) / 8192 - 1);
-  else if (type === 0xb0 && (d1 === 120 || d1 === 123)) phys_all_notes_off(s);
+  else if (type === 0xb0) {
+    if (d1 === 64) phys_sustain_pedal(s, d2 >= 64);
+    else if (d1 === 120 || d1 === 123) phys_all_notes_off(s);
+    else if (d1 === 121) { phys_sustain_pedal(s, false); phys_pitch_bend(s, 0); }
+  }
 }
 
 /** Drums only react to note-on (one-shot voices, note-off ignored like most drum machines). */

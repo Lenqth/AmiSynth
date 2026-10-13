@@ -66,6 +66,7 @@ export const app = $state({
   baseNote: 48,
   bend: 0,
   modwheel: 0,
+  sustain: false,
   /** notes currently held from the UI / PC keyboard / MIDI: note -> velocity (for highlighting) */
   held: /** @type {Record<number, number>} */ ({}),
   /** velocity of the last note played (shown next to the keyboard) */
@@ -244,9 +245,15 @@ export function setModwheel(v) {
   engine.midi('synth', [0xb0, 1, Math.round(v * 127)]);
 }
 
+export function setSustain(on) {
+  app.sustain = Boolean(on);
+  engine.midi(app.melodic, [0xb0, 64, on ? 127 : 0]);
+}
+
 /** Switch the melodic instrument (releases held notes so nothing hangs on the old one). */
 export function setMelodic(target) {
   if (app.melodic === target) return;
+  setSustain(false);
   for (const n of Object.keys(app.held)) engine.noteOff(app.melodic, Number(n));
   app.held = {};
   app.melodic = target;

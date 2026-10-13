@@ -1810,6 +1810,22 @@
       "step": 1,
       "unit": "",
       "description": "Which AmiSynth Tuning instance to follow when Tuning Source is Shared (its Slot number), so one song can use several scales."
+    },
+    {
+      "id": "phys_sustain_mode",
+      "name": "Sustain Pedal",
+      "group": "Output",
+      "min": 0,
+      "max": 2,
+      "default": 1,
+      "step": 1,
+      "unit": "",
+      "options": [
+        "Off",
+        "Auto (strings / piano / modal)",
+        "On (all models)"
+      ],
+      "description": "MIDI CC64 delays note-off damping until pedal release. Auto supports plucked strings, piano and modal materials except Drum Membrane; bowed, wind, brass and mesh ignore it. On sustains all models. Natural decay still continues."
     }
   ],
   "drums": [
