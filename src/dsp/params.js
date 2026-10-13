@@ -324,6 +324,15 @@ export const PHYS_PARAMS = /** @type {ParamDef[]} */ ([
 
   // ---- added later: kept at the end so existing REAPER projects keep their slider numbers
   TUNING_SOURCE,
+  { id: 'amp_type', name: 'Amp', group: 'Amp', min: 0, max: 4, default: 0, step: 1, unit: '',
+    options: ['Off', 'Clean', 'Crunch', 'Overdrive', 'Distortion'],
+    description: 'Guitar amp after the instrument (before the room): pre EQ, drive and a speaker cabinet filter. Clean adds only colour; Crunch to Distortion clip harder (Distortion has two gain stages). Mostly for the String model (electric guitar).' },
+  { id: 'amp_gain', name: 'Amp Gain', group: 'Amp', min: 0, max: 1, default: 0.5, step: 0.001, unit: '',
+    description: 'Drive into the amp (range depends on the amp type).' },
+  { id: 'amp_tone', name: 'Amp Tone', group: 'Amp', min: 0, max: 1, default: 0.5, step: 0.001, unit: '',
+    description: 'Brightness of the speaker cabinet (its high-frequency roll-off).' },
+  { id: 'amp_level_db', name: 'Amp Level', group: 'Amp', min: -24, max: 12, default: 0, step: 0.1, unit: 'dB',
+    description: 'Output level of the amp.' },
 ]);
 
 // ---------------------------------------------------------------------------

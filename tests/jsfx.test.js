@@ -209,3 +209,15 @@ test('JSFX physical model matches JS for the gong materials', { skip: !HAVE && '
     check('phys', scenario('phys', { phys_model: 1, modal_material: m, modal_decay_ms: 6000 }), PERFORMANCE, 0.7, `phys/material ${m}`);
   }
 });
+
+test('JSFX physical model matches JS through every guitar amp type', { skip: !HAVE && 'jsfx_render not built' }, () => {
+  const chords = [[0, 0x90, 40, 127], [0, 0x90, 47, 120], [0, 0x90, 52, 110], [12000, 0x80, 40, 0], [12000, 0x80, 47, 0],
+    [12000, 0x80, 52, 0], [14000, 0x90, 64, 60], [20000, 0xe0, 0, 100], [26000, 0x80, 64, 0]];
+  for (let t = 1; t <= 4; t++) {
+    for (const [gain, tone] of [[0, 1], [1, 0]]) {
+      const p = scenario('phys', { phys_model: 0, amp_type: t, amp_gain: gain, amp_tone: tone, amp_level_db: -6, phys_room_mix: 0.2 });
+      check('phys', p, chords, 0.7, `phys/amp ${t} gain ${gain}`);
+      check('phys', p, chords, 0.4, `phys/amp ${t} gain ${gain} @44.1k`, 44100);
+    }
+  }
+});

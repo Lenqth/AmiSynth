@@ -49,7 +49,7 @@
   // only the knobs of the selected model (+ shared ones) are shown
   const PHYS_MODEL_GROUPS = ['String', 'Modal', 'Bowed', 'Wind', 'Mesh', 'Stiff String', 'Brass'];
   const physModel = $derived(Math.round(app.phys.phys_model));
-  const physGroups = $derived(['Model', PHYS_MODEL_GROUPS[Math.round(app.phys.phys_model)] ?? 'String', 'Output']);
+  const physGroups = $derived(['Model', PHYS_MODEL_GROUPS[Math.round(app.phys.phys_model)] ?? 'String', 'Amp', 'Output']);
 
   function toggleViz() {
     app.physViz = !app.physViz;

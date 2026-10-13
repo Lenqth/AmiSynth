@@ -48,7 +48,7 @@
 import {
   adsr_gate_off, adsr_gate_on, adsr_init, adsr_process, adsr_set, ap1_init, ap1_phase_delay, ap1_process,
   clamp, db_to_gain, delay_clear, delay_init, delay_read, delay_write, lp1_phase_delay, noise_seed, noise_white,
-  onepole_hp, onepole_init, onepole_set, pan_gains, reson_init, reson_process, reson_reset,
+  onepole_hp, onepole_init, onepole_lp, onepole_set, pan_gains, reson_init, reson_process, reson_reset,
   reson_set, reson_set_decay, soft_clip, svf_init, svf_process, svf_reset, svf_set, t60_coef, tuning_init,
   tuning_note_to_hz, tuning_set_edo, tuning_set_table, TWO_PI,
 } from './lib.js';
@@ -99,6 +99,19 @@ export const BRASS_SHARP = [
   [68.9, 71.7, 75.5, 75.2, 74.7, 72.6, 71.2, 69.5, 67.8, 60.7, 55.6, 50.3, 48.4, 46.3, 44.5, 43.3, 42.4, 42.7, 46.2, 49.7],
   [70.8, 74.4, 72.5, 75.9, 77, 79.5, 79.5, 78.2, 76.5, 69.5, 63.6, 57.7, 54.6, 51.6, 48.9, 47.3, 46, 46.4, 50.8, 51.1],
   [59.4, 67.1, 61.5, 62.4, 60.8, 70.2, 70.9, 71.4, 71.8, 69.2, 63.5, 62.3, 59.2, 55.4, 52.1, 50, 48.5, 49, 54.2, 43.9],
+];
+
+/**
+ * Guitar amp types: [pre high-pass Hz, gain at Amp Gain 0, gain at 1, clipping bias (asymmetry),
+ * gain stages, cabinet low-pass Hz at Amp Tone 0, at 1]. A higher pre high-pass gives the tighter,
+ * mid-forward drive of overdrive pedals; the cabinet low-pass stands in for a 12" speaker.
+ */
+const AMP_TYPES = [
+  [0, 1, 1, 0, 0, 0, 0],
+  [60, 1, 4, 0, 1, 3000, 9000],
+  [100, 3, 30, 0.15, 1, 2500, 7000],
+  [200, 8, 100, 0.2, 1, 2200, 6000],
+  [150, 30, 600, 0.1, 2, 1800, 5000],
 ];
 
 /** ratios: frequency / fundamental; gains: relative excitation; (values are textbook approximations) */
@@ -190,6 +203,8 @@ export function phys_init(s, sr) {
   s.mesh_shape = -1;
   s.mesh_mu = 1;
   room_init(s);
+  s.amp_l = amp_create();
+  s.amp_r = amp_create();
   s.sb = new Float64Array(SB_MODES * 8);
   s.sb_l = 0;
   s.sb_r = 0;
@@ -209,6 +224,7 @@ export function phys_update(s, p) {
   s.vib_inc = p.phys_vibrato_rate_hz / s.sr;
   s.flut_a = 1 - Math.exp((-TWO_PI * 5) / s.sr);
   room_update(s, p.phys_room_decay_ms);
+  amp_update(s, p);
   s.hiss_a = 1 - Math.exp((-TWO_PI * 1000) / s.sr);
   const n = clamp(Math.floor(p.mesh_size + 0.5), 6, MESH_MAX);
   const shape = Math.floor(p.mesh_shape + 0.5);
@@ -1155,6 +1171,10 @@ export function phys_render(s) {
     l = l * dry + p.piano_soundboard * s.sb_l;
     r = r * dry + p.piano_soundboard * s.sb_r;
   }
+  if (s.amp_type > 0) {
+    l = amp_process(s, s.amp_l, l);
+    r = amp_process(s, s.amp_r, r);
+  }
   if (p.phys_room_mix > 0) {
     room_process(s, l, r);
     l += p.phys_room_mix * s.room_l;
@@ -1163,6 +1183,45 @@ export function phys_render(s) {
   const g = s.gain * 0.5;
   s.out_l = soft_clip(onepole_hp(s.dc, l) * g);
   s.out_r = soft_clip(onepole_hp(s.dc_r, r) * g);
+}
+
+// ---------------------------------------------------------------------------
+// Guitar amp: pre high-pass -> asymmetric soft clipping (1 or 2 stages, low-pass in between)
+// -> cabinet (resonant low-pass + 80 Hz high-pass, which also removes the DC of the bias).
+
+function amp_create() {
+  const a = { pre: {}, inter: {}, cab: {}, cab_hp: {} };
+  onepole_init(a.pre);
+  onepole_init(a.inter);
+  svf_init(a.cab);
+  svf_init(a.cab_hp);
+  return a;
+}
+
+function amp_update(s, p) {
+  s.amp_type = clamp(Math.round(p.amp_type), 0, AMP_TYPES.length - 1);
+  const t = AMP_TYPES[s.amp_type];
+  if (s.amp_type === 0) return;
+  s.amp_drive = t[1] * Math.pow(t[2] / t[1], p.amp_gain);
+  s.amp_bias = t[3];
+  s.amp_bias_out = soft_clip(t[3]);
+  s.amp_stages = t[4];
+  s.amp_out = db_to_gain(p.amp_level_db);
+  const cab = t[5] * Math.pow(t[6] / t[5], p.amp_tone);
+  for (const a of [s.amp_l, s.amp_r]) {
+    onepole_set(a.pre, t[0], s.sr);
+    onepole_set(a.inter, 5000, s.sr);
+    svf_set(a.cab, cab, 1.1, s.sr);
+    svf_set(a.cab_hp, 80, 1.4, s.sr);
+  }
+}
+
+function amp_process(s, a, x) {
+  let y = soft_clip(onepole_hp(a.pre, x) * s.amp_drive + s.amp_bias) - s.amp_bias_out;
+  if (s.amp_stages > 1) y = soft_clip(onepole_lp(a.inter, y) * 4);
+  svf_process(a.cab, y);
+  svf_process(a.cab_hp, a.cab.lp);
+  return a.cab_hp.hp * s.amp_out;
 }
 
 // ---------------------------------------------------------------------------

@@ -62,6 +62,10 @@ slider51:brass_lip=0.5<0,1,0.001>Brass Lip Buzz
 slider52:brass_attack_ms=30<1,1000,0.1>Brass Attack [ms]
 slider53:brass_bell=0.5<0,1,0.001>Brass Bell Brightness
 slider54:tuning_source=0<0,1,1{EDO sliders,Scale file (Data/AmiSynth/tuning.txt)}>Tuning Source
+slider55:amp_type=0<0,4,1{Off,Clean,Crunch,Overdrive,Distortion}>Amp
+slider56:amp_gain=0.5<0,1,0.001>Amp Gain
+slider57:amp_tone=0.5<0,1,0.001>Amp Tone
+slider58:amp_level_db=0<-24,12,0.1>Amp Level [dB]
 // </generated sliders>
 
 import amisynth_lib.jsfx-inc
@@ -173,6 +177,34 @@ mat_row(7, 1, 5.93, 13.0, 21.9, 32.6, 45.2, 59.6, 75.8);          mat_gains(7, 1
 mat_row(8, 1, 1.004, 2.01, 2.94, 3.98, 4.62, 5.86, 7.12);         mat_gains(8, 1, 0.85, 0.4, 0.3, 0.18, 0.12, 0.08, 0.05);   // gong ageng
 mat_row(9, 1, 1.005, 2.06, 2.73, 3.02, 4.17, 5.11, 6.32);         mat_gains(9, 1, 0.6, 0.45, 0.4, 0.35, 0.15, 0.1, 0.06);    // kettle gong
 mat_row(10, 1, 1.38, 1.83, 2.27, 2.76, 3.31, 3.93, 4.62);         mat_gains(10, 0.7, 0.8, 0.85, 0.8, 0.75, 0.7, 0.6, 0.5);   // tam-tam
+
+// guitar amp types (same as AMP_TYPES in phys.js): pre high-pass Hz, gain at Amp Gain 0 / 1,
+// clipping bias, gain stages, cabinet low-pass Hz at Amp Tone 0 / 1
+amp_tab = mem_alloc(5 * 7);
+function amp_row(t, hp, g0, g1, bias, stages, c0, c1) (
+  amp_tab[t * 7] = hp; amp_tab[t * 7 + 1] = g0; amp_tab[t * 7 + 2] = g1; amp_tab[t * 7 + 3] = bias;
+  amp_tab[t * 7 + 4] = stages; amp_tab[t * 7 + 5] = c0; amp_tab[t * 7 + 6] = c1;
+);
+amp_row(0, 0, 1, 1, 0, 0, 0, 0);
+amp_row(1, 60, 1, 4, 0, 1, 3000, 9000);
+amp_row(2, 100, 3, 30, 0.15, 1, 2500, 7000);
+amp_row(3, 200, 8, 100, 0.2, 1, 2200, 6000);
+amp_row(4, 150, 30, 600, 0.1, 2, 1800, 5000);
+
+// guitar amp: pre high-pass -> asymmetric soft clipping (1 or 2 stages) -> cabinet (low-pass + 80 Hz high-pass)
+function amp_set(pre_hz, cab_hz) (
+  this.pre.onepole_set(pre_hz);
+  this.inter.onepole_set(5000);
+  this.cab.svf_set(cab_hz, 1.1);
+  this.cab_hp.svf_set(80, 1.4);
+);
+function amp_process(x) local(y) (
+  y = soft_clip(this.pre.onepole_hp(x) * amp_drive + amp_bias) - amp_bias_out;
+  amp_stages > 1 ? y = soft_clip(this.inter.onepole_lp(y) * 4);
+  this.cab.svf_process(y);
+  this.cab_hp.svf_process(this.cab.lp);
+  this.cab_hp.hp * amp_out;
+);
 
 v_active = mem_alloc(MAX_VOICES);
 v_note = mem_alloc(MAX_VOICES);
@@ -1100,6 +1132,17 @@ vib_inc = phys_vibrato_rate_hz / srate;
 flut_a = 1 - exp((-2 * $pi * 5) / srate);
 hiss_a = 1 - exp((-2 * $pi * 1000) / srate);
 room_update(phys_room_decay_ms);
+amp_t = clamp(floor(amp_type + 0.5), 0, 4);
+amp_t > 0 ? (
+  amp_drive = amp_tab[amp_t * 7 + 1] * pow(amp_tab[amp_t * 7 + 2] / amp_tab[amp_t * 7 + 1], amp_gain);
+  amp_bias = amp_tab[amp_t * 7 + 3];
+  amp_bias_out = soft_clip(amp_bias);
+  amp_stages = amp_tab[amp_t * 7 + 4];
+  amp_out = db_to_gain(amp_level_db);
+  amp_cab_hz = amp_tab[amp_t * 7 + 5] * pow(amp_tab[amp_t * 7 + 6] / amp_tab[amp_t * 7 + 5], amp_tone);
+  amp_l.amp_set(amp_tab[amp_t * 7], amp_cab_hz);
+  amp_r.amp_set(amp_tab[amp_t * 7], amp_cab_hz);
+);
 mesh_n_new = clamp(floor(mesh_size + 0.5), 6, MESH_MAX);
 mesh_shape_new = floor(mesh_shape + 0.5);
 mesh_n_new !== mesh_n || mesh_shape_new !== mesh_shape_cur ? mesh_setup(mesh_n_new, mesh_shape_new);
@@ -1133,6 +1176,10 @@ model === MODEL_STIFF && piano_soundboard > 0 ? (
   mix_r = mix_r * sb_dry + piano_soundboard * sb_r;
 );
 
+amp_t > 0 ? (
+  mix_l = amp_l.amp_process(mix_l);
+  mix_r = amp_r.amp_process(mix_r);
+);
 phys_room_mix > 0 ? (
   room_process(mix_l, mix_r);
   mix_l += phys_room_mix * room_l;
