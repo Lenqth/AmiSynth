@@ -1,3 +1,5 @@
+-- @description AmiSynth Companion: open interactive preset/macro/parameter GUI on a selected AmiSynth track; not a headless preset command.
+-- @about Requires installed AmiSynth JSFX, toolkit.lua beside this script and ../generated/catalog.lua. Select a track with Synth/Physical/Drums/Tuning; multiple instruments prompt for a choice. Presets preserve tuning; parameter writes use real Hz/ms/dB, verify readback and provide Undo. GUI remains open via defer; script_run result_found=false is expected (no completion result). For MCP automation, call toolkit.lua from a dedicated wrapper; run the read-only AmiSynth - MCP guide action for instructions.
 -- Load this action via REAPER Actions > New action > Load ReaScript.
 local dir = debug.getinfo(1, 'S').source:sub(2):match('^(.*[/\\])')
 local api = dofile(dir .. 'toolkit.lua')

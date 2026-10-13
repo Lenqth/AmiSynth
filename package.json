@@ -11,6 +11,7 @@
     "preview": "vite preview",
     "test": "node --test tests/*.test.js",
     "gen:jsfx": "node scripts/gen-jsfx-sliders.js",
+    "install:reaper": "node scripts/install-reaper.js",
     "deploy": "npm run build && wrangler deploy",
     "jsfx:tools": "bash scripts/build-jsfx-render.sh",
     "jsfx:compare": "node scripts/jsfx-compare.js"

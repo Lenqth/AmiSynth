@@ -117,3 +117,11 @@ fail_fx = true
 dofile('jsfx/reaper/AmiSynth Drums - Create routed tracks.lua')
 assert(#tracks == 6 and tracks[1] == existing and tracks[2] == source and undo == 0)
 print('REAPER drum routing: channels, pins, all four sends, main exclusion and failure rollback passed')
+
+-- Read-only MCP entry point must publish useful text with no project mutation.
+local count = #tracks
+dofile('jsfx/reaper/AmiSynth - MCP guide.lua')
+assert(#tracks == count and undo == 0)
+assert(ext.last_result:find('Headless wrapper example', 1, true))
+assert(ext.last_result:find('script_list', 1, true))
+print('REAPER MCP guide: read-only action publishes the installed guide text')
