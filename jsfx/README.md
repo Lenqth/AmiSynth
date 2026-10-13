@@ -116,7 +116,9 @@ Synth は使用ボイス数、リリース／サステイン中のボイス数�
 
 ### MIDI CC でカットオフ
 
-- Synth は `cc_cutoff_number`(既定 74)の CC でカットオフを動かします。CC 64 で変化なし、0 / 127 で `cc_cutoff_depth_oct` オクターブ下 / 上です。REAPER の MIDI CC レーンや、オートメーションを書きにくい MCP ツールからの操作に使えます。0 にすると無効です。
+音源別のCC、ノート、ピッチベンド、未対応メッセージ、チャンネルとパススルーの詳細は [MIDI対応表](../docs/MIDI.md) にまとめています。
+
+- Synth は `cc_cutoff_number`(既定 74)の CC でカットオフを動かします。**CCの値が64**なら変化なし、値0 / 127で `cc_cutoff_depth_oct` オクターブ下 / 上です。CC番号64のサステインとは別です。REAPER の MIDI CC レーンや、オートメーションを書きにくい MCP ツールからの操作に使えます。`cc_cutoff_number` を0にすると無効です。
 
 ### Physical のサステインペダル (CC64)
 
