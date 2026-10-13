@@ -3,8 +3,9 @@
 // and JSFX sliders that take real values.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { defaultValues, DRUM_PARAMS, SYNTH_PARAMS } from '../src/dsp/params.js';
-import { synth_init, synth_note_off, synth_note_on, synth_render, synth_transport, synth_update } from '../src/dsp/synth.js';
+import { defaultValues, DRUM_PARAMS, PHYS_PARAMS, SYNTH_PARAMS } from '../src/dsp/params.js';
+import { synth_cc, synth_init, synth_note_off, synth_note_on, synth_render, synth_transport, synth_update } from '../src/dsp/synth.js';
+import { MATERIALS, phys_init, phys_note_on, phys_render, phys_update } from '../src/dsp/phys.js';
 import { drums_init, drums_note_on, drums_render, drums_update } from '../src/dsp/drums.js';
 import { sliderLine } from '../scripts/gen-jsfx-sliders.js';
 
@@ -225,4 +226,76 @@ test('JSFX sliders take real values (no :log shape): the cutoff is written in Hz
 test('new sliders come after the old ones, so saved REAPER projects keep their slider numbers', () => {
   assert.equal(SYNTH_PARAMS.findIndex((d) => d.id === 'master_volume_db'), 48); // slider49, as before
   assert.equal(DRUM_PARAMS.findIndex((d) => d.id === 'drum_master_volume_db'), 73); // slider74
+});
+
+// ---- second round (genre tests: trance, gamelan 5-EDO, chiptune, acid)
+
+test('chip "short" noise is a pitched, periodic tone at the note; "long" noise is not', () => {
+  const corr = (a, lag) => {
+    let num = 0;
+    let den = 0;
+    for (let i = 0; i + lag < a.length; i++) {
+      num += a[i] * a[i + lag];
+      den += a[i] * a[i];
+    }
+    return num / den;
+  };
+  const base = { osc1_level: 0, osc2_level: 0, noise_level: 1, filter_cutoff_hz: 20000, filter_resonance: 0, filter_env_amount_oct: 0, amp_sustain: 1 };
+  const period = Math.round(SR / 220); // note 57 = 220 Hz
+  const result = {};
+  for (const type of [1, 2]) {
+    const s = makeSynth({ ...base, noise_type: type });
+    synth_note_on(s, 57, 100);
+    run(s, 2000);
+    const out = [];
+    run(s, SR * 0.2, () => out.push(s.out_l));
+    result[type] = Math.max(corr(out, period), corr(out, period - 1), corr(out, period + 1));
+  }
+  assert.ok(result[2] > 0.6, `short noise periodic: ${result[2]}`);
+  assert.ok(result[1] < 0.3, `long noise not periodic: ${result[1]}`);
+});
+
+test('cutoff CC (74 by default): CC 64 = no change, 0 / 127 move the cutoff by the depth', () => {
+  const s = makeSynth({ cc_cutoff_depth_oct: 3 });
+  synth_cc(s, 74, 64);
+  assert.equal(s.cc_mult, 1);
+  synth_cc(s, 74, 127);
+  assert.ok(Math.abs(s.cc_mult - 8) < 1e-9);
+  synth_cc(s, 74, 0);
+  assert.ok(Math.abs(s.cc_mult - 1 / 8) < 1e-9);
+  synth_cc(s, 71, 127); // another CC: ignored
+  assert.ok(Math.abs(s.cc_mult - 1 / 8) < 1e-9);
+  // the depth knob re-scales the last CC value
+  synth_update(s, { ...s.p, cc_cutoff_depth_oct: 1 });
+  assert.ok(Math.abs(s.cc_mult - 0.5) < 1e-9);
+  // CC number 0 = off
+  const off = makeSynth({ cc_cutoff_number: 0 });
+  synth_cc(off, 0, 127);
+  assert.equal(off.cc_mult, 1);
+});
+
+test('gong materials: the gamelan gong beats slowly (two modes 0.4 % apart)', () => {
+  const p = MATERIALS.find((m) => m.name.startsWith('Gong Ageng'));
+  assert.ok(p && Math.abs(p.ratios[1] / p.ratios[0] - 1.004) < 1e-9);
+  assert.equal(MATERIALS.length, PHYS_PARAMS.find((d) => d.id === 'modal_material').options.length);
+});
+
+test('guitar amp: distortion squashes the dynamics (soft and hard picking come out close in level)', () => {
+  const level = (amp_type, vel) => {
+    const s = {};
+    phys_init(s, SR);
+    phys_update(s, { ...defaultValues(PHYS_PARAMS), phys_model: 0, string_decay_ms: 8000, amp_type, amp_gain: 0.8 });
+    phys_note_on(s, 52, vel);
+    let e = 0;
+    for (let i = 0; i < SR * 0.5; i++) {
+      phys_render(s);
+      if (i > SR * 0.1) e += s.out_l * s.out_l;
+    }
+    return 10 * Math.log10(e);
+  };
+  // level difference between hard (127) and soft (30) picking, per amp type (Off .. Distortion)
+  const range = [0, 1, 2, 3, 4].map((t) => level(t, 127) - level(t, 30));
+  assert.ok(range[0] > 3 && range[1] > 3, `off / clean keep the dynamics: ${range.map((r) => r.toFixed(2))}`);
+  assert.ok(range[2] < range[1] && range[3] < range[2] && range[4] < range[3], 'more gain, less dynamics');
+  assert.ok(range[4] < 0.5, `distortion squashes: ${range[4].toFixed(2)} dB`);
 });

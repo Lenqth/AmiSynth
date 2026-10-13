@@ -3,6 +3,7 @@
 //   out: { type: 'progress', value } ... then { type: 'done', bytes, mime, peak, seconds } | { type: 'error', message }
 import { renderPattern } from './render.js';
 import { encodeMp3, encodeWav } from './audiofile.js';
+import { integratedLoudness } from './loudness.js';
 
 self.onmessage = async (e) => {
   const o = e.data;
@@ -10,12 +11,13 @@ self.onmessage = async (e) => {
     const res = renderPattern(o, (f) => self.postMessage({ type: 'progress', value: f * 0.8 }));
     // normalise to -1 dBFS if asked; otherwise keep the level as played
     const gain = o.normalize && res.peak > 0 ? 0.891 / res.peak : 1;
+    const lufs = integratedLoudness(res.left, res.right, res.sampleRate) + 20 * Math.log10(gain);
     const bytes = o.format === 'mp3'
       ? await encodeMp3(res.left, res.right, res.sampleRate, 192, gain, (f) => self.postMessage({ type: 'progress', value: 0.8 + f * 0.2 }))
       : encodeWav(res.left, res.right, res.sampleRate, gain);
     self.postMessage({
       type: 'done', bytes, mime: o.format === 'mp3' ? 'audio/mpeg' : 'audio/wav',
-      peak: res.peak * gain, seconds: res.left.length / res.sampleRate,
+      peak: res.peak * gain, seconds: res.left.length / res.sampleRate, lufs,
     }, [bytes.buffer]);
   } catch (err) {
     self.postMessage({ type: 'error', message: String(err?.message || err) });

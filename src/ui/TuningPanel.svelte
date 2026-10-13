@@ -1,6 +1,6 @@
 <script>
   import { TUNING_PARAMS } from '../dsp/params.js';
-  import { parseScale, TUNING_PRESETS } from '../lib/tuning.js';
+  import { parseScale, scaleToScala, TUNING_PRESETS } from '../lib/tuning.js';
   import Knob from './Knob.svelte';
 
   /**
@@ -34,6 +34,17 @@
     } catch (e) {
       error = e.message;
     }
+  }
+
+  /** Download the current tuning as the JSFX shared scale file (REAPER/Data/AmiSynth/tuning.txt). */
+  function downloadScala() {
+    const text = scaleToScala(scale, values.tuning_divisions, values.tuning_period_cents);
+    const url = URL.createObjectURL(new Blob([text], { type: 'text/plain' }));
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'tuning.txt';
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 2000);
   }
 
   const summary = $derived(
@@ -71,6 +82,11 @@
       {#if error}<span class="error">{error}</span>{/if}
     </div>
   </details>
+  <div class="row">
+    <button onclick={downloadScala} title="REAPER の Data/AmiSynth/tuning.txt に置き、JSFX の Tuning Source を Scale file にすると、全トラックがこの音階で鳴ります">
+      tuning.txt を書き出し (REAPER 共通調律)
+    </button>
+  </div>
   <p class="muted hint">
     ノート番号は「基準ノートから何ステップ目か」として解釈されます。基準ノート {tuning.ref_note} = {tuning.ref_hz} Hz。
   </p>

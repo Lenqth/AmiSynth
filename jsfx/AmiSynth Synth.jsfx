@@ -4,7 +4,7 @@ desc:AmiSynth Synth (polyphonic subtractive, microtonal)
 // Port of src/dsp/synth.js. Parameter names = slider variable names = ids in
 // src/dsp/params.js (the block between the generated markers is rewritten by
 // `npm run gen:jsfx`; do not edit it by hand).
-// Custom (Scala) scale tables are web-only for now; here tuning is an EDO.
+// Tuning: the EDO sliders, or a shared Scala scale in REAPER/Data/AmiSynth/tuning.txt (tuning_source).
 
 // <generated sliders>
 slider1:tuning_divisions=12<1,72,1>Tuning Divisions Per Period [steps]
@@ -84,6 +84,13 @@ slider74:arp_step_13=1<0,1,1{Off,On}>Arp Step 13
 slider75:arp_step_14=1<0,1,1{Off,On}>Arp Step 14
 slider76:arp_step_15=1<0,1,1{Off,On}>Arp Step 15
 slider77:arp_step_16=1<0,1,1{Off,On}>Arp Step 16
+slider78:noise_type=0<0,3,1{White,Chip Long (LFSR),Chip Short (metallic),Sample & Hold}>Noise Type
+slider79:noise_clock_oct=0<-4,4,0.01>Noise Clock [oct]
+slider80:noise_filter_mode=0<0,3,1{Off,Low-pass,High-pass,Band-pass}>Noise Filter
+slider81:noise_filter_hz=4000<20,20000,1>Noise Filter Cutoff [Hz]
+slider82:cc_cutoff_number=74<0,127,1>Cutoff CC Number [cc]
+slider83:cc_cutoff_depth_oct=4<0,8,0.01>Cutoff CC Depth [oct]
+slider84:tuning_source=0<0,1,1{EDO sliders,Scale file (Data/AmiSynth/tuning.txt)}>Tuning Source
 // </generated sliders>
 
 import amisynth_lib.jsfx-inc
@@ -148,6 +155,12 @@ cutoff_smooth.smoother_init(1000);
 cutoff_smooth.smoother_set(15);
 gain_smooth.smoother_init(0);
 gain_smooth.smoother_set(20);
+// cutoff CC (value 64 = centre)
+cc_cutoff_value = 64;
+cc_mult = 1;
+// clock of the chip / S&H noise in multiples of the note frequency (same as NOISE_CLOCK in synth.js)
+noise_clock_tab = mem_alloc(4);
+noise_clock_tab[0] = 0; noise_clock_tab[1] = 32; noise_clock_tab[2] = 93; noise_clock_tab[3] = 8;
 // host transport: beats (quarter notes), advanced every sample, resynced in @block while playing
 beat = 0;
 beat_inc = 120 / 60 / srate;
@@ -189,6 +202,8 @@ function voice_op(op, a, b, c, d) instance(idx velocity base_hz glide_oct) local
     r1 = spread ? random_unit() : 0; r2 = random_unit(); this.u7.ucopy_reset(r1, r2);
     r1 = spread ? random_unit() : 0; r2 = random_unit(); this.u8.ucopy_reset(r1, r2);
     this.sub.osc_reset(0);
+    this.nz.nz_reg = 1; this.nz.nz_phase = 0; this.nz.nz_out = 0;
+    this.nzf.svf_reset();
     this.fl1.svf_reset(); this.fl2.svf_reset(); this.fr1.svf_reset(); this.fr2.svf_reset();
     this.aenv.value = 0;
     this.fenv.value = 0;
@@ -198,6 +213,7 @@ function voice_op(op, a, b, c, d) instance(idx velocity base_hz glide_oct) local
   ) : op === 3 ? (
     this.aenv.adsr_set(amp_attack_ms, amp_decay_ms, amp_sustain, amp_release_ms);
     this.fenv.adsr_set(filter_env_attack_ms, filter_env_decay_ms, filter_env_sustain, filter_env_release_ms);
+    this.nzf.svf_set(noise_filter_hz, 1);
   ) : op === 4 ? (
     v_active[idx] ? base_hz = tuning_note_to_hz(v_pitch[idx]);
   ) : op === 5 ? (
@@ -214,12 +230,31 @@ function voice_op(op, a, b, c, d) instance(idx velocity base_hz glide_oct) local
   );
 );
 
+// chip / S&H noise of a voice: 15-bit shift register in plain arithmetic (same as voice_noise in synth.js)
+function voice_noise(hz) instance(nz_reg nz_phase nz_out) local(r, tap, b0, bx) (
+  nz_phase += min(1, (hz * noise_clock) / srate);
+  nz_phase >= 1 ? (
+    nz_phase -= 1;
+    noise_type_i === 3 ? (
+      nz_out = noise_white();
+    ) : (
+      r = nz_reg;
+      tap = noise_type_i === 2 ? 64 : 2;
+      b0 = r - 2 * floor(r / 2);
+      bx = floor(r / tap) - 2 * floor(r / (2 * tap));
+      nz_reg = floor(r / 2) + (b0 === bx ? 0 : 16384);
+      nz_out = nz_reg - 2 * floor(nz_reg / 2) ? 1 : -1;
+    );
+  );
+  nz_out;
+);
+
 function ucopy_mix(y, u) (
   y *= un_w[u];
   stereo ? ( xl += y * un_gl[u]; xr += y * un_gr[u]; ) : xl += y;
 );
 
-function voice_render() instance(idx velocity base_hz glide_oct) local(hz, fenv, r2, common, env_scale, oct, fc, yl, yr, aenv, g) (
+function voice_render() instance(idx velocity base_hz glide_oct) local(hz, fenv, r2, common, nz, env_scale, oct, fc, yl, yr, aenv, g) (
   v_active[idx] ? (
     hz = base_hz * g_pitch_ratio;
     glide_oct !== 0 ? (
@@ -249,7 +284,14 @@ function voice_render() instance(idx velocity base_hz glide_oct) local(hz, fenv,
       this.sub.osc_set_freq(hz * 0.5);
       common += this.sub.osc_process(1, 0.5, 0) * sub_osc_level;
     );
-    noise_level > 0 ? common += noise_white() * noise_level;
+    noise_level > 0 ? (
+      nz = noise_type_i === 0 ? noise_white() : this.nz.voice_noise(hz);
+      noise_filter_i > 0 ? (
+        this.nzf.svf_process(nz);
+        nz = this.nzf.svf_output(noise_filter_i - 1);
+      );
+      common += nz * noise_level;
+    );
     xl += common;
     stereo ? xr += common;
     filter_drive > 0 ? (
@@ -606,6 +648,10 @@ function handle_midi(m1, m2, m3) local(type) (
   : type === 0x80 ? note_off(m2)
   : type === 0xE0 ? bend = clamp(((m3 * 128 + m2) / 8192) - 1, -1, 1)
   : type === 0xB0 ? (
+    cc_cutoff_num > 0 && m2 === cc_cutoff_num ? (
+      cc_cutoff_value = m3;
+      cc_mult = pow(2, clamp((m3 - 64) / 63, -1, 1) * cc_cutoff_depth_oct);
+    );
     m2 === 1 ? modwheel = clamp(m3 / 127, 0, 1)
     : m2 === 64 ? sustain(m3 >= 64)
     : m2 === 120 || m2 === 123 ? release_all();
@@ -613,7 +659,9 @@ function handle_midi(m1, m2, m3) local(type) (
 );
 
 @slider
-tuning_set_edo(tuning_divisions, tuning_period_cents);
+// shared scale file (falls back to the EDO sliders when it cannot be read)
+tuning_file_ok = tuning_source >= 0.5 ? tuning_load_file() : 0;
+!tuning_file_ok ? tuning_set_edo(tuning_divisions, tuning_period_cents);
 master_gain = db_to_gain(master_volume_db);
 // resonance 0..1 -> SVF damping k 2..0.02
 filter_k = 2 - 1.98 * sqrt(clamp(filter_resonance, 0, 1));
@@ -627,6 +675,11 @@ fm_cycles = fm_index / (2 * $pi);
 transpose_n = floor(transpose_semitones + 0.5);
 voice_mono = voice_mode >= 0.5 ? 1 : 0;
 voice_legato = voice_mode >= 1.5 ? 1 : 0;
+noise_type_i = clamp(floor(noise_type + 0.5), 0, 3);
+noise_clock = noise_clock_tab[noise_type_i] * pow(2, noise_clock_oct);
+noise_filter_i = clamp(floor(noise_filter_mode + 0.5), 0, 3);
+cc_cutoff_num = floor(cc_cutoff_number + 0.5);
+cc_mult = pow(2, clamp((cc_cutoff_value - 64) / 63, -1, 1) * cc_cutoff_depth_oct);
 
 // unison: copies spread over +/- detune/2 (evenly, or bunched toward the centre by the curve),
 // panned evenly; the centre copy (two for an even count) is at full level
@@ -688,7 +741,7 @@ lfo_sync_beats > 0 ? (
 g_pitch_ratio = pow(2, (bend * pitch_bend_range_cents + g_lfo * (lfo_pitch_cents + modwheel * modwheel_vibrato_cents)) / 1200);
 g_osc2_cents = osc2_transpose_cents + osc2_detune_cents;
 g_osc2_ratio = pow(2, g_osc2_cents / 1200);
-g_cutoff = cutoff_smooth.smoother_process(filter_cutoff_hz);
+g_cutoff = cutoff_smooth.smoother_process(filter_cutoff_hz * cc_mult);
 g_lfo_filter_oct = g_lfo * (lfo_filter_oct + modwheel * modwheel_filter_oct);
 g_pw1 = clamp(osc1_pulse_width + g_lfo * lfo_pulse_width, 0.02, 0.98);
 g_pw2 = clamp(osc2_pulse_width + g_lfo * lfo_pulse_width, 0.02, 0.98);

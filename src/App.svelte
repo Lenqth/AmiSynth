@@ -49,7 +49,7 @@
   // only the knobs of the selected model (+ shared ones) are shown
   const PHYS_MODEL_GROUPS = ['String', 'Modal', 'Bowed', 'Wind', 'Mesh', 'Stiff String', 'Brass'];
   const physModel = $derived(Math.round(app.phys.phys_model));
-  const physGroups = $derived(['Model', PHYS_MODEL_GROUPS[Math.round(app.phys.phys_model)] ?? 'String', 'Output']);
+  const physGroups = $derived(['Model', PHYS_MODEL_GROUPS[Math.round(app.phys.phys_model)] ?? 'String', 'Amp', 'Output']);
 
   function toggleViz() {
     app.physViz = !app.physViz;
@@ -154,7 +154,7 @@
       a.click();
       setTimeout(() => URL.revokeObjectURL(url), 2000);
       const db = 20 * Math.log10(Math.max(m.peak, 1e-9));
-      exportMsg = `${m.seconds.toFixed(1)} 秒 · ピーク ${db.toFixed(1)} dBFS${m.peak > 1 ? ' (クリップあり: ノーマライズ推奨)' : ''}`;
+      exportMsg = `${m.seconds.toFixed(1)} 秒 · ピーク ${db.toFixed(1)} dBFS · ${Number.isFinite(m.lufs) ? m.lufs.toFixed(1) : '-inf'} LUFS${m.peak > 1 ? ' (クリップあり: ノーマライズ推奨)' : ''}`;
     };
     worker.onerror = (e) => {
       worker.terminate();

@@ -9,10 +9,10 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { defaultValues, DRUM_PARAMS, PHYS_PARAMS, SYNTH_PARAMS } from '../src/dsp/params.js';
 import { drums_init, drums_note_on, drums_render, drums_update } from '../src/dsp/drums.js';
-import { phys_init, phys_note_off, phys_note_on, phys_pitch_bend, phys_render, phys_update } from '../src/dsp/phys.js';
+import { phys_init, phys_note_off, phys_note_on, phys_pitch_bend, phys_render, phys_set_scale, phys_update } from '../src/dsp/phys.js';
 import {
-  synth_init, synth_mod_wheel, synth_note_off, synth_note_on, synth_pitch_bend, synth_render, synth_sustain_pedal, synth_transport,
-  synth_update,
+  synth_cc, synth_init, synth_mod_wheel, synth_note_off, synth_note_on, synth_pitch_bend, synth_render, synth_set_scale,
+  synth_sustain_pedal, synth_transport, synth_update,
 } from '../src/dsp/synth.js';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -21,8 +21,10 @@ export const INSTRUMENTS = {
   synth: {
     file: 'AmiSynth Synth.jsfx', defs: SYNTH_PARAMS, init: synth_init, update: synth_update, render: synth_render,
     transport: synth_transport,
+    scale: synth_set_scale,
     midi(s, st, d1, d2) {
       const t = st & 0xf0;
+      if (t === 0xb0) synth_cc(s, d1, d2);
       if (t === 0x90) synth_note_on(s, d1, d2);
       else if (t === 0x80) synth_note_off(s, d1);
       else if (t === 0xe0) synth_pitch_bend(s, ((d2 << 7) | d1) / 8192 - 1);
@@ -48,6 +50,7 @@ export const INSTRUMENTS = {
   },
   phys: {
     file: 'AmiSynth Physical.jsfx', defs: PHYS_PARAMS, init: phys_init, update: phys_update, render: phys_render,
+    scale: phys_set_scale,
     midi(s, st, d1, d2) {
       const t = st & 0xf0;
       if (t === 0x90) phys_note_on(s, d1, d2);
@@ -61,17 +64,20 @@ const BLOCK = 128; // jsfx_render's block size: the host transport is read once 
 
 /**
  * JS render with the same event semantics as the worklet / JSFX (events before the sample at their frame).
- * host: { tempo, playing } like REAPER's tempo / play_state (default 120 bpm, stopped).
+ * host: { tempo, playing } like REAPER's tempo / play_state (default 120 bpm, stopped);
+ * host.scale: { cents, dataRoot } = the shared scale file the JSFX reads (with tuning_source = 1).
  */
 export function renderJs(inst, params, events, sr, frames, host = { tempo: 120, playing: 0 }) {
   const s = {};
   inst.init(s, sr);
   inst.update(s, params);
+  if (host.scale && params.tuning_source >= 0.5) inst.scale(s, host.scale.cents, host.scale.cents.length);
+  const tempo = host.tempo ?? 120;
   const ch = inst.channels ?? 2;
   const out = new Float64Array(frames * ch);
   let e = 0;
   for (let i = 0; i < frames; i++) {
-    if (inst.transport && i % BLOCK === 0) inst.transport(s, host.tempo, host.playing, (i * host.tempo) / 60 / sr);
+    if (inst.transport && i % BLOCK === 0) inst.transport(s, tempo, host.playing, (i * tempo) / 60 / sr);
     while (e < events.length && events[e][0] <= i) {
       const [, a, b, c] = events[e++];
       inst.midi(s, a, b, c);
@@ -91,7 +97,8 @@ export function renderJsfx(renderBin, inst, params, events, sr, frames, host = {
   const script = [
     // ysfx knows 64 sliders; beyond that (REAPER allows 256) the ids are plain variables
     ...inst.defs.map((d, i) => (i < 64 ? `slider ${i + 1} ${params[d.id]}` : `var ${d.id} ${params[d.id]}`)),
-    `tempo ${host.tempo} ${host.playing ? 1 : 0}`,
+    `tempo ${host.tempo ?? 120} ${host.playing ? 1 : 0}`,
+    ...(host.scale ? [`dataroot ${host.scale.dataRoot}`] : []),
     ...events.map(([f, a, b, c]) => `midi ${f} ${a} ${b} ${c}`),
   ].join('\n');
   writeFileSync(join(dir, 'script.txt'), script);

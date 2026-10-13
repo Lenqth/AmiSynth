@@ -43,6 +43,16 @@ export const TUNING_PARAMS = /** @type {ParamDef[]} */ ([
     description: 'Frequency of the reference note.' },
 ]);
 
+/**
+ * JSFX only: read the scale from a shared Scala file instead of the EDO sliders, so every track of
+ * a microtonal song follows one file. The web app loads scales in its Tuning panel instead.
+ */
+const TUNING_SOURCE = /** @type {ParamDef} */ ({
+  id: 'tuning_source', name: 'Tuning Source', group: 'Tuning', min: 0, max: 1, default: 0, step: 1, unit: '',
+  options: ['EDO sliders', 'Scale file (Data/AmiSynth/tuning.txt)'],
+  description: 'EDO sliders: Tuning Divisions / Period. Scale file: a Scala (.scl) scale saved as REAPER/Data/AmiSynth/tuning.txt, shared by every instance set to it (re-read on playback start or any slider change; falls back to the EDO sliders if the file is missing). Reference note / frequency still apply.',
+});
+
 export const SYNTH_PARAMS = /** @type {ParamDef[]} */ ([
   ...TUNING_PARAMS,
 
@@ -176,13 +186,29 @@ export const SYNTH_PARAMS = /** @type {ParamDef[]} */ ([
     id: `arp_step_${i + 1}`, name: `Arp Step ${i + 1}`, group: 'Arp Rhythm', min: 0, max: 1, default: 1, step: 1, unit: '', options: ['Off', 'On'],
     description: `Rhythm gate: whether arpeggiator step ${i + 1} plays (Off = rest).`,
   })),
+
+  { id: 'noise_type', name: 'Noise Type', group: 'Noise', min: 0, max: 3, default: 0, step: 1, unit: '',
+    options: ['White', 'Chip Long (LFSR)', 'Chip Short (metallic)', 'Sample & Hold'],
+    description: 'White: hiss. Chip Long / Short: 8-bit console style shift-register noise, clocked from the note pitch (Short repeats every 93 steps: a pitched, metallic tone). Sample & Hold: random steps at the clock rate.' },
+  { id: 'noise_clock_oct', name: 'Noise Clock', group: 'Noise', min: -4, max: 4, default: 0, step: 0.01, unit: 'oct',
+    description: 'Clock of the chip / S&H noise relative to the note (higher = brighter). At 0, Chip Short sounds at the note pitch.' },
+  { id: 'noise_filter_mode', name: 'Noise Filter', group: 'Noise', min: 0, max: 3, default: 0, step: 1, unit: '', options: ['Off', 'Low-pass', 'High-pass', 'Band-pass'],
+    description: 'Extra filter on the noise only (before the main filter), e.g. a high-passed hiss or a band of noise.' },
+  { id: 'noise_filter_hz', name: 'Noise Filter Cutoff', group: 'Noise', min: 20, max: 20000, default: 4000, step: 1, unit: 'Hz', scale: 'log',
+    description: 'Cutoff / centre frequency of the noise filter.' },
+  { id: 'cc_cutoff_number', name: 'Cutoff CC Number', group: 'Filter', min: 0, max: 127, default: 74, step: 1, unit: 'cc',
+    description: 'MIDI CC that moves the filter cutoff (74 = brightness; 0 = none). CC value 64 = no change.' },
+  { id: 'cc_cutoff_depth_oct', name: 'Cutoff CC Depth', group: 'Filter', min: 0, max: 8, default: 4, step: 0.01, unit: 'oct',
+    description: 'How far the cutoff CC moves the cutoff: CC 0 = this many octaves down, CC 127 = up.' },
+  TUNING_SOURCE,
 ]);
 
 // ---------------------------------------------------------------------------
 // Physical modelling instrument (Karplus-Strong string / modal resonators)
 
 /** Mode tables used by the modal model (see src/dsp/phys.js MATERIALS). */
-export const MODAL_MATERIALS = ['Marimba Bar', 'Vibraphone Bar', 'Glockenspiel (free bar)', 'Wine Glass', 'Church Bell', 'Drum Membrane', 'Harmonic (string-like)', 'Kalimba Tine'];
+export const MODAL_MATERIALS = ['Marimba Bar', 'Vibraphone Bar', 'Glockenspiel (free bar)', 'Wine Glass', 'Church Bell', 'Drum Membrane', 'Harmonic (string-like)', 'Kalimba Tine',
+  'Gong Ageng (gamelan)', 'Kettle Gong (bonang)', 'Tam-tam'];
 
 export const PHYS_PARAMS = /** @type {ParamDef[]} */ ([
   ...TUNING_PARAMS,
@@ -295,6 +321,18 @@ export const PHYS_PARAMS = /** @type {ParamDef[]} */ ([
     description: 'How fast the pressure builds up (short = a tongued attack).' },
   { id: 'brass_bell', name: 'Brass Bell Brightness', group: 'Brass', min: 0, max: 1, default: 0.5, step: 0.001, unit: '',
     description: 'Low-pass of the sound leaving the bell; low values sound like a mute or a horn played into the hand.' },
+
+  // ---- added later: kept at the end so existing REAPER projects keep their slider numbers
+  TUNING_SOURCE,
+  { id: 'amp_type', name: 'Amp', group: 'Amp', min: 0, max: 4, default: 0, step: 1, unit: '',
+    options: ['Off', 'Clean', 'Crunch', 'Overdrive', 'Distortion'],
+    description: 'Guitar amp after the instrument (before the room): pre EQ, drive and a speaker cabinet filter. Clean adds only colour; Crunch to Distortion clip harder (Distortion has two gain stages). Mostly for the String model (electric guitar).' },
+  { id: 'amp_gain', name: 'Amp Gain', group: 'Amp', min: 0, max: 1, default: 0.5, step: 0.001, unit: '',
+    description: 'Drive into the amp (range depends on the amp type).' },
+  { id: 'amp_tone', name: 'Amp Tone', group: 'Amp', min: 0, max: 1, default: 0.5, step: 0.001, unit: '',
+    description: 'Brightness of the speaker cabinet (its high-frequency roll-off).' },
+  { id: 'amp_level_db', name: 'Amp Level', group: 'Amp', min: -24, max: 12, default: 0, step: 0.1, unit: 'dB',
+    description: 'Output level of the amp.' },
 ]);
 
 // ---------------------------------------------------------------------------

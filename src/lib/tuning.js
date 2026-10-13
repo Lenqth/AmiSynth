@@ -35,6 +35,20 @@ function pitchToCents(tok) {
 
 const ratios = (list) => list.map((r) => pitchToCents(r));
 
+/**
+ * Scala (.scl) text of the current tuning: the custom scale, or the EDO. Saved as
+ * REAPER/Data/AmiSynth/tuning.txt it becomes the shared scale of the JSFX (Tuning Source = Scale file).
+ * @param {{name:string,cents:number[]} | null} scale @param {number} divisions @param {number} period
+ */
+export function scaleToScala(scale, divisions, period) {
+  const name = scale ? scale.name : `${divisions}-EDO, period ${period} cents`;
+  const cents = scale ? scale.cents : Array.from({ length: divisions }, (_, i) => ((i + 1) * period) / divisions);
+  const lines = ['! tuning.txt (AmiSynth) - Scala format', '!', name.replace(/[\r\n]+/g, ' '), ` ${cents.length}`, '!'];
+  // always with a '.', so every pitch is read as cents
+  for (const c of cents) lines.push(` ${c.toFixed(6)}`);
+  return lines.join('\n') + '\n';
+}
+
 export const TUNING_PRESETS = [
   { name: '12-EDO (standard)', divisions: 12, period: 1200 },
   { name: '5-EDO (slendro-like)', divisions: 5, period: 1200 },
