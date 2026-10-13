@@ -7,7 +7,7 @@ import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { defaultValues, DRUM_PARAMS, PHYS_PARAMS, SYNTH_PARAMS } from '../src/dsp/params.js';
+import { defaultValues, DRUM_PARAMS, PHYS_PARAMS, SYNTH_PARAMS, TUNING_HOLDER_PARAMS } from '../src/dsp/params.js';
 import { drums_init, drums_note_on, drums_render, drums_update } from '../src/dsp/drums.js';
 import { phys_init, phys_note_off, phys_note_on, phys_pitch_bend, phys_render, phys_set_scale, phys_update } from '../src/dsp/phys.js';
 import {
@@ -66,6 +66,9 @@ const BLOCK = 128; // jsfx_render's block size: the host transport is read once 
  * JS render with the same event semantics as the worklet / JSFX (events before the sample at their frame).
  * host: { tempo, playing } like REAPER's tempo / play_state (default 120 bpm, stopped);
  * host.scale: { cents, dataRoot } = the shared scale file the JSFX reads (with tuning_source = 1).
+ * host.onBlock(s, frame): called at the start of every 128-frame block (JS side of host.pre).
+ * host.pre: { sliders: {id: value}, timed: [[frame, id, value]] } = an AmiSynth Tuning instance
+ * run before the instrument in the JSFX render (see jsfx_render's "pre").
  */
 export function renderJs(inst, params, events, sr, frames, host = { tempo: 120, playing: 0 }) {
   const s = {};
@@ -77,7 +80,10 @@ export function renderJs(inst, params, events, sr, frames, host = { tempo: 120, 
   const out = new Float64Array(frames * ch);
   let e = 0;
   for (let i = 0; i < frames; i++) {
-    if (inst.transport && i % BLOCK === 0) inst.transport(s, tempo, host.playing, (i * tempo) / 60 / sr);
+    if (i % BLOCK === 0) {
+      if (inst.transport) inst.transport(s, tempo, host.playing, (i * tempo) / 60 / sr);
+      host.onBlock?.(s, i);
+    }
     while (e < events.length && events[e][0] <= i) {
       const [, a, b, c] = events[e++];
       inst.midi(s, a, b, c);
@@ -99,6 +105,7 @@ export function renderJsfx(renderBin, inst, params, events, sr, frames, host = {
     ...inst.defs.map((d, i) => (i < 64 ? `slider ${i + 1} ${params[d.id]}` : `var ${d.id} ${params[d.id]}`)),
     `tempo ${host.tempo ?? 120} ${host.playing ? 1 : 0}`,
     ...(host.scale ? [`dataroot ${host.scale.dataRoot}`] : []),
+    ...(host.pre ? preScript(host.pre) : []),
     ...events.map(([f, a, b, c]) => `midi ${f} ${a} ${b} ${c}`),
   ].join('\n');
   writeFileSync(join(dir, 'script.txt'), script);
@@ -106,6 +113,20 @@ export function renderJsfx(renderBin, inst, params, events, sr, frames, host = {
   execFileSync(renderBin, [join(root, 'jsfx', inst.file), String(sr), String(frames / sr), outPath, join(dir, 'script.txt')], { stdio: ['ignore', 'ignore', 'pipe'] });
   const buf = readFileSync(outPath);
   return new Float32Array(buf.buffer, buf.byteOffset, buf.length / 4);
+}
+
+const holderIndex = (id) => {
+  const i = TUNING_HOLDER_PARAMS.findIndex((d) => d.id === id);
+  if (i < 0) throw new Error(`unknown AmiSynth Tuning parameter: ${id}`);
+  return i + 1;
+};
+
+function preScript(pre) {
+  return [
+    `pre ${join(root, 'jsfx', 'AmiSynth Tuning.jsfx')}`,
+    ...Object.entries(pre.sliders ?? {}).map(([id, v]) => `preslider ${holderIndex(id)} ${v}`),
+    ...(pre.timed ?? []).map(([f, id, v]) => `preslider_at ${f} ${holderIndex(id)} ${v}`),
+  ];
 }
 
 export function compare(a, b) {

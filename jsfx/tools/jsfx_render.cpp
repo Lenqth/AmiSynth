@@ -11,6 +11,11 @@
 //   tempo <bpm> <playing 0|1>  host tempo; while playing, beat_position = frame * bpm / 60 / sr
 //                             at the start of each block (default: 120 bpm, stopped)
 //   dataroot <dir>            REAPER's Data folder (where file_open("...") looks)
+//   pre <file.jsfx>           another JSFX run before the main one in every block (its audio
+//                             output is dropped); it shares gmem with the main one
+//   preslider <index> <value>             a slider of the pre JSFX
+//   preslider_at <frame> <index> <value>  change it at the start of the block holding <frame>
+//                                         (use multiples of the 128-frame block)
 // Output: interleaved float32 (raw), one channel per out_pin (2 for the synth, 10 for the drums).
 #include "ysfx.h"
 #include <cstdio>
@@ -42,6 +47,10 @@ int main(int argc, char **argv) {
     double tempo = 120;
     int playing = 0;
     std::string dataRoot;
+    std::string prePath;
+    std::vector<std::pair<int, double>> preSliders;
+    struct TimedSlider { uint64_t frame; int idx; double value; };
+    std::vector<TimedSlider> preTimed;
     if (argc > 5) {
         FILE *f = std::fopen(argv[5], "r");
         if (!f) { std::perror("script"); return 2; }
@@ -61,6 +70,15 @@ int main(int argc, char **argv) {
                     dataRoot = dir;
                     if (!dataRoot.empty() && dataRoot.back() != '/' && dataRoot.back() != '\\') dataRoot += '/';
                 }
+            } else if (!std::strcmp(kind, "pre")) {
+                char file[1024];
+                if (std::sscanf(line, "%*s %1023[^\r\n]", file) == 1) prePath = file;
+            } else if (!std::strcmp(kind, "preslider")) {
+                int idx; double v;
+                if (std::sscanf(line, "%*s %d %lf", &idx, &v) == 2) preSliders.push_back({idx, v});
+            } else if (!std::strcmp(kind, "preslider_at")) {
+                unsigned long long fr; int idx; double v;
+                if (std::sscanf(line, "%*s %llu %d %lf", &fr, &idx, &v) == 3) preTimed.push_back({fr, idx, v});
             } else if (!std::strcmp(kind, "tempo")) {
                 std::sscanf(line, "%*s %lf %d", &tempo, &playing);
             } else if (!std::strcmp(kind, "midi")) {
@@ -73,18 +91,32 @@ int main(int argc, char **argv) {
     }
     std::stable_sort(events.begin(), events.end(), [](const Ev &a, const Ev &b) { return a.frame < b.frame; });
 
-    ysfx_config_t *config = ysfx_config_new();
-    ysfx_set_log_reporter(config, &log_reporter);
-    ysfx_guess_file_roots(config, path);
-    if (!dataRoot.empty()) ysfx_set_data_root(config, dataRoot.c_str());
-    ysfx_t *fx = ysfx_new(config);
-    ysfx_config_free(config);
-    if (!ysfx_load_file(fx, path, 0)) { std::fprintf(stderr, "load failed\n"); return 1; }
-    if (!ysfx_compile(fx, ysfx_compile_no_gfx)) { std::fprintf(stderr, "compile failed\n"); return 1; }
-
     const uint32_t block = 128;
-    ysfx_set_sample_rate(fx, sr);
-    ysfx_set_block_size(fx, block);
+    auto open = [&](const char *file) -> ysfx_t * {
+        ysfx_config_t *config = ysfx_config_new();
+        ysfx_set_log_reporter(config, &log_reporter);
+        ysfx_guess_file_roots(config, file);
+        if (!dataRoot.empty()) ysfx_set_data_root(config, dataRoot.c_str());
+        ysfx_t *f = ysfx_new(config);
+        ysfx_config_free(config);
+        if (!ysfx_load_file(f, file, 0)) { std::fprintf(stderr, "load failed: %s\n", file); return nullptr; }
+        if (!ysfx_compile(f, ysfx_compile_no_gfx)) { std::fprintf(stderr, "compile failed: %s\n", file); return nullptr; }
+        ysfx_set_sample_rate(f, sr);
+        ysfx_set_block_size(f, block);
+        return f;
+    };
+
+    // the "pre" effect (e.g. AmiSynth Tuning) runs before the main one in every block and shares
+    // its gmem with it (EEL2's shared memory is per process), like two FX in one REAPER project
+    ysfx_t *pre = nullptr;
+    if (!prePath.empty()) {
+        if (!(pre = open(prePath.c_str()))) return 1;
+        ysfx_init(pre);
+        for (auto &s : preSliders) ysfx_slider_set_value(pre, (uint32_t)(s.first - 1), s.second);
+    }
+
+    ysfx_t *fx = open(path);
+    if (!fx) return 1;
     for (auto &v : vars) {
         ysfx_real *p = ysfx_find_var(fx, v.first.c_str());
         if (p) *p = v.second;
@@ -113,6 +145,16 @@ int main(int argc, char **argv) {
         ti.time_signature[0] = 4;
         ti.time_signature[1] = 4;
         ysfx_set_time_info(fx, &ti);
+        if (pre) {
+            for (auto &t : preTimed)
+                if (t.frame >= pos && t.frame < pos + n) ysfx_slider_set_value(pre, (uint32_t)(t.idx - 1), t.value);
+            const uint32_t pn = std::max<uint32_t>(2, ysfx_get_num_outputs(pre));
+            std::vector<std::vector<float>> pbufs(pn, std::vector<float>(block));
+            std::vector<float *> pouts(pn);
+            for (uint32_t c = 0; c < pn; c++) pouts[c] = pbufs[c].data();
+            ysfx_set_time_info(pre, &ti);
+            ysfx_process_float(pre, ins, pouts.data(), ysfx_get_num_inputs(pre) ? 2 : 0, pn, n);
+        }
         while (ei < events.size() && events[ei].frame < pos + n) {
             ysfx_midi_event_t ev{};
             ev.bus = 0;
@@ -130,5 +172,6 @@ int main(int argc, char **argv) {
     std::fwrite(out.data(), sizeof(float), out.size(), o);
     std::fclose(o);
     ysfx_free(fx);
+    if (pre) ysfx_free(pre);
     return 0;
 }

@@ -6,6 +6,8 @@ desc:AmiSynth Synth (polyphonic subtractive, microtonal)
 // `npm run gen:jsfx`; do not edit it by hand).
 // Tuning: the EDO sliders, or a shared Scala scale in REAPER/Data/AmiSynth/tuning.txt (tuning_source).
 
+options:gmem=AmiSynth
+
 // <generated sliders>
 slider1:tuning_divisions=12<1,72,1>Tuning Divisions Per Period [steps]
 slider2:tuning_period_cents=1200<100,2400,0.001>Tuning Period [cents]
@@ -90,7 +92,8 @@ slider80:noise_filter_mode=0<0,3,1{Off,Low-pass,High-pass,Band-pass}>Noise Filte
 slider81:noise_filter_hz=4000<20,20000,1>Noise Filter Cutoff [Hz]
 slider82:cc_cutoff_number=74<0,127,1>Cutoff CC Number [cc]
 slider83:cc_cutoff_depth_oct=4<0,8,0.01>Cutoff CC Depth [oct]
-slider84:tuning_source=0<0,1,1{EDO sliders,Scale file (Data/AmiSynth/tuning.txt)}>Tuning Source
+slider84:tuning_source=0<0,2,1{EDO sliders,Scale file (Data/AmiSynth/tuning.txt),Shared (AmiSynth Tuning)}>Tuning Source
+slider85:tuning_slot=1<1,8,1>Tuning Slot
 // </generated sliders>
 
 import amisynth_lib.jsfx-inc
@@ -659,9 +662,8 @@ function handle_midi(m1, m2, m3) local(type) (
 );
 
 @slider
-// shared scale file (falls back to the EDO sliders when it cannot be read)
-tuning_file_ok = tuning_source >= 0.5 ? tuning_load_file() : 0;
-!tuning_file_ok ? tuning_set_edo(tuning_divisions, tuning_period_cents);
+// EDO sliders, the scale file or a shared AmiSynth Tuning slot
+tuning_apply();
 master_gain = db_to_gain(master_volume_db);
 // resonance 0..1 -> SVF damping k 2..0.02
 filter_k = 2 - 1.98 * sqrt(clamp(filter_resonance, 0, 1));
@@ -720,6 +722,12 @@ loop(MAX_VOICES, vcall(i, 3, 0, 0, 0, 0); vcall(i, 4, 0, 0, 0, 0); i += 1;);
 
 @block
 midi_queue_read();
+// a shared scale (AmiSynth Tuning) changed: retune, sounding notes included
+tuning_shared_changed() ? (
+  tuning_apply();
+  i = 0;
+  loop(MAX_VOICES, vcall(i, 4, 0, 0, 0, 0); i += 1;);
+);
 // host transport (play_state: 1 playing, 5 recording); when stopped the beat keeps counting
 tempo > 0 ? beat_inc = tempo / 60 / srate;
 play_state & 1 ? beat = beat_position;

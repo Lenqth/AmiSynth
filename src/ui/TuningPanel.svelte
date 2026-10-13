@@ -1,6 +1,6 @@
 <script>
   import { TUNING_PARAMS } from '../dsp/params.js';
-  import { parseScale, scaleToScala, TUNING_PRESETS } from '../lib/tuning.js';
+  import { parseScale, scaleToHolderParams, scaleToScala, TUNING_PRESETS } from '../lib/tuning.js';
   import Knob from './Knob.svelte';
 
   /**
@@ -47,6 +47,23 @@
     setTimeout(() => URL.revokeObjectURL(url), 2000);
   }
 
+  let copied = $state('');
+  /** Copy the AmiSynth Tuning JSFX slider values (JSON) for MCP tools / LLMs. */
+  async function copyHolderParams() {
+    const params = scaleToHolderParams(scale, values);
+    if (!params) {
+      copied = '32 音を超える音階は tuning.txt で渡してください';
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(JSON.stringify(params, null, 1));
+      copied = 'コピーしました';
+    } catch {
+      copied = 'コピーできませんでした';
+    }
+    setTimeout(() => (copied = ''), 2500);
+  }
+
   const summary = $derived(
     scale
       ? `${scale.name} — ${scale.cents.length} 音 / 周期 ${scale.cents[scale.cents.length - 1].toFixed(2)} cents`
@@ -86,6 +103,10 @@
     <button onclick={downloadScala} title="REAPER の Data/AmiSynth/tuning.txt に置き、JSFX の Tuning Source を Scale file にすると、全トラックがこの音階で鳴ります">
       tuning.txt を書き出し (REAPER 共通調律)
     </button>
+    <button onclick={copyHolderParams} title="REAPER の AmiSynth Tuning (JSFX) のスライダー値を JSON でコピー。MCP / LLM にそのまま渡せます">
+      AmiSynth Tuning の値をコピー
+    </button>
+    {#if copied}<span class="muted">{copied}</span>{/if}
   </div>
   <p class="muted hint">
     ノート番号は「基準ノートから何ステップ目か」として解釈されます。基準ノート {tuning.ref_note} = {tuning.ref_hz} Hz。

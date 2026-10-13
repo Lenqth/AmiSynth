@@ -7,6 +7,8 @@ desc:AmiSynth Physical (string / modal / bowed / wind / 2D mesh / piano string /
 // (2D finite-difference wave equation), 5 stiff string (dispersion all-passes, 2 strings per note),
 // 6 brass (buzzing lip resonator + bore two periods long).
 
+options:gmem=AmiSynth
+
 // <generated sliders>
 slider1:tuning_divisions=12<1,72,1>Tuning Divisions Per Period [steps]
 slider2:tuning_period_cents=1200<100,2400,0.001>Tuning Period [cents]
@@ -61,11 +63,12 @@ slider50:brass_pressure=0.6<0,1,0.001>Brass Blowing Pressure
 slider51:brass_lip=0.5<0,1,0.001>Brass Lip Buzz
 slider52:brass_attack_ms=30<1,1000,0.1>Brass Attack [ms]
 slider53:brass_bell=0.5<0,1,0.001>Brass Bell Brightness
-slider54:tuning_source=0<0,1,1{EDO sliders,Scale file (Data/AmiSynth/tuning.txt)}>Tuning Source
+slider54:tuning_source=0<0,2,1{EDO sliders,Scale file (Data/AmiSynth/tuning.txt),Shared (AmiSynth Tuning)}>Tuning Source
 slider55:amp_type=0<0,4,1{Off,Clean,Crunch,Overdrive,Distortion}>Amp
 slider56:amp_gain=0.5<0,1,0.001>Amp Gain
 slider57:amp_tone=0.5<0,1,0.001>Amp Tone
 slider58:amp_level_db=0<-24,12,0.1>Amp Level [dB]
+slider59:tuning_slot=1<1,8,1>Tuning Slot
 // </generated sliders>
 
 import amisynth_lib.jsfx-inc
@@ -1122,9 +1125,8 @@ function handle_midi(m1, m2, m3) local(type) (
 );
 
 @slider
-// shared scale file (falls back to the EDO sliders when it cannot be read)
-tuning_file_ok = tuning_source >= 0.5 ? tuning_load_file() : 0;
-!tuning_file_ok ? tuning_set_edo(tuning_divisions, tuning_period_cents);
+// EDO sliders, the scale file or a shared AmiSynth Tuning slot
+tuning_apply();
 out_gain = db_to_gain(phys_volume_db);
 string_damp_b = 0.05 + 0.9 * string_damping; // one-pole coefficient in the loop
 model = floor(phys_model + 0.5);
@@ -1149,6 +1151,8 @@ mesh_n_new !== mesh_n || mesh_shape_new !== mesh_shape_cur ? mesh_setup(mesh_n_n
 
 @block
 midi_queue_read();
+// a shared scale (AmiSynth Tuning) changed: new notes use it
+tuning_shared_changed() ? tuning_apply();
 
 @sample
 while (midi_pop()) ( handle_midi(midi_m1, midi_m2, midi_m3); );

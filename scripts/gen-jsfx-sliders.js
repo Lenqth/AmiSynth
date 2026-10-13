@@ -6,7 +6,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { DRUM_PARAMS, PHYS_PARAMS, SYNTH_PARAMS } from '../src/dsp/params.js';
+import { DRUM_PARAMS, PHYS_PARAMS, SYNTH_PARAMS, TUNING_HOLDER_PARAMS } from '../src/dsp/params.js';
 import { resolvePreset } from '../src/lib/presets.js';
 import { DRUM_PRESETS } from '../src/presets/drums.js';
 import { SYNTH_PRESETS } from '../src/presets/synth.js';
@@ -19,6 +19,8 @@ const num = (v) => String(Number(v.toFixed(6)));
 
 /** @param {import('../src/dsp/params.js').ParamDef} d */
 export function sliderLine(index, d) {
+  // file chooser: no variable name (the code reads it as sliderN), value = index of the file
+  if (d.file) return `slider${index}:${d.file.dir}:${d.file.default}:${d.name}`;
   // No ':log' shape on purpose: REAPER reports shaped sliders to the API / automation in the
   // shaped (ln) domain, so MCP tools would have to write ln(1800) instead of 1800. Plain sliders
   // take the real value (Hz, ms, ...). The web UI still turns 'log' params with a log knob.
@@ -39,6 +41,7 @@ export const JSFX_FILES = [
   ['AmiSynth Synth.jsfx', SYNTH_PARAMS],
   ['AmiSynth Drums.jsfx', DRUM_PARAMS],
   ['AmiSynth Physical.jsfx', PHYS_PARAMS],
+  ['AmiSynth Tuning.jsfx', TUNING_HOLDER_PARAMS],
 ];
 
 const BEGIN = '// <generated sliders>';
@@ -58,7 +61,8 @@ function main() {
   writeFileSync(join(outDir, 'synth-sliders.txt'), block('AmiSynth Synth', SYNTH_PARAMS));
   writeFileSync(join(outDir, 'drums-sliders.txt'), block('AmiSynth Drums', DRUM_PARAMS));
   writeFileSync(join(outDir, 'phys-sliders.txt'), block('AmiSynth Physical', PHYS_PARAMS));
-  writeFileSync(join(outDir, 'params.json'), JSON.stringify({ synth: SYNTH_PARAMS, phys: PHYS_PARAMS, drums: DRUM_PARAMS }, null, 2) + '\n');
+  writeFileSync(join(outDir, 'tuning-sliders.txt'), block('AmiSynth Tuning', TUNING_HOLDER_PARAMS));
+  writeFileSync(join(outDir, 'params.json'), JSON.stringify({ synth: SYNTH_PARAMS, phys: PHYS_PARAMS, drums: DRUM_PARAMS, tuning: TUNING_HOLDER_PARAMS }, null, 2) + '\n');
   // Full slider values per preset, in slider order (for building REAPER .rpl presets later).
   const resolved = (defs, presets) =>
     presets.map((p) => ({ name: p.name, category: p.category, description: p.description, sliders: defs.map((d) => resolvePreset(defs, p)[d.id]) }));

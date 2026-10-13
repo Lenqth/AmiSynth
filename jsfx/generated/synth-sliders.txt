@@ -82,4 +82,5 @@ slider80:noise_filter_mode=0<0,3,1{Off,Low-pass,High-pass,Band-pass}>Noise Filte
 slider81:noise_filter_hz=4000<20,20000,1>Noise Filter Cutoff [Hz]
 slider82:cc_cutoff_number=74<0,127,1>Cutoff CC Number [cc]
 slider83:cc_cutoff_depth_oct=4<0,8,0.01>Cutoff CC Depth [oct]
-slider84:tuning_source=0<0,1,1{EDO sliders,Scale file (Data/AmiSynth/tuning.txt)}>Tuning Source
+slider84:tuning_source=0<0,2,1{EDO sliders,Scale file (Data/AmiSynth/tuning.txt),Shared (AmiSynth Tuning)}>Tuning Source
+slider85:tuning_slot=1<1,8,1>Tuning Slot
