@@ -69,15 +69,18 @@ slider56:amp_gain=0.5<0,1,0.001>Amp Gain
 slider57:amp_tone=0.5<0,1,0.001>Amp Tone
 slider58:amp_level_db=0<-24,12,0.1>Amp Level [dB]
 slider59:tuning_slot=1<1,8,1>Tuning Slot
+slider60:phys_sustain_mode=1<0,2,1{Off,Auto (strings / piano / modal),On (all models)}>Sustain Pedal
 // </generated sliders>
 
 import amisynth_lib.jsfx-inc
+import amisynth_meter.jsfx-inc
 
 in_pin:none
 out_pin:Left
 out_pin:Right
 
 @init
+meter.meter_init();
 MAX_VOICES = 8;
 MESH_MAX_VOICES = 3;
 NMODES = 8;
@@ -212,6 +215,8 @@ function amp_process(x) local(y) (
 v_active = mem_alloc(MAX_VOICES);
 v_note = mem_alloc(MAX_VOICES);
 v_gate = mem_alloc(MAX_VOICES);
+v_sus = mem_alloc(MAX_VOICES);
+sustain_pedal = 0;
 v_age = mem_alloc(MAX_VOICES);
 age_counter = 0;
 bend_ratio = 1;
@@ -482,7 +487,7 @@ function voice_op(op, a, b) instance(idx vel hz0 level frames lp_z lp_z2 loop_ga
   exc_t exc_len exc modes mhz mt60 maxv slope mesh_u mesh_up mesh_un mesh_sig mesh_omega jet_boost flut hiss_lp
   vel_raw lip_y1 lip_y2 dc_x dc_y bell_z refl_z rad_x steep steep_w boost boost_c)
   local(v, n, bright, aa, pick, norm, lp, i, j, c, x, width, ia, ib, hard, g_rel, k, R, amp, sx, sy, d, len, decay, sb_a, sb_env,
-    v0, scale, total, hp_a, hp_z, hp_z2, hp_z3, hp_z4, w0, re, im, mag, around, m, top, want, blen, burst) (
+    v0, scale, total, hp_a, hp_z, hp_z2, hp_z3, hp_z4, w0, re, im, mag, around, m, top, want, blen, burst, release_ms, mesh_ms) (
   op === 0 ? (
     idx = a;
     this.line.delay_init(MAX_DELAY);
@@ -735,22 +740,25 @@ function voice_op(op, a, b) instance(idx vel hz0 level frames lp_z lp_z2 loop_ga
       read_gain = 0.9 * vel * clamp(pow(hz0 / 220, 0.3), 0.7, 2);
     );
   ) : op === 2 ? (
+    // Overrides release pending notes with the previous patch's damping on a model/policy change.
+    release_ms = a > 0 ? a : phys_release_ms;
+    mesh_ms = b > 0 ? b : mesh_decay_ms;
     model === MODEL_STRING ? (
-      g_rel = exp(-6.907755 / (hz0 * phys_release_ms * 0.001));
+      g_rel = exp(-6.907755 / (hz0 * release_ms * 0.001));
       loop_gain = min(loop_gain, g_rel);
     ) : model === MODEL_MODAL ? (
       k = 0;
       loop(NMODES,
-        mt60[k] = min(mt60[k], phys_release_ms);
+        mt60[k] = min(mt60[k], release_ms);
         rmem_set_decay(modes + k * 6, mhz[k], mt60[k]);
         k += 1;
       );
     ) : model === MODEL_BOWED || model === MODEL_WIND || model === MODEL_BRASS ? (
       this.env.adsr_gate_off();
     ) : model === MODEL_MESH ? (
-      mesh_sig = max(mesh_sig, mesh_sigma(min(mesh_decay_ms, phys_release_ms)));
+      mesh_sig = max(mesh_sig, mesh_sigma(min(mesh_ms, release_ms)));
     ) : (
-      g_rel = exp(-6.907755 / (hz0 * phys_release_ms * 0.001));
+      g_rel = exp(-6.907755 / (hz0 * release_ms * 0.001));
       loop_gain = min(loop_gain, g_rel);
       loop_gain2 = min(loop_gain2, g_rel);
     );
@@ -1061,7 +1069,7 @@ function vcall(i, op, a, b) (
 i = 0;
 loop(MAX_VOICES,
   vcall(i, 0, i, 0);
-  v_active[i] = 0; v_note[i] = -1; v_gate[i] = 0; v_age[i] = 0;
+  v_active[i] = 0; v_note[i] = -1; v_gate[i] = 0; v_sus[i] = 0; v_age[i] = 0;
   i += 1;
 );
 
@@ -1078,12 +1086,31 @@ function voice_allocate(limit) local(i, best, best_score, score, found) (
   found >= 0 ? found : best;
 );
 
+function sustain_enabled(m, material) (
+  phys_sustain_mode >= 1.5 || (phys_sustain_mode >= 0.5 && (m === MODEL_STRING || m === MODEL_STIFF ||
+    (m === MODEL_MODAL && floor(material + 0.5) !== 5)));
+);
+
+function flush_sustain(release_override, mesh_override) local(i) (
+  i = 0;
+  loop(MAX_VOICES,
+    v_sus[i] && v_active[i] ? vcall(i, 2, release_override, mesh_override);
+    v_sus[i] = 0;
+    i += 1;
+  );
+);
+
+function sustain(on) (
+  sustain_pedal = on ? 1 : 0;
+  !sustain_pedal ? flush_sustain(0, 0);
+);
+
 function note_off(note) local(i) (
   i = 0;
   loop(MAX_VOICES,
     v_active[i] && v_gate[i] && v_note[i] === note ? (
       v_gate[i] = 0;
-      vcall(i, 2, 0, 0);
+      sustain_pedal && sustain_enabled(model, modal_material) ? v_sus[i] = 1 : vcall(i, 2, 0, 0);
     );
     i += 1;
   );
@@ -1099,6 +1126,7 @@ function note_on(note, velocity) local(i, idx, limit) (
     v_note[idx] = note;
     v_active[idx] = 1;
     v_gate[idx] = 1;
+    v_sus[idx] = 0;
     age_counter += 1;
     v_age[idx] = age_counter;
     vcall(idx, 1, note, velocity);
@@ -1106,8 +1134,13 @@ function note_on(note, velocity) local(i, idx, limit) (
 );
 
 function all_notes_off() local(i) (
+  sustain_pedal = 0;
   i = 0;
-  loop(MAX_VOICES, v_active[i] && v_gate[i] ? note_off(v_note[i]); i += 1;);
+  loop(MAX_VOICES,
+    v_active[i] && (v_gate[i] || v_sus[i]) ? vcall(i, 2, 0, 0);
+    v_gate[i] = 0; v_sus[i] = 0;
+    i += 1;
+  );
 );
 
 function pitch_bend(value) local(i) (
@@ -1121,10 +1154,20 @@ function handle_midi(m1, m2, m3) local(type) (
   type === 0x90 ? note_on(m2, m3)
   : type === 0x80 ? note_off(m2)
   : type === 0xE0 ? pitch_bend(((m3 * 128 + m2) / 8192) - 1)
-  : type === 0xB0 && (m2 === 120 || m2 === 123) ? all_notes_off();
+  : type === 0xB0 ? (
+    m2 === 64 ? sustain(m3 >= 64)
+    : m2 === 120 || m2 === 123 ? all_notes_off()
+    : m2 === 121 ? (sustain(0); pitch_bend(0););
+  );
 );
 
 @slider
+// Release deferred notes with the previous model before changing the voice engine.
+(floor(phys_model + 0.5) !== model || (floor(phys_model + 0.5) === MODEL_MODAL && modal_material !== pedal_material) ||
+  !sustain_enabled(floor(phys_model + 0.5), modal_material)) ? flush_sustain(pedal_release, pedal_mesh_decay);
+pedal_material = modal_material;
+pedal_release = phys_release_ms;
+pedal_mesh_decay = mesh_decay_ms;
 // EDO sliders, the scale file or a shared AmiSynth Tuning slot
 tuning_apply();
 out_gain = db_to_gain(phys_volume_db);
@@ -1193,3 +1236,12 @@ phys_room_mix > 0 ? (
 g = out_gain * 0.5;
 spl0 = soft_clip(dc.onepole_hp(mix_l) * g);
 spl1 = soft_clip(dc_r.onepole_hp(mix_r) * g);
+meter.meter_tick(spl0, spl1);
+
+@gfx 520 150
+meter.meter_draw();
+meter.match_request ? (
+  phys_volume_db = clamp(phys_volume_db + meter.correction, -60, 6);
+  out_gain = db_to_gain(phys_volume_db);
+  sliderchange(phys_volume_db); slider_automate(phys_volume_db);
+);

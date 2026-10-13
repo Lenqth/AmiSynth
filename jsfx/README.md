@@ -6,7 +6,7 @@
 | ファイル | 内容 |
 | --- | --- |
 | `AmiSynth Synth.jsfx` | 8 ボイスの減算式シンセ。2 オシレーター、シンク / FM、ユニゾン (最大 9)、LP / HP / BP / ノッチのフィルター、テンポ同期できる LFO、グライド、Mono / Legato、トランスポーズ、アルペジエーター、周期ノイズ、CC でのカットオフ。スライダー 85 本 |
-| `AmiSynth Physical.jsfx` | 物理モデル音源。弦(Karplus-Strong)、モーダル合成(8 モード × 11 素材。ゴング系を含む)、擦弦、管楽器(クラリネット / フルート)、2D 膜 / 板、硬い弦(ピアノ)、金管。ギターアンプ付き。スライダー 59 本 |
+| `AmiSynth Physical.jsfx` | 物理モデル音源。弦(Karplus-Strong)、モーダル合成(8 モード × 11 素材。ゴング系を含む)、擦弦、管楽器(クラリネット / フルート)、2D 膜 / 板、硬い弦(ピアノ)、金管。ギターアンプ付き。スライダー 60 本 |
 | `AmiSynth Drums.jsfx` | 合成ドラム 13 パーツ(GM 配置)。パーツ別出力つき(10 ch)。スライダー 78 本 |
 | `AmiSynth Tuning.jsfx` | 共通の音階を持つユーティリティ(音は出さず、オーディオと MIDI はそのまま通す)。Synth / Physical が Slot を指定して従う。スライダー 38 本 |
 | `amisynth_lib.jsfx-inc` | 共通 DSP。上のすべてが `import` します |
@@ -14,7 +14,7 @@
 ## インストール
 
 1. REAPER のメニューで **Options → Show REAPER resource path** を開きます。
-2. `Effects/AmiSynth/` フォルダを作り、上の 5 ファイルをすべてコピーします。
+2. `Effects/AmiSynth/` フォルダを作り、上の 5 ファイルと `amisynth_meter.jsfx-inc` をすべてコピーします。
 3. トラックの FX に「JS: AmiSynth Synth」などを追加し、MIDI を入力します。
    - Web 版のピアノロールにある「MIDI 書き出し」で作った `.mid` をそのまま使えます(メロディ ch1、ドラム ch10)。
    - 1 トラック目のメロディは、Synth か Physical のトラックに置いてください。
@@ -23,6 +23,66 @@
 - スライダー変数名は `src/dsp/params.js` の id と同じです(例: `filter_cutoff_hz`, `kick_decay_ms`)。REAPER のオートメーションや MCP 経由の操作でも、名前を見れば意味が分かるようにしています。
 - **スライダーの値は実値です**(Hz・ms・dB など)。対数シェイプ(`:log`)を付けると、REAPER の API / オートメーションでは値が自然対数で扱われるため(`ln(1800) = 7.4955` を書く必要がある)、あえて付けていません。MCP からは「カットオフ 2000 Hz」をそのまま `2000` と書けます。REAPER 標準のスライダー UI では目盛りが線形になります。
 - 後から追加したスライダーは末尾に並べています。古いバージョンで保存したプロジェクトも、スライダー番号がずれません。
+
+### プリセット・簡易操作: AmiSynth Companion
+
+`reaper/` と `generated/` を同じ親フォルダに置き、Actions → New action → Load ReaScript で `reaper/AmiSynth Companion.lua` を登録します。AmiSynth の入ったトラックを選択して実行すると、次を操作できます。SWS / ReaImGui は不要です。
+
+- **Choose preset**: 用途別の内蔵カタログ(Bass / Lead / Pad など)とユーザープリセット。
+- **Save preset**: 現在の音色を REAPER の永続 ExtState に保存。同じ名前なら上書きします。内蔵プリセットと同名は使えません。調律は含めず、音色変更時も現在の調律を維持します。
+- **機能グループ**: Oscillators / Filter / Amp Envelope などを選択し、実単位で詳細編集。長い一覧はマウスホイールでスクロールします。ファイル選択は JSFX 本体のセレクターを使います。
+- **Synth の4マクロ**: Brightness はカットオフとフィルターエンベロープ量、Punch は振幅／フィルターの Attack と Decay、Width はユニゾン数・デチューン・幅、Pump は四分音符 Duck と音量変調をまとめて変更します。入力は 0〜100。既存パラメーターへ絶対値を書き込み、詳細操作や Undo を引き続き使えます。Pump は現在の LFO 波形と同期設定を変更します(キック検出型サイドチェインではありません)。
+
+開いた時点の FX に固定して操作します。FX を移動・削除したら開き直してください。パラメーターの名前・範囲がカタログと違う旧版には適用しません。各変更は実値で読み返して検証し、失敗時は元の値へ戻します。
+
+追加の音色は Web 版と Companion の両方で選択できます。全体で Synth 33種、Physical 39種、Drums 8キットです。新しい17種の用途は次のとおりです。
+
+| 音源・用途 | プリセット | 演奏のヒント |
+| --- | --- | --- |
+| Synth / Bass | Rubber Mono Bass、Reese Bass | 低い単音。前者は短い打ち込みと重ねたノートのグライド、後者は持続するリフ向け |
+| Synth / Lead | Hollow Pulse Lead、Soft Sine Lead | ノートを重ねてレガート。Mod Wheel でビブラートを追加 |
+| Synth / Chord / Pad | Poly Chord Stab、Slow Chord Wash | 短い裏拍コード／緩やかな持続コード。Wash は長いリリースが重なるので8ボイスの表示を確認 |
+| Synth / Keys | Glass Pluck、Dusty Keys | 明るいFMプラック／暗めの鍵盤。小さな和音や単音のフレーズに |
+| Synth / Arp | Triplet Cascade、Rhythmic Steps | 和音を押さえると2オクターブの下降3連符／休符入りのスウィング5ステップ。ホストのテンポに同期 |
+| Physical / String / Keys | Muted Nylon、Felt Piano | 短い指弾き風の伴奏／柔らかいハンマーのピアノ風テクスチャ |
+| Physical / Mallet / Wind | Glass Atmosphere、Pure Flute | 長く響くガラス系の打音／息のノイズが少ないフルート風の旋律 |
+| Drums / Kit | Dry House、Synthwave Arena、Soft Percussion | 短いハウス用／長めのスネアとタムのレトロポップ用／控えめなシンバルと前に出るシェイカー |
+
+音量は既存と同じ試験フレーズで約−18 LUFSに調整しています。曲中の音量は音域・和音数・ベロシティ・演奏密度でも変わるので、メーターを見ながら合わせてください。
+
+### MCP 向けのカタログ・設定検証
+
+`generated/automation.json` は、最小／最大値・単位・列挙値・機能グループに加え、`slider`(1始まり)、`paramIndex`(0始まり)、`valueDomain`、プリセットの id→実値、マクロの対象を含みます。`npm run gen:jsfx` で元定義から再生成します。従来の `params.json` / `presets.json` も維持しています。
+
+```powershell
+# カタログ表示
+node scripts/reaper-params.js synth
+# 用途別プリセット + マクロ + 実値の上書き
+node scripts/reaper-params.js synth --preset "Sub Bass" --macro Pump 0.7 --set filter_cutoff_hz 650
+# 実機から取得した {"filter_cutoff_hz":650} と照合(不一致なら終了コード1)
+node scripts/reaper-params.js synth --set filter_cutoff_hz 650 --readback actual.json
+```
+
+出力の `writes[].value` は **TrackFX_SetParam** 用の実値、`normalized` は **TrackFX_SetParamNormalized** 用の 0〜1 です。650 Hz の実値は `650`、正規化値は `(650-20)/(20000-20)`。MCP のツール名だけで値の種類を判断せず、使用する API を確認して設定後に読み返してください。範囲外・未知の id・整数パラメーターの小数は送信前にエラーにします。ファイルのインデックスは各 Data フォルダに依存するため、この CLI では設定しません。[REAPER API リファレンス](https://www.reaper.fm/sdk/reascript/reascripthelp.html)
+
+Lua を実行できる連携では `reaper/toolkit.lua` を `dofile` して直接利用できます。
+
+```lua
+local ami = dofile('/path/to/jsfx/reaper/toolkit.lua')
+local binding = ami.bind(reaper.GetSelectedTrack(0, 0), 0, 'synth') -- FX番号は0始まり
+ami.preset(binding, 'Sub Bass')
+ami.macro(binding, 'Pump', 0.7)
+ami.apply(binding, { filter_cutoff_hz = 650 }) -- 読み返し・検証・Undo付き
+local actual = ami.read(binding)
+```
+
+### 出力レベル・発音状況
+
+Synth / Physical / Drums の JSFX 画面にステレオピークと RMS を表示します。RMS は左右の平均二乗を400 msの指数平均で測定した dBFS 値で、LUFS / True Peak ではありません。Drums は各専用バスのピークも表示するため、メインミックスから外したグループを確認できます。
+
+**Capture reference** で比較基準を記録し、同じフレーズで音色やユニゾンを変更すると RMS の差を表示します。**Match level** を押した時だけマスター音量を補正します(1回につき最大 ±12 dB、パラメーターの範囲内)。常時自動補正は行いません。無音では記録／補正せず、ソフトクリップ後の測定なので完全一致するとは限りません。繰り返し再生し、エンベロープとメーターが落ち着いてから比較してください。基準は再生開始時の初期化でリセットされるため、再生中に音色を切り替えて比較します。
+
+Synth は使用ボイス数、リリース／サステイン中のボイス数、ボイススティール累計を表示します。累計は初期化時にリセットされ、同音の再トリガーと Mono / Legato はスティールに含めません。ユニゾンは音符のボイス数とは別です。上限8ボイスと既存の音声処理・スライダー番号は維持しています。
 
 ### テンポ同期(アルペジエーター・LFO)
 
@@ -56,7 +116,23 @@
 
 ### MIDI CC でカットオフ
 
-- Synth は `cc_cutoff_number`(既定 74)の CC でカットオフを動かします。CC 64 で変化なし、0 / 127 で `cc_cutoff_depth_oct` オクターブ下 / 上です。REAPER の MIDI CC レーンや、オートメーションを書きにくい MCP ツールからの操作に使えます。0 にすると無効です。
+音源別のCC、ノート、ピッチベンド、未対応メッセージ、チャンネルとパススルーの詳細は [MIDI対応表](../docs/MIDI.md) にまとめています。
+
+- Synth は `cc_cutoff_number`(既定 74)の CC でカットオフを動かします。**CCの値が64**なら変化なし、値0 / 127で `cc_cutoff_depth_oct` オクターブ下 / 上です。CC番号64のサステインとは別です。REAPER の MIDI CC レーンや、オートメーションを書きにくい MCP ツールからの操作に使えます。`cc_cutoff_number` を0にすると無効です。
+
+### Physical のサステインペダル (CC64)
+
+Physical の **Output → Sustain Pedal** (`phys_sustain_mode`、末尾のslider60)で選択します。既存スライダーの番号は変えていません。Web版の鍵盤横にある **Sustain** ボタンも、外部MIDIペダルと同じCC64を送ります。
+
+| 設定 | 動作 |
+| --- | --- |
+| Off | CC64を無視し、鍵盤を離すと通常のRelease Dampingを適用 |
+| Auto (既定) | 撥弦、ピアノ、Drum Membrane以外のモーダル素材で有効。擦弦・管・金管・2D膜／板では無効 |
+| On | 全モデルで有効。管楽器なども鍵盤を離した後に励振を持続する演奏用設定 |
+
+CC64の値64以上で踏み込み、63以下で解除です。ペダル中のノートオフでは追加の減衰を保留し、解除時に **Release Damping** を適用します。発音中の自然な減衰は続き、消えた音を復活させる機能やハーフペダル、ピアノの全弦共鳴は含みません。
+
+同音の再トリガーやボイススティールは古い保留状態を引き継ぎません。モードをOffにする／音源モデルやモーダル素材を切り替えると保留中のノートを解放します。CC120・123はペダル状態を解除して全ノートをリリースし、CC121はペダルとピッチベンドをリセットします。Web版でSynth／Physicalを切り替える際もペダルを解除します。
 
 ### Drums のパーツ別出力
 
@@ -72,10 +148,14 @@
 - `kick_bus_in_main` などを Off にすると、そのグループはメインミックス(1/2)に入らず、専用の出力にだけ出ます。パーツ別に EQ やコンプをかけたいときに使います。
 - Web 版はメインミックスだけを鳴らします(Off のグループはメインから外れます)。
 
+**完成した配線を作るアクション**: `reaper/AmiSynth Drums - Create routed tracks.lua` を Actions に登録して実行すると、10チャンネルの Drums 1台と Kick / Snare / Hats / Perc の4トラックを追加します。ピン3/4・5/6・7/8・9/10をそれぞれのトラックの1/2へ送り、各グループのメインへの重複出力と音源トラックの Master send を無効にします。MIDIはバストラックへ送りません。既存トラックの配線は変更しません。作成した5トラックを選択して **Save tracks as track template** で保存すれば、以後はテンプレートとして読み込めます。
+
 ### 制限
 
 - Physical の可視化は Web 版だけの機能です。
-- プリセットは `generated/presets.json` に、スライダー順に並べた値として出力しています。REAPER のプリセットファイル(`.rpl`)にはまだ変換していません。
+- ネイティブの `.rpl` は未生成です。用途別プリセットとユーザー保存は AmiSynth Companion を使ってください。
+- 補助 Lua のホスト契約(保存・読戻し・失敗時の復元・配線)は `lua tests/reaper-toolkit.test.lua` (Lua 5.3+)でモック検証します。実 REAPER の GUI 操作／配線は別途確認が必要です。
+- `tools/jsfx_meter_check.cpp` を `YSFX_GFX=ON` の ysfx にリンクして `.cache/jsfx_meter_check` (Windows は `.exe`)へ置くと、`npm test` で `@gfx` の実行、出力とRMS／ピークの一致、9音目のスティール、基準記録、任意のレベル補正、無音時の補正抑止も検証します。別の場所なら `JSFX_METER_CHECK` で指定します。
 
 ## JS → EEL2 の対応
 

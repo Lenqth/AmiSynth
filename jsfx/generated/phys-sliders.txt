@@ -58,3 +58,4 @@ slider56:amp_gain=0.5<0,1,0.001>Amp Gain
 slider57:amp_tone=0.5<0,1,0.001>Amp Tone
 slider58:amp_level_db=0<-24,12,0.1>Amp Level [dB]
 slider59:tuning_slot=1<1,8,1>Tuning Slot
+slider60:phys_sustain_mode=1<0,2,1{Off,Auto (strings / piano / modal),On (all models)}>Sustain Pedal

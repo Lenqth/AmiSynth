@@ -2,6 +2,7 @@
 // Needs the jsfx_render tool: `npm run jsfx:tools` (or JSFX_RENDER=/path/to/jsfx_render).
 // Skipped automatically when the tool is not available (e.g. Cloudflare builds).
 import { test } from 'node:test';
+import { execFileSync } from 'node:child_process';
 import assert from 'node:assert/strict';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -17,8 +18,17 @@ import { parseScale } from '../src/lib/tuning.js';
 
 const BIN = process.env.JSFX_RENDER || join(import.meta.dirname, '..', '.cache', process.platform === 'win32' ? 'jsfx_render.exe' : 'jsfx_render');
 const HAVE = existsSync(BIN);
+const METER_BIN = process.env.JSFX_METER_CHECK || join(import.meta.dirname, '..', '.cache', process.platform === 'win32' ? 'jsfx_meter_check.exe' : 'jsfx_meter_check');
 const SR = 48000;
 const MIN_SNR_DB = 100; // float32 output gives ~150 dB when the port is exact
+
+test('JSFX meters compile and draw, measure output, match only on request and ignore silence',
+  { skip: !existsSync(METER_BIN) && 'jsfx_meter_check not built (needs ysfx graphics)' }, () => {
+    for (const kind of ['synth', 'phys', 'drums']) {
+      const output = execFileSync(METER_BIN, [join(import.meta.dirname, '..', 'jsfx', INSTRUMENTS[kind].file), kind], { encoding: 'utf8' });
+      assert.match(output, /checks passed/);
+    }
+  });
 
 test('JSFX slider blocks are in sync with params.js', () => {
   for (const [file, defs] of JSFX_FILES) {
@@ -64,6 +74,27 @@ test('JSFX physical model matches JS for every preset', { skip: !HAVE && 'jsfx_r
     check('phys', resolvePreset(INSTRUMENTS.phys.defs, preset), PERFORMANCE, 0.7, `phys/${preset.name}`);
   }
 });
+
+test('JSFX Physical matches JS for CC64 Auto/Off/On, retrigger, stealing and reset controllers',
+  { skip: !HAVE && 'jsfx_render not built' }, () => {
+    const events = [
+      [0, 0x90, 60, 100], [1000, 0xb0, 64, 63], [2000, 0xb0, 64, 64],
+      [4000, 0x80, 60, 0], [6000, 0x90, 60, 100], [8000, 0xb0, 64, 0],
+      [9000, 0xb0, 64, 127], [10000, 0x90, 60, 0],
+      ...[61, 62, 63, 64, 65, 66, 67, 68].map((note, i) => [11000 + i * 128, 0x90, note, 100]),
+      [15000, 0x80, 61, 0], [15500, 0xb0, 64, 0], [16000, 0xb0, 64, 127],
+      [17000, 0x80, 62, 0], [18000, 0xb0, 123, 0],
+      [20000, 0x90, 60, 100], [21000, 0xb0, 64, 127], [22000, 0x80, 60, 0], [23000, 0xb0, 121, 0],
+      [25000, 0x90, 60, 100], [26000, 0xb0, 64, 127], [27000, 0x80, 60, 0], [28000, 0xb0, 120, 0],
+    ];
+    for (let model = 0; model <= 6; model++) {
+      for (let mode = 0; mode <= 2; mode++) {
+        check('phys', scenario('phys', { phys_model: model, phys_sustain_mode: mode, phys_release_ms: 40 }),
+          events, 0.7, `phys/sustain model ${model} mode ${mode}`);
+      }
+    }
+    check('phys', scenario('phys', { phys_model: 1, modal_material: 5 }), events, 0.7, 'phys/Auto excludes membrane');
+  });
 
 test('JSFX physical model matches JS with stress settings (vibrato, voice stealing, 44.1 kHz, every mesh shape)', { skip: !HAVE && 'jsfx_render not built' }, () => {
   // more notes than the mesh has voices, repeated notes, and a bend while everything rings

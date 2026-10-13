@@ -97,12 +97,15 @@ slider85:tuning_slot=1<1,8,1>Tuning Slot
 // </generated sliders>
 
 import amisynth_lib.jsfx-inc
+import amisynth_meter.jsfx-inc
 
 in_pin:none
 out_pin:Left
 out_pin:Right
 
 @init
+meter.meter_init();
+voice_steals = 0;
 MAX_VOICES = 8;
 MAX_UNISON = 9;
 MAX_HELD = 16;
@@ -375,6 +378,7 @@ function voice_allocate() local(n, i, best, best_score, score, found) (
     );
     i += 1;
   );
+  found < 0 ? voice_steals += 1;
   found >= 0 ? found : best;
 );
 
@@ -721,6 +725,11 @@ i = 0;
 loop(MAX_VOICES, vcall(i, 3, 0, 0, 0, 0); vcall(i, 4, 0, 0, 0, 0); i += 1;);
 
 @block
+active_voices = 0; released_voices = 0; meter_i = 0;
+loop(MAX_VOICES,
+  v_active[meter_i] ? (active_voices += 1; !v_gate[meter_i] ? released_voices += 1;);
+  meter_i += 1;
+);
 midi_queue_read();
 // a shared scale (AmiSynth Tuning) changed: retune, sounding notes included
 tuning_shared_changed() ? (
@@ -764,4 +773,17 @@ v4.voice_render(); v5.voice_render(); v6.voice_render(); v7.voice_render();
 out_gain = gain_smooth.smoother_process(master_gain) * 0.5 * g_tremolo;
 spl0 = soft_clip(mix_l * out_gain);
 spl1 = soft_clip(mix_r * out_gain);
+meter.meter_tick(spl0, spl1);
 beat += beat_inc;
+
+@gfx 520 210
+meter.meter_draw();
+meter.match_request ? (
+  master_volume_db = clamp(master_volume_db + meter.correction, -60, 6);
+  master_gain = db_to_gain(master_volume_db);
+  sliderchange(slider49); slider_automate(slider49);
+);
+gfx_x = 12; gfx_y = 145;
+gfx_printf("Voices %d / %d   released/sustained %d   steals %d", active_voices, voice_limit(), released_voices, voice_steals);
+gfx_x = 12; gfx_y = 174;
+gfx_drawstr("8-note polyphony; unison copies do not consume note voices.");
