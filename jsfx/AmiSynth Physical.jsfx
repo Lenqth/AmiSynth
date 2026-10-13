@@ -72,12 +72,14 @@ slider59:tuning_slot=1<1,8,1>Tuning Slot
 // </generated sliders>
 
 import amisynth_lib.jsfx-inc
+import amisynth_meter.jsfx-inc
 
 in_pin:none
 out_pin:Left
 out_pin:Right
 
 @init
+meter.meter_init();
 MAX_VOICES = 8;
 MESH_MAX_VOICES = 3;
 NMODES = 8;
@@ -1193,3 +1195,12 @@ phys_room_mix > 0 ? (
 g = out_gain * 0.5;
 spl0 = soft_clip(dc.onepole_hp(mix_l) * g);
 spl1 = soft_clip(dc_r.onepole_hp(mix_r) * g);
+meter.meter_tick(spl0, spl1);
+
+@gfx 520 150
+meter.meter_draw();
+meter.match_request ? (
+  phys_volume_db = clamp(phys_volume_db + meter.correction, -60, 6);
+  out_gain = db_to_gain(phys_volume_db);
+  sliderchange(phys_volume_db); slider_automate(phys_volume_db);
+);

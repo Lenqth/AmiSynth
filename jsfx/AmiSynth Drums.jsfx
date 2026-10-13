@@ -86,6 +86,7 @@ slider78:perc_bus_in_main=1<0,1,1{Off,On}>Toms/Perc Out In Main Mix
 // </generated sliders>
 
 import amisynth_lib.jsfx-inc
+import amisynth_meter.jsfx-inc
 
 in_pin:none
 // 1/2 = main mix; 3..10 = one stereo pair per group of parts (always on; the *_bus_in_main
@@ -102,6 +103,8 @@ out_pin:Toms/Perc L
 out_pin:Toms/Perc R
 
 @init
+meter.meter_init();
+kick_meter.meter_init(); snare_meter.meter_init(); hats_meter.meter_init(); perc_meter.meter_init();
 noise_seed(12345);
 
 // ---- metallic cymbal circuit: 6 detuned squares (808 ratios) + noise -> BP -> HP
@@ -398,3 +401,22 @@ spl6 = soft_clip(hat_l * g);
 spl7 = soft_clip(hat_r * g);
 spl8 = soft_clip(perc_l * g);
 spl9 = soft_clip(perc_r * g);
+meter.meter_tick(spl0, spl1);
+kick_meter.meter_tick(spl2, spl3); snare_meter.meter_tick(spl4, spl5);
+hats_meter.meter_tick(spl6, spl7); perc_meter.meter_tick(spl8, spl9);
+
+@gfx 520 205
+meter.meter_draw();
+meter.match_request ? (
+  drum_master_volume_db = clamp(drum_master_volume_db + meter.correction, -60, 6);
+  master_gain = db_to_gain(drum_master_volume_db);
+  sliderchange(drum_master_volume_db); slider_automate(drum_master_volume_db);
+);
+gfx_x = 12; gfx_y = 145;
+gfx_printf("Bus peaks: Kick %.1f / Snare %.1f dBFS",
+  20 * log10(max(0.000001, max(kick_meter.peak_l, kick_meter.peak_r))),
+  20 * log10(max(0.000001, max(snare_meter.peak_l, snare_meter.peak_r))));
+gfx_x = 12; gfx_y = 174;
+gfx_printf("Hats %.1f / Perc %.1f dBFS (dedicated outputs)",
+  20 * log10(max(0.000001, max(hats_meter.peak_l, hats_meter.peak_r))),
+  20 * log10(max(0.000001, max(perc_meter.peak_l, perc_meter.peak_r))));

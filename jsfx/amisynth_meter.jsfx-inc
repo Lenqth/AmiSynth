@@ -1,0 +1,42 @@
+desc:AmiSynth output meter (read-only until Match is clicked)
+@init
+function meter_init() instance(peak_l, peak_r, power, alpha, fall, reference, has_reference) (
+  peak_l = 0; peak_r = 0; power = 0;
+  alpha = 1 - exp(-1 / (0.4 * srate)); // 400 ms exponential mean-square
+  fall = exp(-1 / (0.6 * srate));
+  reference = 0; has_reference = 0;
+);
+function meter_tick(l, r) instance(peak_l, peak_r, power, alpha, fall) (
+  peak_l = max(abs(l), peak_l * fall);
+  peak_r = max(abs(r), peak_r * fall);
+  power += alpha * ((l * l + r * r) * 0.5 - power);
+);
+function meter_draw() instance(peak_l, peak_r, power, reference, has_reference, pressed, match_request, correction)
+local(pl, pr, rms, click) (
+  pl = 20 * log10(max(0.000001, peak_l));
+  pr = 20 * log10(max(0.000001, peak_r));
+  rms = 10 * log10(max(0.000000000001, power));
+  gfx_setfont(1, "Arial", 16);
+  gfx_set(0.06, 0.08, 0.11); gfx_rect(0, 0, gfx_w, gfx_h);
+  gfx_set(0.2, 0.8, 0.55);
+  gfx_rect(12, 12, max(0, (pl + 60) / 60) * (gfx_w - 24), 8);
+  gfx_rect(12, 26, max(0, (pr + 60) / 60) * (gfx_w - 24), 8);
+  gfx_set(0.9, 0.94, 1); gfx_x = 12; gfx_y = 44;
+  gfx_printf("Peak L/R %.1f / %.1f dBFS   RMS %.1f dBFS", pl, pr, rms);
+  gfx_set(0.17, 0.22, 0.28); gfx_rect(12, 74, 140, 28); gfx_rect(162, 74, 130, 28);
+  gfx_set(0.9, 0.94, 1); gfx_x = 20; gfx_y = 80; gfx_drawstr("Capture reference");
+  gfx_x = 170; gfx_y = 80; gfx_drawstr("Match level");
+  click = (mouse_cap & 1) && !pressed;
+  pressed = mouse_cap & 1;
+  match_request = 0;
+  click && mouse_y >= 74 && mouse_y < 102 && power > 0.00000001 ? (
+    mouse_x >= 12 && mouse_x < 152 ? (reference = rms; has_reference = 1;);
+    mouse_x >= 162 && mouse_x < 292 && has_reference ? (
+      correction = clamp(reference - rms, -12, 12);
+      match_request = 1;
+    );
+  );
+  gfx_x = 12; gfx_y = 114;
+  has_reference ? gfx_printf("Reference %.1f dBFS / delta %+.1f dB", reference, rms - reference)
+    : gfx_drawstr("Play the same phrase, capture, change patch, compare.");
+);

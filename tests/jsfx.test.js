@@ -2,6 +2,7 @@
 // Needs the jsfx_render tool: `npm run jsfx:tools` (or JSFX_RENDER=/path/to/jsfx_render).
 // Skipped automatically when the tool is not available (e.g. Cloudflare builds).
 import { test } from 'node:test';
+import { execFileSync } from 'node:child_process';
 import assert from 'node:assert/strict';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -17,8 +18,17 @@ import { parseScale } from '../src/lib/tuning.js';
 
 const BIN = process.env.JSFX_RENDER || join(import.meta.dirname, '..', '.cache', process.platform === 'win32' ? 'jsfx_render.exe' : 'jsfx_render');
 const HAVE = existsSync(BIN);
+const METER_BIN = process.env.JSFX_METER_CHECK || join(import.meta.dirname, '..', '.cache', process.platform === 'win32' ? 'jsfx_meter_check.exe' : 'jsfx_meter_check');
 const SR = 48000;
 const MIN_SNR_DB = 100; // float32 output gives ~150 dB when the port is exact
+
+test('JSFX meters compile and draw, measure output, match only on request and ignore silence',
+  { skip: !existsSync(METER_BIN) && 'jsfx_meter_check not built (needs ysfx graphics)' }, () => {
+    for (const kind of ['synth', 'phys', 'drums']) {
+      const output = execFileSync(METER_BIN, [join(import.meta.dirname, '..', 'jsfx', INSTRUMENTS[kind].file), kind], { encoding: 'utf8' });
+      assert.match(output, /checks passed/);
+    }
+  });
 
 test('JSFX slider blocks are in sync with params.js', () => {
   for (const [file, defs] of JSFX_FILES) {
