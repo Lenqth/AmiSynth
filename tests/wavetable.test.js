@@ -49,7 +49,7 @@ test('Wavetable is appended to the waveform list; new params default to a no-op'
   assert.equal(WT_BANK_NAMES.length, WT_BANKS);
   // appended after the last existing slider, so REAPER slider numbers do not move
   const ids = SYNTH_PARAMS.map((d) => d.id);
-  assert.equal(ids.indexOf('osc1_wt_bank'), ids.indexOf('tuning_slot') + 1);
+  assert.equal(ids.indexOf('osc1_wt_bank'), ids.indexOf('fx_reverb_damping') + 1);
   for (const id of ['wt_position_lfo', 'wt_position_filter_env', 'wt_position_amp_env']) assert.equal(byId[id].default, 0);
   // presets with classic oscillators carry no wavetable settings; the wavetable ones exist
   const wt = SYNTH_PRESETS.filter((p) => p.params.osc1_waveform === 4 || p.params.osc2_waveform === 4);

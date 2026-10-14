@@ -528,6 +528,146 @@ function ap1_phase_delay(a, w) local(ph) (
 function lp1_phase_delay(b, w) ( atan2(b * sin(w), 1 - b * cos(w)) / w; );
 
 // ---------------------------------------------------------------------------
+// Effects building blocks (chorus, echo, reverb), same as lib.js. Each allocates its delay
+// memory once when its *_init() runs in @init (sized from srate); wet output in l / r.
+
+/** Schroeder all-pass on this delay line (from delay_init) */
+function allpass_process(x, d, g) instance(base size w) local(y0, v) (
+  y0 = this.delay_read(d);
+  v = x + g * y0;
+  this.delay_write(v);
+  y0 - g * v;
+);
+
+// ---- 4-line feedback delay network (Hadamard mixing, one-pole damping per line);
+// line lengths 1171 1429 1663 1951 samples at 48 kHz (FDN_LENS), scaled by srate and size
+function fdn4_init(n) instance(maxlen len0 len1 len2 len3 g0 g1 g2 g3 z0 z1 z2 z3 damp l r) (
+  this.d0.delay_init(n); this.d1.delay_init(n); this.d2.delay_init(n); this.d3.delay_init(n);
+  maxlen = n - 2;
+  len0 = len1 = len2 = len3 = 2;
+  g0 = g1 = g2 = g3 = 0;
+  z0 = z1 = z2 = z3 = 0;
+  damp = 0.55;
+  l = r = 0;
+);
+
+function fdn4_set(scale, decay_ms, dmp) instance(maxlen len0 len1 len2 len3 g0 g1 g2 g3 damp) (
+  len0 = clamp(floor((1171 * scale * srate) / 48000 + 0.5), 2, maxlen);
+  len1 = clamp(floor((1429 * scale * srate) / 48000 + 0.5), 2, maxlen);
+  len2 = clamp(floor((1663 * scale * srate) / 48000 + 0.5), 2, maxlen);
+  len3 = clamp(floor((1951 * scale * srate) / 48000 + 0.5), 2, maxlen);
+  // -60 dB after decay_ms: each pass through a line of len samples loses 60*len/(T*sr) dB
+  g0 = pow(10, (-3 * len0) / (decay_ms * 0.001 * srate));
+  g1 = pow(10, (-3 * len1) / (decay_ms * 0.001 * srate));
+  g2 = pow(10, (-3 * len2) / (decay_ms * 0.001 * srate));
+  g3 = pow(10, (-3 * len3) / (decay_ms * 0.001 * srate));
+  damp = dmp;
+);
+
+function fdn4_process(x) instance(len0 len1 len2 len3 g0 g1 g2 g3 z0 z1 z2 z3 damp l r) local(a, b, c, d) (
+  z0 += damp * (this.d0.delay_read(len0) - z0);
+  z1 += damp * (this.d1.delay_read(len1) - z1);
+  z2 += damp * (this.d2.delay_read(len2) - z2);
+  z3 += damp * (this.d3.delay_read(len3) - z3);
+  a = z0 * g0;
+  b = z1 * g1;
+  c = z2 * g2;
+  d = z3 * g3;
+  this.d0.delay_write(x + 0.5 * (a + b + c + d));
+  this.d1.delay_write(x + 0.5 * (a - b + c - d));
+  this.d2.delay_write(x + 0.5 * (a + b - c - d));
+  this.d3.delay_write(x + 0.5 * (a - b - c + d));
+  l = a + c;
+  r = b + d;
+);
+
+function fdn4_clear() instance(z0 z1 z2 z3 l r) (
+  this.d0.delay_clear(); this.d1.delay_clear(); this.d2.delay_clear(); this.d3.delay_clear();
+  z0 = z1 = z2 = z3 = 0;
+  l = r = 0;
+);
+
+// ---- stereo chorus: a modulated delay per channel, LFOs a quarter cycle apart.
+// Delay sweeps base .. base + depth (CHORUS_BASE_MS 7 + CHORUS_MAX_DEPTH_MS 8, plus 5 ms spare).
+function chorus_init() instance(phase l r) (
+  this.bl.delay_init(ceil((7 + 8 + 5) * 0.001 * srate) + 4);
+  this.br.delay_init(ceil((7 + 8 + 5) * 0.001 * srate) + 4);
+  phase = 0;
+  l = r = 0;
+);
+
+function chorus_clear() instance(l r) ( this.bl.delay_clear(); this.br.delay_clear(); l = r = 0; );
+
+/** base / depth in samples, inc = LFO cycles per sample */
+function chorus_process(in_l, in_r, base, depth, inc) instance(phase l r) (
+  this.bl.delay_write(in_l);
+  this.br.delay_write(in_r);
+  l = this.bl.delay_read(base + depth * (0.5 + 0.5 * sin(2 * $pi * phase)));
+  r = this.br.delay_read(base + depth * (0.5 + 0.5 * cos(2 * $pi * phase)));
+  phase += inc;
+  phase >= 1 ? phase -= 1;
+);
+
+// ---- stereo echo, one-pole high cut in the feedback loop; ping-pong feeds the mono sum into
+// the left line and bounces the repeats L -> R -> L
+function echo_init(n) instance(zl zr l r) (
+  this.bl.delay_init(n); this.br.delay_init(n);
+  zl = zr = 0;
+  l = r = 0;
+);
+
+function echo_clear() instance(zl zr l r) ( this.bl.delay_clear(); this.br.delay_clear(); zl = zr = 0; l = r = 0; );
+
+/** d = delay in samples, fb = feedback, a = one-pole coefficient of the high cut */
+function echo_process(in_l, in_r, d, fb, a, pingpong) instance(zl zr l r) (
+  zl += a * (this.bl.delay_read(d) - zl);
+  zr += a * (this.br.delay_read(d) - zr);
+  pingpong ? (
+    this.bl.delay_write((in_l + in_r) * 0.5 + fb * zr);
+    this.br.delay_write(fb * zl);
+  ) : (
+    this.bl.delay_write(in_l + fb * zl);
+    this.br.delay_write(in_r + fb * zr);
+  );
+  l = zl;
+  r = zr;
+);
+
+// ---- reverb: two all-pass diffusers (241, 373 samples at 48 kHz) into the 4-line FDN;
+// memory for size multipliers up to 2 (REVERB_MAX_SCALE), wet gain 0.7 (REVERB_GAIN) * sqrt(1 - mean g^2)
+function reverb_init() instance(ap_len1 ap_len2 gain l r) (
+  this.ap1.delay_init(ceil((241 * 2 * srate) / 48000) + 4);
+  this.ap2.delay_init(ceil((373 * 2 * srate) / 48000) + 4);
+  this.fdn.fdn4_init(ceil((1951 * 2 * srate) / 48000) + 4);
+  ap_len1 = ap_len2 = 1;
+  gain = 0;
+  l = r = 0;
+);
+
+function reverb_set(scale, decay_ms, dmp) instance(ap_len1 ap_len2 gain) local(g2) (
+  ap_len1 = max(1, floor((241 * scale * srate) / 48000 + 0.5));
+  ap_len2 = max(1, floor((373 * scale * srate) / 48000 + 0.5));
+  this.fdn.fdn4_set(scale, decay_ms, dmp);
+  // a long tail piles up more energy (~ 1 / (1 - g^2) per line): keep the wet level steady
+  g2 = (this.fdn.g0 * this.fdn.g0 + this.fdn.g1 * this.fdn.g1 + this.fdn.g2 * this.fdn.g2 + this.fdn.g3 * this.fdn.g3) * 0.25;
+  gain = 0.7 * sqrt(1 - g2);
+);
+
+function reverb_clear() instance(l r) (
+  this.ap1.delay_clear(); this.ap2.delay_clear(); this.fdn.fdn4_clear();
+  l = r = 0;
+);
+
+function reverb_process(in_l, in_r) instance(ap_len1 ap_len2 gain l r) local(x) (
+  x = (in_l + in_r) * 0.5;
+  x = this.ap1.allpass_process(x, ap_len1, 0.6);
+  x = this.ap2.allpass_process(x, ap_len2, 0.6);
+  this.fdn.fdn4_process(x);
+  l = this.fdn.l * gain;
+  r = this.fdn.r * gain;
+);
+
+// ---------------------------------------------------------------------------
 // Sample-accurate MIDI: @block stores events, @sample pops them at their offset.
 //   @block:  midi_queue_read();   @sample: while (midi_pop()) ( handle midi_m1/m2/m3 );  midi_tick();
 midi_q = mem_alloc(4 * 1024);

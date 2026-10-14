@@ -88,35 +88,58 @@ export function emptyPattern(bpm = 120) {
 /**
  * Look-ahead scheduler ("A Tale of Two Clocks"): a coarse JS timer queues
  * events ~120 ms ahead with exact AudioContext timestamps.
+ *
+ * It plays a timeline (see song.js): a list of 4-bar patterns played one after another and then
+ * looped (one entry = the classic pattern loop). Step times are computed from an anchor
+ * (time of step k = anchorTime + (k - anchorStep) * stepDur) rather than accumulated, so a pattern
+ * boundary lands on exactly the same time as the next step of a single long pattern would; the
+ * timeline is re-read on every tick, so edits (and pattern / song mode changes) apply live.
  */
 export class Sequencer {
   /**
    * @param {import('./engine.js').AudioEngine} engine
-   * @param {() => Pattern} getPattern
+   * @param {() => (import('./song.js').Timeline | Pattern)} getTimeline a Timeline, or a single Pattern
    * @param {(note:number, time:number) => void} onDrum UI feedback hook
    * @param {(note:number, time:number, duration:number) => void} [onSynthNote] UI feedback hook
    */
-  constructor(engine, getPattern, onDrum, onSynthNote = () => {}) {
+  constructor(engine, getTimeline, onDrum, onSynthNote = () => {}) {
     this.engine = engine;
-    this.getPattern = getPattern;
+    this.getTimeline = getTimeline;
     this.onDrum = onDrum;
     this.onSynthNote = onSynthNote;
     this.timer = 0;
     this.playing = false;
-    this.nextStep = 0;
-    this.nextTime = 0;
-    this.startTime = 0;
-    this.startStep = 0;
+    /** steps scheduled since start (monotonic) */
+    this.count = 0;
+    /** position of the next step to schedule: timeline entry + step inside its pattern */
+    this.entry = 0;
+    this.step = 0;
+    this.anchorTime = 0;
+    this.anchorCount = 0;
     this.stepDur = 0.125;
     this.sendTransport = false;
+    /** @type {{time:number, entry:number, slot:number, index:number, step:number}[]} scheduled steps (for the playhead) */
+    this.queue = [];
+  }
+
+  /** @returns {import('./song.js').Timeline} */
+  timeline() {
+    const t = this.getTimeline();
+    if (Array.isArray(t.entries)) return t;
+    // a bare pattern (old API): one entry
+    return { bpm: t.bpm, melodic: t.melodic === 'phys' ? 'phys' : 'synth', entries: [{ pattern: t, slot: -1, index: 0 }] };
   }
 
   start() {
     if (this.playing || !this.engine.ctx) return;
     this.playing = true;
-    this.nextStep = 0;
-    this.nextTime = this.engine.time + 0.06;
-    this.anchor(this.nextTime, 0);
+    this.count = 0;
+    this.entry = 0;
+    this.step = 0;
+    this.queue = [];
+    this.stepDur = 60 / this.timeline().bpm / STEPS_PER_BEAT;
+    this.anchorTime = this.engine.time + 0.06;
+    this.anchorCount = 0;
     this.sendTransport = true;
     this.tick();
     this.timer = setInterval(() => this.tick(), 25);
@@ -126,46 +149,64 @@ export class Sequencer {
     if (!this.playing) return;
     this.playing = false;
     clearInterval(this.timer);
+    this.queue = [];
     this.engine.clear();
-    this.engine.transport(this.getPattern().bpm, false);
+    this.engine.transport(this.timeline().bpm, false);
   }
 
-  anchor(time, step) {
-    this.startTime = time;
-    this.startStep = step;
+  /** AudioContext time of the step with the given count. */
+  timeOf(count) {
+    return this.anchorTime + (count - this.anchorCount) * this.stepDur;
   }
 
-  /** Step currently audible (for the playhead), or -1. */
-  currentStep() {
-    if (!this.playing) return -1;
+  /** Step currently audible (entry / arrangement slot / pattern index / step), or null. */
+  position() {
+    if (!this.playing || this.queue.length === 0) return null;
     const t = this.engine.time;
-    if (t < this.startTime) return (this.startStep - 1 + STEPS) % STEPS;
-    return (this.startStep + Math.floor((t - this.startTime) / this.stepDur)) % STEPS;
+    let i = 0;
+    while (i + 1 < this.queue.length && this.queue[i + 1].time <= t) i++;
+    if (i > 0) this.queue.splice(0, i);
+    return this.queue[0].time <= t ? this.queue[0] : null;
+  }
+
+  /** Step currently audible inside its pattern (for the playhead), or -1. */
+  currentStep() {
+    return this.position()?.step ?? -1;
   }
 
   tick() {
-    const pattern = this.getPattern();
-    const stepDur = 60 / pattern.bpm / STEPS_PER_BEAT;
+    const tl = this.timeline();
+    const stepDur = 60 / tl.bpm / STEPS_PER_BEAT;
     if (stepDur !== this.stepDur) {
-      // tempo change: re-anchor the playhead clock at the next step
+      // tempo change: re-anchor the clock at the next step
+      this.anchorTime = this.timeOf(this.count);
+      this.anchorCount = this.count;
       this.stepDur = stepDur;
-      this.anchor(this.nextTime, this.nextStep);
       this.sendTransport = true;
     }
     const horizon = this.engine.time + 0.12;
-    while (this.nextTime < horizon) {
-      this.scheduleStep(pattern, this.nextStep, this.nextTime, stepDur);
-      this.nextTime += stepDur;
-      this.nextStep = (this.nextStep + 1) % STEPS;
+    // nobody reads the playhead (e.g. hidden tab): only the last few steps can be audible anyway
+    if (this.queue.length > 1024) this.queue.splice(0, this.queue.length - 64);
+    for (let time = this.timeOf(this.count); time < horizon; time = this.timeOf(this.count)) {
+      // the timeline may have shrunk since the last step (pattern deleted, mode switched)
+      if (this.entry >= tl.entries.length) this.entry = 0;
+      const e = tl.entries[this.entry];
+      this.scheduleStep(tl, e.pattern, this.step, time, stepDur, this.entry);
+      this.queue.push({ time, entry: this.entry, slot: e.slot, index: e.index, step: this.step });
+      this.count++;
+      if (++this.step >= STEPS) {
+        this.step = 0;
+        this.entry = (this.entry + 1) % tl.entries.length;
+      }
     }
   }
 
-  scheduleStep(pattern, step, time, stepDur) {
-    const inst = pattern.melodic === 'phys' ? 'phys' : 'synth';
-    // host transport for the arpeggiator / synced LFO: bar 1 of the pattern = beat 0
+  scheduleStep(tl, pattern, step, time, stepDur, entry = 0) {
+    const inst = tl.melodic === 'phys' ? 'phys' : 'synth';
+    // host transport for the arpeggiator / synced LFO: bar 1 of the timeline = beat 0
     if (step === 0 || this.sendTransport) {
       this.sendTransport = false;
-      this.engine.transport(pattern.bpm, true, step / STEPS_PER_BEAT, time);
+      this.engine.transport(tl.bpm, true, (entry * STEPS + step) / STEPS_PER_BEAT, time);
     }
     for (const n of pattern.notes) {
       if (n.start !== step) continue;
