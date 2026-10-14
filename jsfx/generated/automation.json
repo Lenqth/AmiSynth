@@ -70,7 +70,7 @@
           "name": "Osc1 Waveform",
           "group": "Oscillators",
           "min": 0,
-          "max": 3,
+          "max": 4,
           "default": 0,
           "step": 1,
           "unit": "",
@@ -78,9 +78,10 @@
             "Saw",
             "Pulse",
             "Triangle",
-            "Sine"
+            "Sine",
+            "Wavetable"
           ],
-          "description": "Waveform of oscillator 1.",
+          "description": "Waveform of oscillator 1. Wavetable plays the bank chosen in Osc1 Wavetable at Osc1 WT Position.",
           "slider": 5,
           "paramIndex": 4,
           "valueDomain": "real",
@@ -100,6 +101,10 @@
             {
               "value": 3,
               "label": "Sine"
+            },
+            {
+              "value": 4,
+              "label": "Wavetable"
             }
           ]
         },
@@ -136,7 +141,7 @@
           "name": "Osc2 Waveform",
           "group": "Oscillators",
           "min": 0,
-          "max": 3,
+          "max": 4,
           "default": 1,
           "step": 1,
           "unit": "",
@@ -144,9 +149,10 @@
             "Saw",
             "Pulse",
             "Triangle",
-            "Sine"
+            "Sine",
+            "Wavetable"
           ],
-          "description": "Waveform of oscillator 2.",
+          "description": "Waveform of oscillator 2. Wavetable plays the bank chosen in Osc2 Wavetable at Osc2 WT Position.",
           "slider": 8,
           "paramIndex": 7,
           "valueDomain": "real",
@@ -166,6 +172,10 @@
             {
               "value": 3,
               "label": "Sine"
+            },
+            {
+              "value": 4,
+              "label": "Wavetable"
             }
           ]
         },
@@ -2195,6 +2205,162 @@
           "slider": 101,
           "paramIndex": 100,
           "valueDomain": "real"
+        },
+        {
+          "id": "osc1_wt_bank",
+          "name": "Osc1 Wavetable",
+          "group": "Wavetable",
+          "min": 0,
+          "max": 4,
+          "default": 0,
+          "step": 1,
+          "unit": "",
+          "options": [
+            "Basic Shapes",
+            "PWM Sweep",
+            "Vocal Formants",
+            "Harmonic Sweep",
+            "Digital"
+          ],
+          "description": "Wavetable bank of oscillator 1 (used while Osc1 Waveform is Wavetable). Basic Shapes: sine -> triangle -> saw -> square. PWM Sweep: pulse 50 % -> 5 %. Vocal Formants: vowels a-e-i-o-u. Harmonic Sweep: a band of harmonics rising 5 octaves. Digital: 8-bit XOR waveforms. Band-limited, generated in the synth (no samples).",
+          "slider": 102,
+          "paramIndex": 101,
+          "valueDomain": "real",
+          "enumValues": [
+            {
+              "value": 0,
+              "label": "Basic Shapes"
+            },
+            {
+              "value": 1,
+              "label": "PWM Sweep"
+            },
+            {
+              "value": 2,
+              "label": "Vocal Formants"
+            },
+            {
+              "value": 3,
+              "label": "Harmonic Sweep"
+            },
+            {
+              "value": 4,
+              "label": "Digital"
+            }
+          ]
+        },
+        {
+          "id": "osc1_wt_position",
+          "name": "Osc1 WT Position",
+          "group": "Wavetable",
+          "min": 0,
+          "max": 1,
+          "default": 0,
+          "step": 0.001,
+          "unit": "",
+          "description": "Position in the oscillator 1 wavetable (0 = first frame, 1 = last; frames are crossfaded in between).",
+          "slider": 103,
+          "paramIndex": 102,
+          "valueDomain": "real"
+        },
+        {
+          "id": "osc2_wt_bank",
+          "name": "Osc2 Wavetable",
+          "group": "Wavetable",
+          "min": 0,
+          "max": 4,
+          "default": 0,
+          "step": 1,
+          "unit": "",
+          "options": [
+            "Basic Shapes",
+            "PWM Sweep",
+            "Vocal Formants",
+            "Harmonic Sweep",
+            "Digital"
+          ],
+          "description": "Wavetable bank of oscillator 2 (used while Osc2 Waveform is Wavetable). Same banks as Osc1 Wavetable.",
+          "slider": 104,
+          "paramIndex": 103,
+          "valueDomain": "real",
+          "enumValues": [
+            {
+              "value": 0,
+              "label": "Basic Shapes"
+            },
+            {
+              "value": 1,
+              "label": "PWM Sweep"
+            },
+            {
+              "value": 2,
+              "label": "Vocal Formants"
+            },
+            {
+              "value": 3,
+              "label": "Harmonic Sweep"
+            },
+            {
+              "value": 4,
+              "label": "Digital"
+            }
+          ]
+        },
+        {
+          "id": "osc2_wt_position",
+          "name": "Osc2 WT Position",
+          "group": "Wavetable",
+          "min": 0,
+          "max": 1,
+          "default": 0,
+          "step": 0.001,
+          "unit": "",
+          "description": "Position in the oscillator 2 wavetable (0 = first frame, 1 = last).",
+          "slider": 105,
+          "paramIndex": 104,
+          "valueDomain": "real"
+        },
+        {
+          "id": "wt_position_lfo",
+          "name": "WT Position LFO",
+          "group": "Wavetable",
+          "min": -1,
+          "max": 1,
+          "default": 0,
+          "step": 0.001,
+          "unit": "",
+          "description": "How far the global LFO moves the wavetable position of both oscillators (+/- this amount at the LFO peaks; the result is limited to 0..1).",
+          "slider": 106,
+          "paramIndex": 105,
+          "valueDomain": "real"
+        },
+        {
+          "id": "wt_position_filter_env",
+          "name": "WT Position Filter Env",
+          "group": "Wavetable",
+          "min": -1,
+          "max": 1,
+          "default": 0,
+          "step": 0.001,
+          "unit": "",
+          "description": "How far the filter envelope moves the wavetable position of both oscillators (negative = moves it down).",
+          "slider": 107,
+          "paramIndex": 106,
+          "valueDomain": "real"
+        },
+        {
+          "id": "wt_position_amp_env",
+          "name": "WT Position Amp Env",
+          "group": "Wavetable",
+          "min": -1,
+          "max": 1,
+          "default": 0,
+          "step": 0.001,
+          "unit": "",
+          "description": "How far the amp envelope moves the wavetable position of both oscillators (negative = moves it down).",
+          "slider": 108,
+          "paramIndex": 107,
+          "valueDomain": "real"
         }
       ],
       "presets": [
@@ -2297,7 +2463,14 @@
             "fx_reverb_mix": 0.25,
             "fx_reverb_decay_ms": 2500,
             "fx_reverb_size": 0.5,
-            "fx_reverb_damping": 0.5
+            "fx_reverb_damping": 0.5,
+            "osc1_wt_bank": 0,
+            "osc1_wt_position": 0,
+            "osc2_wt_bank": 0,
+            "osc2_wt_position": 0,
+            "wt_position_lfo": 0,
+            "wt_position_filter_env": 0,
+            "wt_position_amp_env": 0
           }
         },
         {
@@ -2399,7 +2572,14 @@
             "fx_reverb_mix": 0.25,
             "fx_reverb_decay_ms": 2500,
             "fx_reverb_size": 0.5,
-            "fx_reverb_damping": 0.5
+            "fx_reverb_damping": 0.5,
+            "osc1_wt_bank": 0,
+            "osc1_wt_position": 0,
+            "osc2_wt_bank": 0,
+            "osc2_wt_position": 0,
+            "wt_position_lfo": 0,
+            "wt_position_filter_env": 0,
+            "wt_position_amp_env": 0
           }
         },
         {
@@ -2501,7 +2681,14 @@
             "fx_reverb_mix": 0.25,
             "fx_reverb_decay_ms": 2500,
             "fx_reverb_size": 0.5,
-            "fx_reverb_damping": 0.5
+            "fx_reverb_damping": 0.5,
+            "osc1_wt_bank": 0,
+            "osc1_wt_position": 0,
+            "osc2_wt_bank": 0,
+            "osc2_wt_position": 0,
+            "wt_position_lfo": 0,
+            "wt_position_filter_env": 0,
+            "wt_position_amp_env": 0
           }
         },
         {
@@ -2603,7 +2790,14 @@
             "fx_reverb_mix": 0.25,
             "fx_reverb_decay_ms": 2500,
             "fx_reverb_size": 0.5,
-            "fx_reverb_damping": 0.5
+            "fx_reverb_damping": 0.5,
+            "osc1_wt_bank": 0,
+            "osc1_wt_position": 0,
+            "osc2_wt_bank": 0,
+            "osc2_wt_position": 0,
+            "wt_position_lfo": 0,
+            "wt_position_filter_env": 0,
+            "wt_position_amp_env": 0
           }
         },
         {
@@ -2705,7 +2899,14 @@
             "fx_reverb_mix": 0.25,
             "fx_reverb_decay_ms": 2500,
             "fx_reverb_size": 0.5,
-            "fx_reverb_damping": 0.5
+            "fx_reverb_damping": 0.5,
+            "osc1_wt_bank": 0,
+            "osc1_wt_position": 0,
+            "osc2_wt_bank": 0,
+            "osc2_wt_position": 0,
+            "wt_position_lfo": 0,
+            "wt_position_filter_env": 0,
+            "wt_position_amp_env": 0
           }
         },
         {
@@ -2807,7 +3008,14 @@
             "fx_reverb_mix": 0.25,
             "fx_reverb_decay_ms": 2500,
             "fx_reverb_size": 0.5,
-            "fx_reverb_damping": 0.5
+            "fx_reverb_damping": 0.5,
+            "osc1_wt_bank": 0,
+            "osc1_wt_position": 0,
+            "osc2_wt_bank": 0,
+            "osc2_wt_position": 0,
+            "wt_position_lfo": 0,
+            "wt_position_filter_env": 0,
+            "wt_position_amp_env": 0
           }
         },
         {
@@ -2909,7 +3117,14 @@
             "fx_reverb_mix": 0.25,
             "fx_reverb_decay_ms": 2500,
             "fx_reverb_size": 0.5,
-            "fx_reverb_damping": 0.5
+            "fx_reverb_damping": 0.5,
+            "osc1_wt_bank": 0,
+            "osc1_wt_position": 0,
+            "osc2_wt_bank": 0,
+            "osc2_wt_position": 0,
+            "wt_position_lfo": 0,
+            "wt_position_filter_env": 0,
+            "wt_position_amp_env": 0
           }
         },
         {
@@ -3011,7 +3226,14 @@
             "fx_reverb_mix": 0.25,
             "fx_reverb_decay_ms": 2500,
             "fx_reverb_size": 0.5,
-            "fx_reverb_damping": 0.5
+            "fx_reverb_damping": 0.5,
+            "osc1_wt_bank": 0,
+            "osc1_wt_position": 0,
+            "osc2_wt_bank": 0,
+            "osc2_wt_position": 0,
+            "wt_position_lfo": 0,
+            "wt_position_filter_env": 0,
+            "wt_position_amp_env": 0
           }
         },
         {
@@ -3113,7 +3335,14 @@
             "fx_reverb_mix": 0.25,
             "fx_reverb_decay_ms": 2500,
             "fx_reverb_size": 0.5,
-            "fx_reverb_damping": 0.5
+            "fx_reverb_damping": 0.5,
+            "osc1_wt_bank": 0,
+            "osc1_wt_position": 0,
+            "osc2_wt_bank": 0,
+            "osc2_wt_position": 0,
+            "wt_position_lfo": 0,
+            "wt_position_filter_env": 0,
+            "wt_position_amp_env": 0
           }
         },
         {
@@ -3215,7 +3444,14 @@
             "fx_reverb_mix": 0.25,
             "fx_reverb_decay_ms": 2500,
             "fx_reverb_size": 0.5,
-            "fx_reverb_damping": 0.5
+            "fx_reverb_damping": 0.5,
+            "osc1_wt_bank": 0,
+            "osc1_wt_position": 0,
+            "osc2_wt_bank": 0,
+            "osc2_wt_position": 0,
+            "wt_position_lfo": 0,
+            "wt_position_filter_env": 0,
+            "wt_position_amp_env": 0
           }
         },
         {
@@ -3317,7 +3553,14 @@
             "fx_reverb_mix": 0.25,
             "fx_reverb_decay_ms": 2500,
             "fx_reverb_size": 0.5,
-            "fx_reverb_damping": 0.5
+            "fx_reverb_damping": 0.5,
+            "osc1_wt_bank": 0,
+            "osc1_wt_position": 0,
+            "osc2_wt_bank": 0,
+            "osc2_wt_position": 0,
+            "wt_position_lfo": 0,
+            "wt_position_filter_env": 0,
+            "wt_position_amp_env": 0
           }
         },
         {
@@ -3419,7 +3662,14 @@
             "fx_reverb_mix": 0.25,
             "fx_reverb_decay_ms": 2500,
             "fx_reverb_size": 0.5,
-            "fx_reverb_damping": 0.5
+            "fx_reverb_damping": 0.5,
+            "osc1_wt_bank": 0,
+            "osc1_wt_position": 0,
+            "osc2_wt_bank": 0,
+            "osc2_wt_position": 0,
+            "wt_position_lfo": 0,
+            "wt_position_filter_env": 0,
+            "wt_position_amp_env": 0
           }
         },
         {
@@ -3521,7 +3771,14 @@
             "fx_reverb_mix": 0.25,
             "fx_reverb_decay_ms": 2500,
             "fx_reverb_size": 0.5,
-            "fx_reverb_damping": 0.5
+            "fx_reverb_damping": 0.5,
+            "osc1_wt_bank": 0,
+            "osc1_wt_position": 0,
+            "osc2_wt_bank": 0,
+            "osc2_wt_position": 0,
+            "wt_position_lfo": 0,
+            "wt_position_filter_env": 0,
+            "wt_position_amp_env": 0
           }
         },
         {
@@ -3623,7 +3880,14 @@
             "fx_reverb_mix": 0.25,
             "fx_reverb_decay_ms": 2500,
             "fx_reverb_size": 0.5,
-            "fx_reverb_damping": 0.5
+            "fx_reverb_damping": 0.5,
+            "osc1_wt_bank": 0,
+            "osc1_wt_position": 0,
+            "osc2_wt_bank": 0,
+            "osc2_wt_position": 0,
+            "wt_position_lfo": 0,
+            "wt_position_filter_env": 0,
+            "wt_position_amp_env": 0
           }
         },
         {
@@ -3725,7 +3989,14 @@
             "fx_reverb_mix": 0.25,
             "fx_reverb_decay_ms": 2500,
             "fx_reverb_size": 0.5,
-            "fx_reverb_damping": 0.5
+            "fx_reverb_damping": 0.5,
+            "osc1_wt_bank": 0,
+            "osc1_wt_position": 0,
+            "osc2_wt_bank": 0,
+            "osc2_wt_position": 0,
+            "wt_position_lfo": 0,
+            "wt_position_filter_env": 0,
+            "wt_position_amp_env": 0
           }
         },
         {
@@ -3827,7 +4098,14 @@
             "fx_reverb_mix": 0.25,
             "fx_reverb_decay_ms": 2500,
             "fx_reverb_size": 0.5,
-            "fx_reverb_damping": 0.5
+            "fx_reverb_damping": 0.5,
+            "osc1_wt_bank": 0,
+            "osc1_wt_position": 0,
+            "osc2_wt_bank": 0,
+            "osc2_wt_position": 0,
+            "wt_position_lfo": 0,
+            "wt_position_filter_env": 0,
+            "wt_position_amp_env": 0
           }
         },
         {
@@ -3929,7 +4207,14 @@
             "fx_reverb_mix": 0.25,
             "fx_reverb_decay_ms": 2500,
             "fx_reverb_size": 0.5,
-            "fx_reverb_damping": 0.5
+            "fx_reverb_damping": 0.5,
+            "osc1_wt_bank": 0,
+            "osc1_wt_position": 0,
+            "osc2_wt_bank": 0,
+            "osc2_wt_position": 0,
+            "wt_position_lfo": 0,
+            "wt_position_filter_env": 0,
+            "wt_position_amp_env": 0
           }
         },
         {
@@ -4031,7 +4316,14 @@
             "fx_reverb_mix": 0.25,
             "fx_reverb_decay_ms": 2500,
             "fx_reverb_size": 0.5,
-            "fx_reverb_damping": 0.5
+            "fx_reverb_damping": 0.5,
+            "osc1_wt_bank": 0,
+            "osc1_wt_position": 0,
+            "osc2_wt_bank": 0,
+            "osc2_wt_position": 0,
+            "wt_position_lfo": 0,
+            "wt_position_filter_env": 0,
+            "wt_position_amp_env": 0
           }
         },
         {
@@ -4133,7 +4425,14 @@
             "fx_reverb_mix": 0.25,
             "fx_reverb_decay_ms": 2500,
             "fx_reverb_size": 0.5,
-            "fx_reverb_damping": 0.5
+            "fx_reverb_damping": 0.5,
+            "osc1_wt_bank": 0,
+            "osc1_wt_position": 0,
+            "osc2_wt_bank": 0,
+            "osc2_wt_position": 0,
+            "wt_position_lfo": 0,
+            "wt_position_filter_env": 0,
+            "wt_position_amp_env": 0
           }
         },
         {
@@ -4235,7 +4534,14 @@
             "fx_reverb_mix": 0.25,
             "fx_reverb_decay_ms": 2500,
             "fx_reverb_size": 0.5,
-            "fx_reverb_damping": 0.5
+            "fx_reverb_damping": 0.5,
+            "osc1_wt_bank": 0,
+            "osc1_wt_position": 0,
+            "osc2_wt_bank": 0,
+            "osc2_wt_position": 0,
+            "wt_position_lfo": 0,
+            "wt_position_filter_env": 0,
+            "wt_position_amp_env": 0
           }
         },
         {
@@ -4337,7 +4643,14 @@
             "fx_reverb_mix": 0.25,
             "fx_reverb_decay_ms": 2500,
             "fx_reverb_size": 0.5,
-            "fx_reverb_damping": 0.5
+            "fx_reverb_damping": 0.5,
+            "osc1_wt_bank": 0,
+            "osc1_wt_position": 0,
+            "osc2_wt_bank": 0,
+            "osc2_wt_position": 0,
+            "wt_position_lfo": 0,
+            "wt_position_filter_env": 0,
+            "wt_position_amp_env": 0
           }
         },
         {
@@ -4439,7 +4752,14 @@
             "fx_reverb_mix": 0.25,
             "fx_reverb_decay_ms": 2500,
             "fx_reverb_size": 0.5,
-            "fx_reverb_damping": 0.5
+            "fx_reverb_damping": 0.5,
+            "osc1_wt_bank": 0,
+            "osc1_wt_position": 0,
+            "osc2_wt_bank": 0,
+            "osc2_wt_position": 0,
+            "wt_position_lfo": 0,
+            "wt_position_filter_env": 0,
+            "wt_position_amp_env": 0
           }
         },
         {
@@ -4541,7 +4861,14 @@
             "fx_reverb_mix": 0.25,
             "fx_reverb_decay_ms": 2500,
             "fx_reverb_size": 0.5,
-            "fx_reverb_damping": 0.5
+            "fx_reverb_damping": 0.5,
+            "osc1_wt_bank": 0,
+            "osc1_wt_position": 0,
+            "osc2_wt_bank": 0,
+            "osc2_wt_position": 0,
+            "wt_position_lfo": 0,
+            "wt_position_filter_env": 0,
+            "wt_position_amp_env": 0
           }
         },
         {
@@ -4643,7 +4970,14 @@
             "fx_reverb_mix": 0.25,
             "fx_reverb_decay_ms": 2500,
             "fx_reverb_size": 0.5,
-            "fx_reverb_damping": 0.5
+            "fx_reverb_damping": 0.5,
+            "osc1_wt_bank": 0,
+            "osc1_wt_position": 0,
+            "osc2_wt_bank": 0,
+            "osc2_wt_position": 0,
+            "wt_position_lfo": 0,
+            "wt_position_filter_env": 0,
+            "wt_position_amp_env": 0
           }
         },
         {
@@ -4745,7 +5079,14 @@
             "fx_reverb_mix": 0.25,
             "fx_reverb_decay_ms": 2500,
             "fx_reverb_size": 0.5,
-            "fx_reverb_damping": 0.5
+            "fx_reverb_damping": 0.5,
+            "osc1_wt_bank": 0,
+            "osc1_wt_position": 0,
+            "osc2_wt_bank": 0,
+            "osc2_wt_position": 0,
+            "wt_position_lfo": 0,
+            "wt_position_filter_env": 0,
+            "wt_position_amp_env": 0
           }
         },
         {
@@ -4847,7 +5188,14 @@
             "fx_reverb_mix": 0.25,
             "fx_reverb_decay_ms": 2500,
             "fx_reverb_size": 0.5,
-            "fx_reverb_damping": 0.5
+            "fx_reverb_damping": 0.5,
+            "osc1_wt_bank": 0,
+            "osc1_wt_position": 0,
+            "osc2_wt_bank": 0,
+            "osc2_wt_position": 0,
+            "wt_position_lfo": 0,
+            "wt_position_filter_env": 0,
+            "wt_position_amp_env": 0
           }
         },
         {
@@ -4949,7 +5297,14 @@
             "fx_reverb_mix": 0.25,
             "fx_reverb_decay_ms": 2500,
             "fx_reverb_size": 0.5,
-            "fx_reverb_damping": 0.5
+            "fx_reverb_damping": 0.5,
+            "osc1_wt_bank": 0,
+            "osc1_wt_position": 0,
+            "osc2_wt_bank": 0,
+            "osc2_wt_position": 0,
+            "wt_position_lfo": 0,
+            "wt_position_filter_env": 0,
+            "wt_position_amp_env": 0
           }
         },
         {
@@ -5051,7 +5406,14 @@
             "fx_reverb_mix": 0.25,
             "fx_reverb_decay_ms": 2500,
             "fx_reverb_size": 0.5,
-            "fx_reverb_damping": 0.5
+            "fx_reverb_damping": 0.5,
+            "osc1_wt_bank": 0,
+            "osc1_wt_position": 0,
+            "osc2_wt_bank": 0,
+            "osc2_wt_position": 0,
+            "wt_position_lfo": 0,
+            "wt_position_filter_env": 0,
+            "wt_position_amp_env": 0
           }
         },
         {
@@ -5153,7 +5515,14 @@
             "fx_reverb_mix": 0.25,
             "fx_reverb_decay_ms": 2500,
             "fx_reverb_size": 0.5,
-            "fx_reverb_damping": 0.5
+            "fx_reverb_damping": 0.5,
+            "osc1_wt_bank": 0,
+            "osc1_wt_position": 0,
+            "osc2_wt_bank": 0,
+            "osc2_wt_position": 0,
+            "wt_position_lfo": 0,
+            "wt_position_filter_env": 0,
+            "wt_position_amp_env": 0
           }
         },
         {
@@ -5255,7 +5624,14 @@
             "fx_reverb_mix": 0.25,
             "fx_reverb_decay_ms": 2500,
             "fx_reverb_size": 0.5,
-            "fx_reverb_damping": 0.5
+            "fx_reverb_damping": 0.5,
+            "osc1_wt_bank": 0,
+            "osc1_wt_position": 0,
+            "osc2_wt_bank": 0,
+            "osc2_wt_position": 0,
+            "wt_position_lfo": 0,
+            "wt_position_filter_env": 0,
+            "wt_position_amp_env": 0
           }
         },
         {
@@ -5357,7 +5733,14 @@
             "fx_reverb_mix": 0.25,
             "fx_reverb_decay_ms": 2500,
             "fx_reverb_size": 0.5,
-            "fx_reverb_damping": 0.5
+            "fx_reverb_damping": 0.5,
+            "osc1_wt_bank": 0,
+            "osc1_wt_position": 0,
+            "osc2_wt_bank": 0,
+            "osc2_wt_position": 0,
+            "wt_position_lfo": 0,
+            "wt_position_filter_env": 0,
+            "wt_position_amp_env": 0
           }
         },
         {
@@ -5459,7 +5842,14 @@
             "fx_reverb_mix": 0.25,
             "fx_reverb_decay_ms": 2500,
             "fx_reverb_size": 0.5,
-            "fx_reverb_damping": 0.5
+            "fx_reverb_damping": 0.5,
+            "osc1_wt_bank": 0,
+            "osc1_wt_position": 0,
+            "osc2_wt_bank": 0,
+            "osc2_wt_position": 0,
+            "wt_position_lfo": 0,
+            "wt_position_filter_env": 0,
+            "wt_position_amp_env": 0
           }
         },
         {
@@ -5561,7 +5951,14 @@
             "fx_reverb_mix": 0.25,
             "fx_reverb_decay_ms": 2500,
             "fx_reverb_size": 0.5,
-            "fx_reverb_damping": 0.5
+            "fx_reverb_damping": 0.5,
+            "osc1_wt_bank": 0,
+            "osc1_wt_position": 0,
+            "osc2_wt_bank": 0,
+            "osc2_wt_position": 0,
+            "wt_position_lfo": 0,
+            "wt_position_filter_env": 0,
+            "wt_position_amp_env": 0
           }
         },
         {
@@ -5663,7 +6060,14 @@
             "fx_reverb_mix": 0.45,
             "fx_reverb_decay_ms": 7000,
             "fx_reverb_size": 0.9,
-            "fx_reverb_damping": 0.6
+            "fx_reverb_damping": 0.6,
+            "osc1_wt_bank": 0,
+            "osc1_wt_position": 0,
+            "osc2_wt_bank": 0,
+            "osc2_wt_position": 0,
+            "wt_position_lfo": 0,
+            "wt_position_filter_env": 0,
+            "wt_position_amp_env": 0
           }
         },
         {
@@ -5765,7 +6169,14 @@
             "fx_reverb_mix": 0.2,
             "fx_reverb_decay_ms": 1600,
             "fx_reverb_size": 0.35,
-            "fx_reverb_damping": 0.5
+            "fx_reverb_damping": 0.5,
+            "osc1_wt_bank": 0,
+            "osc1_wt_position": 0,
+            "osc2_wt_bank": 0,
+            "osc2_wt_position": 0,
+            "wt_position_lfo": 0,
+            "wt_position_filter_env": 0,
+            "wt_position_amp_env": 0
           }
         },
         {
@@ -5867,7 +6278,14 @@
             "fx_reverb_mix": 0.15,
             "fx_reverb_decay_ms": 1800,
             "fx_reverb_size": 0.5,
-            "fx_reverb_damping": 0.5
+            "fx_reverb_damping": 0.5,
+            "osc1_wt_bank": 0,
+            "osc1_wt_position": 0,
+            "osc2_wt_bank": 0,
+            "osc2_wt_position": 0,
+            "wt_position_lfo": 0,
+            "wt_position_filter_env": 0,
+            "wt_position_amp_env": 0
           }
         },
         {
@@ -5969,7 +6387,14 @@
             "fx_reverb_mix": 0.18,
             "fx_reverb_decay_ms": 2200,
             "fx_reverb_size": 0.6,
-            "fx_reverb_damping": 0.5
+            "fx_reverb_damping": 0.5,
+            "osc1_wt_bank": 0,
+            "osc1_wt_position": 0,
+            "osc2_wt_bank": 0,
+            "osc2_wt_position": 0,
+            "wt_position_lfo": 0,
+            "wt_position_filter_env": 0,
+            "wt_position_amp_env": 0
           }
         },
         {
@@ -6071,7 +6496,559 @@
             "fx_reverb_mix": 0.25,
             "fx_reverb_decay_ms": 1200,
             "fx_reverb_size": 0.15,
-            "fx_reverb_damping": 0.3
+            "fx_reverb_damping": 0.3,
+            "osc1_wt_bank": 0,
+            "osc1_wt_position": 0,
+            "osc2_wt_bank": 0,
+            "osc2_wt_position": 0,
+            "wt_position_lfo": 0,
+            "wt_position_filter_env": 0,
+            "wt_position_amp_env": 0
+          }
+        },
+        {
+          "name": "Vowel Choir Pad",
+          "category": "Pad",
+          "description": "Two vocal-formant wavetables drifting through the vowels with a slow LFO; wide unison. Hold chords.",
+          "params": {
+            "osc1_waveform": 4,
+            "osc1_pulse_width": 0.5,
+            "osc1_level": 0.8,
+            "osc2_waveform": 4,
+            "osc2_pulse_width": 0.5,
+            "osc2_level": 0.6,
+            "osc2_transpose_cents": 0,
+            "osc2_detune_cents": 8,
+            "sub_osc_level": 0,
+            "noise_level": 0,
+            "osc2_hard_sync": 0,
+            "osc2_env_pitch_cents": 0,
+            "fm_index": 0,
+            "filter_mode": 0,
+            "filter_cutoff_hz": 3500,
+            "filter_resonance": 0.1,
+            "filter_slope": 1,
+            "filter_drive": 0,
+            "filter_env_amount_oct": 0,
+            "filter_key_tracking": 0.5,
+            "filter_velocity_amount": 0.3,
+            "filter_env_attack_ms": 5,
+            "filter_env_decay_ms": 300,
+            "filter_env_sustain": 0.2,
+            "filter_env_release_ms": 300,
+            "amp_attack_ms": 400,
+            "amp_decay_ms": 400,
+            "amp_sustain": 0.9,
+            "amp_release_ms": 1200,
+            "amp_velocity_amount": 0.7,
+            "lfo_waveform": 0,
+            "lfo_rate_hz": 0.25,
+            "lfo_pitch_cents": 0,
+            "lfo_filter_oct": 0,
+            "lfo_pulse_width": 0,
+            "lfo_amp": 0,
+            "modwheel_vibrato_cents": 30,
+            "modwheel_filter_oct": 0,
+            "pitch_bend_range_cents": 200,
+            "voice_count": 8,
+            "glide_ms": 0,
+            "unison_voices": 3,
+            "unison_detune_cents": 14,
+            "unison_stereo_width": 0.9,
+            "master_volume_db": -5,
+            "transpose_semitones": 0,
+            "voice_mode": 0,
+            "glide_mode": 0,
+            "unison_detune_curve": 0,
+            "unison_side_level": 1,
+            "lfo_sync": 0,
+            "arp_mode": 0,
+            "arp_rate": 4,
+            "arp_octaves": 1,
+            "arp_gate": 0.5,
+            "arp_swing_percent": 50,
+            "arp_steps": 16,
+            "arp_step_1": 1,
+            "arp_step_2": 1,
+            "arp_step_3": 1,
+            "arp_step_4": 1,
+            "arp_step_5": 1,
+            "arp_step_6": 1,
+            "arp_step_7": 1,
+            "arp_step_8": 1,
+            "arp_step_9": 1,
+            "arp_step_10": 1,
+            "arp_step_11": 1,
+            "arp_step_12": 1,
+            "arp_step_13": 1,
+            "arp_step_14": 1,
+            "arp_step_15": 1,
+            "arp_step_16": 1,
+            "noise_type": 0,
+            "noise_clock_oct": 0,
+            "noise_filter_mode": 0,
+            "noise_filter_hz": 4000,
+            "cc_cutoff_number": 74,
+            "cc_cutoff_depth_oct": 4,
+            "fx_chorus_on": 0,
+            "fx_chorus_mix": 0.5,
+            "fx_chorus_rate_hz": 0.8,
+            "fx_chorus_depth_ms": 3,
+            "fx_delay_on": 0,
+            "fx_delay_mix": 0.25,
+            "fx_delay_sync": 9,
+            "fx_delay_time_ms": 375,
+            "fx_delay_feedback": 0.35,
+            "fx_delay_ping_pong": 0,
+            "fx_delay_high_cut_hz": 6000,
+            "fx_reverb_on": 0,
+            "fx_reverb_mix": 0.25,
+            "fx_reverb_decay_ms": 2500,
+            "fx_reverb_size": 0.5,
+            "fx_reverb_damping": 0.5,
+            "osc1_wt_bank": 2,
+            "osc1_wt_position": 0.2,
+            "osc2_wt_bank": 2,
+            "osc2_wt_position": 0.45,
+            "wt_position_lfo": 0.35,
+            "wt_position_filter_env": 0,
+            "wt_position_amp_env": 0
+          }
+        },
+        {
+          "name": "Morphing Wave Lead",
+          "category": "Lead",
+          "description": "Basic Shapes wavetable: each note starts square-ish and settles toward a soft triangle with the filter envelope. Legato glide.",
+          "params": {
+            "osc1_waveform": 4,
+            "osc1_pulse_width": 0.5,
+            "osc1_level": 0.8,
+            "osc2_waveform": 4,
+            "osc2_pulse_width": 0.5,
+            "osc2_level": 0.3,
+            "osc2_transpose_cents": 0,
+            "osc2_detune_cents": 5,
+            "sub_osc_level": 0,
+            "noise_level": 0,
+            "osc2_hard_sync": 0,
+            "osc2_env_pitch_cents": 0,
+            "fm_index": 0,
+            "filter_mode": 0,
+            "filter_cutoff_hz": 4000,
+            "filter_resonance": 0.15,
+            "filter_slope": 1,
+            "filter_drive": 0,
+            "filter_env_amount_oct": 1,
+            "filter_key_tracking": 0.5,
+            "filter_velocity_amount": 0.3,
+            "filter_env_attack_ms": 5,
+            "filter_env_decay_ms": 700,
+            "filter_env_sustain": 0.25,
+            "filter_env_release_ms": 300,
+            "amp_attack_ms": 4,
+            "amp_decay_ms": 400,
+            "amp_sustain": 0.85,
+            "amp_release_ms": 180,
+            "amp_velocity_amount": 0.7,
+            "lfo_waveform": 0,
+            "lfo_rate_hz": 5,
+            "lfo_pitch_cents": 0,
+            "lfo_filter_oct": 0,
+            "lfo_pulse_width": 0,
+            "lfo_amp": 0,
+            "modwheel_vibrato_cents": 40,
+            "modwheel_filter_oct": 0,
+            "pitch_bend_range_cents": 200,
+            "voice_count": 8,
+            "glide_ms": 60,
+            "unison_voices": 1,
+            "unison_detune_cents": 15,
+            "unison_stereo_width": 0.7,
+            "master_volume_db": -5.8,
+            "transpose_semitones": 0,
+            "voice_mode": 2,
+            "glide_mode": 1,
+            "unison_detune_curve": 0,
+            "unison_side_level": 1,
+            "lfo_sync": 0,
+            "arp_mode": 0,
+            "arp_rate": 4,
+            "arp_octaves": 1,
+            "arp_gate": 0.5,
+            "arp_swing_percent": 50,
+            "arp_steps": 16,
+            "arp_step_1": 1,
+            "arp_step_2": 1,
+            "arp_step_3": 1,
+            "arp_step_4": 1,
+            "arp_step_5": 1,
+            "arp_step_6": 1,
+            "arp_step_7": 1,
+            "arp_step_8": 1,
+            "arp_step_9": 1,
+            "arp_step_10": 1,
+            "arp_step_11": 1,
+            "arp_step_12": 1,
+            "arp_step_13": 1,
+            "arp_step_14": 1,
+            "arp_step_15": 1,
+            "arp_step_16": 1,
+            "noise_type": 0,
+            "noise_clock_oct": 0,
+            "noise_filter_mode": 0,
+            "noise_filter_hz": 4000,
+            "cc_cutoff_number": 74,
+            "cc_cutoff_depth_oct": 4,
+            "fx_chorus_on": 0,
+            "fx_chorus_mix": 0.5,
+            "fx_chorus_rate_hz": 0.8,
+            "fx_chorus_depth_ms": 3,
+            "fx_delay_on": 0,
+            "fx_delay_mix": 0.25,
+            "fx_delay_sync": 9,
+            "fx_delay_time_ms": 375,
+            "fx_delay_feedback": 0.35,
+            "fx_delay_ping_pong": 0,
+            "fx_delay_high_cut_hz": 6000,
+            "fx_reverb_on": 0,
+            "fx_reverb_mix": 0.25,
+            "fx_reverb_decay_ms": 2500,
+            "fx_reverb_size": 0.5,
+            "fx_reverb_damping": 0.5,
+            "osc1_wt_bank": 0,
+            "osc1_wt_position": 0.2,
+            "osc2_wt_bank": 0,
+            "osc2_wt_position": 0.5,
+            "wt_position_lfo": 0,
+            "wt_position_filter_env": 0.75,
+            "wt_position_amp_env": 0
+          }
+        },
+        {
+          "name": "Harmonic Scan Pluck",
+          "category": "Keys",
+          "description": "Harmonic Sweep wavetable driven by the amp envelope: the band of harmonics falls as the note decays. Notes or small chords.",
+          "params": {
+            "osc1_waveform": 4,
+            "osc1_pulse_width": 0.5,
+            "osc1_level": 0.8,
+            "osc2_waveform": 1,
+            "osc2_pulse_width": 0.5,
+            "osc2_level": 0,
+            "osc2_transpose_cents": 0,
+            "osc2_detune_cents": 7,
+            "sub_osc_level": 0,
+            "noise_level": 0,
+            "osc2_hard_sync": 0,
+            "osc2_env_pitch_cents": 0,
+            "fm_index": 0,
+            "filter_mode": 0,
+            "filter_cutoff_hz": 12000,
+            "filter_resonance": 0,
+            "filter_slope": 1,
+            "filter_drive": 0,
+            "filter_env_amount_oct": 0,
+            "filter_key_tracking": 0.5,
+            "filter_velocity_amount": 0.3,
+            "filter_env_attack_ms": 5,
+            "filter_env_decay_ms": 300,
+            "filter_env_sustain": 0.2,
+            "filter_env_release_ms": 300,
+            "amp_attack_ms": 1,
+            "amp_decay_ms": 900,
+            "amp_sustain": 0,
+            "amp_release_ms": 300,
+            "amp_velocity_amount": 0.8,
+            "lfo_waveform": 0,
+            "lfo_rate_hz": 5,
+            "lfo_pitch_cents": 0,
+            "lfo_filter_oct": 0,
+            "lfo_pulse_width": 0,
+            "lfo_amp": 0,
+            "modwheel_vibrato_cents": 30,
+            "modwheel_filter_oct": 0,
+            "pitch_bend_range_cents": 200,
+            "voice_count": 8,
+            "glide_ms": 0,
+            "unison_voices": 1,
+            "unison_detune_cents": 15,
+            "unison_stereo_width": 0.7,
+            "master_volume_db": 4.6,
+            "transpose_semitones": 0,
+            "voice_mode": 0,
+            "glide_mode": 0,
+            "unison_detune_curve": 0,
+            "unison_side_level": 1,
+            "lfo_sync": 0,
+            "arp_mode": 0,
+            "arp_rate": 4,
+            "arp_octaves": 1,
+            "arp_gate": 0.5,
+            "arp_swing_percent": 50,
+            "arp_steps": 16,
+            "arp_step_1": 1,
+            "arp_step_2": 1,
+            "arp_step_3": 1,
+            "arp_step_4": 1,
+            "arp_step_5": 1,
+            "arp_step_6": 1,
+            "arp_step_7": 1,
+            "arp_step_8": 1,
+            "arp_step_9": 1,
+            "arp_step_10": 1,
+            "arp_step_11": 1,
+            "arp_step_12": 1,
+            "arp_step_13": 1,
+            "arp_step_14": 1,
+            "arp_step_15": 1,
+            "arp_step_16": 1,
+            "noise_type": 0,
+            "noise_clock_oct": 0,
+            "noise_filter_mode": 0,
+            "noise_filter_hz": 4000,
+            "cc_cutoff_number": 74,
+            "cc_cutoff_depth_oct": 4,
+            "fx_chorus_on": 0,
+            "fx_chorus_mix": 0.5,
+            "fx_chorus_rate_hz": 0.8,
+            "fx_chorus_depth_ms": 3,
+            "fx_delay_on": 0,
+            "fx_delay_mix": 0.25,
+            "fx_delay_sync": 9,
+            "fx_delay_time_ms": 375,
+            "fx_delay_feedback": 0.35,
+            "fx_delay_ping_pong": 0,
+            "fx_delay_high_cut_hz": 6000,
+            "fx_reverb_on": 0,
+            "fx_reverb_mix": 0.25,
+            "fx_reverb_decay_ms": 2500,
+            "fx_reverb_size": 0.5,
+            "fx_reverb_damping": 0.5,
+            "osc1_wt_bank": 3,
+            "osc1_wt_position": 0,
+            "osc2_wt_bank": 0,
+            "osc2_wt_position": 0,
+            "wt_position_lfo": 0,
+            "wt_position_filter_env": 0,
+            "wt_position_amp_env": 0.9
+          }
+        },
+        {
+          "name": "Digital Growl Bass",
+          "category": "Bass",
+          "description": "Digital (8-bit XOR) wavetable scanned by an 1/8-note synced LFO over a sub; mono. Play single low notes.",
+          "params": {
+            "osc1_waveform": 4,
+            "osc1_pulse_width": 0.5,
+            "osc1_level": 0.8,
+            "osc2_waveform": 1,
+            "osc2_pulse_width": 0.5,
+            "osc2_level": 0,
+            "osc2_transpose_cents": 0,
+            "osc2_detune_cents": 7,
+            "sub_osc_level": 0.45,
+            "noise_level": 0,
+            "osc2_hard_sync": 0,
+            "osc2_env_pitch_cents": 0,
+            "fm_index": 0,
+            "filter_mode": 0,
+            "filter_cutoff_hz": 1600,
+            "filter_resonance": 0.25,
+            "filter_slope": 1,
+            "filter_drive": 0.3,
+            "filter_env_amount_oct": 1.5,
+            "filter_key_tracking": 0.5,
+            "filter_velocity_amount": 0.3,
+            "filter_env_attack_ms": 5,
+            "filter_env_decay_ms": 200,
+            "filter_env_sustain": 0.2,
+            "filter_env_release_ms": 300,
+            "amp_attack_ms": 2,
+            "amp_decay_ms": 400,
+            "amp_sustain": 0.9,
+            "amp_release_ms": 80,
+            "amp_velocity_amount": 0.7,
+            "lfo_waveform": 1,
+            "lfo_rate_hz": 5,
+            "lfo_pitch_cents": 0,
+            "lfo_filter_oct": 0,
+            "lfo_pulse_width": 0,
+            "lfo_amp": 0,
+            "modwheel_vibrato_cents": 30,
+            "modwheel_filter_oct": 0,
+            "pitch_bend_range_cents": 200,
+            "voice_count": 8,
+            "glide_ms": 0,
+            "unison_voices": 1,
+            "unison_detune_cents": 15,
+            "unison_stereo_width": 0.7,
+            "master_volume_db": -6.5,
+            "transpose_semitones": 0,
+            "voice_mode": 1,
+            "glide_mode": 0,
+            "unison_detune_curve": 0,
+            "unison_side_level": 1,
+            "lfo_sync": 10,
+            "arp_mode": 0,
+            "arp_rate": 4,
+            "arp_octaves": 1,
+            "arp_gate": 0.5,
+            "arp_swing_percent": 50,
+            "arp_steps": 16,
+            "arp_step_1": 1,
+            "arp_step_2": 1,
+            "arp_step_3": 1,
+            "arp_step_4": 1,
+            "arp_step_5": 1,
+            "arp_step_6": 1,
+            "arp_step_7": 1,
+            "arp_step_8": 1,
+            "arp_step_9": 1,
+            "arp_step_10": 1,
+            "arp_step_11": 1,
+            "arp_step_12": 1,
+            "arp_step_13": 1,
+            "arp_step_14": 1,
+            "arp_step_15": 1,
+            "arp_step_16": 1,
+            "noise_type": 0,
+            "noise_clock_oct": 0,
+            "noise_filter_mode": 0,
+            "noise_filter_hz": 4000,
+            "cc_cutoff_number": 74,
+            "cc_cutoff_depth_oct": 4,
+            "fx_chorus_on": 0,
+            "fx_chorus_mix": 0.5,
+            "fx_chorus_rate_hz": 0.8,
+            "fx_chorus_depth_ms": 3,
+            "fx_delay_on": 0,
+            "fx_delay_mix": 0.25,
+            "fx_delay_sync": 9,
+            "fx_delay_time_ms": 375,
+            "fx_delay_feedback": 0.35,
+            "fx_delay_ping_pong": 0,
+            "fx_delay_high_cut_hz": 6000,
+            "fx_reverb_on": 0,
+            "fx_reverb_mix": 0.25,
+            "fx_reverb_decay_ms": 2500,
+            "fx_reverb_size": 0.5,
+            "fx_reverb_damping": 0.5,
+            "osc1_wt_bank": 4,
+            "osc1_wt_position": 0.35,
+            "osc2_wt_bank": 0,
+            "osc2_wt_position": 0,
+            "wt_position_lfo": 0.3,
+            "wt_position_filter_env": 0,
+            "wt_position_amp_env": 0
+          }
+        },
+        {
+          "name": "PWM Sweep Strings",
+          "category": "Pad",
+          "description": "PWM Sweep wavetable on both oscillators at two pulse widths, swept together by a slow LFO: an ensemble-like string pad.",
+          "params": {
+            "osc1_waveform": 4,
+            "osc1_pulse_width": 0.5,
+            "osc1_level": 0.8,
+            "osc2_waveform": 4,
+            "osc2_pulse_width": 0.5,
+            "osc2_level": 0.7,
+            "osc2_transpose_cents": 0,
+            "osc2_detune_cents": -9,
+            "sub_osc_level": 0,
+            "noise_level": 0,
+            "osc2_hard_sync": 0,
+            "osc2_env_pitch_cents": 0,
+            "fm_index": 0,
+            "filter_mode": 0,
+            "filter_cutoff_hz": 2600,
+            "filter_resonance": 0.1,
+            "filter_slope": 1,
+            "filter_drive": 0,
+            "filter_env_amount_oct": 0.5,
+            "filter_key_tracking": 0.5,
+            "filter_velocity_amount": 0.3,
+            "filter_env_attack_ms": 600,
+            "filter_env_decay_ms": 1500,
+            "filter_env_sustain": 0.5,
+            "filter_env_release_ms": 300,
+            "amp_attack_ms": 300,
+            "amp_decay_ms": 400,
+            "amp_sustain": 0.9,
+            "amp_release_ms": 900,
+            "amp_velocity_amount": 0.7,
+            "lfo_waveform": 0,
+            "lfo_rate_hz": 0.4,
+            "lfo_pitch_cents": 0,
+            "lfo_filter_oct": 0,
+            "lfo_pulse_width": 0,
+            "lfo_amp": 0,
+            "modwheel_vibrato_cents": 30,
+            "modwheel_filter_oct": 0,
+            "pitch_bend_range_cents": 200,
+            "voice_count": 8,
+            "glide_ms": 0,
+            "unison_voices": 2,
+            "unison_detune_cents": 12,
+            "unison_stereo_width": 1,
+            "master_volume_db": -9.3,
+            "transpose_semitones": 0,
+            "voice_mode": 0,
+            "glide_mode": 0,
+            "unison_detune_curve": 0,
+            "unison_side_level": 1,
+            "lfo_sync": 0,
+            "arp_mode": 0,
+            "arp_rate": 4,
+            "arp_octaves": 1,
+            "arp_gate": 0.5,
+            "arp_swing_percent": 50,
+            "arp_steps": 16,
+            "arp_step_1": 1,
+            "arp_step_2": 1,
+            "arp_step_3": 1,
+            "arp_step_4": 1,
+            "arp_step_5": 1,
+            "arp_step_6": 1,
+            "arp_step_7": 1,
+            "arp_step_8": 1,
+            "arp_step_9": 1,
+            "arp_step_10": 1,
+            "arp_step_11": 1,
+            "arp_step_12": 1,
+            "arp_step_13": 1,
+            "arp_step_14": 1,
+            "arp_step_15": 1,
+            "arp_step_16": 1,
+            "noise_type": 0,
+            "noise_clock_oct": 0,
+            "noise_filter_mode": 0,
+            "noise_filter_hz": 4000,
+            "cc_cutoff_number": 74,
+            "cc_cutoff_depth_oct": 4,
+            "fx_chorus_on": 0,
+            "fx_chorus_mix": 0.5,
+            "fx_chorus_rate_hz": 0.8,
+            "fx_chorus_depth_ms": 3,
+            "fx_delay_on": 0,
+            "fx_delay_mix": 0.25,
+            "fx_delay_sync": 9,
+            "fx_delay_time_ms": 375,
+            "fx_delay_feedback": 0.35,
+            "fx_delay_ping_pong": 0,
+            "fx_delay_high_cut_hz": 6000,
+            "fx_reverb_on": 0,
+            "fx_reverb_mix": 0.25,
+            "fx_reverb_decay_ms": 2500,
+            "fx_reverb_size": 0.5,
+            "fx_reverb_damping": 0.5,
+            "osc1_wt_bank": 1,
+            "osc1_wt_position": 0.3,
+            "osc2_wt_bank": 1,
+            "osc2_wt_position": 0.6,
+            "wt_position_lfo": 0.25,
+            "wt_position_filter_env": 0,
+            "wt_position_amp_env": 0
           }
         }
       ],

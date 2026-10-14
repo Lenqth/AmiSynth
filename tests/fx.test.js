@@ -55,7 +55,8 @@ test('no built-in preset that predates the effects switches one on', () => {
     assert.deepEqual(Object.keys(p.params).filter((k) => k.startsWith('fx_')), [], p.name);
   }
   // and the new ones each use at least one effect
-  for (const p of SYNTH_PRESETS.slice(first)) {
+  const last = SYNTH_PRESETS.findIndex((p) => p.name === 'Dub Chord');
+  for (const p of SYNTH_PRESETS.slice(first, last + 1)) {
     assert.ok(['fx_chorus_on', 'fx_delay_on', 'fx_reverb_on'].some((k) => p.params[k] === 1), p.name);
   }
 });
