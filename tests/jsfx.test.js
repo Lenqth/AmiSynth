@@ -180,6 +180,22 @@ test('JSFX synth matches JS: mono / legato, transpose, 9-voice unison, synced LF
   checkHost('synth', scenario('synth', { lfo_waveform: 5, lfo_sync: 4, lfo_amp: 1 }), PERFORMANCE, 0.7, 'synth/duck stopped', { tempo: 90, playing: 0 });
 });
 
+test('JSFX synth matches JS: chorus, delay (ms / synced / ping-pong) and reverb, at 48 and 44.1 kHz', { skip: !HAVE && 'jsfx_render not built' }, () => {
+  const cases = [
+    ['chorus', { fx_chorus_on: 1, fx_chorus_mix: 0.7, fx_chorus_depth_ms: 8, fx_chorus_rate_hz: 3 }],
+    ['delay ms + feedback', { fx_delay_on: 1, fx_delay_sync: 0, fx_delay_time_ms: 90, fx_delay_feedback: 0.8, fx_delay_mix: 0.5 }],
+    ['delay 1/16 ping-pong dark', { fx_delay_on: 1, fx_delay_sync: 11, fx_delay_ping_pong: 1, fx_delay_feedback: 0.6, fx_delay_high_cut_hz: 1500 }],
+    ['reverb hall', { fx_reverb_on: 1, fx_reverb_mix: 0.6, fx_reverb_size: 1, fx_reverb_damping: 0.1, fx_reverb_decay_ms: 9000 }],
+    ['chain', { unison_voices: 3, fx_chorus_on: 1, fx_delay_on: 1, fx_delay_sync: 13, fx_reverb_on: 1, fx_reverb_size: 0 }],
+  ];
+  for (const [label, over] of cases) {
+    checkHost('synth', scenario('synth', over), PERFORMANCE, 0.7, `synth/fx ${label}`, { tempo: 137, playing: 1 });
+  }
+  // the synced delay at another sample rate and with the transport stopped
+  check('synth', scenario('synth', cases[2][1]), PERFORMANCE, 0.5, 'synth/fx delay @44.1k', 44100);
+  check('synth', scenario('synth', cases[3][1]), PERFORMANCE, 0.5, 'synth/fx reverb @44.1k', 44100);
+});
+
 test('JSFX drums match JS with groups left out of the main mix (separate outputs)', { skip: !HAVE && 'jsfx_render not built' }, () => {
   const hits = DRUM_PARTS.map((part, i) => [i * 2400, 0x90, part.note, 100]);
   check('drums', scenario('drums', { kick_bus_in_main: 0, hats_bus_in_main: 0 }), hits, 0.8, 'drums/buses off');

@@ -983,7 +983,6 @@ function voice_render() instance(idx level frames gl gr) local(y, a) (
   );
 );
 
-// --- room: 4-line feedback delay network (Hadamard mixing, one-pole damping per line) ---
 // soundboard: 16 band-passes, 8 values each: k a1 a2 a3 ic1 ic2 gainL gainR
 sb = mem_alloc(SB_MODES * 8);
 function soundboard_setup() local(k, f, t60, kk, g, o, gain) (
@@ -1027,36 +1026,16 @@ function soundboard_process(x) local(k, o, v1, v2, v3, bp) (
   );
 );
 
-room0.delay_init(8192); room1.delay_init(8192); room2.delay_init(8192); room3.delay_init(8192);
-room_z0 = room_z1 = room_z2 = room_z3 = 0;
+// room: the shared 4-line FDN (fdn4_* in amisynth_lib) at its natural size
+room.fdn4_init(8192);
+room_l = room_r = 0;
 
-function room_update(decay_ms) (
-  room_len0 = clamp(floor((1171 * srate) / 48000 + 0.5), 2, 8190);
-  room_len1 = clamp(floor((1429 * srate) / 48000 + 0.5), 2, 8190);
-  room_len2 = clamp(floor((1663 * srate) / 48000 + 0.5), 2, 8190);
-  room_len3 = clamp(floor((1951 * srate) / 48000 + 0.5), 2, 8190);
-  room_g0 = pow(10, (-3 * room_len0) / (decay_ms * 0.001 * srate));
-  room_g1 = pow(10, (-3 * room_len1) / (decay_ms * 0.001 * srate));
-  room_g2 = pow(10, (-3 * room_len2) / (decay_ms * 0.001 * srate));
-  room_g3 = pow(10, (-3 * room_len3) / (decay_ms * 0.001 * srate));
-);
+function room_update(decay_ms) ( room.fdn4_set(1, decay_ms, 0.55); );
 
-function room_process(l, r) local(x, a, b, c, d) (
-  x = (l + r) * 0.5;
-  room_z0 += 0.55 * (room0.delay_read(room_len0) - room_z0);
-  room_z1 += 0.55 * (room1.delay_read(room_len1) - room_z1);
-  room_z2 += 0.55 * (room2.delay_read(room_len2) - room_z2);
-  room_z3 += 0.55 * (room3.delay_read(room_len3) - room_z3);
-  a = room_z0 * room_g0;
-  b = room_z1 * room_g1;
-  c = room_z2 * room_g2;
-  d = room_z3 * room_g3;
-  room0.delay_write(x + 0.5 * (a + b + c + d));
-  room1.delay_write(x + 0.5 * (a - b + c - d));
-  room2.delay_write(x + 0.5 * (a + b - c - d));
-  room3.delay_write(x + 0.5 * (a - b - c + d));
-  room_l = 2.5 * (a + c);
-  room_r = 2.5 * (b + d);
+function room_process(l, r) (
+  room.fdn4_process((l + r) * 0.5);
+  room_l = 2.5 * room.l;
+  room_r = 2.5 * room.r;
 );
 
 function vcall(i, op, a, b) (

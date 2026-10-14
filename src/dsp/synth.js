@@ -11,18 +11,20 @@
 // Signal flow per voice:
 //   [osc1 + osc2] x unison (detuned, panned) + sub + noise -> drive -> SVF (12/24 dB, LP/HP/BP/notch) -> amp env
 //   osc2 can hard-sync to osc1 and phase-modulate osc1 (FM). The filter envelope can bend osc2 pitch.
+// After the voice sum (x master volume, tremolo): chorus -> delay -> reverb (each optional) -> soft clip.
 //
 // Voices are matched by "key" (the incoming MIDI note, or the arpeggiator's output note) and sound
 // at "pitch" (key + transpose), so changing the transpose while notes sound never leaves one hanging.
 
 import {
-  adsr_gate_off, adsr_gate_on, adsr_init, adsr_process, adsr_set,
-  clamp, db_to_gain, lfo_init, lfo_process, lfo_process_at, noise_seed, noise_white, random_unit, osc_init, osc_process, osc_reset,
+  adsr_gate_off, adsr_gate_on, adsr_init, adsr_process, adsr_set, chorus_clear, chorus_init, chorus_process,
+  CHORUS_BASE_MS, clamp, db_to_gain, echo_clear, echo_init, echo_process, lfo_init, lfo_process, lfo_process_at,
+  noise_seed, noise_white, random_unit, osc_init, osc_process, osc_reset, reverb_clear, reverb_init, reverb_process, reverb_set,
   osc_set_freq, osc_sync_to, smoother_init, smoother_process, smoother_set, soft_clip, svf_copy_coefs,
   svf_init, svf_output, svf_process, svf_reset, svf_set, tau_coef, TWO_PI, tuning_init, tuning_note_to_hz,
   tuning_set_edo, tuning_set_table,
 } from './lib.js';
-import { ARP_RATE_BEATS, LFO_SYNC_BEATS } from './params.js';
+import { ARP_RATE_BEATS, DELAY_MAX_SECONDS, DELAY_SYNC_BEATS, LFO_SYNC_BEATS } from './params.js';
 
 export const MAX_VOICES = 8;
 export const MAX_UNISON = 9;
@@ -144,6 +146,21 @@ export function synth_init(s, sr) {
   s.arp_mode = 0;
   s.cc_cutoff_value = 64; // last value of the cutoff CC (64 = centre, no change)
   s.cc_mult = 1;
+  // effects: all delay memory is allocated here, once
+  s.chorus = {};
+  chorus_init(s.chorus, sr);
+  s.echo = {};
+  s.echo_size = Math.ceil(DELAY_MAX_SECONDS * sr) + 4;
+  echo_init(s.echo, s.echo_size);
+  s.reverb = {};
+  reverb_init(s.reverb, sr);
+  s.fx_chorus = 0;
+  s.fx_delay = 0;
+  s.fx_reverb = 0;
+  s.delay_d = 1; // smoothed echo time in samples
+  s.delay_target = 1;
+  s.delay_sync_beats = 0;
+  s.delay_coef = tau_coef(60, sr);
   s.p = {};
   s.out_l = 0;
   s.out_r = 0;
@@ -207,6 +224,29 @@ export function synth_update(s, p) {
   s.arp_steps = clamp(Math.round(p.arp_steps), 1, 16);
   for (let i = 0; i < 16; i++) s.arp_pattern[i] = p[`arp_step_${i + 1}`] >= 0.5 ? 1 : 0;
 
+  // Effects. Switching one on clears its memory, so no stale tail from earlier comes back.
+  const chorus_on = p.fx_chorus_on >= 0.5 ? 1 : 0;
+  if (chorus_on && !s.fx_chorus) chorus_clear(s.chorus);
+  s.fx_chorus = chorus_on;
+  s.chorus_base = CHORUS_BASE_MS * 0.001 * s.sr;
+  s.chorus_depth = clamp(p.fx_chorus_depth_ms, 0, 8) * 0.001 * s.sr;
+  s.chorus_inc = p.fx_chorus_rate_hz / s.sr;
+  const delay_on = p.fx_delay_on >= 0.5 ? 1 : 0;
+  s.delay_sync_beats = DELAY_SYNC_BEATS[clamp(Math.round(p.fx_delay_sync), 0, DELAY_SYNC_BEATS.length - 1)];
+  s.delay_fb = clamp(p.fx_delay_feedback, 0, 0.95);
+  s.delay_a = 1 - Math.exp((-TWO_PI * clamp(p.fx_delay_high_cut_hz, 20, s.sr * 0.49)) / s.sr);
+  s.delay_pingpong = p.fx_delay_ping_pong >= 0.5 ? 1 : 0;
+  delay_retime(s);
+  if (delay_on && !s.fx_delay) {
+    echo_clear(s.echo);
+    s.delay_d = s.delay_target; // start at the right time instead of gliding to it
+  }
+  s.fx_delay = delay_on;
+  const reverb_on = p.fx_reverb_on >= 0.5 ? 1 : 0;
+  if (reverb_on && !s.fx_reverb) reverb_clear(s.reverb);
+  s.fx_reverb = reverb_on;
+  reverb_set(s.reverb, 0.5 + 1.5 * clamp(p.fx_reverb_size, 0, 1), p.fx_reverb_decay_ms, 1 - 0.8 * clamp(p.fx_reverb_damping, 0, 1), s.sr);
+
   for (let i = 0; i < MAX_VOICES; i++) {
     const v = s.voices[i];
     adsr_set(v.amp_env, p.amp_attack_ms, p.amp_decay_ms, p.amp_sustain, p.amp_release_ms, s.sr);
@@ -236,8 +276,16 @@ export function synth_transport(s, bpm, playing, beat) {
   if (bpm > 0) {
     s.tempo = bpm;
     s.beat_inc = bpm / 60 / s.sr;
+    delay_retime(s);
   }
   if (playing) s.beat = beat;
+}
+
+/** Echo time in samples: a note value at the current tempo, or Delay Time in ms. */
+function delay_retime(s) {
+  if (s.p.fx_delay_time_ms === undefined) return; // transport before the first synth_update
+  const n = s.delay_sync_beats > 0 ? (s.delay_sync_beats * 60 * s.sr) / s.tempo : s.p.fx_delay_time_ms * 0.001 * s.sr;
+  s.delay_target = clamp(n, 1, s.echo_size - 2);
 }
 
 // ---------------------------------------------------------------------------
@@ -754,7 +802,34 @@ export function synth_render(s) {
   }
 
   const g = smoother_process(s.gain_smooth, s.master_gain) * 0.5 * tremolo;
-  s.out_l = soft_clip(mix_l * g);
-  s.out_r = soft_clip(mix_r * g);
+  let l = mix_l * g;
+  let r = mix_r * g;
+
+  // ---- effects: chorus -> delay -> reverb, each a dry/wet crossfade
+  if (s.fx_chorus) {
+    const c = s.chorus;
+    chorus_process(c, l, r, s.chorus_base, s.chorus_depth, s.chorus_inc);
+    const m = p.fx_chorus_mix;
+    l = l * (1 - m) + c.l * m;
+    r = r * (1 - m) + c.r * m;
+  }
+  if (s.fx_delay) {
+    const e = s.echo;
+    s.delay_d = s.delay_target + s.delay_coef * (s.delay_d - s.delay_target);
+    echo_process(e, l, r, s.delay_d, s.delay_fb, s.delay_a, s.delay_pingpong);
+    const m = p.fx_delay_mix;
+    l = l * (1 - m) + e.l * m;
+    r = r * (1 - m) + e.r * m;
+  }
+  if (s.fx_reverb) {
+    const v = s.reverb;
+    reverb_process(v, l, r);
+    const m = p.fx_reverb_mix;
+    l = l * (1 - m) + v.l * m;
+    r = r * (1 - m) + v.r * m;
+  }
+
+  s.out_l = soft_clip(l);
+  s.out_r = soft_clip(r);
   s.beat += s.beat_inc;
 }
