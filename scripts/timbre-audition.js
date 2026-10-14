@@ -1,5 +1,5 @@
 // Render the timbre checks without REAPER or an audio device.
-// node scripts/timbre-audition.js [--baseline /path/to/older/checkout] [--out /path/to/output]
+// node scripts/timbre-audition.js [--baseline /path/to/older/checkout] [--out /path/to/output] [--only Applause,Gunshot]
 // The baseline is a checkout / git archive, never the text of a review document.
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
@@ -27,7 +27,7 @@ async function load(root) {
 const versions = [['after', await load(ROOT)]];
 if (baseline) versions.unshift(['before', await load(baseline)]);
 mkdirSync(OUT, { recursive: true });
-const specs = [
+const allSpecs = [
   ['Sitar', 'phys', 'string'], ['Shamisen', 'phys', 'string'],
   ['Accordion', 'phys', 'reed'], ['Bandoneon', 'phys', 'reed'],
   ['Harmonica', 'phys', 'reed'], ['Reed Organ', 'phys', 'reed'],
@@ -35,6 +35,12 @@ const specs = [
   ['Helicopter', 'synth', 'continuous-fx'], ['Applause', 'synth', 'continuous-fx'],
   ['Gunshot', 'synth', 'shot'],
 ];
+const onlyIndex = process.argv.indexOf('--only');
+const selected = onlyIndex < 0 ? null : process.argv[onlyIndex + 1]?.split(',').map(n => n.trim().toLowerCase());
+if (onlyIndex >= 0 && (!selected?.length || selected.some(n => !allSpecs.some(([name]) => name.toLowerCase() === n)))) {
+  throw new Error('--only needs comma-separated preset names, e.g. Applause,Gunshot');
+}
+const specs = selected ? allSpecs.filter(([name]) => selected.includes(name.toLowerCase())) : allSpecs;
 function phrase(group) {
   const events = [], sections = [];
   const ev = (t, status, a, b) => events.push([Math.round(t * SR), status, a, b]);

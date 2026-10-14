@@ -837,21 +837,21 @@ export const SYNTH_PRESETS = [
   },
   {
     name: 'Applause', category: 'FX',
-    description: 'Crowd applause: six independently timed, short hand-clap bursts with soft attacks and a room tail. Hold a note; Noise Clock changes crowd activity.',
+    description: 'Crowd applause: eighteen independently timed, short hand impacts with reduced low body, overlapping into a crowd and room tail. Hold a note; Noise Clock changes crowd activity.',
     params: {
-      master_volume_db: -0.9, osc1_level: 0, osc2_level: 0, noise_level: 1, noise_type: 5, filter_slope: 0, filter_cutoff_hz: 8000,
+      master_volume_db: 4.2, osc1_level: 0, osc2_level: 0, noise_level: 1, noise_type: 5, filter_slope: 0, filter_cutoff_hz: 8000,
       filter_resonance: 0, filter_env_amount_oct: 0, filter_key_tracking: 0, amp_attack_ms: 350, amp_sustain: 1,
       amp_release_ms: 700,
-      fx_reverb_on: 1, fx_reverb_mix: 0.25, fx_reverb_decay_ms: 1400,
+      fx_reverb_on: 1, fx_reverb_mix: 0.35, fx_reverb_decay_ms: 1800,
     },
   },
   {
     name: 'Gunshot', category: 'FX',
-    description: 'Short gunshot: a brief broadband crack, low pressure body and falling thump, with a small room tail. Each note-on fires once, even if held; Noise Clock changes playback speed.',
+    description: 'Short gunshot: a sharp broadband crack and short early reflection without a pitched bass thump. Each note-on fires once, even if held; Noise Clock changes playback speed.',
     params: {
-      master_volume_db: -0.6, osc1_level: 0, osc2_level: 0, noise_level: 1, noise_type: 6, filter_cutoff_hz: 12000, filter_resonance: 0,
+      master_volume_db: 6, osc1_level: 0, osc2_level: 0, noise_level: 1, noise_type: 6, filter_cutoff_hz: 12000, filter_resonance: 0,
       filter_env_amount_oct: 0, filter_key_tracking: 0, amp_attack_ms: 0.5, amp_decay_ms: 450, amp_sustain: 0, amp_release_ms: 180,
-      fx_reverb_on: 1, fx_reverb_mix: 0.18, fx_reverb_decay_ms: 650, fx_reverb_size: 0.3,
+      fx_reverb_on: 1, fx_reverb_mix: 0.09, fx_reverb_decay_ms: 400, fx_reverb_size: 0.2,
     },
   },
 ];

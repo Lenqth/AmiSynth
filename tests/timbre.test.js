@@ -101,3 +101,20 @@ test('Rain: continuous wash with irregular short impacts, and Noise Clock contro
   const a = samples(light, synth_render, 2), b = samples(dense, synth_render, 2);
   assert.ok(rms(b.subarray(SR)) > rms(a.subarray(SR)) * 1.1, 'more overlapping drops at higher density');
 });
+
+test('Gunshot: the initial crack is not dominated by a pitched bass thump', () => {
+  const s = fx(6); synth_note_on(s, 60, 100);
+  const out = samples(s, synth_render, .2);
+  let total = 0, low = 0;
+  for (const x of out) total += x * x;
+  // Rectangular-window DFT: energy below 300 Hz over the whole 200 ms impact.
+  for (let k = 0; k <= 60; k++) {
+    let re = 0, im = 0;
+    for (let i = 0; i < out.length; i++) {
+      const phase = 2 * Math.PI * k * i / out.length;
+      re += out[i] * Math.cos(phase); im += out[i] * Math.sin(phase);
+    }
+    low += (re * re + im * im) * (k === 0 ? 1 : 2) / out.length;
+  }
+  assert.ok(low / total < .05, `0–300 Hz share ${(100 * low / total).toFixed(2)}%`);
+});

@@ -1020,7 +1020,7 @@
         "Shot",
         "Rain"
       ],
-      "description": "White: hiss. Chip Long / Short and Sample & Hold are clocked from the note pitch. Rotor: periodic blade thumps with air wash. Crowd Claps: six independently timed short noise bursts. Shot: a brief crack, low body and falling thump, restarted on note-on. Rain: continuous filtered rain wash with irregular short droplets of varying strength and resonance. The four sound FX sources ignore note pitch and are mixed at Noise Level before the main filter and amp envelope."
+      "description": "White: hiss. Chip Long / Short and Sample & Hold are clocked from the note pitch. Rotor: periodic blade thumps with air wash. Crowd Claps: eighteen independently timed short high-passed hand impacts. Shot: a very brief broadband crack with a short early reflection, restarted on note-on. Rain: continuous filtered rain wash with irregular short droplets of varying strength and resonance. The four sound FX sources ignore note pitch and are mixed at Noise Level before the main filter and amp envelope."
     },
     {
       "id": "noise_clock_oct",

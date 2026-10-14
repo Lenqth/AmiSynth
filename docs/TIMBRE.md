@@ -38,15 +38,17 @@ Synthの既存Noise Typeへ4方式を追加しました。White / Chip Long / Ch
 | Noise Type | 値 | 作る音 | Noise Clockの作用 |
 |---|---:|---|---|
 | Rotor | 4 | 周期的な低い圧力パルスと減衰する空気音 | 回転翼の周期を変更（0で11回/秒） |
-| Crowd Claps | 5 | 6組の独立したタイマーで短い拍手を繰り返す | 拍手の密度を変更 |
-| Shot | 6 | 短い広帯域の破裂、低域の胴鳴り、下降する圧力音 | 発音の進行速度を変更 |
+| Crowd Claps | 5 | 18組の独立したタイマーで、低域を抑えた短い拍手を重ねる | 拍手の密度を変更 |
+| Shot | 6 | 短い広帯域の破裂と、ごく短い初期反射 | 発音の進行速度を変更 |
 | Rain | 7 | 連続した雨のざわめきと、強さ・共鳴周波数の異なる短い雨滴音 | 雨滴の密度を変更 |
 
 Noise Levelで音量を調整し、通常のFilter / Amp Envelope / Effectsへ送ります。これらのFXソース自体はMIDI音高に依存しません。Filter Key Trackingなどの後段の設定では、音色を音高に応じて変えられます。
 
 Noise Levelを0にしている間もFXの時計は進みます。後から音量を上げても、古いnote-onの破裂音を再生しません。
 
-Helicopter / Applause / Gunshotプリセットにそれぞれ採用しています。Helicopterは四角波で一様なノイズを切る方式から、1回ごとに形のあるパルスへ変更しました。Applauseは定速のSample & Holdによるレベル変化から、間隔と強さの異なる短い発音へ変更しました。Gunshotは長いノイズ＋MIDI音高のサイン波から、キーを保持しても短く終わり、note-onごとに再発音するソースへ変更しました。
+Helicopter / Applause / Gunshotプリセットにそれぞれ採用しています。Helicopterは四角波で一様なノイズを切る方式から、1回ごとに形のあるパルスへ変更しました。Applauseは間隔と強さの異なる短い発音を18組で重ねています。低域を抑え、6 msの減衰時定数で一発の胴鳴りを短くして、少人数の打撃が独立して聞こえる傾向を減らす狙いです。Gunshotは50〜150 Hz付近の音程付きの成分を除き、1.5 msの減衰時定数の鋭い破裂音と7 ms後の短い初期反射へ変更しました。キーを保持しても短く終わり、note-onごとに再発音します。
+
+試聴フィードバックではRain / Helicopterが採用可能、Applause / Gunshotがドラムのように聞こえるとのことでした。後者2音色を再調整しています。固定ゲイン・リバーブなし・MIDI 60 / velocity 100で、0〜300 Hzのエネルギー比はApplause（先頭2秒）が約1.06%→0.21%、Gunshot（先頭200 ms）が約82.90%→2.51%に変わりました。矩形窓DFTによる帯域比であり、自然さの評点ではありません。Rain / Helicopter / Seashoreはパラメータと2秒の比較レンダーが再調整前と同一です。
 
 録音サンプルではなく、合成による近似です。実際にどの程度それらしく聴こえるかは、比較音源で確認してください。
 
@@ -71,6 +73,8 @@ npm run audition:timbre
 ```sh
 node scripts/timbre-audition.js --baseline /path/to/old-checkout --out /path/to/listening-pack
 ```
+
+再調整した2音色だけを比較する場合は `--only Applause,Gunshot` を追加できます。比較基準に「ドラムのように聞こえた版」のコミット `2261eac8f0c7ed9cc23da3dba720d28f209541d3` を使うと、今回の再調整との差が分かります。
 
 `--baseline`には、比較したいコミットのcheckoutか、`git archive`を展開したディレクトリを指定します。変更前の基準はPR #20を含むmainの `5882567155dfeff02821607e22c82f0e44fcbbac` です。JSONだけではなく、その版のDSPも使って修正前をレンダーします。
 
