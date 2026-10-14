@@ -175,3 +175,15 @@ test('MIDI import: program change of the main melodic channel picks a GM preset'
   assert.equal(gmProgramPreset(flat.program).preset.name, GM_PROGRAMS[65].preset);
   assert.equal(midiToSteps(parseMidi(smf(0, 96, [[0, 0x90, 60, 100, 0x60, 0x80, 60, 0]]))).program, null);
 });
+
+test('MIDI import: the main channel counts notes doubled on another channel, whatever their order', () => {
+  const piano = Array.from({ length: 3 }, (_, i) => ({ ch: 0, note: 60, vel: 100, on: i * 120, off: i * 120 + 60 }));
+  const sax = Array.from({ length: 5 }, (_, i) => ({ ch: 1, note: 60, vel: 100, on: i * 120, off: i * 120 + 60 }));
+  for (const notes of [[...piano, ...sax], [...sax, ...piano]]) {
+    notes.sort((a, b) => a.on - b.on || a.note - b.note);
+    const programs = [{ ch: 0, program: 0, tick: 0 }, { ch: 1, program: 65, tick: 0 }];
+    const flat = midiToSteps({ ppq: 480, tempo: 500000, tempoChanges: 0, notes, programs });
+    assert.equal(flat.notes.length, 5);
+    assert.equal(flat.program, 65);
+  }
+});

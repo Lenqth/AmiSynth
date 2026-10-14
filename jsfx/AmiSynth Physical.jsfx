@@ -1452,7 +1452,13 @@ org_perc_coef = t60_coef(organ_perc_decay_ms);
 org_perc_lvl = 2 * ORGAN_GAIN * organ_perc_level;
 org_click_len = max(1, floor(0.004 * srate + 0.5));
 org_click = 0.4 * organ_click;
-rot_mode = floor(rotary_mode + 0.5);
+rot_mode_new = floor(rotary_mode + 0.5);
+rot_mode_new > 0 && rot_mode <= 0 ? (
+  // the bypassed speaker kept its last sound; start it again from silence
+  rot_line.delay_clear();
+  rot_xo.z = 0;
+);
+rot_mode = rot_mode_new;
 rot_mix = rotary_mix;
 rot_xo.onepole_set(800);
 rot_d0 = max(1, 0.0002 * srate);

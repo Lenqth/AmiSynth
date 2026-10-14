@@ -531,3 +531,22 @@ test('sawari: the upper partials keep ringing, the pitch and the decay stay, and
     assert.ok(Math.abs(lvl[0.6] - lvl[0]) < 8, `note ${note}: level at 2 s ${lvl[0].toFixed(1)} vs ${lvl[0.6].toFixed(1)} dB`);
   }
 });
+
+test('rotary: switching it back on after Off does not replay the sound it held while bypassed', () => {
+  const p = { ...defaultValues(PHYS_PARAMS), phys_model: 7, organ_drawbar_8: 8, organ_click: 0, phys_room_mix: 0,
+    phys_release_ms: 10, rotary_mode: 2, rotary_mix: 1 };
+  const s = {};
+  phys_init(s, SR);
+  phys_update(s, p);
+  phys_note_on(s, 69, 100);
+  render(s, SR * 0.3);
+  phys_update(s, { ...p, rotary_mode: 0 });
+  phys_note_off(s, 69);
+  render(s, SR * 0.5);
+  assert.equal(s.voices.filter((v) => v.active).length, 0);
+  phys_update(s, { ...p, rotary_mode: 2 });
+  const out = render(s, SR * 0.1);
+  let pk = 0;
+  for (const v of out) pk = Math.max(pk, Math.abs(v));
+  assert.ok(pk < 1e-6, `peak after re-enabling ${pk}`);
+});

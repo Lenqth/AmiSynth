@@ -315,7 +315,13 @@ export function phys_update(s, p) {
   s.org_perc_lvl = 2 * ORGAN_GAIN * (p.organ_perc_level ?? 0);
   s.org_click_len = Math.max(1, Math.round(0.004 * s.sr));
   s.org_click = 0.4 * (p.organ_click ?? 0);
-  s.rot_mode = Math.round(p.rotary_mode ?? 0);
+  const rot_mode = Math.round(p.rotary_mode ?? 0);
+  if (rot_mode > 0 && !(s.rot_mode > 0)) {
+    // the bypassed speaker kept its last sound; start it again from silence
+    delay_clear(s.rot_line);
+    s.rot_xo.z = 0;
+  }
+  s.rot_mode = rot_mode;
   s.rot_mix = p.rotary_mix ?? 1;
   onepole_set(s.rot_xo, 800, s.sr);
   s.rot_d0 = Math.max(1, 0.0002 * s.sr);

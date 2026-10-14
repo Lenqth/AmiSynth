@@ -285,9 +285,10 @@ export function midiToSteps(midi, opts = {}) {
     }
     const end = Math.round(n.off / perStep);
     const key = `${start}:${n.note}`;
+    // count before de-duplicating, so the main channel doesn't depend on which doubled note came first
+    perChannel[n.ch]++;
     if (seen.has(key)) continue; // same key at the same step (e.g. doubled on two channels)
     seen.add(key);
-    perChannel[n.ch]++;
     notes.push({ note: n.note, start, len: Math.max(1, end - start), vel: n.vel });
   }
   if (unmapped) warnings.push(`対応するドラムパートがない ch10 のノート ${unmapped} 個を省きました`);
