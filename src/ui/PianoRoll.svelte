@@ -6,9 +6,10 @@
 
   /**
    * @type {{ pattern: import('../lib/pattern.js').Pattern, tuning: any, playStep: number,
-   *   preview: (note:number)=>void, previewDrum: (note:number)=>void, onedit: ()=>void }}
+   *   preview: (note:number)=>void, previewDrum: (note:number)=>void, onedit: ()=>void, onbegin?: ()=>void }}
+   * onbegin / onedit bracket one edit gesture (click, drag or paint stroke) = one undo step
    */
-  let { pattern, tuning, playStep, preview, previewDrum, onedit } = $props();
+  let { pattern, tuning, playStep, preview, previewDrum, onedit, onbegin = () => {} } = $props();
 
   const LOW = 24;
   const HIGH = 108;
@@ -60,6 +61,7 @@
     if (e.button !== 0) return;
     const svg = e.currentTarget;
     capture(svg, e.pointerId);
+    onbegin();
     const { step, row, x } = cellFrom(e, svg, CH);
     const note = HIGH - row;
     const idx = findNote(note, step);
@@ -133,6 +135,7 @@
     const { step, row } = cellFrom(e, svg, DH);
     const part = DRUM_PARTS[row];
     if (!part) return;
+    onbegin();
     paint = { add: hitIndex(part.note, step) < 0, row, vel: e.shiftKey ? 60 : 110, last: -1 };
     paint.last = step;
     applyPaint(part.note, step);
