@@ -137,7 +137,7 @@ test('JSFX Physical matches JS for CC64 Auto/Off/On, retrigger, stealing and res
       [20000, 0x90, 60, 100], [21000, 0xb0, 64, 127], [22000, 0x80, 60, 0], [23000, 0xb0, 121, 0],
       [25000, 0x90, 60, 100], [26000, 0xb0, 64, 127], [27000, 0x80, 60, 0], [28000, 0xb0, 120, 0],
     ];
-    for (let model = 0; model <= 6; model++) {
+    for (let model = 0; model <= 7; model++) {
       for (let mode = 0; mode <= 2; mode++) {
         check('phys', scenario('phys', { phys_model: model, phys_sustain_mode: mode, phys_release_ms: 40 }),
           events, 0.7, `phys/sustain model ${model} mode ${mode}`);
@@ -161,11 +161,19 @@ test('JSFX physical model matches JS with stress settings (vibrato, voice steali
     ['stiff+vibrato', { phys_model: 5, piano_inharmonicity: 1, piano_unison_detune_cents: 10, phys_vibrato_cents: 25 }],
     ['brass+vibrato', { phys_model: 6, brass_pressure: 1, brass_lip: 1, brass_bell: 0, phys_vibrato_cents: 30, tuning_divisions: 19 }],
     ['brass soft', { phys_model: 6, brass_pressure: 0, brass_lip: 0, brass_attack_ms: 3 }],
+    ['organ+rotary', { phys_model: 7, organ_percussion: 2, organ_click: 1, rotary_mode: 1, organ_drawbar_4: 6, organ_drawbar_1: 8, phys_vibrato_cents: 20 }],
+    ['organ fast rotary+amp', { phys_model: 7, organ_percussion: 1, rotary_mode: 2, rotary_mix: 0.6, amp_type: 3, phys_room_mix: 0.3, tuning_divisions: 19 }],
+    ['vibes+rotary', { phys_model: 1, modal_material: 1, rotary_mode: 1 }],
   ];
   for (const [label, over] of cases) {
     check('phys', scenario('phys', over), busy, 0.7, `phys/${label}`);
     check('phys', scenario('phys', over), busy, 0.4, `phys/${label} @44.1k`, 44100);
   }
+});
+
+test('JSFX rotary speaker follows the mod wheel like JS', { skip: !HAVE && 'jsfx_render not built' }, () => {
+  const ev = [[0, 0x90, 60, 100], [0, 0x90, 67, 100], [6000, 0xb0, 1, 127], [20000, 0xb0, 1, 0], [26000, 0x90, 72, 90]];
+  check('phys', scenario('phys', { phys_model: 7, rotary_mode: 1, organ_drawbar_2: 8 }), ev, 0.7, 'phys/organ mod wheel');
 });
 
 test('JSFX piano matches JS up to the top of the MIDI range', { skip: !HAVE && 'jsfx_render not built' }, () => {

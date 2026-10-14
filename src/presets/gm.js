@@ -1,6 +1,6 @@
 // General MIDI Level 1 program (0..127) -> the closest built-in preset. Used when a MIDI file or
 // a MIDI controller sends a program change. `exact: false` marks programs AmiSynth has no
-// dedicated sound for yet (organs, accordion, harmonica, sitar ...): the nearest preset stands in.
+// dedicated sound for yet (pipe organ, reed organ, accordion, harmonica, sitar ...): the nearest preset stands in.
 
 import { PHYS_PRESETS } from './phys.js';
 import { SYNTH_PRESETS } from './synth.js';
@@ -20,8 +20,8 @@ export const GM_PROGRAMS = [
   P('Celesta', 'Celesta'), P('Glockenspiel', 'Glockenspiel'), P('Music Box', 'Music Box'), P('Vibraphone', 'Vibraphone'),
   P('Marimba', 'Marimba'), P('Xylophone', 'Xylophone'), P('Tubular Bells', 'Tubular Bells'), P('Dulcimer', 'Hammered Dulcimer'),
   // Organ
-  S('Drawbar Organ', 'Organ', false), S('Percussive Organ', 'Organ', false), S('Rock Organ', 'Organ', false),
-  S('Church Organ', 'Organ', false), S('Reed Organ', 'Organ', false), S('Accordion', 'Organ', false),
+  P('Drawbar Organ', 'Drawbar Organ'), P('Percussive Organ', 'Percussive Organ'), P('Rock Organ', 'Rock Organ'),
+  P('Church Organ', 'Church Organ', false), S('Reed Organ', 'Organ', false), S('Accordion', 'Organ', false),
   P('Harmonica', 'Clarinet', false), S('Tango Accordion', 'Organ', false),
   // Guitar
   P('Acoustic Guitar (nylon)', 'Nylon Guitar'), P('Acoustic Guitar (steel)', 'Steel String'), P('Electric Guitar (jazz)', 'Jazz Guitar'),

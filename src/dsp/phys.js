@@ -44,6 +44,12 @@
 //   pressure difference between the mouth and the mouthpiece. Their opening (squared, clipped)
 //   lets mouth pressure into the bore, a delay line two periods long (the note is the bore's
 //   2nd resonance, as on a real trumpet). Blowing harder saturates the lips more: brighter.
+//
+// Model 7 - Organ (tonewheel, additive)
+//   Not a physical model of a pipe: nine sine partials at the drawbar footages (16' .. 1' =
+//   0.5 .. 8 x the note), each drawbar 0..8 in 3 dB steps. All of them are harmonics of half
+//   the note, so one phase per voice drives them (sin(k x) by recurrence). Single-trigger
+//   percussion, a key-contact click, and the rotary speaker (any model) after the amp.
 
 import {
   adsr_gate_off, adsr_gate_on, adsr_init, adsr_process, adsr_set, ap1_init, ap1_phase_delay, ap1_process,
@@ -93,6 +99,16 @@ export const MODEL_WIND = 3;
 export const MODEL_MESH = 4;
 export const MODEL_STIFF = 5;
 export const MODEL_BRASS = 6;
+export const MODEL_ORGAN = 7;
+
+/** drawbar footages 16' 5 1/3' 8' 4' 2 2/3' 2' 1 3/5' 1 1/3' 1' as harmonics of half the note */
+export const ORGAN_K = [1, 3, 2, 4, 6, 8, 10, 12, 16];
+export const ORGAN_BARS = ['organ_drawbar_16', 'organ_drawbar_5_13', 'organ_drawbar_8', 'organ_drawbar_4', 'organ_drawbar_2_23',
+  'organ_drawbar_2', 'organ_drawbar_1_35', 'organ_drawbar_1_13', 'organ_drawbar_1'];
+/** the top tonewheel is ~ 5.9 kHz: partials above it fold back an octave, as on the real organ */
+const ORGAN_FOLD_HZ = 6000;
+const ORGAN_GAIN = 0.12;
+const ROTARY_LEN = 1024;
 
 // Brass lip drive: every note needs a minimum drive to speak (measured on notes 28, 32, .. 104);
 // Lip Buzz and the blowing pressure choose a multiple of it (BRASS_MULTS range).
@@ -172,6 +188,8 @@ function voice_create() {
     gl: 1, gr: 1,
     // aftertouch: this key's polyphonic aftertouch, and max(channel pressure, it) (0..1)
     poly_at: 0, press: 0,
+    // organ: phase of half the note, its increment, percussion envelope, click samples left
+    org_ph: 0, org_inc: 0, org_perc: 0, org_clk: 0,
   };
   delay_init(v.line, MAX_DELAY);
   delay_init(v.line2, MAX_DELAY);
@@ -231,6 +249,17 @@ export function phys_init(s, sr) {
   s.sb_l = 0;
   s.sb_r = 0;
   soundboard_setup(s);
+  s.org_w = new Float64Array(9);
+  s.org_sn = new Float64Array(17);
+  s.modwheel = 0;
+  s.rot_line = {};
+  delay_init(s.rot_line, ROTARY_LEN);
+  s.rot_xo = {};
+  onepole_init(s.rot_xo);
+  s.horn_ph = 0;
+  s.drum_ph = 0;
+  s.horn_hz = 0.8;
+  s.drum_hz = 0.65;
   s.p = {};
   s.out_l = 0;
   s.out_r = 0;
@@ -254,6 +283,23 @@ export function phys_update(s, p) {
   amp_update(s, p);
   s.hiss_a = 1 - Math.exp((-TWO_PI * 1000) / s.sr);
   s.reed_k = 1 / (2 * Math.sin((Math.PI * 1000) / s.sr));
+  for (let j = 0; j < 9; j++) {
+    const bar = clamp(Math.round(p[ORGAN_BARS[j]] ?? 0), 0, 8);
+    s.org_w[j] = bar > 0 ? ORGAN_GAIN * db_to_gain(3 * (bar - 8)) : 0;
+  }
+  const perc = Math.round(p.organ_percussion ?? 0);
+  s.org_perc_k = perc === 1 ? 4 : perc === 2 ? 6 : 0;
+  s.org_perc_coef = t60_coef(p.organ_perc_decay_ms ?? 300, s.sr);
+  s.org_perc_lvl = 2 * ORGAN_GAIN * (p.organ_perc_level ?? 0);
+  s.org_click_len = Math.max(1, Math.round(0.004 * s.sr));
+  s.org_click = 0.4 * (p.organ_click ?? 0);
+  s.rot_mode = Math.round(p.rotary_mode ?? 0);
+  s.rot_mix = p.rotary_mix ?? 1;
+  onepole_set(s.rot_xo, 800, s.sr);
+  s.rot_d0 = Math.max(1, 0.0002 * s.sr);
+  s.rot_dd = 0.00035 * s.sr;
+  s.horn_c = 1 - Math.exp(-1 / (0.5 * s.sr));
+  s.drum_c = 1 - Math.exp(-1 / (3 * s.sr));
   const n = clamp(Math.floor(p.mesh_size + 0.5), 6, MESH_MAX);
   const shape = Math.floor(p.mesh_shape + 0.5);
   if (n !== s.mesh_n || shape !== s.mesh_shape) mesh_setup(s, n, shape);
@@ -638,6 +684,8 @@ function voice_tune(s, v, keep_decay) {
       // high notes need a faster (harder blown) jet
       v.jet_boost = clamp(1 + 0.5 * (Math.log((hz * 48000) / (sr * 1046.5)) / Math.log(2)), 1, 1.6);
     }
+  } else if (model === MODEL_ORGAN) {
+    v.org_inc = (0.5 * hz) / sr;
   } else if (model === MODEL_MESH) {
     const w = (TWO_PI * hz) / sr;
     v.mesh_c2 = Math.min(0.49, (2 * (1 - Math.cos(w))) / s.mesh_mu);
@@ -828,6 +876,14 @@ export function phys_note_on(s, note, velocity) {
     }
     // (flute) jet strength: below ~0.5 the jet is too weak to keep the pipe going
     v.maxv = wind_maxv(s, p, v);
+  } else if (model === MODEL_ORGAN) {
+    // single-trigger percussion: only when no other key is down
+    let others = 0;
+    for (let i = 0; i < limit; i++) if (i !== idx && s.voices[i].active && s.voices[i].gate) others = 1;
+    v.org_perc = others ? 0 : 1;
+    v.org_clk = s.org_click > 0 ? s.org_click_len : 0;
+    adsr_set(v.env, 1.5, 1, 1, p.phys_release_ms, sr);
+    adsr_gate_on(v.env);
   } else if (model === MODEL_MESH) {
     const n = s.mesh_n;
     const m = s.mesh_mask;
@@ -978,7 +1034,7 @@ function phys_release_voice(s, v) {
       v.mode_t60[k] = Math.min(v.mode_t60[k], p.phys_release_ms);
       reson_set_decay(v.modes[k], v.mode_hz[k], v.mode_t60[k], s.sr);
     }
-  } else if (model === MODEL_BOWED || model === MODEL_WIND || model === MODEL_BRASS) {
+  } else if (model === MODEL_BOWED || model === MODEL_WIND || model === MODEL_BRASS || model === MODEL_ORGAN) {
     adsr_gate_off(v.env);
   } else if (model === MODEL_MESH) {
     v.mesh_sig = Math.max(v.mesh_sig, mesh_sigma(Math.min(p.mesh_decay_ms, p.phys_release_ms), s.sr));
@@ -1225,6 +1281,37 @@ function render_wind(s, v, vib, kind, noise_amt) {
   return (bore * 0.3 + hiss) * v.vel;
 }
 
+function render_organ(s, v, vib) {
+  v.org_ph += v.org_inc * vib;
+  if (v.org_ph >= 1) v.org_ph -= 1;
+  const th = TWO_PI * v.org_ph;
+  const sn = s.org_sn;
+  const c2 = 2 * Math.cos(th);
+  sn[0] = 0;
+  sn[1] = Math.sin(th);
+  for (let k = 2; k <= 16; k++) sn[k] = c2 * sn[k - 1] - sn[k - 2];
+  const half = v.org_inc * s.sr;
+  const top = 0.45 * s.sr;
+  let y = 0;
+  for (let j = 0; j < 9; j++) {
+    const w = s.org_w[j];
+    if (w === 0) continue;
+    let k = ORGAN_K[j];
+    if (k * half > ORGAN_FOLD_HZ && k > 3) k = k / 2;
+    if (k * half < top) y += w * sn[k];
+  }
+  if (s.org_perc_k > 0 && v.org_perc > 0.00001) {
+    if (s.org_perc_k * half < top) y += s.org_perc_lvl * v.org_perc * sn[s.org_perc_k];
+    v.org_perc *= s.org_perc_coef;
+  }
+  if (v.org_clk > 0) {
+    const e = v.org_clk / s.org_click_len;
+    y += s.org_click * e * e * noise_white();
+    v.org_clk--;
+  }
+  return y * adsr_process(v.env) * v.vel;
+}
+
 function render_mesh(s, v) {
   const u = v.mesh_u;
   const up = v.mesh_up;
@@ -1323,6 +1410,7 @@ export function phys_render(s) {
     else if (model === MODEL_WIND) y = render_wind(s, v, vv, wkind, p.breath_noise);
     else if (model === MODEL_BRASS) y = render_brass(v, vv);
     else if (model === MODEL_MESH) y = render_mesh(s, v);
+    else if (model === MODEL_ORGAN) y = render_organ(s, v, vv);
     else y = render_stiff(v, vv);
     l += y * v.gl;
     r += y * v.gr;
@@ -1346,6 +1434,11 @@ export function phys_render(s) {
   if (s.amp_type > 0) {
     l = amp_process(s, s.amp_l, l);
     r = amp_process(s, s.amp_r, r);
+  }
+  if (s.rot_mode > 0) rotary_process(s, l, r);
+  if (s.rot_mode > 0 && s.rot_mix > 0) {
+    l += s.rot_mix * (s.rot_l - l);
+    r += s.rot_mix * (s.rot_r - r);
   }
   if (p.phys_room_mix > 0) {
     room_process(s, l, r);
@@ -1394,6 +1487,38 @@ function amp_process(s, a, x) {
   svf_process(a.cab, y);
   svf_process(a.cab_hp, a.cab.lp);
   return a.cab_hp.hp * s.amp_out;
+}
+
+// ---------------------------------------------------------------------------
+// Rotary speaker: an 800 Hz crossover; the highs go to a spinning horn (a delay swept by the
+// horn's distance to each microphone = Doppler, plus its loudness as it points towards / away),
+// the lows to a spinning drum (loudness only). The two mics are 90 degrees apart (stereo). The
+// rotors speed up and slow down gradually, the light horn much faster than the heavy drum.
+
+function rotary_process(s, l, r) {
+  const fast = s.rot_mode === 2 || s.modwheel >= 0.5;
+  s.horn_hz += s.horn_c * ((fast ? 6.8 : 0.8) - s.horn_hz);
+  s.drum_hz += s.drum_c * ((fast ? 5.9 : 0.65) - s.drum_hz);
+  s.horn_ph += s.horn_hz / s.sr;
+  if (s.horn_ph >= 1) s.horn_ph -= 1;
+  s.drum_ph += s.drum_hz / s.sr;
+  if (s.drum_ph >= 1) s.drum_ph -= 1;
+  const x = (l + r) * 0.5;
+  const lo = onepole_lp(s.rot_xo, x);
+  delay_write(s.rot_line, x - lo);
+  const hc = Math.cos(TWO_PI * s.horn_ph);
+  const hs = Math.sin(TWO_PI * s.horn_ph);
+  const dc = Math.cos(TWO_PI * s.drum_ph);
+  const ds = Math.sin(TWO_PI * s.drum_ph);
+  const hl = delay_read(s.rot_line, s.rot_d0 + s.rot_dd * (1 - hc)) * (0.65 + 0.35 * hc);
+  const hr = delay_read(s.rot_line, s.rot_d0 + s.rot_dd * (1 - hs)) * (0.65 + 0.35 * hs);
+  s.rot_l = 1.2 * (hl + lo * (0.8 + 0.2 * dc));
+  s.rot_r = 1.2 * (hr + lo * (0.8 + 0.2 * ds));
+}
+
+/** Mod wheel 0..1 (CC1): above half switches the rotary speaker from Slow to Fast. */
+export function phys_mod_wheel(s, value) {
+  s.modwheel = clamp(value, 0, 1);
 }
 
 // ---------------------------------------------------------------------------
@@ -1455,7 +1580,7 @@ function stiff_partials(s, v, count) {
 export function phys_snapshot(s, points = 192) {
   const v = s.voices[s.last_voice];
   const model = Math.floor(s.p.phys_model + 0.5);
-  const names = ['string', 'modal', 'bowed', 'wind', 'mesh', 'stiff', 'brass'];
+  const names = ['string', 'modal', 'bowed', 'wind', 'mesh', 'stiff', 'brass', 'organ'];
   if (!v || !v.active) return { active: false, model: names[model] };
   const base = { active: true, model: names[model], note: v.note, hz: v.hz * s.bend_ratio, gate: v.gate, sr: s.sr };
   if (model === MODEL_STRING) {
@@ -1480,6 +1605,9 @@ export function phys_snapshot(s, points = 192) {
   }
   if (model === MODEL_BRASS) {
     return { ...base, wave: line_wave(v.line, v.delay_len, points), valve: v.slip, breath: v.env.value * v.maxv };
+  }
+  if (model === MODEL_ORGAN) {
+    return { ...base, drawbars: ORGAN_BARS.map((id) => clamp(Math.round(s.p[id] ?? 0), 0, 8)), perc: v.org_perc, env: v.env.value };
   }
   if (model === MODEL_MESH) {
     const n = s.mesh_n;

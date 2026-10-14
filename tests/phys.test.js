@@ -435,3 +435,53 @@ test('brass: speaks within ~100 ms whatever the velocity (tongue release), soft 
     assert.ok(Math.abs(soft - loud) < 30, `note ${note}: velocity changes the onset by ${Math.abs(soft - loud).toFixed(0)} ms`);
   }
 });
+
+/** frequency of a near-pure tone from its upward zero crossings (autocorrelation is biased on a sine) */
+function zcPitch(buf) {
+  let first = -1;
+  let last = 0;
+  let n = 0;
+  for (let i = 1; i < buf.length; i++) {
+    if (buf[i - 1] <= 0 && buf[i] > 0) {
+      const t = i - 1 + buf[i - 1] / (buf[i - 1] - buf[i]);
+      if (first < 0) first = t;
+      last = t;
+      n++;
+    }
+  }
+  return ((n - 1) * SR) / (last - first);
+}
+
+test('organ model: drawbars set the partials, in tune, single-trigger percussion, rotary moves', () => {
+  const only8 = { phys_model: 7, organ_drawbar_16: 0, organ_drawbar_5_13: 0, organ_drawbar_8: 8, organ_click: 0 };
+  for (const note of [36, 57, 81]) {
+    const s = make(only8);
+    phys_note_on(s, note, 100);
+    const out = render(s, SR * 0.3).slice(2400);
+    const hz = 440 * 2 ** ((note - 69) / 12);
+    assert.ok(Math.abs(cents(zcPitch(out), hz)) < 0.5, `organ ${note} in tune: ${zcPitch(out)}`);
+  }
+  // 16' alone sounds an octave below the note
+  const sub = make({ ...only8, organ_drawbar_16: 8, organ_drawbar_8: 0 });
+  phys_note_on(sub, 69, 100);
+  assert.ok(Math.abs(cents(zcPitch(render(sub, SR * 0.3).slice(2400)), 220)) < 0.5, '16 foot = sub-octave');
+  // percussion only on a note played with no other key down
+  const s = make({ ...only8, organ_percussion: 2 });
+  phys_note_on(s, 60, 100);
+  render(s, 100);
+  assert.ok(s.voices[s.last_voice].org_perc > 0.9, 'first note strikes');
+  phys_note_on(s, 64, 100);
+  assert.equal(s.voices[s.last_voice].org_perc, 0, 'legato note does not');
+  // the rotary speaker makes the level of a steady tone swirl; without it the tone is steady
+  const swing = (over) => {
+    const r = make({ ...only8, organ_drawbar_8: 0, organ_drawbar_1: 8, ...over });
+    phys_note_on(r, 69, 100);
+    render(r, SR * 0.2);
+    const out = render(r, SR * 0.5);
+    const blocks = [];
+    for (let i = 0; i + 1200 <= out.length; i += 1200) blocks.push(rms(out.slice(i, i + 1200)));
+    return Math.max(...blocks) / Math.min(...blocks);
+  };
+  assert.ok(swing({}) < 1.05, 'steady without the rotary');
+  assert.ok(swing({ rotary_mode: 2 }) > 1.3, 'rotary swirls');
+});

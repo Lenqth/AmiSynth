@@ -315,6 +315,7 @@ export function setBend(v) {
 export function setModwheel(v) {
   app.modwheel = v;
   engine.midi('synth', [0xb0, 1, Math.round(v * 127)]);
+  engine.midi('phys', [0xb0, 1, Math.round(v * 127)]);
 }
 
 /** On-screen aftertouch: channel pressure (0xD0) to both melodic instruments, like the bend. */

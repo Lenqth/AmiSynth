@@ -1,11 +1,12 @@
-desc:AmiSynth Physical (string / modal / bowed / wind / 2D mesh / piano string / brass)
+desc:AmiSynth Physical (string / modal / bowed / wind / 2D mesh / piano string / brass / organ)
 //tags: instrument synthesizer physical-modeling
 //author: AmiSynth
 // Port of src/dsp/phys.js (8 voices; the 2D mesh uses at most 3).
 // 0 extended Karplus-Strong string, 1 modal (8 resonators per voice), 2 bowed string
 // (waveguide + bow friction), 3 wind (clarinet reed / flute jet + bore), 4 membrane / plate
 // (2D finite-difference wave equation), 5 stiff string (dispersion all-passes, 2 strings per note),
-// 6 brass (buzzing lip resonator + bore two periods long).
+// 6 brass (buzzing lip resonator + bore two periods long), 7 tonewheel organ (nine drawbar
+// sines + percussion + key click). Rotary speaker (any model) after the amp.
 
 options:gmem=AmiSynth
 
@@ -14,7 +15,7 @@ slider1:tuning_divisions=12<1,72,1>Tuning Divisions Per Period [steps]
 slider2:tuning_period_cents=1200<100,2400,0.001>Tuning Period [cents]
 slider3:tuning_ref_note=69<0,127,1>Tuning Reference Note [note]
 slider4:tuning_ref_hz=440<100,1000,0.01>Tuning Reference Frequency [Hz]
-slider5:phys_model=0<0,6,1{String (Karplus-Strong),Modal (resonators),Bowed String,Wind (reed / jet),Membrane / Plate (2D mesh),Stiff String (piano),Brass (lip reed)}>Physical Model
+slider5:phys_model=0<0,7,1{String (Karplus-Strong),Modal (resonators),Bowed String,Wind (reed / jet),Membrane / Plate (2D mesh),Stiff String (piano),Brass (lip reed),Organ (tonewheel drawbars)}>Physical Model
 slider6:string_excitation=0<0,1,1{Pluck (noise burst),Strike (hammer pulse)}>String Excitation
 slider7:string_decay_ms=3000<100,20000,1>String Decay [ms]
 slider8:string_damping=0.35<0,1,0.001>String Damping
@@ -73,6 +74,21 @@ slider60:phys_sustain_mode=1<0,2,1{Off,Auto (strings / piano / modal),On (all mo
 slider61:phys_pressure_excitation=0<0,1,0.001>Pressure to Breath / Bow
 slider62:phys_pressure_vibrato_cents=0<0,100,0.1>Pressure to Vibrato [cents]
 slider63:phys_pressure_brightness=0<0,1,0.001>Pressure to Brightness
+slider64:organ_drawbar_16=8<0,8,1>Drawbar 16'
+slider65:organ_drawbar_5_13=8<0,8,1>Drawbar 5 1/3'
+slider66:organ_drawbar_8=8<0,8,1>Drawbar 8'
+slider67:organ_drawbar_4=0<0,8,1>Drawbar 4'
+slider68:organ_drawbar_2_23=0<0,8,1>Drawbar 2 2/3'
+slider69:organ_drawbar_2=0<0,8,1>Drawbar 2'
+slider70:organ_drawbar_1_35=0<0,8,1>Drawbar 1 3/5'
+slider71:organ_drawbar_1_13=0<0,8,1>Drawbar 1 1/3'
+slider72:organ_drawbar_1=0<0,8,1>Drawbar 1'
+slider73:organ_percussion=0<0,2,1{Off,Second (4'),Third (2 2/3')}>Percussion
+slider74:organ_perc_decay_ms=300<50,3000,1>Percussion Decay [ms]
+slider75:organ_perc_level=0.6<0,1,0.001>Percussion Level
+slider76:organ_click=0.3<0,1,0.001>Key Click
+slider77:rotary_mode=0<0,2,1{Off,Slow (chorale),Fast (tremolo)}>Rotary Speaker
+slider78:rotary_mix=1<0,1,0.001>Rotary Mix
 // </generated sliders>
 
 import amisynth_lib.jsfx-inc
@@ -103,7 +119,24 @@ HAM_SUB = 4;
 HAM_GAIN = 63;
 SB_MODES = 16;
 N_AP = 4;
-MODEL_STRING = 0; MODEL_MODAL = 1; MODEL_BOWED = 2; MODEL_WIND = 3; MODEL_MESH = 4; MODEL_STIFF = 5; MODEL_BRASS = 6;
+MODEL_STRING = 0; MODEL_MODAL = 1; MODEL_BOWED = 2; MODEL_WIND = 3; MODEL_MESH = 4; MODEL_STIFF = 5; MODEL_BRASS = 6; MODEL_ORGAN = 7;
+// organ: drawbar footages 16' .. 1' as harmonics of half the note; partials above the top
+// tonewheel (~ 5.9 kHz) fold back an octave (see phys.js)
+organ_k = mem_alloc(9);
+organ_k[0] = 1; organ_k[1] = 3; organ_k[2] = 2; organ_k[3] = 4; organ_k[4] = 6;
+organ_k[5] = 8; organ_k[6] = 10; organ_k[7] = 12; organ_k[8] = 16;
+organ_w = mem_alloc(9);
+organ_sn = mem_alloc(17);
+ORGAN_FOLD_HZ = 6000;
+ORGAN_GAIN = 0.12;
+function organ_bar_w(x) local(b) ( b = clamp(floor(x + 0.5), 0, 8); b > 0 ? ORGAN_GAIN * db_to_gain(3 * (b - 8)) : 0; );
+// rotary speaker
+rot_line.delay_init(1024);
+modwheel = 0;
+horn_ph = 0;
+drum_ph = 0;
+horn_hz = 0.8;
+drum_hz = 0.65;
 BRASS_GAIN = 2.5;
 BRASS_STEEP = 1.5;
 BRASS_BOOST = 6;
@@ -389,7 +422,7 @@ function thiran_split(which, L, w) instance(delay_len delay_len2 tune_d tune_d2 
   );
 );
 
-function voice_tune(keep_decay) instance(hz0 damp_b delay_len delay_len2 loop_gain loop_gain2 modes mhz mt60 jet_bias jet_boost mesh_c2 mesh_omega ap_a ap_count
+function voice_tune(keep_decay) instance(org_inc hz0 damp_b delay_len delay_len2 loop_gain loop_gain2 modes mhz mt60 jet_bias jet_boost mesh_c2 mesh_omega ap_a ap_count
   vel_raw lip_a1 lip_a2 lip_g maxv dc_r refl_b bell_b rad_k press)
   local(hz, m, k, ratio, pos_w, b, total, x, sharp, w, a, det, hzA, hzB, wA, wB, t, bpress, note, mult, drive, f, r) (
   hz = hz0 * bend_ratio;
@@ -464,6 +497,8 @@ function voice_tune(keep_decay) instance(hz0 damp_b delay_len delay_len2 loop_ga
       jet_bias = 0.1 + 0.4 * wind_embouchure;
       jet_boost = clamp(1 + 0.5 * (log((hz * 48000) / (srate * 1046.5)) / log(2)), 1, 1.6);
     );
+  ) : model === MODEL_ORGAN ? (
+    org_inc = (0.5 * hz) / srate;
   ) : model === MODEL_MESH ? (
     w = (2 * $pi * hz) / srate;
     mesh_c2 = min(0.49, (2 * (1 - cos(w))) / mesh_mu);
@@ -529,8 +564,8 @@ function hammer_force(out, hz, v0, hardness, beta) local(m, Z, K, dt, lag, max_n
 // op: 0 init(index), 1 start(note, velocity), 2 note off, 3 retune for pitch bend
 function voice_op(op, a, b) instance(idx vel hz0 level frames lp_z lp_z2 loop_gain loop_gain2 damp_b delay_len delay_len2 read_gain
   exc_t exc_len exc modes mhz mt60 maxv slope mesh_u mesh_up mesh_un mesh_sig mesh_omega jet_boost flut hiss_lp
-  vel_raw lip_y1 lip_y2 dc_x dc_y bell_z refl_z rad_x rad_x2 steep steep_w boost boost_c poly_at press)
-  local(v, n, bright, aa, pick, norm, lp, i, j, c, x, width, ia, ib, hard, g_rel, k, R, amp, sx, sy, d, len, decay, sb_a, sb_env,
+  vel_raw lip_y1 lip_y2 dc_x dc_y bell_z refl_z rad_x rad_x2 steep steep_w boost boost_c poly_at press org_perc org_clk)
+  local(others, v, n, bright, aa, pick, norm, lp, i, j, c, x, width, ia, ib, hard, g_rel, k, R, amp, sx, sy, d, len, decay, sb_a, sb_env,
     v0, scale, total, hp_a, hp_z, hp_z2, hp_z3, hp_z4, w0, re, im, mag, around, m, top, want, blen, burst, release_ms, mesh_ms) (
   op === 0 ? (
     idx = a;
@@ -652,6 +687,15 @@ function voice_op(op, a, b) instance(idx vel hz0 level frames lp_z lp_z2 loop_ga
       // both only speak inside a band of blowing pressure; velocity sets the output level
       wind_kind() !== WIND_FLUTE ? slope = -(0.2 + 0.25 * wind_embouchure);
       maxv = wind_maxv(press, slope, jet_boost);
+    ) : model === MODEL_ORGAN ? (
+      // single-trigger percussion: only when no other key is down
+      others = 0;
+      i = 0;
+      loop(MAX_VOICES, i !== idx && v_active[i] && v_gate[i] ? others = 1; i += 1;);
+      org_perc = others ? 0 : 1;
+      org_clk = org_click > 0 ? org_click_len : 0;
+      this.env.adsr_set(1.5, 1, 1, phys_release_ms);
+      this.env.adsr_gate_on();
     ) : model === MODEL_MESH ? (
       n = mesh_n;
       memset(mesh_u, 0, MESH_CELLS);
@@ -797,7 +841,7 @@ function voice_op(op, a, b) instance(idx vel hz0 level frames lp_z lp_z2 loop_ga
         rmem_set_decay(modes + k * 6, mhz[k], mt60[k]);
         k += 1;
       );
-    ) : model === MODEL_BOWED || model === MODEL_WIND || model === MODEL_BRASS ? (
+    ) : model === MODEL_BOWED || model === MODEL_WIND || model === MODEL_BRASS || model === MODEL_ORGAN ? (
       this.env.adsr_gate_off();
     ) : model === MODEL_MESH ? (
       mesh_sig = max(mesh_sig, mesh_sigma(min(mesh_ms, release_ms)));
@@ -970,6 +1014,40 @@ function render_wind() instance(vel maxv slope lp_z damp_b delay_len delay_len2 
   );
 );
 
+function render_organ() instance(vel org_ph org_inc org_perc org_clk) local(th, c2, k, j, half, top, y, w, e) (
+  org_ph += org_inc * vib;
+  org_ph >= 1 ? org_ph -= 1;
+  th = 2 * $pi * org_ph;
+  c2 = 2 * cos(th);
+  organ_sn[0] = 0;
+  organ_sn[1] = sin(th);
+  k = 2;
+  loop(15, organ_sn[k] = c2 * organ_sn[k - 1] - organ_sn[k - 2]; k += 1;);
+  half = org_inc * srate;
+  top = 0.45 * srate;
+  y = 0;
+  j = 0;
+  loop(9,
+    w = organ_w[j];
+    w !== 0 ? (
+      k = organ_k[j];
+      k * half > ORGAN_FOLD_HZ && k > 3 ? k *= 0.5;
+      k * half < top ? y += w * organ_sn[k];
+    );
+    j += 1;
+  );
+  org_perc_k > 0 && org_perc > 0.00001 ? (
+    org_perc_k * half < top ? y += org_perc_lvl * org_perc * organ_sn[org_perc_k];
+    org_perc *= org_perc_coef;
+  );
+  org_clk > 0 ? (
+    e = org_clk / org_click_len;
+    y += org_click * e * e * noise_white();
+    org_clk -= 1;
+  );
+  y * this.env.adsr_process() * vel;
+);
+
 function render_mesh() instance(mesh_u mesh_up mesh_un mesh_c2 mesh_sig mesh_omega)
   local(u, up, un, c2, inv, d, mu, ku, kp, kn, kq, r, c, cend) (
   u = mesh_u;
@@ -1055,6 +1133,7 @@ function voice_render() instance(idx level frames gl gr press) local(y, a) (
       : model === MODEL_WIND ? this.render_wind()
       : model === MODEL_BRASS ? this.render_brass()
       : model === MODEL_MESH ? this.render_mesh()
+      : model === MODEL_ORGAN ? this.render_organ()
       : this.render_stiff();
     mix_l += y * gl;
     mix_r += y * gr;
@@ -1123,6 +1202,29 @@ function room_process(l, r) (
   room.fdn4_process((l + r) * 0.5);
   room_l = 2.5 * room.l;
   room_r = 2.5 * room.r;
+);
+
+// rotary speaker: 800 Hz crossover, horn = swept delay (Doppler) + loudness, drum = loudness;
+// two mics 90 degrees apart; the rotors speed up / slow down gradually (see phys.js)
+function rotary_process(l, r) local(fast, x, lo, hc, hs, rc, rs, hl, hr) (
+  fast = rot_mode === 2 || modwheel >= 0.5;
+  horn_hz += horn_c * ((fast ? 6.8 : 0.8) - horn_hz);
+  drum_hz += drum_c * ((fast ? 5.9 : 0.65) - drum_hz);
+  horn_ph += horn_hz / srate;
+  horn_ph >= 1 ? horn_ph -= 1;
+  drum_ph += drum_hz / srate;
+  drum_ph >= 1 ? drum_ph -= 1;
+  x = (l + r) * 0.5;
+  lo = rot_xo.onepole_lp(x);
+  rot_line.delay_write(x - lo);
+  hc = cos(2 * $pi * horn_ph);
+  hs = sin(2 * $pi * horn_ph);
+  rc = cos(2 * $pi * drum_ph);
+  rs = sin(2 * $pi * drum_ph);
+  hl = rot_line.delay_read(rot_d0 + rot_dd * (1 - hc)) * (0.65 + 0.35 * hc);
+  hr = rot_line.delay_read(rot_d0 + rot_dd * (1 - hs)) * (0.65 + 0.35 * hs);
+  rot_l = 1.2 * (hl + lo * (0.8 + 0.2 * rc));
+  rot_r = 1.2 * (hr + lo * (0.8 + 0.2 * rs));
 );
 
 function vcall(i, op, a, b) (
@@ -1242,6 +1344,7 @@ function handle_midi(m1, m2, m3) local(type) (
   : type === 0xA0 ? poly_pressure(m2, m3 / 127) // polyphonic aftertouch
   : type === 0xB0 ? (
     m2 === 64 ? sustain(m3 >= 64)
+    : m2 === 1 ? modwheel = clamp(m3 / 127, 0, 1)
     : m2 === 120 || m2 === 123 ? all_notes_off()
     : m2 === 121 ? (sustain(0); pitch_bend(0); pressure_reset(););
   );
@@ -1263,6 +1366,24 @@ vib_inc = phys_vibrato_rate_hz / srate;
 flut_a = 1 - exp((-2 * $pi * 5) / srate);
 hiss_a = 1 - exp((-2 * $pi * 1000) / srate);
 reed_k = 1 / (2 * sin(($pi * 1000) / srate));
+organ_w[0] = organ_bar_w(organ_drawbar_16); organ_w[1] = organ_bar_w(organ_drawbar_5_13);
+organ_w[2] = organ_bar_w(organ_drawbar_8); organ_w[3] = organ_bar_w(organ_drawbar_4);
+organ_w[4] = organ_bar_w(organ_drawbar_2_23); organ_w[5] = organ_bar_w(organ_drawbar_2);
+organ_w[6] = organ_bar_w(organ_drawbar_1_35); organ_w[7] = organ_bar_w(organ_drawbar_1_13);
+organ_w[8] = organ_bar_w(organ_drawbar_1);
+org_perc_sel = floor(organ_percussion + 0.5);
+org_perc_k = org_perc_sel === 1 ? 4 : org_perc_sel === 2 ? 6 : 0;
+org_perc_coef = t60_coef(organ_perc_decay_ms);
+org_perc_lvl = 2 * ORGAN_GAIN * organ_perc_level;
+org_click_len = max(1, floor(0.004 * srate + 0.5));
+org_click = 0.4 * organ_click;
+rot_mode = floor(rotary_mode + 0.5);
+rot_mix = rotary_mix;
+rot_xo.onepole_set(800);
+rot_d0 = max(1, 0.0002 * srate);
+rot_dd = 0.00035 * srate;
+horn_c = 1 - exp(-1 / (0.5 * srate));
+drum_c = 1 - exp(-1 / (3 * srate));
 room_update(phys_room_decay_ms);
 amp_t = clamp(floor(amp_type + 0.5), 0, 4);
 amp_t > 0 ? (
@@ -1315,6 +1436,11 @@ model === MODEL_STIFF && piano_soundboard > 0 ? (
 amp_t > 0 ? (
   mix_l = amp_l.amp_process(mix_l);
   mix_r = amp_r.amp_process(mix_r);
+);
+rot_mode > 0 ? rotary_process(mix_l, mix_r);
+rot_mode > 0 && rot_mix > 0 ? (
+  mix_l += rot_mix * (rot_l - mix_l);
+  mix_r += rot_mix * (rot_r - mix_r);
 );
 phys_room_mix > 0 ? (
   room_process(mix_l, mix_r);
