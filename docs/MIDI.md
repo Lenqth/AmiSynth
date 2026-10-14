@@ -6,7 +6,7 @@
 
 | メッセージ | Synth | Physical | Drums |
 | --- | --- | --- | --- |
-| Note On (velocity 1〜127) | 発音。Poly／Mono／Legato、Arp設定に従う | 選択したモデルで発音 | GM Level 1 の 35〜81 (58、71〜74、78、79 を除く) を19パーツで発音 |
+| Note On (velocity 1〜127) | 発音。Poly／Mono／Legato、Arp設定に従う | 選択したモデルで発音 | GM Level 1 の 35〜81 をすべて 23 パーツで発音 |
 | Note Off | リリース。CC64中は保留 | モデル別のRelease Damping。CC64対応モデルでは保留 | 無視。ワンショットの自然減衰に従う |
 | Note On (velocity 0) | Note Offと同じ | Note Offと同じ | 無視 |
 | Velocity | `amp_velocity_amount`、フィルター量などへ反映 | `phys_velocity_amount`とモデル別の励振・音色へ反映 | パーツの発音強度へ反映 |

@@ -566,13 +566,17 @@ export const DRUM_PARTS = [
   { key: 'agogo', name: 'Agogo', note: 67 },
   { key: 'claves', name: 'Claves', note: 75 },
   { key: 'triangle', name: 'Triangle', note: 81 },
+  { key: 'vibraslap', name: 'Vibraslap', note: 58 },
+  { key: 'whistle', name: 'Whistle', note: 72 },
+  { key: 'guiro', name: 'Guiro', note: 74 },
+  { key: 'cuica', name: 'Cuica', note: 79 },
 ];
 
 /**
  * Other GM percussion notes the drum machine plays as a variant of a part: its parameters with
  * the pitch / decay / level scaled. Variants of the kick, snare, closed hat and shaker (35, 40,
  * 44, 69) retrigger the part itself; the others have a voice of their own, so they can ring
- * together with the part. GM notes 58, 71-74, 78 and 79 are not played.
+ * together with the part. With these every GM note 35-81 sounds.
  */
 export const GM_DRUM_VARIANTS = [
   { note: 35, name: 'Acoustic Bass Drum', part: 'kick', pitch: 1, decay: 1, level: 1 },
@@ -596,6 +600,9 @@ export const GM_DRUM_VARIANTS = [
   { note: 76, name: 'Hi Wood Block', part: 'claves', pitch: 0.62, decay: 0.6, level: 1 },
   { note: 77, name: 'Low Wood Block', part: 'claves', pitch: 0.47, decay: 0.6, level: 1 },
   { note: 80, name: 'Mute Triangle', part: 'triangle', pitch: 1, decay: 0.05, level: 1 },
+  { note: 71, name: 'Short Whistle', part: 'whistle', pitch: 1, decay: 0.3, level: 1 },
+  { note: 73, name: 'Short Guiro', part: 'guiro', pitch: 1, decay: 0.3, level: 1 },
+  { note: 78, name: 'Mute Cuica', part: 'cuica', pitch: 1.5, decay: 0.35, level: 1 },
 ];
 
 /**
@@ -776,6 +783,30 @@ export const DRUM_PARAMS = /** @type {ParamDef[]} */ ([
     pitchDesc: 'Lowest partial of the triangle.',
     decayDesc: 'Ring time of the open triangle (note 81); the mute triangle (80) is cut short and chokes it.',
     toneDesc: 'Balance of the upper partials (brightness).',
+  }),
+  ...partParams('vibraslap', 'Vibraslap', {
+    pitch: [1000, 6000, 2800], decay: [200, 3000, 900], tone: 0.5, level: -10, pan: -0.25,
+    pitchDesc: 'Resonance of the rattle box.',
+    decayDesc: 'How long the rattle goes on.',
+    toneDesc: 'Rattle rate (slow .. fast clicks).',
+  }),
+  ...partParams('whistle', 'Whistle', {
+    pitch: [1000, 5000, 2600], decay: [100, 2000, 450], tone: 0.6, level: -8, pan: 0.1,
+    pitchDesc: 'Pitch of the samba whistle.',
+    decayDesc: 'Length of the long whistle (note 72); the short whistle (71) is 0.3x.',
+    toneDesc: 'Trill of the pea inside (pitch and loudness warble).',
+  }),
+  ...partParams('guiro', 'Guiro', {
+    pitch: [1000, 8000, 3500], decay: [100, 1000, 380], tone: 0.5, level: -8, pan: 0.25,
+    pitchDesc: 'Resonance of the gourd (each ridge click rings at it).',
+    decayDesc: 'Length of the long scrape (note 74); the short guiro (73) is 0.3x.',
+    toneDesc: 'Ridge rate of the scrape (slow .. fast).',
+  }),
+  ...partParams('cuica', 'Cuica', {
+    pitch: [200, 1200, 520], decay: [100, 1500, 450], tone: 0.6, level: -8, pan: -0.1,
+    pitchDesc: 'Open cuica (note 79); the mute cuica (78) is 1.5x higher and short.',
+    decayDesc: 'Decay of the open cuica.',
+    toneDesc: 'Upward glide of the rubbed stick at the start.',
   }),
 ]);
 
