@@ -2,12 +2,16 @@
   import { onMount } from 'svelte';
   import { DRUM_PARAMS, DRUM_PARTS, PHYS_PARAMS, SYNTH_PARAMS } from './dsp/params.js';
   import { engine } from './lib/engine.js';
-  import { demoPattern, emptyPattern, pianoDemoPattern, Sequencer } from './lib/pattern.js';
-  import { downloadPatternMidi } from './lib/midifile.js';
+  import { demoPattern, pianoDemoPattern, Sequencer, STEPS } from './lib/pattern.js';
+  import { downloadMidi, MIDI_MAX_BYTES, midiToSteps, parseMidi, timelineToMidi } from './lib/midifile.js';
+  import { songFromFlat, timeline } from './lib/song.js';
+  import { decodeShare, encodeShare, isShareFragment } from './lib/share.js';
+  import { undoShortcut } from './lib/history.js';
   import { codeToOffset, DRUM_KEYS, eventCode, isImeEvent, isoKeyCell, isTypingTarget } from './lib/pckeys.js';
   import {
-    app, applyPreset, clearSeqHighlights, drumHit, flashDrum, flashSeqNote, persist, setBend, setMelodic, setModwheel,
-    setParam, setPressure, setScale, setSustain, startAudio, synthNoteOff, synthNoteOn,
+    app, applyPreset, beginSongGesture, clearSeqHighlights, commitSongGesture, drumHit, editedPattern, editSong, flashDrum,
+    flashSeqNote, hadSavedState, persist, redo, replaceSong, setBend, setMelodic, setModwheel, setParam, setPressure, setScale,
+    setSustain, startAudio, synthNoteOff, synthNoteOn, undo,
   } from './lib/state.svelte.js';
   import { makeTuning } from './lib/tuning.js';
   import { coarsePointerQuery } from './lib/keysize.js';
@@ -18,6 +22,7 @@
   import ParamPanel from './ui/ParamPanel.svelte';
   import PianoRoll from './ui/PianoRoll.svelte';
   import PresetBar from './ui/PresetBar.svelte';
+  import SongPanel from './ui/SongPanel.svelte';
   import { SYNTH_PRESETS } from './presets/synth.js';
   import { DRUM_PRESETS } from './presets/drums.js';
   import { PHYS_PRESETS } from './presets/phys.js';
@@ -136,7 +141,9 @@
     exportMsg = '';
     const worker = new Worker(new URL('./lib/render-worker.js', import.meta.url), { type: 'module' });
     const format = exportFormat;
-    const bpm = app.pattern.bpm;
+    const song = $state.snapshot(app.song);
+    const bpm = song.bpm;
+    const what = app.playMode === 'song' ? 'song' : 'pattern';
     worker.onmessage = (e) => {
       const m = e.data;
       if (m.type === 'progress') {
@@ -152,7 +159,7 @@
       const url = URL.createObjectURL(new Blob([m.bytes], { type: m.mime }));
       const a = document.createElement('a');
       a.href = url;
-      a.download = `amisynth-pattern-${bpm}bpm.${format}`;
+      a.download = `amisynth-${what}-${bpm}bpm.${format}`;
       a.click();
       setTimeout(() => URL.revokeObjectURL(url), 2000);
       const db = 20 * Math.log10(Math.max(m.peak, 1e-9));
@@ -164,7 +171,8 @@
       exportMsg = `失敗しました: ${e.message}`;
     };
     worker.postMessage({
-      pattern: $state.snapshot(app.pattern),
+      // song mode: the whole arrangement; pattern mode: the pattern being edited
+      timeline: timeline(song, app.playMode),
       params: { synth: $state.snapshot(app.synth), phys: $state.snapshot(app.phys), drums: $state.snapshot(app.drums) },
       scaleCents: app.scale ? [...app.scale.cents] : null,
       sampleRate: engine.ctx?.sampleRate ?? 48000,
@@ -174,11 +182,129 @@
     });
   }
 
-  /** demo with dynamics: switches the melodic instrument to the physical Grand Piano */
+  /** demo with dynamics (into the current pattern): switches the melodic instrument to the physical Grand Piano */
   function loadPianoDemo() {
-    app.pattern = pianoDemoPattern();
+    const demo = pianoDemoPattern();
+    editSong((s) => {
+      const p = s.patterns[s.current];
+      p.notes = demo.notes;
+      p.drums = demo.drums;
+      s.bpm = demo.bpm;
+      s.melodic = 'phys';
+    });
     const piano = PHYS_PRESETS.find((p) => p.name === 'Grand Piano');
     if (piano) applyPreset('phys', piano);
+  }
+
+  function loadDemoPattern() {
+    const demo = demoPattern();
+    editSong((s) => {
+      const p = s.patterns[s.current];
+      p.notes = demo.notes;
+      p.drums = demo.drums;
+    });
+  }
+
+  // ---- MIDI file export / import ------------------------------------------------------------
+  function exportMidi() {
+    const song = $state.snapshot(app.song);
+    const what = app.playMode === 'song' ? 'song' : 'pattern';
+    downloadMidi(timelineToMidi(timeline(song, app.playMode)), `amisynth-${what}.mid`);
+  }
+
+  /** @type {HTMLInputElement} */ let midiInput;
+  /** 'pattern' = into the pattern being edited (first 4 bars), 'song' = split into 4-bar patterns */
+  let importTarget = 'pattern';
+  let importMsg = $state('');
+
+  function pickMidi(target) {
+    importTarget = target;
+    midiInput.value = '';
+    midiInput.click();
+  }
+
+  async function importMidi(e) {
+    const file = e.currentTarget.files?.[0];
+    if (!file) return;
+    importMsg = '';
+    try {
+      if (file.size > MIDI_MAX_BYTES) throw new Error('MIDI ファイルが大きすぎます');
+      const midi = parseMidi(new Uint8Array(await file.arrayBuffer()));
+      const toSong = importTarget === 'song';
+      // the piano roll shows notes 24..108; a song is at most 32 different 4-bar patterns, 128 slots
+      const flat = midiToSteps(midi, { lowNote: 24, highNote: 108, maxSteps: toSong ? STEPS * 128 * 16 : STEPS });
+      if (flat.notes.length === 0 && flat.drums.length === 0) throw new Error('読み込めるノートがありません');
+      const warnings = [...flat.warnings];
+      if (toSong) {
+        const { song, truncated } = songFromFlat({ ...flat, bpm: flat.bpm ?? app.song.bpm, melodic: app.song.melodic });
+        if (truncated) warnings.push('パターン数 / 曲順の上限で後半を省きました');
+        replaceSong(song);
+        app.playMode = 'song';
+        persist();
+        importMsg = `${file.name}: ${song.patterns.length} パターン · ${song.arrangement.reduce((a, s) => a + s.repeat, 0) * 4} 小節を読み込みました`;
+      } else {
+        editSong((s) => {
+          const p = s.patterns[s.current];
+          p.notes = flat.notes.map((n) => ({ ...n, len: Math.min(n.len, STEPS - n.start) }));
+          p.drums = flat.drums;
+          if (flat.bpm) s.bpm = flat.bpm;
+        });
+        importMsg = `${file.name}: 最初の 4 小節を ${editedPattern().name} に読み込みました`;
+      }
+      if (warnings.length) importMsg += ` (${warnings.join(' / ')})`;
+    } catch (err) {
+      importMsg = `読み込めませんでした: ${err?.message ?? err}`;
+    }
+  }
+
+  // ---- share by URL ---------------------------------------------------------------------------
+  let shareMsg = $state('');
+
+  async function copyShareLink() {
+    shareMsg = '';
+    try {
+      const frag = await encodeShare({
+        song: $state.snapshot(app.song), mode: app.playMode, synth: $state.snapshot(app.synth), phys: $state.snapshot(app.phys),
+        drums: $state.snapshot(app.drums), scale: app.scale ? $state.snapshot(app.scale) : null,
+      });
+      const url = `${location.origin}${location.pathname}${location.search}#${frag}`;
+      try {
+        await navigator.clipboard.writeText(url);
+        shareMsg = `共有リンクをコピーしました (${url.length} 文字)`;
+      } catch {
+        // no clipboard permission (e.g. http, old browsers): let the user copy it by hand
+        prompt('このリンクをコピーしてください', url);
+      }
+    } catch (err) {
+      shareMsg = `共有リンクを作れませんでした: ${err?.message ?? err}`;
+    }
+  }
+
+  /** Load a share link from the URL fragment (startup / hashchange). */
+  async function loadShareFromHash(askFirst) {
+    if (!isShareFragment(location.hash)) return;
+    const hash = location.hash;
+    // drop the fragment so a reload doesn't load (and ask) again
+    window.history.replaceState(null, '', `${location.pathname}${location.search}`);
+    let shared;
+    try {
+      shared = await decodeShare(hash);
+    } catch (err) {
+      app.error = `共有リンクを読み込めませんでした: ${err?.message ?? err}`;
+      return;
+    }
+    if (askFirst && !confirm('共有リンクの曲と音色を読み込みます。このブラウザに保存されている今の曲・音色・チューニングは置き換わります (曲は「↶ 戻す」で戻せます)。読み込みますか?')) return;
+    if (seq.playing) togglePlay();
+    replaceSong(shared.song);
+    app.playMode = shared.mode;
+    for (const target of /** @type {const} */ (['synth', 'phys', 'drums'])) {
+      app[target] = shared[target];
+      app.presetName[target] = '';
+      engine.setParams(target, app[target]);
+    }
+    setScale(shared.scale);
+    if (!seq.playing) engine.transport(app.song.bpm, false);
+    app.tab = 'roll';
     persist();
   }
 
@@ -201,7 +327,7 @@
     app.baseNote = Math.max(0, 60 - size * Math.max(1, Math.round(12 / size)));
   });
 
-  const seq = new Sequencer(engine, () => app.pattern, flashDrum, flashSeqNote);
+  const seq = new Sequencer(engine, () => timeline(app.song, app.playMode), flashDrum, flashSeqNote);
 
   /** Start audio lazily on the first gesture, then run fn. */
   async function withAudio(fn) {
@@ -249,6 +375,8 @@
       clearSeqHighlights();
       app.playing = false;
       app.playStep = -1;
+      app.playSlot = -1;
+      app.playIndex = -1;
       app.held = {};
       return;
     }
@@ -293,6 +421,14 @@
   function keydown(e) {
     if (e.key === 'Escape' && fullscreen) {
       exitFullscreen();
+      return;
+    }
+    // undo / redo of song edits (text fields keep their own undo)
+    const u = isTypingTarget(e.target) ? null : undoShortcut(e);
+    if (u) {
+      e.preventDefault();
+      if (u === 'undo') undo();
+      else redo();
       return;
     }
     if (e.repeat || e.metaKey || e.ctrlKey || e.altKey || isTypingTarget(e.target)) return;
@@ -406,14 +542,24 @@
     let raf = 0;
     const loop = () => {
       raf = requestAnimationFrame(loop);
-      const s = seq.currentStep();
+      const pos = seq.position();
+      const index = pos ? pos.index : -1;
+      const slot = pos ? pos.slot : -1;
+      // the playhead shows in the piano roll only while the edited pattern is the one playing
+      const s = pos && index === app.song.current ? pos.step : -1;
       if (s !== app.playStep) app.playStep = s;
+      if (slot !== app.playSlot) app.playSlot = slot;
+      if (index !== app.playIndex) app.playIndex = index;
     };
     loop();
+    loadShareFromHash(hadSavedState);
+    const onHash = () => loadShareFromHash(true);
+    window.addEventListener('hashchange', onHash);
     // Leaving *browser* fullscreen (rotation, back gesture, Esc) keeps the overlay: it still fills
     // the viewport, and it closes only via its ✕ button / Esc key.
     return () => {
       cancelAnimationFrame(raf);
+      window.removeEventListener('hashchange', onHash);
       seq.stop();
     };
   });
@@ -528,11 +674,11 @@
     {/if}
     <button class:active={app.playing} onclick={togglePlay} title="Space">{app.playing ? '■ Stop' : '▶ Play'}</button>
     <label class="bpm">BPM
-      <input type="number" min="40" max="240" step="1" value={app.pattern.bpm}
+      <input type="number" min="40" max="240" step="1" value={app.song.bpm}
         onchange={(e) => {
-          app.pattern.bpm = Math.max(40, Math.min(240, Number(e.currentTarget.value) || 120));
-          if (!seq.playing) engine.transport(app.pattern.bpm, false);
-          persist();
+          const bpm = Math.max(40, Math.min(240, Number(e.currentTarget.value) || 120));
+          editSong((s) => (s.bpm = bpm));
+          if (!seq.playing) engine.transport(app.song.bpm, false);
         }} />
     </label>
     <button onclick={enableMidi} title="Web MIDI 入力 (ch10 はドラムへ)">MIDI</button>
@@ -637,20 +783,34 @@
     <PresetBar target="drums" defs={DRUM_PARAMS} builtins={DRUM_PRESETS} />
     <ParamPanel defs={DRUM_PARAMS} values={app.drums} onchange={(id, v) => setParam('drums', id, v)} />
   {:else if app.tab === 'roll'}
+    <SongPanel />
     <div class="roll-head">
-      <button onclick={() => { app.pattern = { ...demoPattern(), bpm: app.pattern.bpm }; persist(); }}>デモパターン</button>
+      <button onclick={loadDemoPattern}>デモパターン</button>
       <button onclick={loadPianoDemo} title="Physical の Grand Piano で、pp からクレッシェンドして ff、また pp に戻る 4 小節">デモ: ピアノ (強弱あり)</button>
-      <button onclick={() => { app.pattern.notes = []; persist(); }}>ノート全消去</button>
-      <button onclick={() => { app.pattern.drums = []; persist(); }}>ドラム全消去</button>
-      <button onclick={() => { app.pattern = emptyPattern(app.pattern.bpm); persist(); }}>すべて消去</button>
-      <button onclick={() => downloadPatternMidi(app.pattern)} title="Standard MIDI File (メロディ ch1 / ドラム ch10)。REAPER で JSFX 版に流し込めます">MIDI 書き出し</button>
+      <button onclick={() => editSong((s) => (s.patterns[s.current].notes = []))}>ノート全消去</button>
+      <button onclick={() => editSong((s) => (s.patterns[s.current].drums = []))}>ドラム全消去</button>
+      <button onclick={() => editSong((s) => { s.patterns[s.current].notes = []; s.patterns[s.current].drums = []; })}>すべて消去</button>
       <label class="muted">メロディ音源
-        <select value={app.pattern.melodic ?? 'synth'} onchange={(e) => { app.pattern.melodic = e.currentTarget.value; persist(); }}>
+        <select value={app.song.melodic} onchange={(e) => { const v = e.currentTarget.value; editSong((s) => (s.melodic = v === 'phys' ? 'phys' : 'synth')); }}>
           <option value="synth">Synth</option>
           <option value="phys">Physical</option>
         </select>
       </label>
-      <span class="muted">4 小節ループ · 行は現在のチューニングのステップ</span>
+      <span class="muted">パターン {editedPattern().name} (4 小節) · 行は現在のチューニングのステップ</span>
+    </div>
+    <div class="roll-head">
+      <span class="muted">MIDI</span>
+      <button onclick={exportMidi} title="Standard MIDI File (メロディ ch1 / ドラム ch10)。ソングモードでは曲全体、パターンループでは編集中のパターン。REAPER で JSFX 版に流し込めます">
+        MIDI 書き出し{app.playMode === 'song' ? ' (曲全体)' : ''}</button>
+      <button onclick={() => pickMidi('pattern')} title=".mid (format 0 / 1) の最初の 4 小節を、編集中のパターンに読み込みます。ch10 はドラム、それ以外はピアノロール。16 分音符に揃えます">
+        MIDI 読み込み → このパターン</button>
+      <button onclick={() => pickMidi('song')} title=".mid 全体を 4 小節ずつのパターンに分けて、曲順つきで読み込みます (今の曲は置き換わります。「↶ 戻す」で戻せます)">
+        MIDI 読み込み → ソング</button>
+      <input bind:this={midiInput} type="file" accept=".mid,.midi,audio/midi,audio/x-midi" hidden onchange={importMidi} />
+      <button onclick={copyShareLink} title="曲 (全パターンと曲順)・音色・チューニングを URL に詰めてコピーします。開いた人のブラウザでそのまま再生できます">
+        🔗 共有リンクをコピー</button>
+      {#if importMsg}<span class="muted">{importMsg}</span>{/if}
+      {#if shareMsg}<span class="muted">{shareMsg}</span>{/if}
     </div>
     <div class="roll-head export">
       <span class="muted">音声書き出し</span>
@@ -658,19 +818,20 @@
         <option value="wav">WAV (16 bit)</option>
         <option value="mp3">MP3 (192 kbps)</option>
       </select>
-      <label class="muted">ループ
+      <label class="muted">{app.playMode === 'song' ? '曲を' : 'ループ'}
         <select bind:value={exportLoops} disabled={exportBusy}>
           {#each [1, 2, 4, 8] as n (n)}<option value={n}>{n} 回</option>{/each}
         </select>
       </label>
       <label class="muted" title="いちばん大きい所が -1 dBFS になるように音量をそろえます"><input type="checkbox" bind:checked={exportNormalize} disabled={exportBusy} /> ノーマライズ</label>
       <button class="primary" onclick={exportAudio} disabled={exportBusy}
-        title="今の音色とチューニングで、パターンを (余韻まで) 書き出します。再生と同じ DSP をオフラインで回します">
+        title="今の音色とチューニングで、パターン (ソングモードでは曲全体) を余韻まで書き出します。再生と同じ DSP をオフラインで回します">
         {exportBusy ? `書き出し中 ${Math.round(exportProgress * 100)}%` : '⬇ 書き出し'}
       </button>
       {#if exportMsg}<span class="muted">{exportMsg}</span>{/if}
     </div>
-    <PianoRoll pattern={app.pattern} {tuning} playStep={app.playStep} {preview} {previewDrum} onedit={persist} />
+    <PianoRoll pattern={editedPattern()} {tuning} playStep={app.playStep} {preview} {previewDrum}
+      onbegin={beginSongGesture} onedit={commitSongGesture} />
   {:else}
     <section class="card">
       <h3>Parameter reference</h3>

@@ -1,4 +1,4 @@
-// Offline rendering of the piano-roll pattern with the same DSP cores the AudioWorklets run
+// Offline rendering of the piano-roll pattern / song with the same DSP cores the AudioWorklets run
 // (and the same event timing as the Sequencer), for WAV / MP3 export.
 
 import { DRUM_PARAMS, PHYS_PARAMS, SYNTH_PARAMS, defaultValues } from '../dsp/params.js';
@@ -17,43 +17,61 @@ const CORES = {
   drums: { defs: DRUM_PARAMS, init: drums_init, update: drums_update, render: drums_render, midi: drums_midi, scale: null },
 };
 
+/** A single pattern as a one-entry timeline (see song.js). */
+export function patternTimeline(pattern) {
+  return { bpm: pattern.bpm, melodic: pattern.melodic === 'phys' ? 'phys' : 'synth', entries: [{ pattern, slot: -1, index: 0 }] };
+}
+
 /**
- * MIDI events of `loops` repetitions of the pattern, per instrument, as [frame, status, d1, d2],
- * sorted by frame (stable, like the worklet queue). Timing matches Sequencer.scheduleStep.
- * @param {import('./pattern.js').Pattern} pattern
+ * MIDI events of `loops` repetitions of a timeline (patterns played one after another), per
+ * instrument, as [frame, status, d1, d2], sorted by frame (stable, like the worklet queue).
+ * Timing matches Sequencer.scheduleStep.
+ * @param {import('./song.js').Timeline} tl
  */
-export function patternEvents(pattern, sr, loops = 1) {
-  const stepDur = 60 / pattern.bpm / STEPS_PER_BEAT;
-  const melodic = pattern.melodic === 'phys' ? 'phys' : 'synth';
+export function timelineEvents(tl, sr, loops = 1) {
+  const stepDur = 60 / tl.bpm / STEPS_PER_BEAT;
+  const melodic = tl.melodic === 'phys' ? 'phys' : 'synth';
+  const total = tl.entries.length * STEPS;
   const ev = { synth: [], phys: [], drums: [] };
   for (let k = 0; k < loops; k++) {
-    for (let step = 0; step < STEPS; step++) {
-      const t = (k * STEPS + step) * stepDur;
-      for (const n of pattern.notes) {
-        if (n.start !== step) continue;
-        ev[melodic].push([Math.round(t * sr), 0x90, n.note, n.vel]);
-        // released slightly before the step boundary so repeated notes retrigger cleanly
-        ev[melodic].push([Math.round((t + n.len * stepDur - 0.002) * sr), 0x80, n.note, 0]);
+    tl.entries.forEach(({ pattern }, i) => {
+      for (let step = 0; step < STEPS; step++) {
+        const t = (k * total + i * STEPS + step) * stepDur;
+        for (const n of pattern.notes) {
+          if (n.start !== step) continue;
+          ev[melodic].push([Math.round(t * sr), 0x90, n.note, n.vel]);
+          // released slightly before the step boundary so repeated notes retrigger cleanly
+          ev[melodic].push([Math.round((t + n.len * stepDur - 0.002) * sr), 0x80, n.note, 0]);
+        }
+        for (const h of pattern.drums) if (h.step === step) ev.drums.push([Math.round(t * sr), 0x90, h.note, h.vel]);
       }
-      for (const h of pattern.drums) if (h.step === step) ev.drums.push([Math.round(t * sr), 0x90, h.note, h.vel]);
-    }
+    });
   }
   for (const k of Object.keys(ev)) {
     ev[k] = ev[k].map((e, i) => [e, i]).sort((a, b) => a[0][0] - b[0][0] || a[1] - b[1]).map(([e]) => e);
   }
-  return { ev, length: Math.round(loops * STEPS * stepDur * sr) };
+  return { ev, length: Math.round(loops * total * stepDur * sr) };
 }
 
 /**
- * Render the pattern (plus the ringing tail, up to maxTail seconds) to stereo float buffers.
- * @param {{ pattern: any, params: {synth?:object, phys?:object, drums?:object}, scaleCents?: number[] | null,
+ * MIDI events of `loops` repetitions of one pattern (see timelineEvents).
+ * @param {import('./pattern.js').Pattern} pattern
+ */
+export function patternEvents(pattern, sr, loops = 1) {
+  return timelineEvents(patternTimeline(pattern), sr, loops);
+}
+
+/**
+ * Render the pattern or the song timeline (plus the ringing tail, up to maxTail seconds) to stereo float buffers.
+ * @param {{ pattern?: any, timeline?: import('./song.js').Timeline, params: {synth?:object, phys?:object, drums?:object}, scaleCents?: number[] | null,
  *   sampleRate?: number, loops?: number, maxTail?: number }} opts
  * @param {(fraction:number)=>void} [onProgress]
  * @returns {{ left: Float32Array, right: Float32Array, sampleRate: number, peak: number }}
  */
 export function renderPattern(opts, onProgress = () => {}) {
   const sr = opts.sampleRate ?? 48000;
-  const { ev, length } = patternEvents(opts.pattern, sr, opts.loops ?? 1);
+  const tl = opts.timeline ?? patternTimeline(opts.pattern);
+  const { ev, length } = timelineEvents(tl, sr, opts.loops ?? 1);
   const maxTail = Math.round((opts.maxTail ?? 6) * sr);
   // only the instruments that play something are run
   const active = Object.keys(CORES).filter((k) => ev[k].length > 0).map((k) => {
@@ -64,7 +82,7 @@ export function renderPattern(opts, onProgress = () => {}) {
     core.update(s, p);
     if (core.scale && opts.scaleCents) core.scale(s, opts.scaleCents, opts.scaleCents.length);
     // playing from beat 0 at the pattern tempo (arpeggiator / synced LFO), like the Sequencer
-    if (core.transport) core.transport(s, opts.pattern.bpm, 1, 0);
+    if (core.transport) core.transport(s, tl.bpm, 1, 0);
     return { core, s, events: ev[k], next: 0 };
   });
   const cap = length + maxTail;

@@ -1,5 +1,5 @@
-// Web Worker: renders the pattern offline and encodes it, off the UI thread.
-//   in:  { pattern, params, scaleCents, sampleRate, loops, format: 'wav' | 'mp3', normalize }
+// Web Worker: renders the pattern / song offline and encodes it, off the UI thread.
+//   in:  { timeline | pattern, params, scaleCents, sampleRate, loops, format: 'wav' | 'mp3', normalize }
 //   out: { type: 'progress', value } ... then { type: 'done', bytes, mime, peak, seconds } | { type: 'error', message }
 import { renderPattern } from './render.js';
 import { encodeMp3, encodeWav } from './audiofile.js';

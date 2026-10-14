@@ -18,7 +18,7 @@
 1. REAPER のメニューで **Options → Show REAPER resource path** を開きます。
 2. `Effects/AmiSynth/` フォルダを作り、上の 5 ファイルと `amisynth_meter.jsfx-inc` をすべてコピーします。
 3. トラックの FX に「JS: AmiSynth Synth」などを追加し、MIDI を入力します。
-   - Web 版のピアノロールにある「MIDI 書き出し」で作った `.mid` をそのまま使えます(メロディ ch1、ドラム ch10)。
+   - Web 版のピアノロールにある「MIDI 書き出し」で作った `.mid` をそのまま使えます(メロディ ch1、ドラム ch10。ソングモードでは曲全体)。
    - 1 トラック目のメロディは、Synth か Physical のトラックに置いてください。
 
 - **REAPER 6.74 以降が必要です。** Synth(85 本)と Drums(78 本)は、64 本を超えるスライダーを使います。
