@@ -6,7 +6,8 @@ import { clampParam, defaultValues, DRUM_PARAMS, PHYS_PARAMS, SYNTH_PARAMS } fro
 /** Parameter definitions per instrument. */
 export const DEFS = { synth: SYNTH_PARAMS, drums: DRUM_PARAMS, phys: PHYS_PARAMS };
 import { engine } from './engine.js';
-import { demoPattern } from './pattern.js';
+import { currentPattern, migrateSaved, sanitizeSong } from './song.js';
+import { UndoStack } from './history.js';
 import { resolvePreset } from './presets.js';
 import { PHYS_PRESETS } from '../presets/phys.js';
 
@@ -22,6 +23,8 @@ function load() {
 }
 
 const saved = load();
+/** there was saved work in this browser when the page loaded (share links ask before replacing it) */
+export const hadSavedState = saved !== null;
 
 function merged(defs, savedValues) {
   const v = defaultValues(defs);
@@ -52,7 +55,13 @@ export const app = $state({
   physViz: false,
   /** @type {{name:string, cents:number[]} | null} */
   scale: saved?.scale ?? null,
-  pattern: saved?.pattern ?? demoPattern(),
+  /** @type {import('./song.js').Song} patterns + arrangement (old saves: the single pattern becomes A) */
+  song: migrateSaved(saved),
+  /** 'pattern' = loop the pattern being edited, 'song' = play the arrangement */
+  playMode: saved?.playMode === 'song' ? 'song' : 'pattern',
+  /** undo / redo availability (for the buttons) */
+  canUndo: false,
+  canRedo: false,
   /** name of the last applied preset per instrument ('' = none) */
   presetName: {
     synth: saved?.presetName?.synth ?? 'Init',
@@ -63,6 +72,9 @@ export const app = $state({
   userPresets: { synth: saved?.userPresets?.synth ?? [], drums: saved?.userPresets?.drums ?? [], phys: saved?.userPresets?.phys ?? [] },
   playing: false,
   playStep: -1,
+  /** arrangement slot / pattern index currently audible (-1 = none) */
+  playSlot: -1,
+  playIndex: -1,
   baseNote: 48,
   bend: 0,
   modwheel: 0,
@@ -95,7 +107,7 @@ export function persist() {
   saveTimer = setTimeout(() => {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify({
-        tab: app.tab, synth: app.synth, drums: app.drums, phys: app.phys, melodic: app.melodic, scale: app.scale, pattern: app.pattern,
+        tab: app.tab, synth: app.synth, drums: app.drums, phys: app.phys, melodic: app.melodic, scale: app.scale, song: app.song, playMode: app.playMode,
         presetName: app.presetName, userPresets: app.userPresets, keyScale: app.keyScale,
         kb: { layout: app.kbLayout, iso: app.iso, velMode: app.kbVelMode, velFixed: app.kbVelFixed },
       }));
@@ -103,6 +115,65 @@ export function persist() {
       /* storage unavailable: ignore */
     }
   }, 300);
+}
+
+// ---- song editing with undo / redo ---------------------------------------------------------
+
+const history = new UndoStack(200);
+
+function syncHistory() {
+  app.canUndo = history.canUndo;
+  app.canRedo = history.canRedo;
+}
+
+/** The pattern shown in the piano roll. */
+export function editedPattern() {
+  return currentPattern(app.song);
+}
+
+/** One undoable song edit: `fn` changes app.song (patterns, notes, arrangement, bpm, ...). */
+export function editSong(fn) {
+  const before = JSON.stringify(app.song);
+  fn(app.song);
+  if (JSON.stringify(app.song) !== before) {
+    history.record(before);
+    syncHistory();
+  }
+  persist();
+}
+
+/** Replace the whole song (demo, MIDI import, share link) as one undoable step. */
+export function replaceSong(song) {
+  history.record(JSON.stringify(app.song));
+  app.song = sanitizeSong(song);
+  syncHistory();
+  persist();
+}
+
+/** Start of a drag / paint gesture in the piano roll (the gesture becomes one undo step). */
+export function beginSongGesture() {
+  history.begin(app.song);
+}
+
+/** End of a gesture. */
+export function commitSongGesture() {
+  history.commit(app.song);
+  syncHistory();
+  persist();
+}
+
+export function undo() {
+  const prev = history.undo(app.song);
+  if (prev) app.song = sanitizeSong(prev);
+  syncHistory();
+  persist();
+}
+
+export function redo() {
+  const next = history.redo(app.song);
+  if (next) app.song = sanitizeSong(next);
+  syncHistory();
+  persist();
 }
 
 /** @param {'synth'|'drums'|'phys'} target */
@@ -159,7 +230,7 @@ export function startAudio() {
       try {
         await engine.start();
         engine.setParams('synth', app.synth);
-        engine.transport(app.pattern.bpm, false);
+        engine.transport(app.song.bpm, false);
         engine.setParams('drums', app.drums);
         for (const d of SYNTH_PARAMS) if (d.id.startsWith('tuning_')) app.phys[d.id] = app.synth[d.id];
         engine.setParams('phys', app.phys);
