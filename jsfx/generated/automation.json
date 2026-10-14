@@ -14584,6 +14584,90 @@
           "slider": 80,
           "paramIndex": 79,
           "valueDomain": "real"
+        },
+        {
+          "id": "string_plectrum",
+          "name": "String Plectrum",
+          "group": "String",
+          "min": 0,
+          "max": 1,
+          "default": 0,
+          "step": 0.001,
+          "unit": "",
+          "description": "String only: blends a displaced-string release into the pluck and adds a short bachi contact pulse. 0 preserves the original excitation. Use Body Mix to hear the skin contact.",
+          "slider": 81,
+          "paramIndex": 80,
+          "valueDomain": "real"
+        },
+        {
+          "id": "string_plectrum_hardness",
+          "name": "Plectrum Hardness",
+          "group": "String",
+          "min": 0,
+          "max": 1,
+          "default": 0.7,
+          "step": 0.001,
+          "unit": "",
+          "description": "Shortens the bachi contact pulse; higher velocity also hardens the contact. Used with String Plectrum.",
+          "slider": 82,
+          "paramIndex": 81,
+          "valueDomain": "real"
+        },
+        {
+          "id": "string_body_mix",
+          "name": "String Body Mix",
+          "group": "String",
+          "min": 0,
+          "max": 1,
+          "default": 0,
+          "step": 0.001,
+          "unit": "",
+          "description": "String only: short skin/body resonances driven by both the bridge and bachi contact. Fixed approximate body frequencies, independent of the played pitch.",
+          "slider": 83,
+          "paramIndex": 82,
+          "valueDomain": "real"
+        },
+        {
+          "id": "string_sympathetic_mix",
+          "name": "Sympathetic Mix",
+          "group": "String",
+          "min": 0,
+          "max": 1,
+          "default": 0,
+          "step": 0.001,
+          "unit": "",
+          "description": "String only: shared bank of 24 tuned resonators excited by all played strings. Adds a stereo pitched after-ring, including after note release. 0 bypasses and clears the bank.",
+          "slider": 84,
+          "paramIndex": 83,
+          "valueDomain": "real"
+        },
+        {
+          "id": "string_sympathetic_decay_ms",
+          "name": "Sympathetic Decay",
+          "group": "String",
+          "min": 200,
+          "max": 10000,
+          "default": 3500,
+          "step": 1,
+          "unit": "ms",
+          "description": "Approximate T60 of the sympathetic resonators. Longer decay builds up more slowly; resonance gain is normalized.",
+          "slider": 85,
+          "paramIndex": 84,
+          "valueDomain": "real"
+        },
+        {
+          "id": "string_sympathetic_root",
+          "name": "Sympathetic Root",
+          "group": "String",
+          "min": 0,
+          "max": 104,
+          "default": 60,
+          "step": 1,
+          "unit": "note",
+          "description": "Lowest MIDI key of the 24 consecutive sympathetic scale degrees. Follows the instrument tuning, including custom/shared scales; does not follow pitch bend. Choose the range for the piece.",
+          "slider": 86,
+          "paramIndex": 85,
+          "valueDomain": "real"
         }
       ],
       "presets": [
@@ -14665,7 +14749,13 @@
             "rotary_mode": 0,
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
-            "string_sawari": 0
+            "string_sawari": 0,
+            "string_plectrum": 0,
+            "string_plectrum_hardness": 0.7,
+            "string_body_mix": 0,
+            "string_sympathetic_mix": 0,
+            "string_sympathetic_decay_ms": 3500,
+            "string_sympathetic_root": 60
           }
         },
         {
@@ -14746,7 +14836,13 @@
             "rotary_mode": 0,
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
-            "string_sawari": 0
+            "string_sawari": 0,
+            "string_plectrum": 0,
+            "string_plectrum_hardness": 0.7,
+            "string_body_mix": 0,
+            "string_sympathetic_mix": 0,
+            "string_sympathetic_decay_ms": 3500,
+            "string_sympathetic_root": 60
           }
         },
         {
@@ -14827,7 +14923,13 @@
             "rotary_mode": 0,
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
-            "string_sawari": 0
+            "string_sawari": 0,
+            "string_plectrum": 0,
+            "string_plectrum_hardness": 0.7,
+            "string_body_mix": 0,
+            "string_sympathetic_mix": 0,
+            "string_sympathetic_decay_ms": 3500,
+            "string_sympathetic_root": 60
           }
         },
         {
@@ -14908,13 +15010,19 @@
             "rotary_mode": 0,
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
-            "string_sawari": 0
+            "string_sawari": 0,
+            "string_plectrum": 0,
+            "string_plectrum_hardness": 0.7,
+            "string_body_mix": 0,
+            "string_sympathetic_mix": 0,
+            "string_sympathetic_decay_ms": 3500,
+            "string_sympathetic_root": 60
           }
         },
         {
           "name": "Sitar",
           "category": "String",
-          "description": "Jawari bridge (String Sawari): the string buzzes against the curved bridge, so the bright, nasal partials keep ringing.",
+          "description": "Jawari buzz with a shared bank of tuned sympathetic resonances; the pitched stereo after-ring follows the selected tuning. Adjust Sympathetic Root for the piece.",
           "params": {
             "phys_model": 0,
             "string_excitation": 0,
@@ -14958,9 +15066,9 @@
             "phys_velocity_amount": 0.8,
             "phys_stereo_width": 0.5,
             "phys_pitch_bend_range_cents": 200,
-            "phys_room_mix": 0.15,
+            "phys_room_mix": 0.08,
             "phys_room_decay_ms": 1300,
-            "phys_volume_db": -4.6,
+            "phys_volume_db": -3.4,
             "brass_pressure": 0.6,
             "brass_lip": 0.5,
             "brass_attack_ms": 30,
@@ -14989,13 +15097,19 @@
             "rotary_mode": 0,
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
-            "string_sawari": 0.65
+            "string_sawari": 0.65,
+            "string_plectrum": 0,
+            "string_plectrum_hardness": 0.7,
+            "string_body_mix": 0,
+            "string_sympathetic_mix": 0.7,
+            "string_sympathetic_decay_ms": 4200,
+            "string_sympathetic_root": 60
           }
         },
         {
           "name": "Shamisen",
           "category": "String",
-          "description": "Hard plectrum near the bridge with a light sawari buzz; short, percussive decay.",
+          "description": "Bachi-style displaced-string release and short skin/body contact resonances, with a light sawari buzz.",
           "params": {
             "phys_model": 0,
             "string_excitation": 0,
@@ -15041,7 +15155,7 @@
             "phys_pitch_bend_range_cents": 200,
             "phys_room_mix": 0,
             "phys_room_decay_ms": 1300,
-            "phys_volume_db": 1.8,
+            "phys_volume_db": 5,
             "brass_pressure": 0.6,
             "brass_lip": 0.5,
             "brass_attack_ms": 30,
@@ -15070,7 +15184,13 @@
             "rotary_mode": 0,
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
-            "string_sawari": 0.35
+            "string_sawari": 0.35,
+            "string_plectrum": 0.75,
+            "string_plectrum_hardness": 0.85,
+            "string_body_mix": 0.65,
+            "string_sympathetic_mix": 0,
+            "string_sympathetic_decay_ms": 3500,
+            "string_sympathetic_root": 60
           }
         },
         {
@@ -15151,7 +15271,13 @@
             "rotary_mode": 0,
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
-            "string_sawari": 0
+            "string_sawari": 0,
+            "string_plectrum": 0,
+            "string_plectrum_hardness": 0.7,
+            "string_body_mix": 0,
+            "string_sympathetic_mix": 0,
+            "string_sympathetic_decay_ms": 3500,
+            "string_sympathetic_root": 60
           }
         },
         {
@@ -15232,7 +15358,13 @@
             "rotary_mode": 0,
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
-            "string_sawari": 0
+            "string_sawari": 0,
+            "string_plectrum": 0,
+            "string_plectrum_hardness": 0.7,
+            "string_body_mix": 0,
+            "string_sympathetic_mix": 0,
+            "string_sympathetic_decay_ms": 3500,
+            "string_sympathetic_root": 60
           }
         },
         {
@@ -15313,7 +15445,13 @@
             "rotary_mode": 0,
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
-            "string_sawari": 0
+            "string_sawari": 0,
+            "string_plectrum": 0,
+            "string_plectrum_hardness": 0.7,
+            "string_body_mix": 0,
+            "string_sympathetic_mix": 0,
+            "string_sympathetic_decay_ms": 3500,
+            "string_sympathetic_root": 60
           }
         },
         {
@@ -15394,7 +15532,13 @@
             "rotary_mode": 0,
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
-            "string_sawari": 0
+            "string_sawari": 0,
+            "string_plectrum": 0,
+            "string_plectrum_hardness": 0.7,
+            "string_body_mix": 0,
+            "string_sympathetic_mix": 0,
+            "string_sympathetic_decay_ms": 3500,
+            "string_sympathetic_root": 60
           }
         },
         {
@@ -15475,7 +15619,13 @@
             "rotary_mode": 0,
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
-            "string_sawari": 0
+            "string_sawari": 0,
+            "string_plectrum": 0,
+            "string_plectrum_hardness": 0.7,
+            "string_body_mix": 0,
+            "string_sympathetic_mix": 0,
+            "string_sympathetic_decay_ms": 3500,
+            "string_sympathetic_root": 60
           }
         },
         {
@@ -15556,7 +15706,13 @@
             "rotary_mode": 0,
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
-            "string_sawari": 0
+            "string_sawari": 0,
+            "string_plectrum": 0,
+            "string_plectrum_hardness": 0.7,
+            "string_body_mix": 0,
+            "string_sympathetic_mix": 0,
+            "string_sympathetic_decay_ms": 3500,
+            "string_sympathetic_root": 60
           }
         },
         {
@@ -15637,7 +15793,13 @@
             "rotary_mode": 0,
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
-            "string_sawari": 0
+            "string_sawari": 0,
+            "string_plectrum": 0,
+            "string_plectrum_hardness": 0.7,
+            "string_body_mix": 0,
+            "string_sympathetic_mix": 0,
+            "string_sympathetic_decay_ms": 3500,
+            "string_sympathetic_root": 60
           }
         },
         {
@@ -15718,7 +15880,13 @@
             "rotary_mode": 0,
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
-            "string_sawari": 0
+            "string_sawari": 0,
+            "string_plectrum": 0,
+            "string_plectrum_hardness": 0.7,
+            "string_body_mix": 0,
+            "string_sympathetic_mix": 0,
+            "string_sympathetic_decay_ms": 3500,
+            "string_sympathetic_root": 60
           }
         },
         {
@@ -15799,7 +15967,13 @@
             "rotary_mode": 0,
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
-            "string_sawari": 0
+            "string_sawari": 0,
+            "string_plectrum": 0,
+            "string_plectrum_hardness": 0.7,
+            "string_body_mix": 0,
+            "string_sympathetic_mix": 0,
+            "string_sympathetic_decay_ms": 3500,
+            "string_sympathetic_root": 60
           }
         },
         {
@@ -15880,7 +16054,13 @@
             "rotary_mode": 0,
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
-            "string_sawari": 0
+            "string_sawari": 0,
+            "string_plectrum": 0,
+            "string_plectrum_hardness": 0.7,
+            "string_body_mix": 0,
+            "string_sympathetic_mix": 0,
+            "string_sympathetic_decay_ms": 3500,
+            "string_sympathetic_root": 60
           }
         },
         {
@@ -15961,7 +16141,13 @@
             "rotary_mode": 0,
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
-            "string_sawari": 0
+            "string_sawari": 0,
+            "string_plectrum": 0,
+            "string_plectrum_hardness": 0.7,
+            "string_body_mix": 0,
+            "string_sympathetic_mix": 0,
+            "string_sympathetic_decay_ms": 3500,
+            "string_sympathetic_root": 60
           }
         },
         {
@@ -16042,7 +16228,13 @@
             "rotary_mode": 0,
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
-            "string_sawari": 0
+            "string_sawari": 0,
+            "string_plectrum": 0,
+            "string_plectrum_hardness": 0.7,
+            "string_body_mix": 0,
+            "string_sympathetic_mix": 0,
+            "string_sympathetic_decay_ms": 3500,
+            "string_sympathetic_root": 60
           }
         },
         {
@@ -16123,7 +16315,13 @@
             "rotary_mode": 0,
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
-            "string_sawari": 0
+            "string_sawari": 0,
+            "string_plectrum": 0,
+            "string_plectrum_hardness": 0.7,
+            "string_body_mix": 0,
+            "string_sympathetic_mix": 0,
+            "string_sympathetic_decay_ms": 3500,
+            "string_sympathetic_root": 60
           }
         },
         {
@@ -16204,7 +16402,13 @@
             "rotary_mode": 0,
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
-            "string_sawari": 0
+            "string_sawari": 0,
+            "string_plectrum": 0,
+            "string_plectrum_hardness": 0.7,
+            "string_body_mix": 0,
+            "string_sympathetic_mix": 0,
+            "string_sympathetic_decay_ms": 3500,
+            "string_sympathetic_root": 60
           }
         },
         {
@@ -16285,7 +16489,13 @@
             "rotary_mode": 0,
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
-            "string_sawari": 0
+            "string_sawari": 0,
+            "string_plectrum": 0,
+            "string_plectrum_hardness": 0.7,
+            "string_body_mix": 0,
+            "string_sympathetic_mix": 0,
+            "string_sympathetic_decay_ms": 3500,
+            "string_sympathetic_root": 60
           }
         },
         {
@@ -16366,7 +16576,13 @@
             "rotary_mode": 0,
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
-            "string_sawari": 0
+            "string_sawari": 0,
+            "string_plectrum": 0,
+            "string_plectrum_hardness": 0.7,
+            "string_body_mix": 0,
+            "string_sympathetic_mix": 0,
+            "string_sympathetic_decay_ms": 3500,
+            "string_sympathetic_root": 60
           }
         },
         {
@@ -16447,7 +16663,13 @@
             "rotary_mode": 0,
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
-            "string_sawari": 0
+            "string_sawari": 0,
+            "string_plectrum": 0,
+            "string_plectrum_hardness": 0.7,
+            "string_body_mix": 0,
+            "string_sympathetic_mix": 0,
+            "string_sympathetic_decay_ms": 3500,
+            "string_sympathetic_root": 60
           }
         },
         {
@@ -16528,7 +16750,13 @@
             "rotary_mode": 0,
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
-            "string_sawari": 0
+            "string_sawari": 0,
+            "string_plectrum": 0,
+            "string_plectrum_hardness": 0.7,
+            "string_body_mix": 0,
+            "string_sympathetic_mix": 0,
+            "string_sympathetic_decay_ms": 3500,
+            "string_sympathetic_root": 60
           }
         },
         {
@@ -16609,7 +16837,13 @@
             "rotary_mode": 0,
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
-            "string_sawari": 0
+            "string_sawari": 0,
+            "string_plectrum": 0,
+            "string_plectrum_hardness": 0.7,
+            "string_body_mix": 0,
+            "string_sympathetic_mix": 0,
+            "string_sympathetic_decay_ms": 3500,
+            "string_sympathetic_root": 60
           }
         },
         {
@@ -16690,7 +16924,13 @@
             "rotary_mode": 0,
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
-            "string_sawari": 0
+            "string_sawari": 0,
+            "string_plectrum": 0,
+            "string_plectrum_hardness": 0.7,
+            "string_body_mix": 0,
+            "string_sympathetic_mix": 0,
+            "string_sympathetic_decay_ms": 3500,
+            "string_sympathetic_root": 60
           }
         },
         {
@@ -16771,7 +17011,13 @@
             "rotary_mode": 0,
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
-            "string_sawari": 0
+            "string_sawari": 0,
+            "string_plectrum": 0,
+            "string_plectrum_hardness": 0.7,
+            "string_body_mix": 0,
+            "string_sympathetic_mix": 0,
+            "string_sympathetic_decay_ms": 3500,
+            "string_sympathetic_root": 60
           }
         },
         {
@@ -16852,7 +17098,13 @@
             "rotary_mode": 0,
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
-            "string_sawari": 0
+            "string_sawari": 0,
+            "string_plectrum": 0,
+            "string_plectrum_hardness": 0.7,
+            "string_body_mix": 0,
+            "string_sympathetic_mix": 0,
+            "string_sympathetic_decay_ms": 3500,
+            "string_sympathetic_root": 60
           }
         },
         {
@@ -16933,7 +17185,13 @@
             "rotary_mode": 0,
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
-            "string_sawari": 0
+            "string_sawari": 0,
+            "string_plectrum": 0,
+            "string_plectrum_hardness": 0.7,
+            "string_body_mix": 0,
+            "string_sympathetic_mix": 0,
+            "string_sympathetic_decay_ms": 3500,
+            "string_sympathetic_root": 60
           }
         },
         {
@@ -17014,7 +17272,13 @@
             "rotary_mode": 0,
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
-            "string_sawari": 0
+            "string_sawari": 0,
+            "string_plectrum": 0,
+            "string_plectrum_hardness": 0.7,
+            "string_body_mix": 0,
+            "string_sympathetic_mix": 0,
+            "string_sympathetic_decay_ms": 3500,
+            "string_sympathetic_root": 60
           }
         },
         {
@@ -17095,7 +17359,13 @@
             "rotary_mode": 0,
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
-            "string_sawari": 0
+            "string_sawari": 0,
+            "string_plectrum": 0,
+            "string_plectrum_hardness": 0.7,
+            "string_body_mix": 0,
+            "string_sympathetic_mix": 0,
+            "string_sympathetic_decay_ms": 3500,
+            "string_sympathetic_root": 60
           }
         },
         {
@@ -17176,7 +17446,13 @@
             "rotary_mode": 0,
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
-            "string_sawari": 0
+            "string_sawari": 0,
+            "string_plectrum": 0,
+            "string_plectrum_hardness": 0.7,
+            "string_body_mix": 0,
+            "string_sympathetic_mix": 0,
+            "string_sympathetic_decay_ms": 3500,
+            "string_sympathetic_root": 60
           }
         },
         {
@@ -17257,7 +17533,13 @@
             "rotary_mode": 0,
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
-            "string_sawari": 0
+            "string_sawari": 0,
+            "string_plectrum": 0,
+            "string_plectrum_hardness": 0.7,
+            "string_body_mix": 0,
+            "string_sympathetic_mix": 0,
+            "string_sympathetic_decay_ms": 3500,
+            "string_sympathetic_root": 60
           }
         },
         {
@@ -17338,7 +17620,13 @@
             "rotary_mode": 0,
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
-            "string_sawari": 0
+            "string_sawari": 0,
+            "string_plectrum": 0,
+            "string_plectrum_hardness": 0.7,
+            "string_body_mix": 0,
+            "string_sympathetic_mix": 0,
+            "string_sympathetic_decay_ms": 3500,
+            "string_sympathetic_root": 60
           }
         },
         {
@@ -17419,7 +17707,13 @@
             "rotary_mode": 0,
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
-            "string_sawari": 0
+            "string_sawari": 0,
+            "string_plectrum": 0,
+            "string_plectrum_hardness": 0.7,
+            "string_body_mix": 0,
+            "string_sympathetic_mix": 0,
+            "string_sympathetic_decay_ms": 3500,
+            "string_sympathetic_root": 60
           }
         },
         {
@@ -17500,7 +17794,13 @@
             "rotary_mode": 0,
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
-            "string_sawari": 0
+            "string_sawari": 0,
+            "string_plectrum": 0,
+            "string_plectrum_hardness": 0.7,
+            "string_body_mix": 0,
+            "string_sympathetic_mix": 0,
+            "string_sympathetic_decay_ms": 3500,
+            "string_sympathetic_root": 60
           }
         },
         {
@@ -17581,7 +17881,13 @@
             "rotary_mode": 0,
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
-            "string_sawari": 0
+            "string_sawari": 0,
+            "string_plectrum": 0,
+            "string_plectrum_hardness": 0.7,
+            "string_body_mix": 0,
+            "string_sympathetic_mix": 0,
+            "string_sympathetic_decay_ms": 3500,
+            "string_sympathetic_root": 60
           }
         },
         {
@@ -17662,7 +17968,13 @@
             "rotary_mode": 0,
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
-            "string_sawari": 0
+            "string_sawari": 0,
+            "string_plectrum": 0,
+            "string_plectrum_hardness": 0.7,
+            "string_body_mix": 0,
+            "string_sympathetic_mix": 0,
+            "string_sympathetic_decay_ms": 3500,
+            "string_sympathetic_root": 60
           }
         },
         {
@@ -17743,7 +18055,13 @@
             "rotary_mode": 0,
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
-            "string_sawari": 0
+            "string_sawari": 0,
+            "string_plectrum": 0,
+            "string_plectrum_hardness": 0.7,
+            "string_body_mix": 0,
+            "string_sympathetic_mix": 0,
+            "string_sympathetic_decay_ms": 3500,
+            "string_sympathetic_root": 60
           }
         },
         {
@@ -17824,7 +18142,13 @@
             "rotary_mode": 0,
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
-            "string_sawari": 0
+            "string_sawari": 0,
+            "string_plectrum": 0,
+            "string_plectrum_hardness": 0.7,
+            "string_body_mix": 0,
+            "string_sympathetic_mix": 0,
+            "string_sympathetic_decay_ms": 3500,
+            "string_sympathetic_root": 60
           }
         },
         {
@@ -17905,7 +18229,13 @@
             "rotary_mode": 0,
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
-            "string_sawari": 0
+            "string_sawari": 0,
+            "string_plectrum": 0,
+            "string_plectrum_hardness": 0.7,
+            "string_body_mix": 0,
+            "string_sympathetic_mix": 0,
+            "string_sympathetic_decay_ms": 3500,
+            "string_sympathetic_root": 60
           }
         },
         {
@@ -17986,7 +18316,13 @@
             "rotary_mode": 0,
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
-            "string_sawari": 0
+            "string_sawari": 0,
+            "string_plectrum": 0,
+            "string_plectrum_hardness": 0.7,
+            "string_body_mix": 0,
+            "string_sympathetic_mix": 0,
+            "string_sympathetic_decay_ms": 3500,
+            "string_sympathetic_root": 60
           }
         },
         {
@@ -18067,7 +18403,13 @@
             "rotary_mode": 0,
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
-            "string_sawari": 0
+            "string_sawari": 0,
+            "string_plectrum": 0,
+            "string_plectrum_hardness": 0.7,
+            "string_body_mix": 0,
+            "string_sympathetic_mix": 0,
+            "string_sympathetic_decay_ms": 3500,
+            "string_sympathetic_root": 60
           }
         },
         {
@@ -18148,7 +18490,13 @@
             "rotary_mode": 0,
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
-            "string_sawari": 0
+            "string_sawari": 0,
+            "string_plectrum": 0,
+            "string_plectrum_hardness": 0.7,
+            "string_body_mix": 0,
+            "string_sympathetic_mix": 0,
+            "string_sympathetic_decay_ms": 3500,
+            "string_sympathetic_root": 60
           }
         },
         {
@@ -18229,7 +18577,13 @@
             "rotary_mode": 0,
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
-            "string_sawari": 0
+            "string_sawari": 0,
+            "string_plectrum": 0,
+            "string_plectrum_hardness": 0.7,
+            "string_body_mix": 0,
+            "string_sympathetic_mix": 0,
+            "string_sympathetic_decay_ms": 3500,
+            "string_sympathetic_root": 60
           }
         },
         {
@@ -18310,7 +18664,13 @@
             "rotary_mode": 0,
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
-            "string_sawari": 0
+            "string_sawari": 0,
+            "string_plectrum": 0,
+            "string_plectrum_hardness": 0.7,
+            "string_body_mix": 0,
+            "string_sympathetic_mix": 0,
+            "string_sympathetic_decay_ms": 3500,
+            "string_sympathetic_root": 60
           }
         },
         {
@@ -18391,7 +18751,13 @@
             "rotary_mode": 0,
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
-            "string_sawari": 0
+            "string_sawari": 0,
+            "string_plectrum": 0,
+            "string_plectrum_hardness": 0.7,
+            "string_body_mix": 0,
+            "string_sympathetic_mix": 0,
+            "string_sympathetic_decay_ms": 3500,
+            "string_sympathetic_root": 60
           }
         },
         {
@@ -18472,7 +18838,13 @@
             "rotary_mode": 0,
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
-            "string_sawari": 0
+            "string_sawari": 0,
+            "string_plectrum": 0,
+            "string_plectrum_hardness": 0.7,
+            "string_body_mix": 0,
+            "string_sympathetic_mix": 0,
+            "string_sympathetic_decay_ms": 3500,
+            "string_sympathetic_root": 60
           }
         },
         {
@@ -18553,7 +18925,13 @@
             "rotary_mode": 0,
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
-            "string_sawari": 0
+            "string_sawari": 0,
+            "string_plectrum": 0,
+            "string_plectrum_hardness": 0.7,
+            "string_body_mix": 0,
+            "string_sympathetic_mix": 0,
+            "string_sympathetic_decay_ms": 3500,
+            "string_sympathetic_root": 60
           }
         },
         {
@@ -18634,7 +19012,13 @@
             "rotary_mode": 0,
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
-            "string_sawari": 0
+            "string_sawari": 0,
+            "string_plectrum": 0,
+            "string_plectrum_hardness": 0.7,
+            "string_body_mix": 0,
+            "string_sympathetic_mix": 0,
+            "string_sympathetic_decay_ms": 3500,
+            "string_sympathetic_root": 60
           }
         },
         {
@@ -18715,7 +19099,13 @@
             "rotary_mode": 0,
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
-            "string_sawari": 0
+            "string_sawari": 0,
+            "string_plectrum": 0,
+            "string_plectrum_hardness": 0.7,
+            "string_body_mix": 0,
+            "string_sympathetic_mix": 0,
+            "string_sympathetic_decay_ms": 3500,
+            "string_sympathetic_root": 60
           }
         },
         {
@@ -18796,7 +19186,13 @@
             "rotary_mode": 0,
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
-            "string_sawari": 0
+            "string_sawari": 0,
+            "string_plectrum": 0,
+            "string_plectrum_hardness": 0.7,
+            "string_body_mix": 0,
+            "string_sympathetic_mix": 0,
+            "string_sympathetic_decay_ms": 3500,
+            "string_sympathetic_root": 60
           }
         },
         {
@@ -18877,7 +19273,13 @@
             "rotary_mode": 0,
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
-            "string_sawari": 0
+            "string_sawari": 0,
+            "string_plectrum": 0,
+            "string_plectrum_hardness": 0.7,
+            "string_body_mix": 0,
+            "string_sympathetic_mix": 0,
+            "string_sympathetic_decay_ms": 3500,
+            "string_sympathetic_root": 60
           }
         },
         {
@@ -18958,7 +19360,13 @@
             "rotary_mode": 0,
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
-            "string_sawari": 0
+            "string_sawari": 0,
+            "string_plectrum": 0,
+            "string_plectrum_hardness": 0.7,
+            "string_body_mix": 0,
+            "string_sympathetic_mix": 0,
+            "string_sympathetic_decay_ms": 3500,
+            "string_sympathetic_root": 60
           }
         },
         {
@@ -19039,7 +19447,13 @@
             "rotary_mode": 0,
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
-            "string_sawari": 0
+            "string_sawari": 0,
+            "string_plectrum": 0,
+            "string_plectrum_hardness": 0.7,
+            "string_body_mix": 0,
+            "string_sympathetic_mix": 0,
+            "string_sympathetic_decay_ms": 3500,
+            "string_sympathetic_root": 60
           }
         },
         {
@@ -19120,7 +19534,13 @@
             "rotary_mode": 0,
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
-            "string_sawari": 0
+            "string_sawari": 0,
+            "string_plectrum": 0,
+            "string_plectrum_hardness": 0.7,
+            "string_body_mix": 0,
+            "string_sympathetic_mix": 0,
+            "string_sympathetic_decay_ms": 3500,
+            "string_sympathetic_root": 60
           }
         },
         {
@@ -19201,7 +19621,13 @@
             "rotary_mode": 0,
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
-            "string_sawari": 0
+            "string_sawari": 0,
+            "string_plectrum": 0,
+            "string_plectrum_hardness": 0.7,
+            "string_body_mix": 0,
+            "string_sympathetic_mix": 0,
+            "string_sympathetic_decay_ms": 3500,
+            "string_sympathetic_root": 60
           }
         },
         {
@@ -19282,7 +19708,13 @@
             "rotary_mode": 0,
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
-            "string_sawari": 0
+            "string_sawari": 0,
+            "string_plectrum": 0,
+            "string_plectrum_hardness": 0.7,
+            "string_body_mix": 0,
+            "string_sympathetic_mix": 0,
+            "string_sympathetic_decay_ms": 3500,
+            "string_sympathetic_root": 60
           }
         },
         {
@@ -19363,7 +19795,13 @@
             "rotary_mode": 0,
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
-            "string_sawari": 0
+            "string_sawari": 0,
+            "string_plectrum": 0,
+            "string_plectrum_hardness": 0.7,
+            "string_body_mix": 0,
+            "string_sympathetic_mix": 0,
+            "string_sympathetic_decay_ms": 3500,
+            "string_sympathetic_root": 60
           }
         },
         {
@@ -19444,7 +19882,13 @@
             "rotary_mode": 0,
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
-            "string_sawari": 0
+            "string_sawari": 0,
+            "string_plectrum": 0,
+            "string_plectrum_hardness": 0.7,
+            "string_body_mix": 0,
+            "string_sympathetic_mix": 0,
+            "string_sympathetic_decay_ms": 3500,
+            "string_sympathetic_root": 60
           }
         },
         {
@@ -19525,7 +19969,13 @@
             "rotary_mode": 0,
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
-            "string_sawari": 0
+            "string_sawari": 0,
+            "string_plectrum": 0,
+            "string_plectrum_hardness": 0.7,
+            "string_body_mix": 0,
+            "string_sympathetic_mix": 0,
+            "string_sympathetic_decay_ms": 3500,
+            "string_sympathetic_root": 60
           }
         },
         {
@@ -19606,7 +20056,13 @@
             "rotary_mode": 0,
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
-            "string_sawari": 0
+            "string_sawari": 0,
+            "string_plectrum": 0,
+            "string_plectrum_hardness": 0.7,
+            "string_body_mix": 0,
+            "string_sympathetic_mix": 0,
+            "string_sympathetic_decay_ms": 3500,
+            "string_sympathetic_root": 60
           }
         },
         {
@@ -19687,7 +20143,13 @@
             "rotary_mode": 0,
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
-            "string_sawari": 0
+            "string_sawari": 0,
+            "string_plectrum": 0,
+            "string_plectrum_hardness": 0.7,
+            "string_body_mix": 0,
+            "string_sympathetic_mix": 0,
+            "string_sympathetic_decay_ms": 3500,
+            "string_sympathetic_root": 60
           }
         },
         {
@@ -19768,7 +20230,13 @@
             "rotary_mode": 0,
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
-            "string_sawari": 0
+            "string_sawari": 0,
+            "string_plectrum": 0,
+            "string_plectrum_hardness": 0.7,
+            "string_body_mix": 0,
+            "string_sympathetic_mix": 0,
+            "string_sympathetic_decay_ms": 3500,
+            "string_sympathetic_root": 60
           }
         },
         {
@@ -19849,7 +20317,13 @@
             "rotary_mode": 0,
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
-            "string_sawari": 0
+            "string_sawari": 0,
+            "string_plectrum": 0,
+            "string_plectrum_hardness": 0.7,
+            "string_body_mix": 0,
+            "string_sympathetic_mix": 0,
+            "string_sympathetic_decay_ms": 3500,
+            "string_sympathetic_root": 60
           }
         },
         {
@@ -19930,7 +20404,13 @@
             "rotary_mode": 0,
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
-            "string_sawari": 0
+            "string_sawari": 0,
+            "string_plectrum": 0,
+            "string_plectrum_hardness": 0.7,
+            "string_body_mix": 0,
+            "string_sympathetic_mix": 0,
+            "string_sympathetic_decay_ms": 3500,
+            "string_sympathetic_root": 60
           }
         },
         {
@@ -20011,7 +20491,13 @@
             "rotary_mode": 0,
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
-            "string_sawari": 0
+            "string_sawari": 0,
+            "string_plectrum": 0,
+            "string_plectrum_hardness": 0.7,
+            "string_body_mix": 0,
+            "string_sympathetic_mix": 0,
+            "string_sympathetic_decay_ms": 3500,
+            "string_sympathetic_root": 60
           }
         },
         {
@@ -20092,7 +20578,13 @@
             "rotary_mode": 0,
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
-            "string_sawari": 0
+            "string_sawari": 0,
+            "string_plectrum": 0,
+            "string_plectrum_hardness": 0.7,
+            "string_body_mix": 0,
+            "string_sympathetic_mix": 0,
+            "string_sympathetic_decay_ms": 3500,
+            "string_sympathetic_root": 60
           }
         },
         {
@@ -20173,7 +20665,13 @@
             "rotary_mode": 0,
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
-            "string_sawari": 0
+            "string_sawari": 0,
+            "string_plectrum": 0,
+            "string_plectrum_hardness": 0.7,
+            "string_body_mix": 0,
+            "string_sympathetic_mix": 0,
+            "string_sympathetic_decay_ms": 3500,
+            "string_sympathetic_root": 60
           }
         },
         {
@@ -20254,7 +20752,13 @@
             "rotary_mode": 0,
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
-            "string_sawari": 0
+            "string_sawari": 0,
+            "string_plectrum": 0,
+            "string_plectrum_hardness": 0.7,
+            "string_body_mix": 0,
+            "string_sympathetic_mix": 0,
+            "string_sympathetic_decay_ms": 3500,
+            "string_sympathetic_root": 60
           }
         },
         {
@@ -20335,7 +20839,13 @@
             "rotary_mode": 0,
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
-            "string_sawari": 0
+            "string_sawari": 0,
+            "string_plectrum": 0,
+            "string_plectrum_hardness": 0.7,
+            "string_body_mix": 0,
+            "string_sympathetic_mix": 0,
+            "string_sympathetic_decay_ms": 3500,
+            "string_sympathetic_root": 60
           }
         },
         {
@@ -20416,7 +20926,13 @@
             "rotary_mode": 0,
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
-            "string_sawari": 0
+            "string_sawari": 0,
+            "string_plectrum": 0,
+            "string_plectrum_hardness": 0.7,
+            "string_body_mix": 0,
+            "string_sympathetic_mix": 0,
+            "string_sympathetic_decay_ms": 3500,
+            "string_sympathetic_root": 60
           }
         },
         {
@@ -20497,7 +21013,13 @@
             "rotary_mode": 0,
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
-            "string_sawari": 0
+            "string_sawari": 0,
+            "string_plectrum": 0,
+            "string_plectrum_hardness": 0.7,
+            "string_body_mix": 0,
+            "string_sympathetic_mix": 0,
+            "string_sympathetic_decay_ms": 3500,
+            "string_sympathetic_root": 60
           }
         },
         {
@@ -20578,7 +21100,13 @@
             "rotary_mode": 0,
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
-            "string_sawari": 0
+            "string_sawari": 0,
+            "string_plectrum": 0,
+            "string_plectrum_hardness": 0.7,
+            "string_body_mix": 0,
+            "string_sympathetic_mix": 0,
+            "string_sympathetic_decay_ms": 3500,
+            "string_sympathetic_root": 60
           }
         },
         {
@@ -20659,7 +21187,13 @@
             "rotary_mode": 0,
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
-            "string_sawari": 0
+            "string_sawari": 0,
+            "string_plectrum": 0,
+            "string_plectrum_hardness": 0.7,
+            "string_body_mix": 0,
+            "string_sympathetic_mix": 0,
+            "string_sympathetic_decay_ms": 3500,
+            "string_sympathetic_root": 60
           }
         },
         {
@@ -20740,7 +21274,13 @@
             "rotary_mode": 0,
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
-            "string_sawari": 0
+            "string_sawari": 0,
+            "string_plectrum": 0,
+            "string_plectrum_hardness": 0.7,
+            "string_body_mix": 0,
+            "string_sympathetic_mix": 0,
+            "string_sympathetic_decay_ms": 3500,
+            "string_sympathetic_root": 60
           }
         },
         {
@@ -20821,7 +21361,13 @@
             "rotary_mode": 0,
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
-            "string_sawari": 0
+            "string_sawari": 0,
+            "string_plectrum": 0,
+            "string_plectrum_hardness": 0.7,
+            "string_body_mix": 0,
+            "string_sympathetic_mix": 0,
+            "string_sympathetic_decay_ms": 3500,
+            "string_sympathetic_root": 60
           }
         },
         {
@@ -20902,7 +21448,13 @@
             "rotary_mode": 0,
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
-            "string_sawari": 0
+            "string_sawari": 0,
+            "string_plectrum": 0,
+            "string_plectrum_hardness": 0.7,
+            "string_body_mix": 0,
+            "string_sympathetic_mix": 0,
+            "string_sympathetic_decay_ms": 3500,
+            "string_sympathetic_root": 60
           }
         },
         {
@@ -20983,7 +21535,13 @@
             "rotary_mode": 0,
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
-            "string_sawari": 0
+            "string_sawari": 0,
+            "string_plectrum": 0,
+            "string_plectrum_hardness": 0.7,
+            "string_body_mix": 0,
+            "string_sympathetic_mix": 0,
+            "string_sympathetic_decay_ms": 3500,
+            "string_sympathetic_root": 60
           }
         },
         {
@@ -21064,7 +21622,13 @@
             "rotary_mode": 0,
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
-            "string_sawari": 0
+            "string_sawari": 0,
+            "string_plectrum": 0,
+            "string_plectrum_hardness": 0.7,
+            "string_body_mix": 0,
+            "string_sympathetic_mix": 0,
+            "string_sympathetic_decay_ms": 3500,
+            "string_sympathetic_root": 60
           }
         },
         {
@@ -21145,7 +21709,13 @@
             "rotary_mode": 0,
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
-            "string_sawari": 0
+            "string_sawari": 0,
+            "string_plectrum": 0,
+            "string_plectrum_hardness": 0.7,
+            "string_body_mix": 0,
+            "string_sympathetic_mix": 0,
+            "string_sympathetic_decay_ms": 3500,
+            "string_sympathetic_root": 60
           }
         },
         {
@@ -21226,7 +21796,13 @@
             "rotary_mode": 0,
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
-            "string_sawari": 0
+            "string_sawari": 0,
+            "string_plectrum": 0,
+            "string_plectrum_hardness": 0.7,
+            "string_body_mix": 0,
+            "string_sympathetic_mix": 0,
+            "string_sympathetic_decay_ms": 3500,
+            "string_sympathetic_root": 60
           }
         },
         {
@@ -21307,7 +21883,13 @@
             "rotary_mode": 1,
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
-            "string_sawari": 0
+            "string_sawari": 0,
+            "string_plectrum": 0,
+            "string_plectrum_hardness": 0.7,
+            "string_body_mix": 0,
+            "string_sympathetic_mix": 0,
+            "string_sympathetic_decay_ms": 3500,
+            "string_sympathetic_root": 60
           }
         },
         {
@@ -21388,7 +21970,13 @@
             "rotary_mode": 1,
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
-            "string_sawari": 0
+            "string_sawari": 0,
+            "string_plectrum": 0,
+            "string_plectrum_hardness": 0.7,
+            "string_body_mix": 0,
+            "string_sympathetic_mix": 0,
+            "string_sympathetic_decay_ms": 3500,
+            "string_sympathetic_root": 60
           }
         },
         {
@@ -21469,7 +22057,13 @@
             "rotary_mode": 2,
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
-            "string_sawari": 0
+            "string_sawari": 0,
+            "string_plectrum": 0,
+            "string_plectrum_hardness": 0.7,
+            "string_body_mix": 0,
+            "string_sympathetic_mix": 0,
+            "string_sympathetic_decay_ms": 3500,
+            "string_sympathetic_root": 60
           }
         },
         {
@@ -21550,7 +22144,13 @@
             "rotary_mode": 2,
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
-            "string_sawari": 0
+            "string_sawari": 0,
+            "string_plectrum": 0,
+            "string_plectrum_hardness": 0.7,
+            "string_body_mix": 0,
+            "string_sympathetic_mix": 0,
+            "string_sympathetic_decay_ms": 3500,
+            "string_sympathetic_root": 60
           }
         },
         {
@@ -21631,7 +22231,13 @@
             "rotary_mode": 1,
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
-            "string_sawari": 0
+            "string_sawari": 0,
+            "string_plectrum": 0,
+            "string_plectrum_hardness": 0.7,
+            "string_body_mix": 0,
+            "string_sympathetic_mix": 0,
+            "string_sympathetic_decay_ms": 3500,
+            "string_sympathetic_root": 60
           }
         },
         {
@@ -21712,7 +22318,13 @@
             "rotary_mode": 0,
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
-            "string_sawari": 0
+            "string_sawari": 0,
+            "string_plectrum": 0,
+            "string_plectrum_hardness": 0.7,
+            "string_body_mix": 0,
+            "string_sympathetic_mix": 0,
+            "string_sympathetic_decay_ms": 3500,
+            "string_sympathetic_root": 60
           }
         },
         {
@@ -21793,7 +22405,13 @@
             "rotary_mode": 0,
             "rotary_mix": 1,
             "free_reed_detune_cents": 12,
-            "string_sawari": 0
+            "string_sawari": 0,
+            "string_plectrum": 0,
+            "string_plectrum_hardness": 0.7,
+            "string_body_mix": 0,
+            "string_sympathetic_mix": 0,
+            "string_sympathetic_decay_ms": 3500,
+            "string_sympathetic_root": 60
           }
         },
         {
@@ -21874,7 +22492,13 @@
             "rotary_mode": 0,
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
-            "string_sawari": 0
+            "string_sawari": 0,
+            "string_plectrum": 0,
+            "string_plectrum_hardness": 0.7,
+            "string_body_mix": 0,
+            "string_sympathetic_mix": 0,
+            "string_sympathetic_decay_ms": 3500,
+            "string_sympathetic_root": 60
           }
         },
         {
@@ -21955,7 +22579,13 @@
             "rotary_mode": 0,
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
-            "string_sawari": 0
+            "string_sawari": 0,
+            "string_plectrum": 0,
+            "string_plectrum_hardness": 0.7,
+            "string_body_mix": 0,
+            "string_sympathetic_mix": 0,
+            "string_sympathetic_decay_ms": 3500,
+            "string_sympathetic_root": 60
           }
         },
         {
@@ -22036,7 +22666,13 @@
             "rotary_mode": 0,
             "rotary_mix": 1,
             "free_reed_detune_cents": 4,
-            "string_sawari": 0
+            "string_sawari": 0,
+            "string_plectrum": 0,
+            "string_plectrum_hardness": 0.7,
+            "string_body_mix": 0,
+            "string_sympathetic_mix": 0,
+            "string_sympathetic_decay_ms": 3500,
+            "string_sympathetic_root": 60
           }
         }
       ],

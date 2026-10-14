@@ -1,10 +1,50 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { defaultValues, PHYS_PARAMS, SYNTH_PARAMS } from '../src/dsp/params.js';
-import { phys_init, phys_note_on, phys_render, phys_update } from '../src/dsp/phys.js';
+import { phys_init, phys_note_on, phys_note_off, phys_render, phys_update, phys_set_scale } from '../src/dsp/phys.js';
 import { synth_init, synth_note_on, synth_note_off, synth_render, synth_update } from '../src/dsp/synth.js';
 
 const SR = 48000;
+function string(overrides = {}) {
+  const s = {}; phys_init(s, SR);
+  phys_update(s, { ...defaultValues(PHYS_PARAMS), phys_model: 0, phys_room_mix: 0, phys_stereo_width: 0, ...overrides });
+  return s;
+}
+test('sympathetic strings: driven stereo after-ring survives released voices and clears on bypass', () => {
+  const s = string({ string_sympathetic_mix: 1, string_sympathetic_decay_ms: 4000, phys_release_ms: 10 });
+  assert.equal(s.sympathetic.every(o => o.y1 === 0), true);
+  phys_note_on(s, 60, 100); samples(s, phys_render, 0.8);
+  assert.ok(s.sympathetic.some(o => Math.abs(o.y1) > 0.001));
+  phys_note_off(s, 60); samples(s, phys_render, 0.7);
+  assert.equal(s.voices.some(v => v.active), false);
+  assert.ok(rms(samples(s, phys_render, 0.1)) > 1e-5, 'shared resonance rings without voices');
+  assert.ok(Math.abs(s.out_l - s.out_r) > 1e-7, 'single note has stereo resonance');
+  phys_update(s, { ...s.p, string_sympathetic_mix: 0 });
+  assert.ok(s.sympathetic.every(o => o.y1 === 0 && o.y2 === 0));
+});
+test('sympathetic strings: custom scale retunes the fixed bank; unrelated slider edits preserve its tail', () => {
+  const s = string({ string_sympathetic_mix: 1 });
+  const old = s.sympathetic[1].a1;
+  phys_set_scale(s, [240, 480, 720, 960, 1200], 5);
+  assert.notEqual(s.sympathetic[1].a1, old);
+  phys_note_on(s, 60, 100); samples(s, phys_render, 0.1);
+  const tail = s.sympathetic[0].y1;
+  phys_update(s, { ...s.p, phys_volume_db: -10 });
+  assert.equal(s.sympathetic[0].y1, tail);
+});
+test('bachi: hard contact is shorter, body transient retriggers, extreme registers remain finite', () => {
+  for (const note of [0, 40, 76, 127]) {
+    const s = string({ string_plectrum: 1, string_body_mix: 1, string_plectrum_hardness: 1 });
+    phys_note_on(s, note, 127);
+    const v = s.voices[s.last_voice], hard = v.bachi_len;
+    samples(s, phys_render, 0.1);
+    assert.equal(v.bachi_t, hard);
+    phys_note_on(s, note, 40);
+    assert.equal(v.bachi_t, 0);
+    assert.ok(v.bachi_len > hard);
+    samples(s, phys_render, 0.1);
+  }
+});
 const rms = (a) => Math.sqrt(a.reduce((sum, v) => sum + v * v, 0) / a.length);
 function samples(s, render, seconds) {
   const out = new Float64Array(Math.round(seconds * SR));
