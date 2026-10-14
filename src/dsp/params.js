@@ -18,9 +18,14 @@
 //   options     enum labels (value = index)
 //   description one-line explanation (for docs / LLM tools)
 
+import { WT_BANK_NAMES } from './wavetable.js';
+
 /** @typedef {{id:string,name:string,group:string,min:number,max:number,default:number,step:number,unit:string,scale?:'log',options?:string[],description:string}} ParamDef */
 
-const WAVES = ['Saw', 'Pulse', 'Triangle', 'Sine'];
+// 'Wavetable' was appended later, so saved values 0..3 keep their meaning.
+const WAVES = ['Saw', 'Pulse', 'Triangle', 'Sine', 'Wavetable'];
+/** Wavetable banks (value = index; the tables are generated in src/dsp/wavetable.js). */
+const WT_BANKS = WT_BANK_NAMES;
 
 /** Note values for the tempo-synced LFO, in beats (quarter notes). Index 0 = free running. */
 export const LFO_SYNC_BEATS = [0, 16, 8, 4, 2, 3, 4 / 3, 1, 1.5, 2 / 3, 0.5, 0.75, 1 / 3, 0.25, 0.375, 1 / 6, 0.125];
@@ -65,14 +70,14 @@ const TUNING_SLOT = /** @type {ParamDef} */ ({
 export const SYNTH_PARAMS = /** @type {ParamDef[]} */ ([
   ...TUNING_PARAMS,
 
-  { id: 'osc1_waveform', name: 'Osc1 Waveform', group: 'Oscillators', min: 0, max: 3, default: 0, step: 1, unit: '', options: WAVES,
-    description: 'Waveform of oscillator 1.' },
+  { id: 'osc1_waveform', name: 'Osc1 Waveform', group: 'Oscillators', min: 0, max: 4, default: 0, step: 1, unit: '', options: WAVES,
+    description: 'Waveform of oscillator 1. Wavetable plays the bank chosen in Osc1 Wavetable at Osc1 WT Position.' },
   { id: 'osc1_pulse_width', name: 'Osc1 Pulse Width', group: 'Oscillators', min: 0.05, max: 0.95, default: 0.5, step: 0.001, unit: '',
     description: 'Duty cycle of oscillator 1 when its waveform is Pulse (0.5 = square).' },
   { id: 'osc1_level', name: 'Osc1 Level', group: 'Oscillators', min: 0, max: 1, default: 0.8, step: 0.001, unit: '',
     description: 'Mix level of oscillator 1.' },
-  { id: 'osc2_waveform', name: 'Osc2 Waveform', group: 'Oscillators', min: 0, max: 3, default: 1, step: 1, unit: '', options: WAVES,
-    description: 'Waveform of oscillator 2.' },
+  { id: 'osc2_waveform', name: 'Osc2 Waveform', group: 'Oscillators', min: 0, max: 4, default: 1, step: 1, unit: '', options: WAVES,
+    description: 'Waveform of oscillator 2. Wavetable plays the bank chosen in Osc2 Wavetable at Osc2 WT Position.' },
   { id: 'osc2_pulse_width', name: 'Osc2 Pulse Width', group: 'Oscillators', min: 0.05, max: 0.95, default: 0.5, step: 0.001, unit: '',
     description: 'Duty cycle of oscillator 2 when its waveform is Pulse (0.5 = square).' },
   { id: 'osc2_level', name: 'Osc2 Level', group: 'Oscillators', min: 0, max: 1, default: 0.5, step: 0.001, unit: '',
@@ -211,6 +216,22 @@ export const SYNTH_PARAMS = /** @type {ParamDef[]} */ ([
     description: 'How far the cutoff CC moves the cutoff: CC 0 = this many octaves down, CC 127 = up.' },
   TUNING_SOURCE,
   TUNING_SLOT,
+
+  // ---- wavetable (Osc Waveform = Wavetable); appended so existing slider numbers stay
+  { id: 'osc1_wt_bank', name: 'Osc1 Wavetable', group: 'Wavetable', min: 0, max: WT_BANKS.length - 1, default: 0, step: 1, unit: '', options: WT_BANKS,
+    description: 'Wavetable bank of oscillator 1 (used while Osc1 Waveform is Wavetable). Basic Shapes: sine -> triangle -> saw -> square. PWM Sweep: pulse 50 % -> 5 %. Vocal Formants: vowels a-e-i-o-u. Harmonic Sweep: a band of harmonics rising 5 octaves. Digital: 8-bit XOR waveforms. Band-limited, generated in the synth (no samples).' },
+  { id: 'osc1_wt_position', name: 'Osc1 WT Position', group: 'Wavetable', min: 0, max: 1, default: 0, step: 0.001, unit: '',
+    description: 'Position in the oscillator 1 wavetable (0 = first frame, 1 = last; frames are crossfaded in between).' },
+  { id: 'osc2_wt_bank', name: 'Osc2 Wavetable', group: 'Wavetable', min: 0, max: WT_BANKS.length - 1, default: 0, step: 1, unit: '', options: WT_BANKS,
+    description: 'Wavetable bank of oscillator 2 (used while Osc2 Waveform is Wavetable). Same banks as Osc1 Wavetable.' },
+  { id: 'osc2_wt_position', name: 'Osc2 WT Position', group: 'Wavetable', min: 0, max: 1, default: 0, step: 0.001, unit: '',
+    description: 'Position in the oscillator 2 wavetable (0 = first frame, 1 = last).' },
+  { id: 'wt_position_lfo', name: 'WT Position LFO', group: 'Wavetable', min: -1, max: 1, default: 0, step: 0.001, unit: '',
+    description: 'How far the global LFO moves the wavetable position of both oscillators (+/- this amount at the LFO peaks; the result is limited to 0..1).' },
+  { id: 'wt_position_filter_env', name: 'WT Position Filter Env', group: 'Wavetable', min: -1, max: 1, default: 0, step: 0.001, unit: '',
+    description: 'How far the filter envelope moves the wavetable position of both oscillators (negative = moves it down).' },
+  { id: 'wt_position_amp_env', name: 'WT Position Amp Env', group: 'Wavetable', min: -1, max: 1, default: 0, step: 0.001, unit: '',
+    description: 'How far the amp envelope moves the wavetable position of both oscillators (negative = moves it down).' },
 ]);
 
 // ---------------------------------------------------------------------------

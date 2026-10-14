@@ -11,6 +11,8 @@
 // Signal flow per voice:
 //   [osc1 + osc2] x unison (detuned, panned) + sub + noise -> drive -> SVF (12/24 dB, LP/HP/BP/notch) -> amp env
 //   osc2 can hard-sync to osc1 and phase-modulate osc1 (FM). The filter envelope can bend osc2 pitch.
+//   Either oscillator can be a wavetable (waveform 4, src/dsp/wavetable.js); its position is moved
+//   per voice by the LFO and the filter / amp envelopes.
 //
 // Voices are matched by "key" (the incoming MIDI note, or the arpeggiator's output note) and sound
 // at "pitch" (key + transpose), so changing the transpose while notes sound never leaves one hanging.
@@ -23,6 +25,7 @@ import {
   tuning_set_edo, tuning_set_table,
 } from './lib.js';
 import { ARP_RATE_BEATS, LFO_SYNC_BEATS } from './params.js';
+import { wt_build, wt_process, WT_BANKS } from './wavetable.js';
 
 export const MAX_VOICES = 8;
 export const MAX_UNISON = 9;
@@ -175,6 +178,13 @@ export function synth_update(s, p) {
   s.cc_mult = Math.pow(2, clamp((s.cc_cutoff_value - 64) / 63, -1, 1) * p.cc_cutoff_depth_oct);
   s.mono = p.voice_mode >= 0.5 ? 1 : 0;
   s.legato = p.voice_mode >= 1.5 ? 1 : 0;
+  // wavetable oscillators: build the selected banks (once; the tables do not depend on the sample rate)
+  s.wt1 = p.osc1_waveform >= 3.5 ? 1 : 0;
+  s.wt2 = p.osc2_waveform >= 3.5 ? 1 : 0;
+  s.wt_bank1 = clamp(Math.round(p.osc1_wt_bank), 0, WT_BANKS - 1);
+  s.wt_bank2 = clamp(Math.round(p.osc2_wt_bank), 0, WT_BANKS - 1);
+  if (s.wt1) wt_build(s.wt_bank1);
+  if (s.wt2) wt_build(s.wt_bank2);
 
   // Unison: copies spread over +/- detune/2 (evenly, or bunched toward the centre by the curve),
   // panned evenly across the stereo width. The centre copy (two for an even count) is at full level.
@@ -648,6 +658,9 @@ export function synth_render(s) {
   const un = s.unison_n;
   const stereo = s.stereo;
   const drive = p.filter_drive > 0;
+  const wt1 = s.wt1;
+  const wt2 = s.wt2;
+  const wt_lfo = lfo * p.wt_position_lfo;
 
   let mix_l = 0;
   let mix_r = 0;
@@ -662,7 +675,15 @@ export function synth_render(s) {
       if (Math.abs(v.glide_oct) < 0.0001) v.glide_oct = 0;
     }
     const fenv = adsr_process(v.filt_env);
+    const aenv = adsr_process(v.amp_env);
     const r2 = osc2_env !== 0 ? Math.pow(2, (osc2_cents + fenv * osc2_env) / 1200) : osc2_ratio;
+    let pos1 = 0;
+    let pos2 = 0;
+    if (wt1 || wt2) {
+      const pmod = wt_lfo + fenv * p.wt_position_filter_env + aenv * p.wt_position_amp_env;
+      pos1 = clamp(p.osc1_wt_position + pmod, 0, 1);
+      pos2 = clamp(p.osc2_wt_position + pmod, 0, 1);
+    }
 
     // ---- oscillators (x unison)
     let xl = 0;
@@ -674,9 +695,9 @@ export function synth_render(s) {
       osc_set_freq(o1, f, sr);
       osc_set_freq(o2, f * r2, sr);
       // FM uses osc2's previous sample so that sync (osc1 -> osc2) and FM (osc2 -> osc1) can coexist
-      const y1 = osc_process(o1, w1, pw1, fm * v.prev2[u]);
+      const y1 = wt1 ? wt_process(o1, s.wt_bank1, pos1, fm * v.prev2[u]) : osc_process(o1, w1, pw1, fm * v.prev2[u]);
       if (sync && o1.wrapped) osc_sync_to(o2, o1);
-      const y2 = osc_process(o2, w2, pw2, 0);
+      const y2 = wt2 ? wt_process(o2, s.wt_bank2, pos2, 0) : osc_process(o2, w2, pw2, 0);
       v.prev2[u] = y2;
       const y = (y1 * l1 + y2 * l2) * s.unison_w[u];
       if (stereo) {
@@ -741,8 +762,7 @@ export function synth_render(s) {
       }
     }
 
-    // ---- amp
-    const aenv = adsr_process(v.amp_env);
+    // ---- amp (aenv was advanced above, before the oscillators, so it can move the wavetable position)
     const g = aenv * (1 - p.amp_velocity_amount + p.amp_velocity_amount * v.velocity);
     mix_l += yl * g;
     mix_r += (stereo ? yr : yl) * g;

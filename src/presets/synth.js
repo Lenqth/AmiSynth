@@ -368,4 +368,56 @@ export const SYNTH_PRESETS = [
       arp_gate: 0.5, arp_swing_percent: 60, arp_steps: 5, arp_step_3: 0,
     },
   },
+  {
+    name: 'Vowel Choir Pad', category: 'Pad',
+    description: 'Two vocal-formant wavetables drifting through the vowels with a slow LFO; wide unison. Hold chords.',
+    params: {
+      master_volume_db: -5, osc1_waveform: 4, osc1_wt_bank: 2, osc1_wt_position: 0.2, osc2_waveform: 4,
+      osc2_wt_bank: 2, osc2_wt_position: 0.45, osc2_level: 0.6, osc2_detune_cents: 8, unison_voices: 3,
+      unison_detune_cents: 14, unison_stereo_width: 0.9, filter_cutoff_hz: 3500, filter_resonance: 0.1,
+      filter_env_amount_oct: 0, amp_attack_ms: 400, amp_sustain: 0.9, amp_release_ms: 1200,
+      lfo_rate_hz: 0.25, wt_position_lfo: 0.35,
+    },
+  },
+  {
+    name: 'Morphing Wave Lead', category: 'Lead',
+    description: 'Basic Shapes wavetable: each note starts square-ish and settles toward a soft triangle with the filter envelope. Legato glide.',
+    params: {
+      master_volume_db: -5.8, osc1_waveform: 4, osc1_wt_position: 0.2, osc2_waveform: 4,
+      osc2_wt_position: 0.5, osc2_level: 0.3, osc2_detune_cents: 5, wt_position_filter_env: 0.75,
+      filter_cutoff_hz: 4000, filter_resonance: 0.15, filter_env_amount_oct: 1, filter_env_decay_ms: 700,
+      filter_env_sustain: 0.25, amp_attack_ms: 4, amp_sustain: 0.85, amp_release_ms: 180,
+      voice_mode: 2, glide_ms: 60, glide_mode: 1, modwheel_vibrato_cents: 40,
+    },
+  },
+  {
+    name: 'Harmonic Scan Pluck', category: 'Keys',
+    description: 'Harmonic Sweep wavetable driven by the amp envelope: the band of harmonics falls as the note decays. Notes or small chords.',
+    params: {
+      master_volume_db: 4.6, osc1_waveform: 4, osc1_wt_bank: 3, osc2_level: 0,
+      wt_position_amp_env: 0.9, filter_cutoff_hz: 12000, filter_resonance: 0, filter_env_amount_oct: 0,
+      amp_attack_ms: 1, amp_decay_ms: 900, amp_sustain: 0, amp_release_ms: 300, amp_velocity_amount: 0.8,
+    },
+  },
+  {
+    name: 'Digital Growl Bass', category: 'Bass',
+    description: 'Digital (8-bit XOR) wavetable scanned by an 1/8-note synced LFO over a sub; mono. Play single low notes.',
+    params: {
+      master_volume_db: -6.5, osc1_waveform: 4, osc1_wt_bank: 4, osc1_wt_position: 0.35, osc2_level: 0,
+      sub_osc_level: 0.45, wt_position_lfo: 0.3, lfo_waveform: 1, lfo_sync: 10, filter_cutoff_hz: 1600,
+      filter_resonance: 0.25, filter_env_amount_oct: 1.5, filter_env_decay_ms: 200, filter_env_sustain: 0.2,
+      filter_drive: 0.3, amp_attack_ms: 2, amp_sustain: 0.9, amp_release_ms: 80, voice_mode: 1,
+    },
+  },
+  {
+    name: 'PWM Sweep Strings', category: 'Pad',
+    description: 'PWM Sweep wavetable on both oscillators at two pulse widths, swept together by a slow LFO: an ensemble-like string pad.',
+    params: {
+      master_volume_db: -9.3, osc1_waveform: 4, osc1_wt_bank: 1, osc1_wt_position: 0.3, osc2_waveform: 4,
+      osc2_wt_bank: 1, osc2_wt_position: 0.6, osc2_level: 0.7, osc2_detune_cents: -9, unison_voices: 2,
+      unison_detune_cents: 12, unison_stereo_width: 1, wt_position_lfo: 0.25, lfo_rate_hz: 0.4,
+      filter_cutoff_hz: 2600, filter_resonance: 0.1, filter_env_amount_oct: 0.5, filter_env_attack_ms: 600,
+      filter_env_decay_ms: 1500, filter_env_sustain: 0.5, amp_attack_ms: 300, amp_sustain: 0.9, amp_release_ms: 900,
+    },
+  },
 ];
