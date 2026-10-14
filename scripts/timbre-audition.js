@@ -31,6 +31,7 @@ const specs = [
   ['Sitar', 'phys', 'string'], ['Shamisen', 'phys', 'string'],
   ['Accordion', 'phys', 'reed'], ['Bandoneon', 'phys', 'reed'],
   ['Harmonica', 'phys', 'reed'], ['Reed Organ', 'phys', 'reed'],
+  ['Rain', 'synth', 'continuous-fx'],
   ['Helicopter', 'synth', 'continuous-fx'], ['Applause', 'synth', 'continuous-fx'],
   ['Gunshot', 'synth', 'shot'],
 ];
@@ -130,7 +131,7 @@ writeFileSync(join(OUT, 'manifest.json'), JSON.stringify(manifest, null, 2));
 const f = (x) => x.toFixed(2);
 let report = `# 音色改善の比較音源\n\n基準HEAD: ${revision}（レンダー時の作業ツリーを使用）。beforeは指定された旧チェックアウト、afterはこのスクリプトのあるチェックアウトです。音色の自然さについての聴感評価は未実施です。\n\nlisten.htmlをブラウザーで開いてください。A/Bは同じ再生位置へ切り替わります。通常は音量を揃えて音色を比較し、元音量でプリセットの実際のレベル差も確認してください。\n\n48 kHz / stereo / 16-bit PCM。同一イベント、同じ乱数初期値。全体への一定ゲインで ${f(manifest.matchedTargetLufs)} LUFSへ調整（16-bit化後のゲート差で小差はあり得ます）。強弱・減衰は圧縮していません。sample peak -1 dBFS以下、true peak未測定。短い効果音のLUFS一致は知覚上の音量一致を保証しません。\n\n| 音色 / 版 | 元LUFS | 元sample peak dBFS | 比較ゲインdB |\n|---|---:|---:|---:|\n`;
 for (const r of manifest.items) report += `| ${r.name} / ${r.version} | ${f(r.originalLufs)} | ${f(r.originalPeakDb)} | ${f(r.appliedGainDb)} |\n`;
-report += '\nMIDIにProgram Changeは含めていません。REAPERでは音色を明示的に選択してください。各JSONはWebのプリセット読み込み用です。弦の試奏は最初の比較セットと同じ43秒です。フリーリードは低音から高音、低音の強弱、フレーズを含む22秒。Helicopter/Applauseは2つのキーを保持する12秒。Gunshotは保持・連打・別のキーを含む12秒。\n\n音色・版・秒数と、気になる症状を記録して次の調整に使ってください。音源はJavaScript DSPでレンダーしています。FXは録音サンプルではなく合成による近似です。\n';
+report += '\nMIDIにProgram Changeは含めていません。REAPERでは音色を明示的に選択してください。各JSONはWebのプリセット読み込み用です。弦の試奏は最初の比較セットと同じ43秒です。フリーリードは低音から高音、低音の強弱、フレーズを含む22秒。Rain/Helicopter/Applauseは2つのキーを保持する12秒。Gunshotは保持・連打・別のキーを含む12秒。\n\n音色・版・秒数と、気になる症状を記録して次の調整に使ってください。音源はJavaScript DSPでレンダーしています。FXは録音サンプルではなく合成による近似です。\n';
 writeFileSync(join(OUT, 'README.md'), report);
 writeFileSync(join(OUT, 'listen.html'), `<!doctype html><html lang="ja"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>AmiSynth 音色改善の比較</title>
 <style>body{font:16px system-ui,sans-serif;background:#111922;color:#e4edf5;max-width:900px;margin:32px auto;padding:0 20px}h1{font-size:26px}.panel{background:#1b2836;border:1px solid #3a4e62;border-radius:14px;padding:22px;margin:20px 0}button,select,textarea{font:inherit;background:#111c28;color:inherit;border:1px solid #5f7c92;border-radius:8px;padding:10px;margin:4px}button{cursor:pointer}button.active{border-color:#89dfb4;background:#244a3e}audio,textarea{width:100%;box-sizing:border-box}textarea{min-height:110px;margin:4px 0}a{color:#a1e3c4}.muted{color:#aec1d2;font-size:14px;line-height:1.8}#sections button{font-size:13px}</style>

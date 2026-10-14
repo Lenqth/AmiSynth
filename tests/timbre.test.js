@@ -64,7 +64,7 @@ test('FX noise: shot stops while held, fires again on note-on, and all sources r
   assert.ok(rms(hit.subarray(SR / 2)) < 0.0001, 'held key does not prolong the crack');
   synth_note_on(shot, 60, 100);
   assert.ok(rms(samples(shot, synth_render, .1)) > 0.01, 'same-key retrigger fires again');
-  for (const type of [4, 5, 6]) for (const speed of [-4, 4]) {
+  for (const type of [4, 5, 6, 7]) for (const speed of [-4, 4]) {
     const s = fx(type, { noise_clock_oct: speed, amp_release_ms: 60 });
     synth_note_on(s, 28, 100); samples(s, synth_render, .25);
     synth_note_off(s, 28); samples(s, synth_render, 1);
@@ -73,7 +73,7 @@ test('FX noise: shot stops while held, fires again on note-on, and all sources r
 });
 
 test('FX noise sources do not change character with MIDI pitch when key tracking is off', () => {
-  for (const type of [4, 5, 6]) {
+  for (const type of [4, 5, 6, 7]) {
     const low = fx(type); synth_note_on(low, 28, 100); const a = samples(low, synth_render, .5);
     const high = fx(type); synth_note_on(high, 96, 100); const b = samples(high, synth_render, .5);
     assert.deepEqual(a, b, `noise type ${type}`);
@@ -87,4 +87,17 @@ test('FX noise: unmuting Noise Level does not fire a shot from an old note', () 
   assert.ok(rms(samples(s, synth_render, .2)) < .0001);
   synth_note_on(s, 60, 100);
   assert.ok(rms(samples(s, synth_render, .1)) > .01, 'only a new note fires again');
+});
+
+test('Rain: continuous wash with irregular short impacts, and Noise Clock controls their density', () => {
+  const s = fx(7); synth_note_on(s, 60, 100);
+  const rain = samples(s, synth_render, 3), levels = [];
+  for (let i = SR; i < rain.length; i += SR / 100) levels.push(rms(rain.subarray(i, i + SR / 100)));
+  assert.ok(Math.min(...levels) > .01, 'rain wash remains between drops');
+  assert.ok(Math.max(...levels) > Math.min(...levels) * 1.3, 'drops add varying local impacts');
+  // Density must alter the signal, rather than shifting MIDI pitch or imposing a periodic LFO.
+  const light = fx(7, { noise_clock_oct: -2 }); synth_note_on(light, 60, 100);
+  const dense = fx(7, { noise_clock_oct: 2 }); synth_note_on(dense, 60, 100);
+  const a = samples(light, synth_render, 2), b = samples(dense, synth_render, 2);
+  assert.ok(rms(b.subarray(SR)) > rms(a.subarray(SR)) * 1.1, 'more overlapping drops at higher density');
 });

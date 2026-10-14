@@ -91,7 +91,8 @@ function voice_create() {
     // chip / S&H noise: shift register, clock phase, current output; noise-only filter
     nz_reg: 1, nz_phase: 0, nz_out: 0, nz_filt: {},
     // procedural sound FX noise: independent clap timers and a private random stream
-    sfx: { time: 0, phase: 0, lp1: 0, lp2: 0, env: 0, rnd: 901, claps: new Float64Array(12) },
+    sfx: { time: 0, phase: 0, lp1: 0, lp2: 0, env: 0, rnd: 901,
+      claps: new Float64Array(12), drops: new Float64Array(24) },
   };
   for (let u = 0; u < MAX_UNISON; u++) {
     v.osc1.push({});
@@ -147,6 +148,11 @@ function sound_fx_reset(s, v) {
   for (let i = 0; i < 6; i++) {
     f.claps[2 * i] = (0.005 + 0.047 * i) * s.sr / s.sfx_rate;
     f.claps[2 * i + 1] = 0;
+    // droplet timer / envelope / phase / frequency; no random calls until a drop hits
+    f.drops[4 * i] = (0.001 + 0.011 * i) * s.sr / s.sfx_rate;
+    f.drops[4 * i + 1] = 0;
+    f.drops[4 * i + 2] = 0;
+    f.drops[4 * i + 3] = 0;
   }
 }
 
@@ -184,6 +190,26 @@ function sound_fx_noise(s, f) {
     }
     f.env += s.sfx_clap_attack * (env - f.env);
     return 2 * (f.lp1 - f.lp2) * f.env;
+  }
+  if (s.noise_type === 7) {
+    let drops = 0;
+    for (let i = 0; i < 6; i++) {
+      const o = 4 * i;
+      f.drops[o]--;
+      if (f.drops[o] <= 0) {
+        f.drops[o] = (0.015 + 0.16 * sound_fx_random(f)) * s.sr / s.sfx_rate;
+        const strength = sound_fx_random(f);
+        f.drops[o + 1] = 0.15 + 0.85 * strength * strength;
+        f.drops[o + 2] = 0;
+        f.drops[o + 3] = (1200 + 3300 * sound_fx_random(f)) / s.sr;
+      }
+      f.drops[o + 1] *= s.sfx_drop_decay;
+      f.drops[o + 2] += f.drops[o + 3];
+      if (f.drops[o + 2] >= 1) f.drops[o + 2] -= 1;
+      // Very short surface impacts, not sustained bells; the wash is always present.
+      drops += (0.6 * Math.sin(TWO_PI * f.drops[o + 2]) + 0.4 * nz) * f.drops[o + 1];
+    }
+    return 0.45 * (f.lp1 - f.lp2) + 0.35 * drops;
   }
   const t = f.time;
   f.time += s.sfx_rate / s.sr;
@@ -351,13 +377,14 @@ export function synth_update(s, p) {
   s.drive_makeup = 1 / (1 + 1.5 * p.filter_drive);
   s.fm_cycles = p.fm_index / TWO_PI;
   s.transpose = Math.round(p.transpose_semitones);
-  s.noise_type = clamp(Math.round(p.noise_type), 0, 6);
+  s.noise_type = clamp(Math.round(p.noise_type), 0, 7);
   s.noise_clock = (NOISE_CLOCK[s.noise_type] ?? 0) * Math.pow(2, p.noise_clock_oct);
   s.sfx_rate = Math.pow(2, p.noise_clock_oct);
-  s.sfx_a1 = 1 - Math.exp(-TWO_PI * (s.noise_type === 4 ? 400 : s.noise_type === 5 ? 6000 : 700) / s.sr);
+  s.sfx_a1 = 1 - Math.exp(-TWO_PI * (s.noise_type === 4 ? 400 : s.noise_type === 5 ? 6000 : s.noise_type === 7 ? 8000 : 700) / s.sr);
   s.sfx_a2 = 1 - Math.exp(-TWO_PI * (s.noise_type === 4 ? 2800 : 400) / s.sr);
   s.sfx_clap_decay = Math.exp(-1 / (0.018 * s.sr));
   s.sfx_clap_attack = 1 - Math.exp(-1 / (0.0015 * s.sr));
+  s.sfx_drop_decay = Math.exp(-1 / (0.006 * s.sr));
   s.noise_filter = clamp(Math.round(p.noise_filter_mode), 0, 3);
   s.cc_cutoff_num = Math.round(p.cc_cutoff_number);
   s.cc_mult = Math.pow(2, clamp((s.cc_cutoff_value - 64) / 63, -1, 1) * p.cc_cutoff_depth_oct);

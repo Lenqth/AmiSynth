@@ -87,7 +87,7 @@ slider74:arp_step_13=1<0,1,1{Off,On}>Arp Step 13
 slider75:arp_step_14=1<0,1,1{Off,On}>Arp Step 14
 slider76:arp_step_15=1<0,1,1{Off,On}>Arp Step 15
 slider77:arp_step_16=1<0,1,1{Off,On}>Arp Step 16
-slider78:noise_type=0<0,6,1{White,Chip Long (LFSR),Chip Short (metallic),Sample & Hold,Rotor,Crowd Claps,Shot}>Noise Type
+slider78:noise_type=0<0,7,1{White,Chip Long (LFSR),Chip Short (metallic),Sample & Hold,Rotor,Crowd Claps,Shot,Rain}>Noise Type
 slider79:noise_clock_oct=0<-4,4,0.01>Noise Clock [oct]
 slider80:noise_filter_mode=0<0,3,1{Off,Low-pass,High-pass,Band-pass}>Noise Filter
 slider81:noise_filter_hz=4000<20,20000,1>Noise Filter Cutoff [Hz]
@@ -211,6 +211,7 @@ cc_mult = 1;
 noise_clock_tab = mem_alloc(4);
 noise_clock_tab[0] = 0; noise_clock_tab[1] = 32; noise_clock_tab[2] = 93; noise_clock_tab[3] = 8;
 sfx_claps = mem_alloc(MAX_VOICES * 12); // six independent timer / envelope pairs per voice
+sfx_drops = mem_alloc(MAX_VOICES * 24); // droplet timer / envelope / phase / frequency
 // host transport: beats (quarter notes), advanced every sample, resynced in @block while playing
 beat = 0;
 beat_inc = 120 / 60 / srate;
@@ -598,20 +599,25 @@ function sound_fx_random() instance(rnd) (
   rnd / 2147483647;
 );
 
-function sound_fx_reset(vid, vel) instance(time phase lp1 lp2 env rnd claps) local(i) (
+function sound_fx_reset(vid, vel) instance(time phase lp1 lp2 env rnd claps drops) local(i) (
   time = 0; phase = 0; lp1 = 0; lp2 = 0; env = 0;
   rnd = 901 + (v_age[vid] % 997) * 37 + floor(vel * 127 + 0.5) * 17;
   claps = sfx_claps + vid * 12;
+  drops = sfx_drops + vid * 24;
   i = 0;
   loop(6,
     claps[2 * i] = (0.005 + 0.047 * i) * srate / sfx_rate;
     claps[2 * i + 1] = 0;
+    drops[4 * i] = (0.001 + 0.011 * i) * srate / sfx_rate;
+    drops[4 * i + 1] = 0;
+    drops[4 * i + 2] = 0;
+    drops[4 * i + 3] = 0;
     i += 1;
   );
 );
 
-function sound_fx_noise() instance(time phase lp1 lp2 env rnd claps)
-  local(nz, ph, blade, y, sumenv, i, o, t, thump) (
+function sound_fx_noise() instance(time phase lp1 lp2 env rnd claps drops)
+  local(nz, ph, blade, y, sumenv, i, o, t, thump, strength, dropsum) (
   nz = noise_white();
   lp1 += sfx_a1 * (nz - lp1);
   lp2 += sfx_a2 * (nz - lp2);
@@ -637,6 +643,25 @@ function sound_fx_noise() instance(time phase lp1 lp2 env rnd claps)
     );
     env += sfx_clap_attack * (sumenv - env);
     y = 2 * (lp1 - lp2) * env;
+  ) : noise_type_i === 7 ? (
+    dropsum = 0; i = 0;
+    loop(6,
+      o = 4 * i;
+      drops[o] -= 1;
+      drops[o] <= 0 ? (
+        drops[o] = (0.015 + 0.16 * this.sound_fx_random()) * srate / sfx_rate;
+        strength = this.sound_fx_random();
+        drops[o + 1] = 0.15 + 0.85 * strength * strength;
+        drops[o + 2] = 0;
+        drops[o + 3] = (1200 + 3300 * this.sound_fx_random()) / srate;
+      );
+      drops[o + 1] *= sfx_drop_decay;
+      drops[o + 2] += drops[o + 3];
+      drops[o + 2] >= 1 ? drops[o + 2] -= 1;
+      dropsum += (0.6 * sin(2 * $pi * drops[o + 2]) + 0.4 * nz) * drops[o + 1];
+      i += 1;
+    );
+    y = 0.45 * (lp1 - lp2) + 0.35 * dropsum;
   ) : (
     t = time;
     time += sfx_rate / srate;
@@ -653,6 +678,7 @@ function voice_op(op, a, b, c, d) instance(idx velocity base_hz glide_oct rnd po
   op === 0 ? (
     idx = a;
     this.sfx.claps = sfx_claps + idx * 12;
+    this.sfx.drops = sfx_drops + idx * 24;
   ) : op === 1 ? (
     spread = unison_n > 1;
     // same random call order as the JS code: per copy osc1 (if spread) then osc2
@@ -1222,13 +1248,14 @@ wt_bank1_i = clamp(floor(osc1_wt_bank + 0.5), 0, WT_BANKS - 1);
 wt_bank2_i = clamp(floor(osc2_wt_bank + 0.5), 0, WT_BANKS - 1);
 wt_osc1 ? wt_build(wt_bank1_i);
 wt_osc2 ? wt_build(wt_bank2_i);
-noise_type_i = clamp(floor(noise_type + 0.5), 0, 6);
+noise_type_i = clamp(floor(noise_type + 0.5), 0, 7);
 noise_clock = noise_type_i < 4 ? noise_clock_tab[noise_type_i] * pow(2, noise_clock_oct) : 0;
 sfx_rate = pow(2, noise_clock_oct);
-sfx_a1 = 1 - exp(-2 * $pi * (noise_type_i === 4 ? 400 : noise_type_i === 5 ? 6000 : 700) / srate);
+sfx_a1 = 1 - exp(-2 * $pi * (noise_type_i === 4 ? 400 : noise_type_i === 5 ? 6000 : noise_type_i === 7 ? 8000 : 700) / srate);
 sfx_a2 = 1 - exp(-2 * $pi * (noise_type_i === 4 ? 2800 : 400) / srate);
 sfx_clap_decay = exp(-1 / (0.018 * srate));
 sfx_clap_attack = 1 - exp(-1 / (0.0015 * srate));
+sfx_drop_decay = exp(-1 / (0.006 * srate));
 noise_filter_i = clamp(floor(noise_filter_mode + 0.5), 0, 3);
 cc_cutoff_num = floor(cc_cutoff_number + 0.5);
 cc_mult = pow(2, clamp((cc_cutoff_value - 64) / 63, -1, 1) * cc_cutoff_depth_oct);

@@ -696,12 +696,12 @@ export const SYNTH_PRESETS = [
   },
   {
     name: 'Rain', category: 'FX',
-    description: 'Random droplets: band-passed noise whose brightness and level jump with a fast sample & hold LFO.',
+    description: 'Rainfall: a steady rain wash with irregular short surface droplets of different strengths and resonances. Hold a note; Noise Clock changes droplet density.',
     params: {
-      master_volume_db: 2.7, osc1_level: 0, osc2_level: 0, noise_level: 0.8, filter_mode: 2, filter_cutoff_hz: 2500,
-      filter_resonance: 0.5, filter_env_amount_oct: 0, filter_key_tracking: 0, lfo_waveform: 4, lfo_rate_hz: 16,
-      lfo_filter_oct: 1.8, lfo_amp: 0.7, amp_attack_ms: 300, amp_sustain: 1, amp_release_ms: 800,
-      fx_reverb_on: 1, fx_reverb_mix: 0.35, fx_reverb_decay_ms: 2000,
+      master_volume_db: 1.3, osc1_level: 0, osc2_level: 0, noise_level: 1, noise_type: 7, filter_slope: 0, filter_cutoff_hz: 9000,
+      filter_resonance: 0, filter_env_amount_oct: 0, filter_key_tracking: 0,
+      amp_attack_ms: 400, amp_sustain: 1, amp_release_ms: 800,
+      fx_reverb_on: 1, fx_reverb_mix: 0.08, fx_reverb_decay_ms: 650, fx_reverb_size: 0.3,
     },
   },
   {

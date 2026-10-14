@@ -182,7 +182,7 @@ test('JSFX rotary speaker follows the mod wheel like JS', { skip: !HAVE && 'jsfx
 test('JSFX procedural sound FX and low free reeds match JS, including retriggers and rate settings', { skip: !HAVE && 'jsfx_render not built' }, () => {
   const ev = [[0, 0x90, 28, 100], [3000, 0x90, 64, 80], [8000, 0x90, 28, 110],
     [14000, 0x80, 28, 0], [16000, 0x80, 64, 0], [21000, 0x90, 96, 100]];
-  for (const type of [4, 5, 6]) for (const rate of [-1, 0, 1]) {
+  for (const type of [4, 5, 6, 7]) for (const rate of [-1, 0, 1]) {
     const params = scenario('synth', { noise_type: type, noise_level: 1, noise_clock_oct: rate,
       osc1_level: 0, osc2_level: 0, filter_env_amount_oct: 0, filter_key_tracking: 0, filter_cutoff_hz: 8000 });
     check('synth', params, ev, .7, `sound FX ${type} rate ${rate}`);
