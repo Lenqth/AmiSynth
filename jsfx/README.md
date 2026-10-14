@@ -13,6 +13,8 @@
 
 ## インストール
 
+音源と補助スクリプトを一緒に配置する場合は、[ReaScript / MCPガイド](reaper/README.md) の `npm run install:reaper` を使えます。REAPERのリソースパスを明示して実行し、まず `--dry-run` で確認してください。既存の同名AmiSynthファイルは更新されます。Actionsへの登録は配置後に行います。
+
 1. REAPER のメニューで **Options → Show REAPER resource path** を開きます。
 2. `Effects/AmiSynth/` フォルダを作り、上の 5 ファイルと `amisynth_meter.jsfx-inc` をすべてコピーします。
 3. トラックの FX に「JS: AmiSynth Synth」などを追加し、MIDI を入力します。
@@ -26,7 +28,11 @@
 
 ### プリセット・簡易操作: AmiSynth Companion
 
+入口は [AmiSynth Companion.lua](reaper/AmiSynth%20Companion.lua)、ドラムの配線作成は [AmiSynth Drums - Create routed tracks.lua](reaper/AmiSynth%20Drums%20-%20Create%20routed%20tracks.lua) です。MCP向けの配置・呼び出し例と各スクリプトの区別は [ガイド](reaper/README.md) を参照してください。
+
 `reaper/` と `generated/` を同じ親フォルダに置き、Actions → New action → Load ReaScript で `reaper/AmiSynth Companion.lua` を登録します。AmiSynth の入ったトラックを選択して実行すると、次を操作できます。SWS / ReaImGui は不要です。
+
+MCPの `script_list` に見つけてもらうには、`Scripts/AmiSynth/reaper/` と `Scripts/AmiSynth/generated/` に配置します。一覧には `@description`／`@about` の説明が表示されます。最初に読み取り専用の `AmiSynth - MCP guide.lua` を実行すると案内文が返ります。CompanionはGUI、toolkit.luaはライブラリなので、直接のプリセット変更には説明付きラッパーを使ってください。
 
 - **Choose preset**: 用途別の内蔵カタログ(Bass / Lead / Pad など)とユーザープリセット。
 - **Save preset**: 現在の音色を REAPER の永続 ExtState に保存。同じ名前なら上書きします。内蔵プリセットと同名は使えません。調律は含めず、音色変更時も現在の調律を維持します。

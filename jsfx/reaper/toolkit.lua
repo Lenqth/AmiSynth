@@ -1,3 +1,5 @@
+-- @description AmiSynth toolkit: Lua function library for presets/macros/real-unit parameter writes; dofile dependency, not an executable action.
+-- @about Direct script_run only returns a Lua module and makes no project change or MCP result. Use local ami=dofile(path); ami.bind(track, zero_based_fx, synth|phys|drums|tuning) validates track, FX name, slider names/ranges. ami.preset(binding,name), ami.macro(binding,name,amount_0_to_1), ami.apply(binding,id_to_real_value), ami.read(binding), ami.save(binding,name) are available; writes verify readback, rollback on failure and support Undo. Preserve ../generated/catalog.lua; never treat Hz/ms/dB as normalized 0-1. Use a dedicated wrapper to choose the target and publish reaper_mcp_script_result/last_result.
 -- Shared by the UI and callable from a ReaScript/MCP Lua runner.
 -- All writes use real units and verify the host's layout/range and readback.
 local dir = debug.getinfo(1, 'S').source:sub(2):match('^(.*[/\\])')

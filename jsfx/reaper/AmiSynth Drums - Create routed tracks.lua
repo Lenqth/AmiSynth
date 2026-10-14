@@ -1,3 +1,5 @@
+-- @description AmiSynth Drums: create 5 tracks (one 10-channel instrument + four stereo audio buses); modifies the active project.
+-- @about Requires Effects/AmiSynth/AmiSynth Drums.jsfx, sibling toolkit.lua and ../generated/catalog.lua; no track selection needed. Adds MIDI instrument plus Kick/Snare/Hats/Perc buses, maps outputs 3-10 to bus channels 1/2, disables duplicate main output and MIDI sends. Success selects the new source; existing routing is preserved. Undo available; failure removes newly created tracks and shows a dialog. No MCP completion result is published: script_run result_found=false does not establish failure or success; verify the new tracks/routing. Save the 5 tracks as a template for reuse.
 -- Creates a fresh instrument + four audio buses. Existing tracks are untouched.
 -- Save these five tracks as a REAPER track template for subsequent sessions.
 local dir = debug.getinfo(1, 'S').source:sub(2):match('^(.*[/\\])')
