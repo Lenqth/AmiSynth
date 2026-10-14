@@ -155,6 +155,8 @@ function voice_create() {
     ap_a: 0, n_ap: N_AP, apA: [], apB: [], tuneA: {}, tuneB: {}, tune_a: 0, tune_a2: 0, tune_d: 1, tune_d2: 1,
     exc: new Float64Array(EXC_MAX), hp: new Float64Array(PIANO_HP),
     gl: 1, gr: 1,
+    // aftertouch: this key's polyphonic aftertouch, and max(channel pressure, it) (0..1)
+    poly_at: 0, press: 0,
   };
   delay_init(v.line, MAX_DELAY);
   delay_init(v.line2, MAX_DELAY);
@@ -197,6 +199,10 @@ export function phys_init(s, sr) {
   s.level_coef = t60_coef(300, sr);
   s.last_voice = -1;
   s.vib_phase = 0;
+  s.pressure = 0; // channel pressure 0..1
+  s.press_exc = 0;
+  s.press_vib = 0;
+  s.press_bright = 0;
   s.mesh_mask = new Float64Array(MESH_CELLS);
   s.mesh_spans = new Int32Array(2 * MESH_MAX);
   s.mesh_rows = 0;
@@ -225,6 +231,9 @@ export function phys_update(s, p) {
   s.gain = db_to_gain(p.phys_volume_db);
   s.damp_b = 0.05 + 0.9 * p.string_damping; // one-pole coefficient in the loop
   s.vib_inc = p.phys_vibrato_rate_hz / s.sr;
+  s.press_exc = p.phys_pressure_excitation || 0;
+  s.press_vib = p.phys_pressure_vibrato_cents || 0;
+  s.press_bright = p.phys_pressure_brightness || 0;
   s.flut_a = 1 - Math.exp((-TWO_PI * 5) / s.sr);
   room_update(s, p.phys_room_decay_ms);
   amp_update(s, p);
@@ -450,9 +459,25 @@ function soundboard_process(s, x) {
   s.sb_r = r;
 }
 
-/** mouth pressure: the knob, scaled by the velocity over up to 20 dB (Velocity Amount) */
-function brass_pressure(p, vel_raw) {
-  return clamp((0.2 + 0.8 * p.brass_pressure) * Math.pow(10, p.phys_velocity_amount * (vel_raw - 1)), 0.05, 1);
+/**
+ * mouth pressure: the knob (plus aftertouch x Pressure to Breath / Bow), scaled by the velocity
+ * over up to 20 dB (Velocity Amount)
+ */
+function brass_pressure(s, p, v) {
+  const knob = clamp(p.brass_pressure + s.press_exc * v.press, 0, 1);
+  return clamp((0.2 + 0.8 * knob) * Math.pow(10, p.phys_velocity_amount * (v.vel_raw - 1)), 0.05, 1);
+}
+
+/** bow friction slope from Bow Pressure (plus aftertouch) */
+function bow_slope(s, p, v) {
+  return 5 - 4 * clamp(p.bow_pressure + s.press_exc * v.press, 0, 1);
+}
+
+/** wind: breath pressure (plus aftertouch) -> reed pressure / jet strength (needs v.slope / v.jet_boost) */
+function wind_maxv(s, p, v) {
+  const bp = clamp(p.breath_pressure + s.press_exc * v.press, 0, 1);
+  if (p.wind_type < 0.5) return (0.2 + 0.06 * bp) / -v.slope;
+  return (0.6 + 0.4 * bp) * v.jet_boost;
 }
 
 /** drive multiple 1.1 .. 3 from Lip Buzz and the (velocity scaled) pressure, half each */
@@ -521,7 +546,7 @@ function voice_tune(s, v, keep_decay) {
     }
   } else if (model === MODEL_BOWED) {
     // loop = bow->nut line + bow->bridge line + bridge low-pass
-    const b = 0.1 + 0.75 * (1 - p.bowed_brightness);
+    const b = 0.1 + 0.75 * (1 - clamp(p.bowed_brightness + s.press_bright * v.press, 0, 1));
     v.damp_b = b;
     const total = sr / hz - lp_phase_delay(b, hz, sr);
     v.delay_len = clamp(total * p.bow_position, 2, MAX_DELAY - 2); // bridge side
@@ -529,7 +554,7 @@ function voice_tune(s, v, keep_decay) {
   } else if (model === MODEL_BRASS) {
     // drive: a multiple of what this note needs to speak, set by Lip Buzz and the pressure
     // (which also follows the velocity)
-    const press = brass_pressure(p, v.vel_raw);
+    const press = brass_pressure(s, p, v);
     const note = 69 + (12 * Math.log(hz / 440)) / Math.LN2;
     const mult = brass_mult(p, press);
     const drive = brass_min_drive(note) * mult;
@@ -548,7 +573,7 @@ function voice_tune(s, v, keep_decay) {
     // high frequencies leave through the bell instead of reflecting back down the bore
     v.refl_b = Math.exp((-TWO_PI * Math.max(1500, 5 * f)) / sr);
     v.rad_k = 1 / (2 * Math.sin(w / 2));
-    v.bell_b = Math.exp((-TWO_PI * (1500 + 6000 * p.brass_bell)) / sr);
+    v.bell_b = Math.exp((-TWO_PI * (1500 + 6000 * clamp(p.brass_bell + s.press_bright * v.press, 0, 1))) / sr);
   } else if (model === MODEL_WIND) {
     if (p.wind_type < 0.5) {
       // clarinet: inverting reflection at the bell -> period = 2 x (bore + reflection low-pass).
@@ -649,6 +674,8 @@ export function phys_note_on(s, note, velocity) {
   v.age = ++s.age_counter;
   v.frames = 0;
   v.level = 1;
+  v.poly_at = 0;
+  v.press = s.pressure;
   pan_gains(v, clamp(((note - 60) / 36) * p.phys_stereo_width, -1, 1));
   s.last_voice = idx;
   voice_tune(s, v, false);
@@ -704,7 +731,7 @@ export function phys_note_on(s, note, velocity) {
     adsr_set(v.env, p.bow_attack_ms, 1, 1, p.phys_release_ms, sr);
     adsr_gate_on(v.env);
     v.maxv = (0.03 + 0.25 * p.bow_speed) * v.vel;
-    v.slope = 5 - 4 * p.bow_pressure;
+    v.slope = bow_slope(s, p, v);
     svf_set(v.body1, 290, 0.6, sr);
     svf_set(v.body2, 1150, 0.9, sr);
   } else if (model === MODEL_BRASS) {
@@ -755,11 +782,9 @@ export function phys_note_on(s, note, velocity) {
     if (p.wind_type < 0.5) {
       // reed stiffness (slope) x pressure must stay around 0.2 .. 0.26
       v.slope = -(0.2 + 0.25 * p.wind_embouchure);
-      v.maxv = (0.2 + 0.06 * p.breath_pressure) / -v.slope;
-    } else {
-      // jet strength: below ~0.5 the jet is too weak to keep the pipe going
-      v.maxv = (0.6 + 0.4 * p.breath_pressure) * v.jet_boost;
     }
+    // (flute) jet strength: below ~0.5 the jet is too weak to keep the pipe going
+    v.maxv = wind_maxv(s, p, v);
   } else if (model === MODEL_MESH) {
     const n = s.mesh_n;
     const m = s.mesh_mask;
@@ -956,6 +981,48 @@ export function phys_all_notes_off(s) {
 export function phys_pitch_bend(s, value) {
   s.bend_ratio = Math.pow(2, (clamp(value, -1, 1) * s.p.phys_pitch_bend_range_cents) / 1200);
   for (let i = 0; i < PHYS_MAX_VOICES; i++) if (s.voices[i].active) voice_tune(s, s.voices[i], true);
+}
+
+/**
+ * Aftertouch changed for a sounding voice: the continuously blown / bowed models follow it
+ * (Pressure to Breath / Bow and Pressure to Brightness); vibrato depth follows in phys_render.
+ */
+function voice_pressure(s, v) {
+  v.press = Math.max(s.pressure, v.poly_at);
+  if (s.press_exc <= 0 && s.press_bright <= 0) return;
+  const p = s.p;
+  const model = Math.floor(p.phys_model + 0.5);
+  if (model === MODEL_BOWED) {
+    v.slope = bow_slope(s, p, v);
+    if (s.press_bright > 0) voice_tune(s, v, true);
+  } else if (model === MODEL_WIND) {
+    v.maxv = wind_maxv(s, p, v);
+  } else if (model === MODEL_BRASS) {
+    voice_tune(s, v, true);
+  }
+}
+
+/** Channel pressure (MIDI 0xD0), value 0..1. */
+export function phys_channel_pressure(s, value) {
+  s.pressure = clamp(value, 0, 1);
+  for (let i = 0; i < PHYS_MAX_VOICES; i++) if (s.voices[i].active) voice_pressure(s, s.voices[i]);
+}
+
+/** Polyphonic aftertouch (MIDI 0xA0) of one key, value 0..1. */
+export function phys_poly_pressure(s, note, value) {
+  for (let i = 0; i < PHYS_MAX_VOICES; i++) {
+    const v = s.voices[i];
+    if (v.active && v.note === note) {
+      v.poly_at = clamp(value, 0, 1);
+      voice_pressure(s, v);
+    }
+  }
+}
+
+/** Reset All Controllers (CC121): channel pressure and every key's aftertouch back to 0. */
+export function phys_pressure_reset(s) {
+  for (let i = 0; i < PHYS_MAX_VOICES; i++) s.voices[i].poly_at = 0;
+  phys_channel_pressure(s, 0);
 }
 
 // ---------------------------------------------------------------------------
@@ -1161,10 +1228,13 @@ function render_stiff(v, vib) {
 export function phys_render(s) {
   const p = s.p;
   const model = Math.floor(p.phys_model + 0.5);
-  // vibrato for the delay-line models (ratio = 1 exactly when off)
+  // vibrato for the delay-line models (ratio = 1 exactly when off); aftertouch can deepen it per note
   let vib = 1;
-  if (p.phys_vibrato_cents > 0) {
-    vib = Math.pow(2, (p.phys_vibrato_cents * Math.sin(TWO_PI * s.vib_phase)) / 1200);
+  let vsin = 0;
+  const pvib = s.press_vib;
+  if (p.phys_vibrato_cents > 0 || pvib > 0) {
+    vsin = Math.sin(TWO_PI * s.vib_phase);
+    vib = Math.pow(2, (p.phys_vibrato_cents * vsin) / 1200);
     s.vib_phase += s.vib_inc;
     if (s.vib_phase >= 1) s.vib_phase -= 1;
   }
@@ -1175,14 +1245,15 @@ export function phys_render(s) {
   for (let i = 0; i < PHYS_MAX_VOICES; i++) {
     const v = s.voices[i];
     if (!v.active) continue;
+    const vv = pvib > 0 && v.press > 0 ? Math.pow(2, ((p.phys_vibrato_cents + pvib * v.press) * vsin) / 1200) : vib;
     let y;
-    if (model === MODEL_STRING) y = render_string(v, vib);
+    if (model === MODEL_STRING) y = render_string(v, vv);
     else if (model === MODEL_MODAL) y = render_modal(v);
-    else if (model === MODEL_BOWED) y = render_bowed(v, vib);
-    else if (model === MODEL_WIND) y = render_wind(s, v, vib, flute, p.breath_noise);
-    else if (model === MODEL_BRASS) y = render_brass(v, vib);
+    else if (model === MODEL_BOWED) y = render_bowed(v, vv);
+    else if (model === MODEL_WIND) y = render_wind(s, v, vv, flute, p.breath_noise);
+    else if (model === MODEL_BRASS) y = render_brass(v, vv);
     else if (model === MODEL_MESH) y = render_mesh(s, v);
-    else y = render_stiff(v, vib);
+    else y = render_stiff(v, vv);
     l += y * v.gl;
     r += y * v.gr;
     bridge += y;

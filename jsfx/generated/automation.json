@@ -1832,6 +1832,851 @@
           "slider": 85,
           "paramIndex": 84,
           "valueDomain": "real"
+        },
+        {
+          "id": "lfo2_waveform",
+          "name": "LFO2 Waveform",
+          "group": "LFO 2",
+          "min": 0,
+          "max": 5,
+          "default": 0,
+          "step": 1,
+          "unit": "",
+          "options": [
+            "Sine",
+            "Triangle",
+            "Saw Down",
+            "Square",
+            "Sample & Hold",
+            "Duck (pump)"
+          ],
+          "description": "Shape of the second global LFO. It only acts through the mod matrix (source LFO 2).",
+          "slider": 86,
+          "paramIndex": 85,
+          "valueDomain": "real",
+          "enumValues": [
+            {
+              "value": 0,
+              "label": "Sine"
+            },
+            {
+              "value": 1,
+              "label": "Triangle"
+            },
+            {
+              "value": 2,
+              "label": "Saw Down"
+            },
+            {
+              "value": 3,
+              "label": "Square"
+            },
+            {
+              "value": 4,
+              "label": "Sample & Hold"
+            },
+            {
+              "value": 5,
+              "label": "Duck (pump)"
+            }
+          ]
+        },
+        {
+          "id": "lfo2_rate_hz",
+          "name": "LFO2 Rate",
+          "group": "LFO 2",
+          "min": 0.05,
+          "max": 20,
+          "default": 0.5,
+          "step": 0.01,
+          "unit": "Hz",
+          "scale": "log",
+          "description": "Rate of LFO 2 (used while LFO2 Sync is Off).",
+          "slider": 87,
+          "paramIndex": 86,
+          "valueDomain": "real"
+        },
+        {
+          "id": "lfo2_sync",
+          "name": "LFO2 Sync",
+          "group": "LFO 2",
+          "min": 0,
+          "max": 16,
+          "default": 0,
+          "step": 1,
+          "unit": "",
+          "options": [
+            "Off",
+            "4 bars",
+            "2 bars",
+            "1/1",
+            "1/2",
+            "1/2 dotted",
+            "1/2 triplet",
+            "1/4",
+            "1/4 dotted",
+            "1/4 triplet",
+            "1/8",
+            "1/8 dotted",
+            "1/8 triplet",
+            "1/16",
+            "1/16 dotted",
+            "1/16 triplet",
+            "1/32"
+          ],
+          "description": "Lock LFO 2 to the host tempo (one cycle per note value, phase locked to the beat grid). Off = free running at LFO2 Rate.",
+          "slider": 88,
+          "paramIndex": 87,
+          "valueDomain": "real",
+          "enumValues": [
+            {
+              "value": 0,
+              "label": "Off"
+            },
+            {
+              "value": 1,
+              "label": "4 bars"
+            },
+            {
+              "value": 2,
+              "label": "2 bars"
+            },
+            {
+              "value": 3,
+              "label": "1/1"
+            },
+            {
+              "value": 4,
+              "label": "1/2"
+            },
+            {
+              "value": 5,
+              "label": "1/2 dotted"
+            },
+            {
+              "value": 6,
+              "label": "1/2 triplet"
+            },
+            {
+              "value": 7,
+              "label": "1/4"
+            },
+            {
+              "value": 8,
+              "label": "1/4 dotted"
+            },
+            {
+              "value": 9,
+              "label": "1/4 triplet"
+            },
+            {
+              "value": 10,
+              "label": "1/8"
+            },
+            {
+              "value": 11,
+              "label": "1/8 dotted"
+            },
+            {
+              "value": 12,
+              "label": "1/8 triplet"
+            },
+            {
+              "value": 13,
+              "label": "1/16"
+            },
+            {
+              "value": 14,
+              "label": "1/16 dotted"
+            },
+            {
+              "value": 15,
+              "label": "1/16 triplet"
+            },
+            {
+              "value": 16,
+              "label": "1/32"
+            }
+          ]
+        },
+        {
+          "id": "mod_env_attack_ms",
+          "name": "Mod Env Attack",
+          "group": "Mod Envelope",
+          "min": 0.5,
+          "max": 5000,
+          "default": 5,
+          "step": 0.1,
+          "unit": "ms",
+          "scale": "log",
+          "description": "Attack time of the per-note modulation envelope (mod matrix source Mod Env).",
+          "slider": 89,
+          "paramIndex": 88,
+          "valueDomain": "real"
+        },
+        {
+          "id": "mod_env_decay_ms",
+          "name": "Mod Env Decay",
+          "group": "Mod Envelope",
+          "min": 1,
+          "max": 10000,
+          "default": 300,
+          "step": 1,
+          "unit": "ms",
+          "scale": "log",
+          "description": "Decay time of the modulation envelope.",
+          "slider": 90,
+          "paramIndex": 89,
+          "valueDomain": "real"
+        },
+        {
+          "id": "mod_env_sustain",
+          "name": "Mod Env Sustain",
+          "group": "Mod Envelope",
+          "min": 0,
+          "max": 1,
+          "default": 0,
+          "step": 0.001,
+          "unit": "",
+          "description": "Sustain level of the modulation envelope.",
+          "slider": 91,
+          "paramIndex": 90,
+          "valueDomain": "real"
+        },
+        {
+          "id": "mod_env_release_ms",
+          "name": "Mod Env Release",
+          "group": "Mod Envelope",
+          "min": 1,
+          "max": 10000,
+          "default": 300,
+          "step": 1,
+          "unit": "ms",
+          "scale": "log",
+          "description": "Release time of the modulation envelope.",
+          "slider": 92,
+          "paramIndex": 91,
+          "valueDomain": "real"
+        },
+        {
+          "id": "mod1_source",
+          "name": "Mod 1 Source",
+          "group": "Mod Matrix",
+          "min": 0,
+          "max": 8,
+          "default": 0,
+          "step": 1,
+          "unit": "",
+          "options": [
+            "Off",
+            "LFO 1",
+            "LFO 2",
+            "Mod Env",
+            "Velocity",
+            "Key Track",
+            "Mod Wheel",
+            "Pressure",
+            "Random (per note)"
+          ],
+          "description": "Mod matrix slot 1: what modulates. LFO 1 / LFO 2 / Random (a new value per note) swing -1..1; Mod Env, Velocity, Mod Wheel (CC1) and Pressure (channel pressure or polyphonic aftertouch) go 0..1; Key Track is the octaves above (+) / below (-) middle C. Off = slot unused.",
+          "slider": 93,
+          "paramIndex": 92,
+          "valueDomain": "real",
+          "enumValues": [
+            {
+              "value": 0,
+              "label": "Off"
+            },
+            {
+              "value": 1,
+              "label": "LFO 1"
+            },
+            {
+              "value": 2,
+              "label": "LFO 2"
+            },
+            {
+              "value": 3,
+              "label": "Mod Env"
+            },
+            {
+              "value": 4,
+              "label": "Velocity"
+            },
+            {
+              "value": 5,
+              "label": "Key Track"
+            },
+            {
+              "value": 6,
+              "label": "Mod Wheel"
+            },
+            {
+              "value": 7,
+              "label": "Pressure"
+            },
+            {
+              "value": 8,
+              "label": "Random (per note)"
+            }
+          ]
+        },
+        {
+          "id": "mod1_destination",
+          "name": "Mod 1 Destination",
+          "group": "Mod Matrix",
+          "min": 0,
+          "max": 11,
+          "default": 0,
+          "step": 1,
+          "unit": "",
+          "options": [
+            "Off",
+            "Pitch",
+            "Filter Cutoff",
+            "Filter Resonance",
+            "Pulse Width",
+            "Osc2 Pitch",
+            "FM Index",
+            "Amp",
+            "Pan",
+            "LFO 1 Rate",
+            "LFO 2 Rate",
+            "Noise Level"
+          ],
+          "description": "Mod matrix slot 1: what is modulated (per note, except LFO 1 / LFO 2 Rate which are global and only follow LFO 1, LFO 2, Mod Wheel and channel pressure). Off = slot unused.",
+          "slider": 94,
+          "paramIndex": 93,
+          "valueDomain": "real",
+          "enumValues": [
+            {
+              "value": 0,
+              "label": "Off"
+            },
+            {
+              "value": 1,
+              "label": "Pitch"
+            },
+            {
+              "value": 2,
+              "label": "Filter Cutoff"
+            },
+            {
+              "value": 3,
+              "label": "Filter Resonance"
+            },
+            {
+              "value": 4,
+              "label": "Pulse Width"
+            },
+            {
+              "value": 5,
+              "label": "Osc2 Pitch"
+            },
+            {
+              "value": 6,
+              "label": "FM Index"
+            },
+            {
+              "value": 7,
+              "label": "Amp"
+            },
+            {
+              "value": 8,
+              "label": "Pan"
+            },
+            {
+              "value": 9,
+              "label": "LFO 1 Rate"
+            },
+            {
+              "value": 10,
+              "label": "LFO 2 Rate"
+            },
+            {
+              "value": 11,
+              "label": "Noise Level"
+            }
+          ]
+        },
+        {
+          "id": "mod1_amount",
+          "name": "Mod 1 Amount",
+          "group": "Mod Matrix",
+          "min": -4800,
+          "max": 4800,
+          "default": 0,
+          "step": 0.001,
+          "unit": "",
+          "description": "Mod matrix slot 1: how far the destination moves at source value 1, in the destination's unit: Pitch / Osc2 Pitch in cents, Filter Cutoff / LFO Rate in octaves, FM Index in rad, Amp in dB, Resonance / Pulse Width / Noise Level added to the knob value (0..1), Pan -1 (left) .. +1 (right). Negative values invert.",
+          "slider": 95,
+          "paramIndex": 94,
+          "valueDomain": "real"
+        },
+        {
+          "id": "mod2_source",
+          "name": "Mod 2 Source",
+          "group": "Mod Matrix",
+          "min": 0,
+          "max": 8,
+          "default": 0,
+          "step": 1,
+          "unit": "",
+          "options": [
+            "Off",
+            "LFO 1",
+            "LFO 2",
+            "Mod Env",
+            "Velocity",
+            "Key Track",
+            "Mod Wheel",
+            "Pressure",
+            "Random (per note)"
+          ],
+          "description": "Mod matrix slot 2: what modulates. LFO 1 / LFO 2 / Random (a new value per note) swing -1..1; Mod Env, Velocity, Mod Wheel (CC1) and Pressure (channel pressure or polyphonic aftertouch) go 0..1; Key Track is the octaves above (+) / below (-) middle C. Off = slot unused.",
+          "slider": 96,
+          "paramIndex": 95,
+          "valueDomain": "real",
+          "enumValues": [
+            {
+              "value": 0,
+              "label": "Off"
+            },
+            {
+              "value": 1,
+              "label": "LFO 1"
+            },
+            {
+              "value": 2,
+              "label": "LFO 2"
+            },
+            {
+              "value": 3,
+              "label": "Mod Env"
+            },
+            {
+              "value": 4,
+              "label": "Velocity"
+            },
+            {
+              "value": 5,
+              "label": "Key Track"
+            },
+            {
+              "value": 6,
+              "label": "Mod Wheel"
+            },
+            {
+              "value": 7,
+              "label": "Pressure"
+            },
+            {
+              "value": 8,
+              "label": "Random (per note)"
+            }
+          ]
+        },
+        {
+          "id": "mod2_destination",
+          "name": "Mod 2 Destination",
+          "group": "Mod Matrix",
+          "min": 0,
+          "max": 11,
+          "default": 0,
+          "step": 1,
+          "unit": "",
+          "options": [
+            "Off",
+            "Pitch",
+            "Filter Cutoff",
+            "Filter Resonance",
+            "Pulse Width",
+            "Osc2 Pitch",
+            "FM Index",
+            "Amp",
+            "Pan",
+            "LFO 1 Rate",
+            "LFO 2 Rate",
+            "Noise Level"
+          ],
+          "description": "Mod matrix slot 2: what is modulated (per note, except LFO 1 / LFO 2 Rate which are global and only follow LFO 1, LFO 2, Mod Wheel and channel pressure). Off = slot unused.",
+          "slider": 97,
+          "paramIndex": 96,
+          "valueDomain": "real",
+          "enumValues": [
+            {
+              "value": 0,
+              "label": "Off"
+            },
+            {
+              "value": 1,
+              "label": "Pitch"
+            },
+            {
+              "value": 2,
+              "label": "Filter Cutoff"
+            },
+            {
+              "value": 3,
+              "label": "Filter Resonance"
+            },
+            {
+              "value": 4,
+              "label": "Pulse Width"
+            },
+            {
+              "value": 5,
+              "label": "Osc2 Pitch"
+            },
+            {
+              "value": 6,
+              "label": "FM Index"
+            },
+            {
+              "value": 7,
+              "label": "Amp"
+            },
+            {
+              "value": 8,
+              "label": "Pan"
+            },
+            {
+              "value": 9,
+              "label": "LFO 1 Rate"
+            },
+            {
+              "value": 10,
+              "label": "LFO 2 Rate"
+            },
+            {
+              "value": 11,
+              "label": "Noise Level"
+            }
+          ]
+        },
+        {
+          "id": "mod2_amount",
+          "name": "Mod 2 Amount",
+          "group": "Mod Matrix",
+          "min": -4800,
+          "max": 4800,
+          "default": 0,
+          "step": 0.001,
+          "unit": "",
+          "description": "Mod matrix slot 2: how far the destination moves at source value 1, in the destination's unit: Pitch / Osc2 Pitch in cents, Filter Cutoff / LFO Rate in octaves, FM Index in rad, Amp in dB, Resonance / Pulse Width / Noise Level added to the knob value (0..1), Pan -1 (left) .. +1 (right). Negative values invert.",
+          "slider": 98,
+          "paramIndex": 97,
+          "valueDomain": "real"
+        },
+        {
+          "id": "mod3_source",
+          "name": "Mod 3 Source",
+          "group": "Mod Matrix",
+          "min": 0,
+          "max": 8,
+          "default": 0,
+          "step": 1,
+          "unit": "",
+          "options": [
+            "Off",
+            "LFO 1",
+            "LFO 2",
+            "Mod Env",
+            "Velocity",
+            "Key Track",
+            "Mod Wheel",
+            "Pressure",
+            "Random (per note)"
+          ],
+          "description": "Mod matrix slot 3: what modulates. LFO 1 / LFO 2 / Random (a new value per note) swing -1..1; Mod Env, Velocity, Mod Wheel (CC1) and Pressure (channel pressure or polyphonic aftertouch) go 0..1; Key Track is the octaves above (+) / below (-) middle C. Off = slot unused.",
+          "slider": 99,
+          "paramIndex": 98,
+          "valueDomain": "real",
+          "enumValues": [
+            {
+              "value": 0,
+              "label": "Off"
+            },
+            {
+              "value": 1,
+              "label": "LFO 1"
+            },
+            {
+              "value": 2,
+              "label": "LFO 2"
+            },
+            {
+              "value": 3,
+              "label": "Mod Env"
+            },
+            {
+              "value": 4,
+              "label": "Velocity"
+            },
+            {
+              "value": 5,
+              "label": "Key Track"
+            },
+            {
+              "value": 6,
+              "label": "Mod Wheel"
+            },
+            {
+              "value": 7,
+              "label": "Pressure"
+            },
+            {
+              "value": 8,
+              "label": "Random (per note)"
+            }
+          ]
+        },
+        {
+          "id": "mod3_destination",
+          "name": "Mod 3 Destination",
+          "group": "Mod Matrix",
+          "min": 0,
+          "max": 11,
+          "default": 0,
+          "step": 1,
+          "unit": "",
+          "options": [
+            "Off",
+            "Pitch",
+            "Filter Cutoff",
+            "Filter Resonance",
+            "Pulse Width",
+            "Osc2 Pitch",
+            "FM Index",
+            "Amp",
+            "Pan",
+            "LFO 1 Rate",
+            "LFO 2 Rate",
+            "Noise Level"
+          ],
+          "description": "Mod matrix slot 3: what is modulated (per note, except LFO 1 / LFO 2 Rate which are global and only follow LFO 1, LFO 2, Mod Wheel and channel pressure). Off = slot unused.",
+          "slider": 100,
+          "paramIndex": 99,
+          "valueDomain": "real",
+          "enumValues": [
+            {
+              "value": 0,
+              "label": "Off"
+            },
+            {
+              "value": 1,
+              "label": "Pitch"
+            },
+            {
+              "value": 2,
+              "label": "Filter Cutoff"
+            },
+            {
+              "value": 3,
+              "label": "Filter Resonance"
+            },
+            {
+              "value": 4,
+              "label": "Pulse Width"
+            },
+            {
+              "value": 5,
+              "label": "Osc2 Pitch"
+            },
+            {
+              "value": 6,
+              "label": "FM Index"
+            },
+            {
+              "value": 7,
+              "label": "Amp"
+            },
+            {
+              "value": 8,
+              "label": "Pan"
+            },
+            {
+              "value": 9,
+              "label": "LFO 1 Rate"
+            },
+            {
+              "value": 10,
+              "label": "LFO 2 Rate"
+            },
+            {
+              "value": 11,
+              "label": "Noise Level"
+            }
+          ]
+        },
+        {
+          "id": "mod3_amount",
+          "name": "Mod 3 Amount",
+          "group": "Mod Matrix",
+          "min": -4800,
+          "max": 4800,
+          "default": 0,
+          "step": 0.001,
+          "unit": "",
+          "description": "Mod matrix slot 3: how far the destination moves at source value 1, in the destination's unit: Pitch / Osc2 Pitch in cents, Filter Cutoff / LFO Rate in octaves, FM Index in rad, Amp in dB, Resonance / Pulse Width / Noise Level added to the knob value (0..1), Pan -1 (left) .. +1 (right). Negative values invert.",
+          "slider": 101,
+          "paramIndex": 100,
+          "valueDomain": "real"
+        },
+        {
+          "id": "mod4_source",
+          "name": "Mod 4 Source",
+          "group": "Mod Matrix",
+          "min": 0,
+          "max": 8,
+          "default": 0,
+          "step": 1,
+          "unit": "",
+          "options": [
+            "Off",
+            "LFO 1",
+            "LFO 2",
+            "Mod Env",
+            "Velocity",
+            "Key Track",
+            "Mod Wheel",
+            "Pressure",
+            "Random (per note)"
+          ],
+          "description": "Mod matrix slot 4: what modulates. LFO 1 / LFO 2 / Random (a new value per note) swing -1..1; Mod Env, Velocity, Mod Wheel (CC1) and Pressure (channel pressure or polyphonic aftertouch) go 0..1; Key Track is the octaves above (+) / below (-) middle C. Off = slot unused.",
+          "slider": 102,
+          "paramIndex": 101,
+          "valueDomain": "real",
+          "enumValues": [
+            {
+              "value": 0,
+              "label": "Off"
+            },
+            {
+              "value": 1,
+              "label": "LFO 1"
+            },
+            {
+              "value": 2,
+              "label": "LFO 2"
+            },
+            {
+              "value": 3,
+              "label": "Mod Env"
+            },
+            {
+              "value": 4,
+              "label": "Velocity"
+            },
+            {
+              "value": 5,
+              "label": "Key Track"
+            },
+            {
+              "value": 6,
+              "label": "Mod Wheel"
+            },
+            {
+              "value": 7,
+              "label": "Pressure"
+            },
+            {
+              "value": 8,
+              "label": "Random (per note)"
+            }
+          ]
+        },
+        {
+          "id": "mod4_destination",
+          "name": "Mod 4 Destination",
+          "group": "Mod Matrix",
+          "min": 0,
+          "max": 11,
+          "default": 0,
+          "step": 1,
+          "unit": "",
+          "options": [
+            "Off",
+            "Pitch",
+            "Filter Cutoff",
+            "Filter Resonance",
+            "Pulse Width",
+            "Osc2 Pitch",
+            "FM Index",
+            "Amp",
+            "Pan",
+            "LFO 1 Rate",
+            "LFO 2 Rate",
+            "Noise Level"
+          ],
+          "description": "Mod matrix slot 4: what is modulated (per note, except LFO 1 / LFO 2 Rate which are global and only follow LFO 1, LFO 2, Mod Wheel and channel pressure). Off = slot unused.",
+          "slider": 103,
+          "paramIndex": 102,
+          "valueDomain": "real",
+          "enumValues": [
+            {
+              "value": 0,
+              "label": "Off"
+            },
+            {
+              "value": 1,
+              "label": "Pitch"
+            },
+            {
+              "value": 2,
+              "label": "Filter Cutoff"
+            },
+            {
+              "value": 3,
+              "label": "Filter Resonance"
+            },
+            {
+              "value": 4,
+              "label": "Pulse Width"
+            },
+            {
+              "value": 5,
+              "label": "Osc2 Pitch"
+            },
+            {
+              "value": 6,
+              "label": "FM Index"
+            },
+            {
+              "value": 7,
+              "label": "Amp"
+            },
+            {
+              "value": 8,
+              "label": "Pan"
+            },
+            {
+              "value": 9,
+              "label": "LFO 1 Rate"
+            },
+            {
+              "value": 10,
+              "label": "LFO 2 Rate"
+            },
+            {
+              "value": 11,
+              "label": "Noise Level"
+            }
+          ]
+        },
+        {
+          "id": "mod4_amount",
+          "name": "Mod 4 Amount",
+          "group": "Mod Matrix",
+          "min": -4800,
+          "max": 4800,
+          "default": 0,
+          "step": 0.001,
+          "unit": "",
+          "description": "Mod matrix slot 4: how far the destination moves at source value 1, in the destination's unit: Pitch / Osc2 Pitch in cents, Filter Cutoff / LFO Rate in octaves, FM Index in rad, Amp in dB, Resonance / Pulse Width / Noise Level added to the knob value (0..1), Pan -1 (left) .. +1 (right). Negative values invert.",
+          "slider": 104,
+          "paramIndex": 103,
+          "valueDomain": "real"
         }
       ],
       "presets": [
@@ -1918,7 +2763,26 @@
             "noise_filter_mode": 0,
             "noise_filter_hz": 4000,
             "cc_cutoff_number": 74,
-            "cc_cutoff_depth_oct": 4
+            "cc_cutoff_depth_oct": 4,
+            "lfo2_waveform": 0,
+            "lfo2_rate_hz": 0.5,
+            "lfo2_sync": 0,
+            "mod_env_attack_ms": 5,
+            "mod_env_decay_ms": 300,
+            "mod_env_sustain": 0,
+            "mod_env_release_ms": 300,
+            "mod1_source": 0,
+            "mod1_destination": 0,
+            "mod1_amount": 0,
+            "mod2_source": 0,
+            "mod2_destination": 0,
+            "mod2_amount": 0,
+            "mod3_source": 0,
+            "mod3_destination": 0,
+            "mod3_amount": 0,
+            "mod4_source": 0,
+            "mod4_destination": 0,
+            "mod4_amount": 0
           }
         },
         {
@@ -2004,7 +2868,26 @@
             "noise_filter_mode": 0,
             "noise_filter_hz": 4000,
             "cc_cutoff_number": 74,
-            "cc_cutoff_depth_oct": 4
+            "cc_cutoff_depth_oct": 4,
+            "lfo2_waveform": 0,
+            "lfo2_rate_hz": 0.5,
+            "lfo2_sync": 0,
+            "mod_env_attack_ms": 5,
+            "mod_env_decay_ms": 300,
+            "mod_env_sustain": 0,
+            "mod_env_release_ms": 300,
+            "mod1_source": 0,
+            "mod1_destination": 0,
+            "mod1_amount": 0,
+            "mod2_source": 0,
+            "mod2_destination": 0,
+            "mod2_amount": 0,
+            "mod3_source": 0,
+            "mod3_destination": 0,
+            "mod3_amount": 0,
+            "mod4_source": 0,
+            "mod4_destination": 0,
+            "mod4_amount": 0
           }
         },
         {
@@ -2090,7 +2973,26 @@
             "noise_filter_mode": 0,
             "noise_filter_hz": 4000,
             "cc_cutoff_number": 74,
-            "cc_cutoff_depth_oct": 4
+            "cc_cutoff_depth_oct": 4,
+            "lfo2_waveform": 0,
+            "lfo2_rate_hz": 0.5,
+            "lfo2_sync": 0,
+            "mod_env_attack_ms": 5,
+            "mod_env_decay_ms": 300,
+            "mod_env_sustain": 0,
+            "mod_env_release_ms": 300,
+            "mod1_source": 0,
+            "mod1_destination": 0,
+            "mod1_amount": 0,
+            "mod2_source": 0,
+            "mod2_destination": 0,
+            "mod2_amount": 0,
+            "mod3_source": 0,
+            "mod3_destination": 0,
+            "mod3_amount": 0,
+            "mod4_source": 0,
+            "mod4_destination": 0,
+            "mod4_amount": 0
           }
         },
         {
@@ -2176,7 +3078,26 @@
             "noise_filter_mode": 0,
             "noise_filter_hz": 4000,
             "cc_cutoff_number": 74,
-            "cc_cutoff_depth_oct": 4
+            "cc_cutoff_depth_oct": 4,
+            "lfo2_waveform": 0,
+            "lfo2_rate_hz": 0.5,
+            "lfo2_sync": 0,
+            "mod_env_attack_ms": 5,
+            "mod_env_decay_ms": 300,
+            "mod_env_sustain": 0,
+            "mod_env_release_ms": 300,
+            "mod1_source": 0,
+            "mod1_destination": 0,
+            "mod1_amount": 0,
+            "mod2_source": 0,
+            "mod2_destination": 0,
+            "mod2_amount": 0,
+            "mod3_source": 0,
+            "mod3_destination": 0,
+            "mod3_amount": 0,
+            "mod4_source": 0,
+            "mod4_destination": 0,
+            "mod4_amount": 0
           }
         },
         {
@@ -2262,7 +3183,26 @@
             "noise_filter_mode": 0,
             "noise_filter_hz": 4000,
             "cc_cutoff_number": 74,
-            "cc_cutoff_depth_oct": 4
+            "cc_cutoff_depth_oct": 4,
+            "lfo2_waveform": 0,
+            "lfo2_rate_hz": 0.5,
+            "lfo2_sync": 0,
+            "mod_env_attack_ms": 5,
+            "mod_env_decay_ms": 300,
+            "mod_env_sustain": 0,
+            "mod_env_release_ms": 300,
+            "mod1_source": 0,
+            "mod1_destination": 0,
+            "mod1_amount": 0,
+            "mod2_source": 0,
+            "mod2_destination": 0,
+            "mod2_amount": 0,
+            "mod3_source": 0,
+            "mod3_destination": 0,
+            "mod3_amount": 0,
+            "mod4_source": 0,
+            "mod4_destination": 0,
+            "mod4_amount": 0
           }
         },
         {
@@ -2348,7 +3288,26 @@
             "noise_filter_mode": 0,
             "noise_filter_hz": 4000,
             "cc_cutoff_number": 74,
-            "cc_cutoff_depth_oct": 4
+            "cc_cutoff_depth_oct": 4,
+            "lfo2_waveform": 0,
+            "lfo2_rate_hz": 0.5,
+            "lfo2_sync": 0,
+            "mod_env_attack_ms": 5,
+            "mod_env_decay_ms": 300,
+            "mod_env_sustain": 0,
+            "mod_env_release_ms": 300,
+            "mod1_source": 0,
+            "mod1_destination": 0,
+            "mod1_amount": 0,
+            "mod2_source": 0,
+            "mod2_destination": 0,
+            "mod2_amount": 0,
+            "mod3_source": 0,
+            "mod3_destination": 0,
+            "mod3_amount": 0,
+            "mod4_source": 0,
+            "mod4_destination": 0,
+            "mod4_amount": 0
           }
         },
         {
@@ -2434,7 +3393,26 @@
             "noise_filter_mode": 0,
             "noise_filter_hz": 4000,
             "cc_cutoff_number": 74,
-            "cc_cutoff_depth_oct": 4
+            "cc_cutoff_depth_oct": 4,
+            "lfo2_waveform": 0,
+            "lfo2_rate_hz": 0.5,
+            "lfo2_sync": 0,
+            "mod_env_attack_ms": 5,
+            "mod_env_decay_ms": 300,
+            "mod_env_sustain": 0,
+            "mod_env_release_ms": 300,
+            "mod1_source": 0,
+            "mod1_destination": 0,
+            "mod1_amount": 0,
+            "mod2_source": 0,
+            "mod2_destination": 0,
+            "mod2_amount": 0,
+            "mod3_source": 0,
+            "mod3_destination": 0,
+            "mod3_amount": 0,
+            "mod4_source": 0,
+            "mod4_destination": 0,
+            "mod4_amount": 0
           }
         },
         {
@@ -2520,7 +3498,26 @@
             "noise_filter_mode": 0,
             "noise_filter_hz": 4000,
             "cc_cutoff_number": 74,
-            "cc_cutoff_depth_oct": 4
+            "cc_cutoff_depth_oct": 4,
+            "lfo2_waveform": 0,
+            "lfo2_rate_hz": 0.5,
+            "lfo2_sync": 0,
+            "mod_env_attack_ms": 5,
+            "mod_env_decay_ms": 300,
+            "mod_env_sustain": 0,
+            "mod_env_release_ms": 300,
+            "mod1_source": 0,
+            "mod1_destination": 0,
+            "mod1_amount": 0,
+            "mod2_source": 0,
+            "mod2_destination": 0,
+            "mod2_amount": 0,
+            "mod3_source": 0,
+            "mod3_destination": 0,
+            "mod3_amount": 0,
+            "mod4_source": 0,
+            "mod4_destination": 0,
+            "mod4_amount": 0
           }
         },
         {
@@ -2606,7 +3603,26 @@
             "noise_filter_mode": 0,
             "noise_filter_hz": 4000,
             "cc_cutoff_number": 74,
-            "cc_cutoff_depth_oct": 4
+            "cc_cutoff_depth_oct": 4,
+            "lfo2_waveform": 0,
+            "lfo2_rate_hz": 0.5,
+            "lfo2_sync": 0,
+            "mod_env_attack_ms": 5,
+            "mod_env_decay_ms": 300,
+            "mod_env_sustain": 0,
+            "mod_env_release_ms": 300,
+            "mod1_source": 0,
+            "mod1_destination": 0,
+            "mod1_amount": 0,
+            "mod2_source": 0,
+            "mod2_destination": 0,
+            "mod2_amount": 0,
+            "mod3_source": 0,
+            "mod3_destination": 0,
+            "mod3_amount": 0,
+            "mod4_source": 0,
+            "mod4_destination": 0,
+            "mod4_amount": 0
           }
         },
         {
@@ -2692,7 +3708,26 @@
             "noise_filter_mode": 0,
             "noise_filter_hz": 4000,
             "cc_cutoff_number": 74,
-            "cc_cutoff_depth_oct": 4
+            "cc_cutoff_depth_oct": 4,
+            "lfo2_waveform": 0,
+            "lfo2_rate_hz": 0.5,
+            "lfo2_sync": 0,
+            "mod_env_attack_ms": 5,
+            "mod_env_decay_ms": 300,
+            "mod_env_sustain": 0,
+            "mod_env_release_ms": 300,
+            "mod1_source": 0,
+            "mod1_destination": 0,
+            "mod1_amount": 0,
+            "mod2_source": 0,
+            "mod2_destination": 0,
+            "mod2_amount": 0,
+            "mod3_source": 0,
+            "mod3_destination": 0,
+            "mod3_amount": 0,
+            "mod4_source": 0,
+            "mod4_destination": 0,
+            "mod4_amount": 0
           }
         },
         {
@@ -2778,7 +3813,26 @@
             "noise_filter_mode": 0,
             "noise_filter_hz": 4000,
             "cc_cutoff_number": 74,
-            "cc_cutoff_depth_oct": 4
+            "cc_cutoff_depth_oct": 4,
+            "lfo2_waveform": 0,
+            "lfo2_rate_hz": 0.5,
+            "lfo2_sync": 0,
+            "mod_env_attack_ms": 5,
+            "mod_env_decay_ms": 300,
+            "mod_env_sustain": 0,
+            "mod_env_release_ms": 300,
+            "mod1_source": 0,
+            "mod1_destination": 0,
+            "mod1_amount": 0,
+            "mod2_source": 0,
+            "mod2_destination": 0,
+            "mod2_amount": 0,
+            "mod3_source": 0,
+            "mod3_destination": 0,
+            "mod3_amount": 0,
+            "mod4_source": 0,
+            "mod4_destination": 0,
+            "mod4_amount": 0
           }
         },
         {
@@ -2864,7 +3918,26 @@
             "noise_filter_mode": 0,
             "noise_filter_hz": 4000,
             "cc_cutoff_number": 74,
-            "cc_cutoff_depth_oct": 4
+            "cc_cutoff_depth_oct": 4,
+            "lfo2_waveform": 0,
+            "lfo2_rate_hz": 0.5,
+            "lfo2_sync": 0,
+            "mod_env_attack_ms": 5,
+            "mod_env_decay_ms": 300,
+            "mod_env_sustain": 0,
+            "mod_env_release_ms": 300,
+            "mod1_source": 0,
+            "mod1_destination": 0,
+            "mod1_amount": 0,
+            "mod2_source": 0,
+            "mod2_destination": 0,
+            "mod2_amount": 0,
+            "mod3_source": 0,
+            "mod3_destination": 0,
+            "mod3_amount": 0,
+            "mod4_source": 0,
+            "mod4_destination": 0,
+            "mod4_amount": 0
           }
         },
         {
@@ -2950,7 +4023,26 @@
             "noise_filter_mode": 0,
             "noise_filter_hz": 4000,
             "cc_cutoff_number": 74,
-            "cc_cutoff_depth_oct": 4
+            "cc_cutoff_depth_oct": 4,
+            "lfo2_waveform": 0,
+            "lfo2_rate_hz": 0.5,
+            "lfo2_sync": 0,
+            "mod_env_attack_ms": 5,
+            "mod_env_decay_ms": 300,
+            "mod_env_sustain": 0,
+            "mod_env_release_ms": 300,
+            "mod1_source": 0,
+            "mod1_destination": 0,
+            "mod1_amount": 0,
+            "mod2_source": 0,
+            "mod2_destination": 0,
+            "mod2_amount": 0,
+            "mod3_source": 0,
+            "mod3_destination": 0,
+            "mod3_amount": 0,
+            "mod4_source": 0,
+            "mod4_destination": 0,
+            "mod4_amount": 0
           }
         },
         {
@@ -3036,7 +4128,26 @@
             "noise_filter_mode": 0,
             "noise_filter_hz": 4000,
             "cc_cutoff_number": 74,
-            "cc_cutoff_depth_oct": 4
+            "cc_cutoff_depth_oct": 4,
+            "lfo2_waveform": 0,
+            "lfo2_rate_hz": 0.5,
+            "lfo2_sync": 0,
+            "mod_env_attack_ms": 5,
+            "mod_env_decay_ms": 300,
+            "mod_env_sustain": 0,
+            "mod_env_release_ms": 300,
+            "mod1_source": 0,
+            "mod1_destination": 0,
+            "mod1_amount": 0,
+            "mod2_source": 0,
+            "mod2_destination": 0,
+            "mod2_amount": 0,
+            "mod3_source": 0,
+            "mod3_destination": 0,
+            "mod3_amount": 0,
+            "mod4_source": 0,
+            "mod4_destination": 0,
+            "mod4_amount": 0
           }
         },
         {
@@ -3122,7 +4233,26 @@
             "noise_filter_mode": 0,
             "noise_filter_hz": 4000,
             "cc_cutoff_number": 74,
-            "cc_cutoff_depth_oct": 4
+            "cc_cutoff_depth_oct": 4,
+            "lfo2_waveform": 0,
+            "lfo2_rate_hz": 0.5,
+            "lfo2_sync": 0,
+            "mod_env_attack_ms": 5,
+            "mod_env_decay_ms": 300,
+            "mod_env_sustain": 0,
+            "mod_env_release_ms": 300,
+            "mod1_source": 0,
+            "mod1_destination": 0,
+            "mod1_amount": 0,
+            "mod2_source": 0,
+            "mod2_destination": 0,
+            "mod2_amount": 0,
+            "mod3_source": 0,
+            "mod3_destination": 0,
+            "mod3_amount": 0,
+            "mod4_source": 0,
+            "mod4_destination": 0,
+            "mod4_amount": 0
           }
         },
         {
@@ -3208,7 +4338,26 @@
             "noise_filter_mode": 0,
             "noise_filter_hz": 4000,
             "cc_cutoff_number": 74,
-            "cc_cutoff_depth_oct": 4
+            "cc_cutoff_depth_oct": 4,
+            "lfo2_waveform": 0,
+            "lfo2_rate_hz": 0.5,
+            "lfo2_sync": 0,
+            "mod_env_attack_ms": 5,
+            "mod_env_decay_ms": 300,
+            "mod_env_sustain": 0,
+            "mod_env_release_ms": 300,
+            "mod1_source": 0,
+            "mod1_destination": 0,
+            "mod1_amount": 0,
+            "mod2_source": 0,
+            "mod2_destination": 0,
+            "mod2_amount": 0,
+            "mod3_source": 0,
+            "mod3_destination": 0,
+            "mod3_amount": 0,
+            "mod4_source": 0,
+            "mod4_destination": 0,
+            "mod4_amount": 0
           }
         },
         {
@@ -3294,7 +4443,26 @@
             "noise_filter_mode": 0,
             "noise_filter_hz": 4000,
             "cc_cutoff_number": 74,
-            "cc_cutoff_depth_oct": 4
+            "cc_cutoff_depth_oct": 4,
+            "lfo2_waveform": 0,
+            "lfo2_rate_hz": 0.5,
+            "lfo2_sync": 0,
+            "mod_env_attack_ms": 5,
+            "mod_env_decay_ms": 300,
+            "mod_env_sustain": 0,
+            "mod_env_release_ms": 300,
+            "mod1_source": 0,
+            "mod1_destination": 0,
+            "mod1_amount": 0,
+            "mod2_source": 0,
+            "mod2_destination": 0,
+            "mod2_amount": 0,
+            "mod3_source": 0,
+            "mod3_destination": 0,
+            "mod3_amount": 0,
+            "mod4_source": 0,
+            "mod4_destination": 0,
+            "mod4_amount": 0
           }
         },
         {
@@ -3380,7 +4548,26 @@
             "noise_filter_mode": 0,
             "noise_filter_hz": 4000,
             "cc_cutoff_number": 74,
-            "cc_cutoff_depth_oct": 4
+            "cc_cutoff_depth_oct": 4,
+            "lfo2_waveform": 0,
+            "lfo2_rate_hz": 0.5,
+            "lfo2_sync": 0,
+            "mod_env_attack_ms": 5,
+            "mod_env_decay_ms": 300,
+            "mod_env_sustain": 0,
+            "mod_env_release_ms": 300,
+            "mod1_source": 0,
+            "mod1_destination": 0,
+            "mod1_amount": 0,
+            "mod2_source": 0,
+            "mod2_destination": 0,
+            "mod2_amount": 0,
+            "mod3_source": 0,
+            "mod3_destination": 0,
+            "mod3_amount": 0,
+            "mod4_source": 0,
+            "mod4_destination": 0,
+            "mod4_amount": 0
           }
         },
         {
@@ -3466,7 +4653,26 @@
             "noise_filter_mode": 0,
             "noise_filter_hz": 4000,
             "cc_cutoff_number": 74,
-            "cc_cutoff_depth_oct": 4
+            "cc_cutoff_depth_oct": 4,
+            "lfo2_waveform": 0,
+            "lfo2_rate_hz": 0.5,
+            "lfo2_sync": 0,
+            "mod_env_attack_ms": 5,
+            "mod_env_decay_ms": 300,
+            "mod_env_sustain": 0,
+            "mod_env_release_ms": 300,
+            "mod1_source": 0,
+            "mod1_destination": 0,
+            "mod1_amount": 0,
+            "mod2_source": 0,
+            "mod2_destination": 0,
+            "mod2_amount": 0,
+            "mod3_source": 0,
+            "mod3_destination": 0,
+            "mod3_amount": 0,
+            "mod4_source": 0,
+            "mod4_destination": 0,
+            "mod4_amount": 0
           }
         },
         {
@@ -3552,7 +4758,26 @@
             "noise_filter_mode": 0,
             "noise_filter_hz": 4000,
             "cc_cutoff_number": 74,
-            "cc_cutoff_depth_oct": 4
+            "cc_cutoff_depth_oct": 4,
+            "lfo2_waveform": 0,
+            "lfo2_rate_hz": 0.5,
+            "lfo2_sync": 0,
+            "mod_env_attack_ms": 5,
+            "mod_env_decay_ms": 300,
+            "mod_env_sustain": 0,
+            "mod_env_release_ms": 300,
+            "mod1_source": 0,
+            "mod1_destination": 0,
+            "mod1_amount": 0,
+            "mod2_source": 0,
+            "mod2_destination": 0,
+            "mod2_amount": 0,
+            "mod3_source": 0,
+            "mod3_destination": 0,
+            "mod3_amount": 0,
+            "mod4_source": 0,
+            "mod4_destination": 0,
+            "mod4_amount": 0
           }
         },
         {
@@ -3638,7 +4863,26 @@
             "noise_filter_mode": 0,
             "noise_filter_hz": 4000,
             "cc_cutoff_number": 74,
-            "cc_cutoff_depth_oct": 4
+            "cc_cutoff_depth_oct": 4,
+            "lfo2_waveform": 0,
+            "lfo2_rate_hz": 0.5,
+            "lfo2_sync": 0,
+            "mod_env_attack_ms": 5,
+            "mod_env_decay_ms": 300,
+            "mod_env_sustain": 0,
+            "mod_env_release_ms": 300,
+            "mod1_source": 0,
+            "mod1_destination": 0,
+            "mod1_amount": 0,
+            "mod2_source": 0,
+            "mod2_destination": 0,
+            "mod2_amount": 0,
+            "mod3_source": 0,
+            "mod3_destination": 0,
+            "mod3_amount": 0,
+            "mod4_source": 0,
+            "mod4_destination": 0,
+            "mod4_amount": 0
           }
         },
         {
@@ -3724,7 +4968,26 @@
             "noise_filter_mode": 0,
             "noise_filter_hz": 4000,
             "cc_cutoff_number": 74,
-            "cc_cutoff_depth_oct": 4
+            "cc_cutoff_depth_oct": 4,
+            "lfo2_waveform": 0,
+            "lfo2_rate_hz": 0.5,
+            "lfo2_sync": 0,
+            "mod_env_attack_ms": 5,
+            "mod_env_decay_ms": 300,
+            "mod_env_sustain": 0,
+            "mod_env_release_ms": 300,
+            "mod1_source": 0,
+            "mod1_destination": 0,
+            "mod1_amount": 0,
+            "mod2_source": 0,
+            "mod2_destination": 0,
+            "mod2_amount": 0,
+            "mod3_source": 0,
+            "mod3_destination": 0,
+            "mod3_amount": 0,
+            "mod4_source": 0,
+            "mod4_destination": 0,
+            "mod4_amount": 0
           }
         },
         {
@@ -3810,7 +5073,26 @@
             "noise_filter_mode": 0,
             "noise_filter_hz": 4000,
             "cc_cutoff_number": 74,
-            "cc_cutoff_depth_oct": 4
+            "cc_cutoff_depth_oct": 4,
+            "lfo2_waveform": 0,
+            "lfo2_rate_hz": 0.5,
+            "lfo2_sync": 0,
+            "mod_env_attack_ms": 5,
+            "mod_env_decay_ms": 300,
+            "mod_env_sustain": 0,
+            "mod_env_release_ms": 300,
+            "mod1_source": 0,
+            "mod1_destination": 0,
+            "mod1_amount": 0,
+            "mod2_source": 0,
+            "mod2_destination": 0,
+            "mod2_amount": 0,
+            "mod3_source": 0,
+            "mod3_destination": 0,
+            "mod3_amount": 0,
+            "mod4_source": 0,
+            "mod4_destination": 0,
+            "mod4_amount": 0
           }
         },
         {
@@ -3896,7 +5178,26 @@
             "noise_filter_mode": 0,
             "noise_filter_hz": 4000,
             "cc_cutoff_number": 74,
-            "cc_cutoff_depth_oct": 4
+            "cc_cutoff_depth_oct": 4,
+            "lfo2_waveform": 0,
+            "lfo2_rate_hz": 0.5,
+            "lfo2_sync": 0,
+            "mod_env_attack_ms": 5,
+            "mod_env_decay_ms": 300,
+            "mod_env_sustain": 0,
+            "mod_env_release_ms": 300,
+            "mod1_source": 0,
+            "mod1_destination": 0,
+            "mod1_amount": 0,
+            "mod2_source": 0,
+            "mod2_destination": 0,
+            "mod2_amount": 0,
+            "mod3_source": 0,
+            "mod3_destination": 0,
+            "mod3_amount": 0,
+            "mod4_source": 0,
+            "mod4_destination": 0,
+            "mod4_amount": 0
           }
         },
         {
@@ -3982,7 +5283,26 @@
             "noise_filter_mode": 0,
             "noise_filter_hz": 4000,
             "cc_cutoff_number": 74,
-            "cc_cutoff_depth_oct": 4
+            "cc_cutoff_depth_oct": 4,
+            "lfo2_waveform": 0,
+            "lfo2_rate_hz": 0.5,
+            "lfo2_sync": 0,
+            "mod_env_attack_ms": 5,
+            "mod_env_decay_ms": 300,
+            "mod_env_sustain": 0,
+            "mod_env_release_ms": 300,
+            "mod1_source": 0,
+            "mod1_destination": 0,
+            "mod1_amount": 0,
+            "mod2_source": 0,
+            "mod2_destination": 0,
+            "mod2_amount": 0,
+            "mod3_source": 0,
+            "mod3_destination": 0,
+            "mod3_amount": 0,
+            "mod4_source": 0,
+            "mod4_destination": 0,
+            "mod4_amount": 0
           }
         },
         {
@@ -4068,7 +5388,26 @@
             "noise_filter_mode": 0,
             "noise_filter_hz": 4000,
             "cc_cutoff_number": 74,
-            "cc_cutoff_depth_oct": 4
+            "cc_cutoff_depth_oct": 4,
+            "lfo2_waveform": 0,
+            "lfo2_rate_hz": 0.5,
+            "lfo2_sync": 0,
+            "mod_env_attack_ms": 5,
+            "mod_env_decay_ms": 300,
+            "mod_env_sustain": 0,
+            "mod_env_release_ms": 300,
+            "mod1_source": 0,
+            "mod1_destination": 0,
+            "mod1_amount": 0,
+            "mod2_source": 0,
+            "mod2_destination": 0,
+            "mod2_amount": 0,
+            "mod3_source": 0,
+            "mod3_destination": 0,
+            "mod3_amount": 0,
+            "mod4_source": 0,
+            "mod4_destination": 0,
+            "mod4_amount": 0
           }
         },
         {
@@ -4154,7 +5493,26 @@
             "noise_filter_mode": 0,
             "noise_filter_hz": 4000,
             "cc_cutoff_number": 74,
-            "cc_cutoff_depth_oct": 4
+            "cc_cutoff_depth_oct": 4,
+            "lfo2_waveform": 0,
+            "lfo2_rate_hz": 0.5,
+            "lfo2_sync": 0,
+            "mod_env_attack_ms": 5,
+            "mod_env_decay_ms": 300,
+            "mod_env_sustain": 0,
+            "mod_env_release_ms": 300,
+            "mod1_source": 0,
+            "mod1_destination": 0,
+            "mod1_amount": 0,
+            "mod2_source": 0,
+            "mod2_destination": 0,
+            "mod2_amount": 0,
+            "mod3_source": 0,
+            "mod3_destination": 0,
+            "mod3_amount": 0,
+            "mod4_source": 0,
+            "mod4_destination": 0,
+            "mod4_amount": 0
           }
         },
         {
@@ -4240,7 +5598,26 @@
             "noise_filter_mode": 0,
             "noise_filter_hz": 4000,
             "cc_cutoff_number": 74,
-            "cc_cutoff_depth_oct": 4
+            "cc_cutoff_depth_oct": 4,
+            "lfo2_waveform": 0,
+            "lfo2_rate_hz": 0.5,
+            "lfo2_sync": 0,
+            "mod_env_attack_ms": 5,
+            "mod_env_decay_ms": 300,
+            "mod_env_sustain": 0,
+            "mod_env_release_ms": 300,
+            "mod1_source": 0,
+            "mod1_destination": 0,
+            "mod1_amount": 0,
+            "mod2_source": 0,
+            "mod2_destination": 0,
+            "mod2_amount": 0,
+            "mod3_source": 0,
+            "mod3_destination": 0,
+            "mod3_amount": 0,
+            "mod4_source": 0,
+            "mod4_destination": 0,
+            "mod4_amount": 0
           }
         },
         {
@@ -4326,7 +5703,26 @@
             "noise_filter_mode": 0,
             "noise_filter_hz": 4000,
             "cc_cutoff_number": 74,
-            "cc_cutoff_depth_oct": 4
+            "cc_cutoff_depth_oct": 4,
+            "lfo2_waveform": 0,
+            "lfo2_rate_hz": 0.5,
+            "lfo2_sync": 0,
+            "mod_env_attack_ms": 5,
+            "mod_env_decay_ms": 300,
+            "mod_env_sustain": 0,
+            "mod_env_release_ms": 300,
+            "mod1_source": 0,
+            "mod1_destination": 0,
+            "mod1_amount": 0,
+            "mod2_source": 0,
+            "mod2_destination": 0,
+            "mod2_amount": 0,
+            "mod3_source": 0,
+            "mod3_destination": 0,
+            "mod3_amount": 0,
+            "mod4_source": 0,
+            "mod4_destination": 0,
+            "mod4_amount": 0
           }
         },
         {
@@ -4412,7 +5808,26 @@
             "noise_filter_mode": 0,
             "noise_filter_hz": 4000,
             "cc_cutoff_number": 74,
-            "cc_cutoff_depth_oct": 4
+            "cc_cutoff_depth_oct": 4,
+            "lfo2_waveform": 0,
+            "lfo2_rate_hz": 0.5,
+            "lfo2_sync": 0,
+            "mod_env_attack_ms": 5,
+            "mod_env_decay_ms": 300,
+            "mod_env_sustain": 0,
+            "mod_env_release_ms": 300,
+            "mod1_source": 0,
+            "mod1_destination": 0,
+            "mod1_amount": 0,
+            "mod2_source": 0,
+            "mod2_destination": 0,
+            "mod2_amount": 0,
+            "mod3_source": 0,
+            "mod3_destination": 0,
+            "mod3_amount": 0,
+            "mod4_source": 0,
+            "mod4_destination": 0,
+            "mod4_amount": 0
           }
         },
         {
@@ -4498,7 +5913,26 @@
             "noise_filter_mode": 1,
             "noise_filter_hz": 1200,
             "cc_cutoff_number": 74,
-            "cc_cutoff_depth_oct": 4
+            "cc_cutoff_depth_oct": 4,
+            "lfo2_waveform": 0,
+            "lfo2_rate_hz": 0.5,
+            "lfo2_sync": 0,
+            "mod_env_attack_ms": 5,
+            "mod_env_decay_ms": 300,
+            "mod_env_sustain": 0,
+            "mod_env_release_ms": 300,
+            "mod1_source": 0,
+            "mod1_destination": 0,
+            "mod1_amount": 0,
+            "mod2_source": 0,
+            "mod2_destination": 0,
+            "mod2_amount": 0,
+            "mod3_source": 0,
+            "mod3_destination": 0,
+            "mod3_amount": 0,
+            "mod4_source": 0,
+            "mod4_destination": 0,
+            "mod4_amount": 0
           }
         },
         {
@@ -4584,7 +6018,26 @@
             "noise_filter_mode": 0,
             "noise_filter_hz": 4000,
             "cc_cutoff_number": 74,
-            "cc_cutoff_depth_oct": 4
+            "cc_cutoff_depth_oct": 4,
+            "lfo2_waveform": 0,
+            "lfo2_rate_hz": 0.5,
+            "lfo2_sync": 0,
+            "mod_env_attack_ms": 5,
+            "mod_env_decay_ms": 300,
+            "mod_env_sustain": 0,
+            "mod_env_release_ms": 300,
+            "mod1_source": 0,
+            "mod1_destination": 0,
+            "mod1_amount": 0,
+            "mod2_source": 0,
+            "mod2_destination": 0,
+            "mod2_amount": 0,
+            "mod3_source": 0,
+            "mod3_destination": 0,
+            "mod3_amount": 0,
+            "mod4_source": 0,
+            "mod4_destination": 0,
+            "mod4_amount": 0
           }
         },
         {
@@ -4670,7 +6123,446 @@
             "noise_filter_mode": 0,
             "noise_filter_hz": 4000,
             "cc_cutoff_number": 74,
-            "cc_cutoff_depth_oct": 4
+            "cc_cutoff_depth_oct": 4,
+            "lfo2_waveform": 0,
+            "lfo2_rate_hz": 0.5,
+            "lfo2_sync": 0,
+            "mod_env_attack_ms": 5,
+            "mod_env_decay_ms": 300,
+            "mod_env_sustain": 0,
+            "mod_env_release_ms": 300,
+            "mod1_source": 0,
+            "mod1_destination": 0,
+            "mod1_amount": 0,
+            "mod2_source": 0,
+            "mod2_destination": 0,
+            "mod2_amount": 0,
+            "mod3_source": 0,
+            "mod3_destination": 0,
+            "mod3_amount": 0,
+            "mod4_source": 0,
+            "mod4_destination": 0,
+            "mod4_amount": 0
+          }
+        },
+        {
+          "name": "Pressure Pad",
+          "category": "Pad",
+          "description": "Slow saw pad that opens and shimmers as you press into the keys (aftertouch -> cutoff and vibrato speed); LFO 2 drifts it across the stereo field, each note a little detuned at random.",
+          "params": {
+            "osc1_waveform": 0,
+            "osc1_pulse_width": 0.5,
+            "osc1_level": 0.8,
+            "osc2_waveform": 0,
+            "osc2_pulse_width": 0.5,
+            "osc2_level": 0.7,
+            "osc2_transpose_cents": 0,
+            "osc2_detune_cents": 9,
+            "sub_osc_level": 0,
+            "noise_level": 0,
+            "osc2_hard_sync": 0,
+            "osc2_env_pitch_cents": 0,
+            "fm_index": 0,
+            "filter_mode": 0,
+            "filter_cutoff_hz": 650,
+            "filter_resonance": 0.2,
+            "filter_slope": 1,
+            "filter_drive": 0,
+            "filter_env_amount_oct": 0.8,
+            "filter_key_tracking": 0.5,
+            "filter_velocity_amount": 0.3,
+            "filter_env_attack_ms": 600,
+            "filter_env_decay_ms": 1500,
+            "filter_env_sustain": 0.5,
+            "filter_env_release_ms": 300,
+            "amp_attack_ms": 450,
+            "amp_decay_ms": 2000,
+            "amp_sustain": 0.85,
+            "amp_release_ms": 1400,
+            "amp_velocity_amount": 0.7,
+            "lfo_waveform": 0,
+            "lfo_rate_hz": 4.5,
+            "lfo_pitch_cents": 6,
+            "lfo_filter_oct": 0,
+            "lfo_pulse_width": 0,
+            "lfo_amp": 0,
+            "modwheel_vibrato_cents": 30,
+            "modwheel_filter_oct": 0,
+            "pitch_bend_range_cents": 200,
+            "voice_count": 8,
+            "glide_ms": 0,
+            "unison_voices": 1,
+            "unison_detune_cents": 15,
+            "unison_stereo_width": 0.7,
+            "master_volume_db": -7.9,
+            "transpose_semitones": 0,
+            "voice_mode": 0,
+            "glide_mode": 0,
+            "unison_detune_curve": 0,
+            "unison_side_level": 1,
+            "lfo_sync": 0,
+            "arp_mode": 0,
+            "arp_rate": 4,
+            "arp_octaves": 1,
+            "arp_gate": 0.5,
+            "arp_swing_percent": 50,
+            "arp_steps": 16,
+            "arp_step_1": 1,
+            "arp_step_2": 1,
+            "arp_step_3": 1,
+            "arp_step_4": 1,
+            "arp_step_5": 1,
+            "arp_step_6": 1,
+            "arp_step_7": 1,
+            "arp_step_8": 1,
+            "arp_step_9": 1,
+            "arp_step_10": 1,
+            "arp_step_11": 1,
+            "arp_step_12": 1,
+            "arp_step_13": 1,
+            "arp_step_14": 1,
+            "arp_step_15": 1,
+            "arp_step_16": 1,
+            "noise_type": 0,
+            "noise_clock_oct": 0,
+            "noise_filter_mode": 0,
+            "noise_filter_hz": 4000,
+            "cc_cutoff_number": 74,
+            "cc_cutoff_depth_oct": 4,
+            "lfo2_waveform": 1,
+            "lfo2_rate_hz": 0.13,
+            "lfo2_sync": 0,
+            "mod_env_attack_ms": 5,
+            "mod_env_decay_ms": 300,
+            "mod_env_sustain": 0,
+            "mod_env_release_ms": 300,
+            "mod1_source": 7,
+            "mod1_destination": 2,
+            "mod1_amount": 2.5,
+            "mod2_source": 7,
+            "mod2_destination": 9,
+            "mod2_amount": 1,
+            "mod3_source": 2,
+            "mod3_destination": 8,
+            "mod3_amount": 0.6,
+            "mod4_source": 8,
+            "mod4_destination": 5,
+            "mod4_amount": 8
+          }
+        },
+        {
+          "name": "Sync Sweep Lead",
+          "category": "Lead",
+          "description": "Hard-sync lead whose sync sweep comes from the mod envelope; harder notes open the filter, aftertouch pushes the sync pitch higher (screams).",
+          "params": {
+            "osc1_waveform": 0,
+            "osc1_pulse_width": 0.5,
+            "osc1_level": 0.3,
+            "osc2_waveform": 0,
+            "osc2_pulse_width": 0.5,
+            "osc2_level": 0.8,
+            "osc2_transpose_cents": 0,
+            "osc2_detune_cents": 0,
+            "sub_osc_level": 0,
+            "noise_level": 0,
+            "osc2_hard_sync": 1,
+            "osc2_env_pitch_cents": 0,
+            "fm_index": 0,
+            "filter_mode": 0,
+            "filter_cutoff_hz": 2200,
+            "filter_resonance": 0.25,
+            "filter_slope": 1,
+            "filter_drive": 0,
+            "filter_env_amount_oct": 1,
+            "filter_key_tracking": 0.5,
+            "filter_velocity_amount": 0.3,
+            "filter_env_attack_ms": 5,
+            "filter_env_decay_ms": 300,
+            "filter_env_sustain": 0.2,
+            "filter_env_release_ms": 300,
+            "amp_attack_ms": 2,
+            "amp_decay_ms": 400,
+            "amp_sustain": 0.9,
+            "amp_release_ms": 180,
+            "amp_velocity_amount": 0.7,
+            "lfo_waveform": 0,
+            "lfo_rate_hz": 5,
+            "lfo_pitch_cents": 0,
+            "lfo_filter_oct": 0,
+            "lfo_pulse_width": 0,
+            "lfo_amp": 0,
+            "modwheel_vibrato_cents": 30,
+            "modwheel_filter_oct": 0,
+            "pitch_bend_range_cents": 200,
+            "voice_count": 8,
+            "glide_ms": 35,
+            "unison_voices": 1,
+            "unison_detune_cents": 15,
+            "unison_stereo_width": 0.7,
+            "master_volume_db": -6.6,
+            "transpose_semitones": 0,
+            "voice_mode": 2,
+            "glide_mode": 0,
+            "unison_detune_curve": 0,
+            "unison_side_level": 1,
+            "lfo_sync": 0,
+            "arp_mode": 0,
+            "arp_rate": 4,
+            "arp_octaves": 1,
+            "arp_gate": 0.5,
+            "arp_swing_percent": 50,
+            "arp_steps": 16,
+            "arp_step_1": 1,
+            "arp_step_2": 1,
+            "arp_step_3": 1,
+            "arp_step_4": 1,
+            "arp_step_5": 1,
+            "arp_step_6": 1,
+            "arp_step_7": 1,
+            "arp_step_8": 1,
+            "arp_step_9": 1,
+            "arp_step_10": 1,
+            "arp_step_11": 1,
+            "arp_step_12": 1,
+            "arp_step_13": 1,
+            "arp_step_14": 1,
+            "arp_step_15": 1,
+            "arp_step_16": 1,
+            "noise_type": 0,
+            "noise_clock_oct": 0,
+            "noise_filter_mode": 0,
+            "noise_filter_hz": 4000,
+            "cc_cutoff_number": 74,
+            "cc_cutoff_depth_oct": 4,
+            "lfo2_waveform": 0,
+            "lfo2_rate_hz": 0.5,
+            "lfo2_sync": 0,
+            "mod_env_attack_ms": 1,
+            "mod_env_decay_ms": 450,
+            "mod_env_sustain": 0.25,
+            "mod_env_release_ms": 300,
+            "mod1_source": 3,
+            "mod1_destination": 5,
+            "mod1_amount": 2400,
+            "mod2_source": 4,
+            "mod2_destination": 2,
+            "mod2_amount": 1.5,
+            "mod3_source": 7,
+            "mod3_destination": 5,
+            "mod3_amount": 1200,
+            "mod4_source": 0,
+            "mod4_destination": 0,
+            "mod4_amount": 0
+          }
+        },
+        {
+          "name": "Tempo Wobble Bass",
+          "category": "Bass",
+          "description": "LFO 2 locked to 1/8 notes sweeps the cutoff (dubstep-style wobble, follows the host tempo); aftertouch adds resonance, the mod wheel adds a second, faster filter wobble from LFO 1.",
+          "params": {
+            "osc1_waveform": 0,
+            "osc1_pulse_width": 0.5,
+            "osc1_level": 0.8,
+            "osc2_waveform": 0,
+            "osc2_pulse_width": 0.5,
+            "osc2_level": 0.6,
+            "osc2_transpose_cents": -1200,
+            "osc2_detune_cents": 4,
+            "sub_osc_level": 0.4,
+            "noise_level": 0,
+            "osc2_hard_sync": 0,
+            "osc2_env_pitch_cents": 0,
+            "fm_index": 0,
+            "filter_mode": 0,
+            "filter_cutoff_hz": 300,
+            "filter_resonance": 0.45,
+            "filter_slope": 1,
+            "filter_drive": 0.3,
+            "filter_env_amount_oct": 0.5,
+            "filter_key_tracking": 0.3,
+            "filter_velocity_amount": 0.3,
+            "filter_env_attack_ms": 5,
+            "filter_env_decay_ms": 300,
+            "filter_env_sustain": 0.2,
+            "filter_env_release_ms": 300,
+            "amp_attack_ms": 2,
+            "amp_decay_ms": 400,
+            "amp_sustain": 1,
+            "amp_release_ms": 90,
+            "amp_velocity_amount": 0.7,
+            "lfo_waveform": 0,
+            "lfo_rate_hz": 9,
+            "lfo_pitch_cents": 0,
+            "lfo_filter_oct": 0,
+            "lfo_pulse_width": 0,
+            "lfo_amp": 0,
+            "modwheel_vibrato_cents": 0,
+            "modwheel_filter_oct": 1.5,
+            "pitch_bend_range_cents": 200,
+            "voice_count": 1,
+            "glide_ms": 0,
+            "unison_voices": 1,
+            "unison_detune_cents": 15,
+            "unison_stereo_width": 0.7,
+            "master_volume_db": -5.8,
+            "transpose_semitones": 0,
+            "voice_mode": 0,
+            "glide_mode": 0,
+            "unison_detune_curve": 0,
+            "unison_side_level": 1,
+            "lfo_sync": 0,
+            "arp_mode": 0,
+            "arp_rate": 4,
+            "arp_octaves": 1,
+            "arp_gate": 0.5,
+            "arp_swing_percent": 50,
+            "arp_steps": 16,
+            "arp_step_1": 1,
+            "arp_step_2": 1,
+            "arp_step_3": 1,
+            "arp_step_4": 1,
+            "arp_step_5": 1,
+            "arp_step_6": 1,
+            "arp_step_7": 1,
+            "arp_step_8": 1,
+            "arp_step_9": 1,
+            "arp_step_10": 1,
+            "arp_step_11": 1,
+            "arp_step_12": 1,
+            "arp_step_13": 1,
+            "arp_step_14": 1,
+            "arp_step_15": 1,
+            "arp_step_16": 1,
+            "noise_type": 0,
+            "noise_clock_oct": 0,
+            "noise_filter_mode": 0,
+            "noise_filter_hz": 4000,
+            "cc_cutoff_number": 74,
+            "cc_cutoff_depth_oct": 4,
+            "lfo2_waveform": 0,
+            "lfo2_rate_hz": 0.5,
+            "lfo2_sync": 10,
+            "mod_env_attack_ms": 5,
+            "mod_env_decay_ms": 300,
+            "mod_env_sustain": 0,
+            "mod_env_release_ms": 300,
+            "mod1_source": 2,
+            "mod1_destination": 2,
+            "mod1_amount": 2.5,
+            "mod2_source": 7,
+            "mod2_destination": 3,
+            "mod2_amount": 0.35,
+            "mod3_source": 0,
+            "mod3_destination": 0,
+            "mod3_amount": 0,
+            "mod4_source": 0,
+            "mod4_destination": 0,
+            "mod4_amount": 0
+          }
+        },
+        {
+          "name": "Scatter Pluck",
+          "category": "Keys",
+          "description": "Every note gets its own random pan position and brightness, and a quick pitch blip from the mod envelope at the attack: lively plucked chords.",
+          "params": {
+            "osc1_waveform": 0,
+            "osc1_pulse_width": 0.5,
+            "osc1_level": 0.8,
+            "osc2_waveform": 2,
+            "osc2_pulse_width": 0.5,
+            "osc2_level": 0.5,
+            "osc2_transpose_cents": 1200,
+            "osc2_detune_cents": 7,
+            "sub_osc_level": 0,
+            "noise_level": 0,
+            "osc2_hard_sync": 0,
+            "osc2_env_pitch_cents": 0,
+            "fm_index": 0,
+            "filter_mode": 0,
+            "filter_cutoff_hz": 700,
+            "filter_resonance": 0.3,
+            "filter_slope": 1,
+            "filter_drive": 0,
+            "filter_env_amount_oct": 3.5,
+            "filter_key_tracking": 0.5,
+            "filter_velocity_amount": 0.3,
+            "filter_env_attack_ms": 1,
+            "filter_env_decay_ms": 250,
+            "filter_env_sustain": 0,
+            "filter_env_release_ms": 300,
+            "amp_attack_ms": 1,
+            "amp_decay_ms": 700,
+            "amp_sustain": 0,
+            "amp_release_ms": 300,
+            "amp_velocity_amount": 0.7,
+            "lfo_waveform": 0,
+            "lfo_rate_hz": 5,
+            "lfo_pitch_cents": 0,
+            "lfo_filter_oct": 0,
+            "lfo_pulse_width": 0,
+            "lfo_amp": 0,
+            "modwheel_vibrato_cents": 30,
+            "modwheel_filter_oct": 0,
+            "pitch_bend_range_cents": 200,
+            "voice_count": 8,
+            "glide_ms": 0,
+            "unison_voices": 1,
+            "unison_detune_cents": 15,
+            "unison_stereo_width": 0.7,
+            "master_volume_db": -0.2,
+            "transpose_semitones": 0,
+            "voice_mode": 0,
+            "glide_mode": 0,
+            "unison_detune_curve": 0,
+            "unison_side_level": 1,
+            "lfo_sync": 0,
+            "arp_mode": 0,
+            "arp_rate": 4,
+            "arp_octaves": 1,
+            "arp_gate": 0.5,
+            "arp_swing_percent": 50,
+            "arp_steps": 16,
+            "arp_step_1": 1,
+            "arp_step_2": 1,
+            "arp_step_3": 1,
+            "arp_step_4": 1,
+            "arp_step_5": 1,
+            "arp_step_6": 1,
+            "arp_step_7": 1,
+            "arp_step_8": 1,
+            "arp_step_9": 1,
+            "arp_step_10": 1,
+            "arp_step_11": 1,
+            "arp_step_12": 1,
+            "arp_step_13": 1,
+            "arp_step_14": 1,
+            "arp_step_15": 1,
+            "arp_step_16": 1,
+            "noise_type": 0,
+            "noise_clock_oct": 0,
+            "noise_filter_mode": 0,
+            "noise_filter_hz": 4000,
+            "cc_cutoff_number": 74,
+            "cc_cutoff_depth_oct": 4,
+            "lfo2_waveform": 0,
+            "lfo2_rate_hz": 0.5,
+            "lfo2_sync": 0,
+            "mod_env_attack_ms": 0.5,
+            "mod_env_decay_ms": 40,
+            "mod_env_sustain": 0,
+            "mod_env_release_ms": 300,
+            "mod1_source": 8,
+            "mod1_destination": 8,
+            "mod1_amount": 0.8,
+            "mod2_source": 8,
+            "mod2_destination": 2,
+            "mod2_amount": 0.8,
+            "mod3_source": 3,
+            "mod3_destination": 1,
+            "mod3_amount": 150,
+            "mod4_source": 0,
+            "mod4_destination": 0,
+            "mod4_amount": 0
           }
         }
       ],
@@ -5823,6 +7715,48 @@
               "label": "On (all models)"
             }
           ]
+        },
+        {
+          "id": "phys_pressure_excitation",
+          "name": "Pressure to Breath / Bow",
+          "group": "Pressure",
+          "min": 0,
+          "max": 1,
+          "default": 0,
+          "step": 0.001,
+          "unit": "",
+          "description": "How much aftertouch (channel pressure or polyphonic aftertouch, 0..1) adds to Breath Pressure (wind), Brass Blowing Pressure (brass) and Bow Pressure (bowed) while a note sounds. 0 = off.",
+          "slider": 61,
+          "paramIndex": 60,
+          "valueDomain": "real"
+        },
+        {
+          "id": "phys_pressure_vibrato_cents",
+          "name": "Pressure to Vibrato",
+          "group": "Pressure",
+          "min": 0,
+          "max": 100,
+          "default": 0,
+          "step": 0.1,
+          "unit": "cents",
+          "description": "Extra vibrato depth at full aftertouch, per note (delay-line models: string, bowed, wind, stiff string, brass). 0 = off.",
+          "slider": 62,
+          "paramIndex": 61,
+          "valueDomain": "real"
+        },
+        {
+          "id": "phys_pressure_brightness",
+          "name": "Pressure to Brightness",
+          "group": "Pressure",
+          "min": 0,
+          "max": 1,
+          "default": 0,
+          "step": 0.001,
+          "unit": "",
+          "description": "How much aftertouch adds to Bowed String Brightness (bowed) and Brass Bell Brightness (brass). 0 = off.",
+          "slider": 63,
+          "paramIndex": 62,
+          "valueDomain": "real"
         }
       ],
       "presets": [
@@ -5884,7 +7818,10 @@
             "amp_gain": 0.5,
             "amp_tone": 0.5,
             "amp_level_db": 0,
-            "phys_sustain_mode": 1
+            "phys_sustain_mode": 1,
+            "phys_pressure_excitation": 0,
+            "phys_pressure_vibrato_cents": 0,
+            "phys_pressure_brightness": 0
           }
         },
         {
@@ -5945,7 +7882,10 @@
             "amp_gain": 0.5,
             "amp_tone": 0.5,
             "amp_level_db": 0,
-            "phys_sustain_mode": 1
+            "phys_sustain_mode": 1,
+            "phys_pressure_excitation": 0,
+            "phys_pressure_vibrato_cents": 0,
+            "phys_pressure_brightness": 0
           }
         },
         {
@@ -6006,7 +7946,10 @@
             "amp_gain": 0.5,
             "amp_tone": 0.5,
             "amp_level_db": 0,
-            "phys_sustain_mode": 1
+            "phys_sustain_mode": 1,
+            "phys_pressure_excitation": 0,
+            "phys_pressure_vibrato_cents": 0,
+            "phys_pressure_brightness": 0
           }
         },
         {
@@ -6067,7 +8010,10 @@
             "amp_gain": 0.5,
             "amp_tone": 0.5,
             "amp_level_db": 0,
-            "phys_sustain_mode": 1
+            "phys_sustain_mode": 1,
+            "phys_pressure_excitation": 0,
+            "phys_pressure_vibrato_cents": 0,
+            "phys_pressure_brightness": 0
           }
         },
         {
@@ -6128,7 +8074,10 @@
             "amp_gain": 0.5,
             "amp_tone": 0.5,
             "amp_level_db": 0,
-            "phys_sustain_mode": 1
+            "phys_sustain_mode": 1,
+            "phys_pressure_excitation": 0,
+            "phys_pressure_vibrato_cents": 0,
+            "phys_pressure_brightness": 0
           }
         },
         {
@@ -6189,7 +8138,10 @@
             "amp_gain": 0.4,
             "amp_tone": 0.7,
             "amp_level_db": 0,
-            "phys_sustain_mode": 1
+            "phys_sustain_mode": 1,
+            "phys_pressure_excitation": 0,
+            "phys_pressure_vibrato_cents": 0,
+            "phys_pressure_brightness": 0
           }
         },
         {
@@ -6250,7 +8202,10 @@
             "amp_gain": 0.3,
             "amp_tone": 0.15,
             "amp_level_db": 0,
-            "phys_sustain_mode": 1
+            "phys_sustain_mode": 1,
+            "phys_pressure_excitation": 0,
+            "phys_pressure_vibrato_cents": 0,
+            "phys_pressure_brightness": 0
           }
         },
         {
@@ -6311,7 +8266,10 @@
             "amp_gain": 0.55,
             "amp_tone": 0.55,
             "amp_level_db": 0,
-            "phys_sustain_mode": 1
+            "phys_sustain_mode": 1,
+            "phys_pressure_excitation": 0,
+            "phys_pressure_vibrato_cents": 0,
+            "phys_pressure_brightness": 0
           }
         },
         {
@@ -6372,7 +8330,10 @@
             "amp_gain": 0.7,
             "amp_tone": 0.5,
             "amp_level_db": 0,
-            "phys_sustain_mode": 1
+            "phys_sustain_mode": 1,
+            "phys_pressure_excitation": 0,
+            "phys_pressure_vibrato_cents": 0,
+            "phys_pressure_brightness": 0
           }
         },
         {
@@ -6433,7 +8394,10 @@
             "amp_gain": 0.6,
             "amp_tone": 0.45,
             "amp_level_db": 0,
-            "phys_sustain_mode": 1
+            "phys_sustain_mode": 1,
+            "phys_pressure_excitation": 0,
+            "phys_pressure_vibrato_cents": 0,
+            "phys_pressure_brightness": 0
           }
         },
         {
@@ -6494,7 +8458,10 @@
             "amp_gain": 0.65,
             "amp_tone": 0.4,
             "amp_level_db": 0,
-            "phys_sustain_mode": 1
+            "phys_sustain_mode": 1,
+            "phys_pressure_excitation": 0,
+            "phys_pressure_vibrato_cents": 0,
+            "phys_pressure_brightness": 0
           }
         },
         {
@@ -6555,7 +8522,10 @@
             "amp_gain": 0.5,
             "amp_tone": 0.5,
             "amp_level_db": 0,
-            "phys_sustain_mode": 1
+            "phys_sustain_mode": 1,
+            "phys_pressure_excitation": 0,
+            "phys_pressure_vibrato_cents": 0,
+            "phys_pressure_brightness": 0
           }
         },
         {
@@ -6616,7 +8586,10 @@
             "amp_gain": 0.5,
             "amp_tone": 0.5,
             "amp_level_db": 0,
-            "phys_sustain_mode": 1
+            "phys_sustain_mode": 1,
+            "phys_pressure_excitation": 0,
+            "phys_pressure_vibrato_cents": 0,
+            "phys_pressure_brightness": 0
           }
         },
         {
@@ -6677,7 +8650,10 @@
             "amp_gain": 0.5,
             "amp_tone": 0.5,
             "amp_level_db": 0,
-            "phys_sustain_mode": 1
+            "phys_sustain_mode": 1,
+            "phys_pressure_excitation": 0,
+            "phys_pressure_vibrato_cents": 0,
+            "phys_pressure_brightness": 0
           }
         },
         {
@@ -6738,7 +8714,10 @@
             "amp_gain": 0.5,
             "amp_tone": 0.5,
             "amp_level_db": 0,
-            "phys_sustain_mode": 1
+            "phys_sustain_mode": 1,
+            "phys_pressure_excitation": 0,
+            "phys_pressure_vibrato_cents": 0,
+            "phys_pressure_brightness": 0
           }
         },
         {
@@ -6799,7 +8778,10 @@
             "amp_gain": 0.5,
             "amp_tone": 0.5,
             "amp_level_db": 0,
-            "phys_sustain_mode": 1
+            "phys_sustain_mode": 1,
+            "phys_pressure_excitation": 0,
+            "phys_pressure_vibrato_cents": 0,
+            "phys_pressure_brightness": 0
           }
         },
         {
@@ -6860,7 +8842,10 @@
             "amp_gain": 0.5,
             "amp_tone": 0.5,
             "amp_level_db": 0,
-            "phys_sustain_mode": 1
+            "phys_sustain_mode": 1,
+            "phys_pressure_excitation": 0,
+            "phys_pressure_vibrato_cents": 0,
+            "phys_pressure_brightness": 0
           }
         },
         {
@@ -6921,7 +8906,10 @@
             "amp_gain": 0.5,
             "amp_tone": 0.5,
             "amp_level_db": 0,
-            "phys_sustain_mode": 1
+            "phys_sustain_mode": 1,
+            "phys_pressure_excitation": 0,
+            "phys_pressure_vibrato_cents": 0,
+            "phys_pressure_brightness": 0
           }
         },
         {
@@ -6982,7 +8970,10 @@
             "amp_gain": 0.5,
             "amp_tone": 0.5,
             "amp_level_db": 0,
-            "phys_sustain_mode": 1
+            "phys_sustain_mode": 1,
+            "phys_pressure_excitation": 0,
+            "phys_pressure_vibrato_cents": 0,
+            "phys_pressure_brightness": 0
           }
         },
         {
@@ -7043,7 +9034,10 @@
             "amp_gain": 0.5,
             "amp_tone": 0.5,
             "amp_level_db": 0,
-            "phys_sustain_mode": 1
+            "phys_sustain_mode": 1,
+            "phys_pressure_excitation": 0,
+            "phys_pressure_vibrato_cents": 0,
+            "phys_pressure_brightness": 0
           }
         },
         {
@@ -7104,7 +9098,10 @@
             "amp_gain": 0.5,
             "amp_tone": 0.5,
             "amp_level_db": 0,
-            "phys_sustain_mode": 1
+            "phys_sustain_mode": 1,
+            "phys_pressure_excitation": 0,
+            "phys_pressure_vibrato_cents": 0,
+            "phys_pressure_brightness": 0
           }
         },
         {
@@ -7165,7 +9162,10 @@
             "amp_gain": 0.5,
             "amp_tone": 0.5,
             "amp_level_db": 0,
-            "phys_sustain_mode": 1
+            "phys_sustain_mode": 1,
+            "phys_pressure_excitation": 0,
+            "phys_pressure_vibrato_cents": 0,
+            "phys_pressure_brightness": 0
           }
         },
         {
@@ -7226,7 +9226,10 @@
             "amp_gain": 0.5,
             "amp_tone": 0.5,
             "amp_level_db": 0,
-            "phys_sustain_mode": 1
+            "phys_sustain_mode": 1,
+            "phys_pressure_excitation": 0,
+            "phys_pressure_vibrato_cents": 0,
+            "phys_pressure_brightness": 0
           }
         },
         {
@@ -7287,7 +9290,10 @@
             "amp_gain": 0.5,
             "amp_tone": 0.5,
             "amp_level_db": 0,
-            "phys_sustain_mode": 1
+            "phys_sustain_mode": 1,
+            "phys_pressure_excitation": 0,
+            "phys_pressure_vibrato_cents": 0,
+            "phys_pressure_brightness": 0
           }
         },
         {
@@ -7348,7 +9354,10 @@
             "amp_gain": 0.5,
             "amp_tone": 0.5,
             "amp_level_db": 0,
-            "phys_sustain_mode": 1
+            "phys_sustain_mode": 1,
+            "phys_pressure_excitation": 0,
+            "phys_pressure_vibrato_cents": 0,
+            "phys_pressure_brightness": 0
           }
         },
         {
@@ -7409,7 +9418,10 @@
             "amp_gain": 0.5,
             "amp_tone": 0.5,
             "amp_level_db": 0,
-            "phys_sustain_mode": 1
+            "phys_sustain_mode": 1,
+            "phys_pressure_excitation": 0,
+            "phys_pressure_vibrato_cents": 0,
+            "phys_pressure_brightness": 0
           }
         },
         {
@@ -7470,7 +9482,10 @@
             "amp_gain": 0.5,
             "amp_tone": 0.5,
             "amp_level_db": 0,
-            "phys_sustain_mode": 1
+            "phys_sustain_mode": 1,
+            "phys_pressure_excitation": 0,
+            "phys_pressure_vibrato_cents": 0,
+            "phys_pressure_brightness": 0
           }
         },
         {
@@ -7531,7 +9546,10 @@
             "amp_gain": 0.5,
             "amp_tone": 0.5,
             "amp_level_db": 0,
-            "phys_sustain_mode": 1
+            "phys_sustain_mode": 1,
+            "phys_pressure_excitation": 0,
+            "phys_pressure_vibrato_cents": 0,
+            "phys_pressure_brightness": 0
           }
         },
         {
@@ -7592,7 +9610,10 @@
             "amp_gain": 0.5,
             "amp_tone": 0.5,
             "amp_level_db": 0,
-            "phys_sustain_mode": 1
+            "phys_sustain_mode": 1,
+            "phys_pressure_excitation": 0,
+            "phys_pressure_vibrato_cents": 0,
+            "phys_pressure_brightness": 0
           }
         },
         {
@@ -7653,7 +9674,10 @@
             "amp_gain": 0.5,
             "amp_tone": 0.5,
             "amp_level_db": 0,
-            "phys_sustain_mode": 1
+            "phys_sustain_mode": 1,
+            "phys_pressure_excitation": 0,
+            "phys_pressure_vibrato_cents": 0,
+            "phys_pressure_brightness": 0
           }
         },
         {
@@ -7714,7 +9738,10 @@
             "amp_gain": 0.5,
             "amp_tone": 0.5,
             "amp_level_db": 0,
-            "phys_sustain_mode": 1
+            "phys_sustain_mode": 1,
+            "phys_pressure_excitation": 0,
+            "phys_pressure_vibrato_cents": 0,
+            "phys_pressure_brightness": 0
           }
         },
         {
@@ -7775,7 +9802,10 @@
             "amp_gain": 0.5,
             "amp_tone": 0.5,
             "amp_level_db": 0,
-            "phys_sustain_mode": 1
+            "phys_sustain_mode": 1,
+            "phys_pressure_excitation": 0,
+            "phys_pressure_vibrato_cents": 0,
+            "phys_pressure_brightness": 0
           }
         },
         {
@@ -7836,7 +9866,10 @@
             "amp_gain": 0.5,
             "amp_tone": 0.5,
             "amp_level_db": 0,
-            "phys_sustain_mode": 1
+            "phys_sustain_mode": 1,
+            "phys_pressure_excitation": 0,
+            "phys_pressure_vibrato_cents": 0,
+            "phys_pressure_brightness": 0
           }
         },
         {
@@ -7897,7 +9930,10 @@
             "amp_gain": 0.5,
             "amp_tone": 0.5,
             "amp_level_db": 0,
-            "phys_sustain_mode": 1
+            "phys_sustain_mode": 1,
+            "phys_pressure_excitation": 0,
+            "phys_pressure_vibrato_cents": 0,
+            "phys_pressure_brightness": 0
           }
         },
         {
@@ -7958,7 +9994,10 @@
             "amp_gain": 0.5,
             "amp_tone": 0.5,
             "amp_level_db": 0,
-            "phys_sustain_mode": 1
+            "phys_sustain_mode": 1,
+            "phys_pressure_excitation": 0,
+            "phys_pressure_vibrato_cents": 0,
+            "phys_pressure_brightness": 0
           }
         },
         {
@@ -8019,7 +10058,10 @@
             "amp_gain": 0.5,
             "amp_tone": 0.5,
             "amp_level_db": 0,
-            "phys_sustain_mode": 1
+            "phys_sustain_mode": 1,
+            "phys_pressure_excitation": 0,
+            "phys_pressure_vibrato_cents": 0,
+            "phys_pressure_brightness": 0
           }
         },
         {
@@ -8080,7 +10122,10 @@
             "amp_gain": 0.5,
             "amp_tone": 0.5,
             "amp_level_db": 0,
-            "phys_sustain_mode": 1
+            "phys_sustain_mode": 1,
+            "phys_pressure_excitation": 0,
+            "phys_pressure_vibrato_cents": 0,
+            "phys_pressure_brightness": 0
           }
         },
         {
@@ -8141,7 +10186,10 @@
             "amp_gain": 0.5,
             "amp_tone": 0.5,
             "amp_level_db": 0,
-            "phys_sustain_mode": 1
+            "phys_sustain_mode": 1,
+            "phys_pressure_excitation": 0,
+            "phys_pressure_vibrato_cents": 0,
+            "phys_pressure_brightness": 0
           }
         },
         {
@@ -8202,7 +10250,202 @@
             "amp_gain": 0.5,
             "amp_tone": 0.5,
             "amp_level_db": 0,
-            "phys_sustain_mode": 1
+            "phys_sustain_mode": 1,
+            "phys_pressure_excitation": 0,
+            "phys_pressure_vibrato_cents": 0,
+            "phys_pressure_brightness": 0
+          }
+        },
+        {
+          "name": "Expressive Violin",
+          "category": "Bowed",
+          "description": "The Violin with aftertouch: pressing harder digs the bow in, brightens the bridge and widens the vibrato (needs a keyboard with aftertouch, or the Pressure strip).",
+          "params": {
+            "phys_model": 2,
+            "string_excitation": 0,
+            "string_decay_ms": 3000,
+            "string_damping": 0.35,
+            "string_pick_position": 0.13,
+            "string_brightness": 0.7,
+            "modal_material": 0,
+            "modal_decay_ms": 1500,
+            "modal_high_damping": 0.5,
+            "modal_hardness": 0.5,
+            "modal_strike_position": 0.22,
+            "modal_inharmonicity": 0,
+            "bow_pressure": 0.4,
+            "bow_speed": 0.6,
+            "bow_position": 0.11,
+            "bow_attack_ms": 80,
+            "bowed_brightness": 0.55,
+            "wind_type": 0,
+            "breath_pressure": 0.6,
+            "breath_noise": 0.15,
+            "wind_attack_ms": 40,
+            "wind_embouchure": 0.5,
+            "mesh_shape": 0,
+            "mesh_size": 12,
+            "mesh_decay_ms": 900,
+            "mesh_high_damping": 0.3,
+            "mesh_strike_x": 0.3,
+            "mesh_strike_y": 0.42,
+            "mesh_hardness": 0.5,
+            "piano_inharmonicity": 0.35,
+            "piano_hammer_hardness": 0.5,
+            "piano_strike_position": 0.12,
+            "piano_decay_ms": 8000,
+            "piano_damping": 0.25,
+            "piano_soundboard": 0.6,
+            "piano_unison_detune_cents": 1.2,
+            "phys_vibrato_cents": 8,
+            "phys_vibrato_rate_hz": 5.5,
+            "phys_release_ms": 250,
+            "phys_velocity_amount": 0.8,
+            "phys_stereo_width": 0.5,
+            "phys_pitch_bend_range_cents": 200,
+            "phys_room_mix": 0.25,
+            "phys_room_decay_ms": 1300,
+            "phys_volume_db": -17.9,
+            "brass_pressure": 0.6,
+            "brass_lip": 0.5,
+            "brass_attack_ms": 30,
+            "brass_bell": 0.5,
+            "amp_type": 0,
+            "amp_gain": 0.5,
+            "amp_tone": 0.5,
+            "amp_level_db": 0,
+            "phys_sustain_mode": 1,
+            "phys_pressure_excitation": 0.35,
+            "phys_pressure_vibrato_cents": 25,
+            "phys_pressure_brightness": 0.35
+          }
+        },
+        {
+          "name": "Breath Trumpet",
+          "category": "Brass",
+          "description": "Trumpet blown by aftertouch: soft keys start mellow, pressing in blows harder (brassier, brighter bell) and adds vibrato.",
+          "params": {
+            "phys_model": 6,
+            "string_excitation": 0,
+            "string_decay_ms": 3000,
+            "string_damping": 0.35,
+            "string_pick_position": 0.13,
+            "string_brightness": 0.7,
+            "modal_material": 0,
+            "modal_decay_ms": 1500,
+            "modal_high_damping": 0.5,
+            "modal_hardness": 0.5,
+            "modal_strike_position": 0.22,
+            "modal_inharmonicity": 0,
+            "bow_pressure": 0.45,
+            "bow_speed": 0.55,
+            "bow_position": 0.127,
+            "bow_attack_ms": 90,
+            "bowed_brightness": 0.6,
+            "wind_type": 0,
+            "breath_pressure": 0.6,
+            "breath_noise": 0.15,
+            "wind_attack_ms": 40,
+            "wind_embouchure": 0.5,
+            "mesh_shape": 0,
+            "mesh_size": 12,
+            "mesh_decay_ms": 900,
+            "mesh_high_damping": 0.3,
+            "mesh_strike_x": 0.3,
+            "mesh_strike_y": 0.42,
+            "mesh_hardness": 0.5,
+            "piano_inharmonicity": 0.35,
+            "piano_hammer_hardness": 0.5,
+            "piano_strike_position": 0.12,
+            "piano_decay_ms": 8000,
+            "piano_damping": 0.25,
+            "piano_soundboard": 0.6,
+            "piano_unison_detune_cents": 1.2,
+            "phys_vibrato_cents": 0,
+            "phys_vibrato_rate_hz": 5.2,
+            "phys_release_ms": 120,
+            "phys_velocity_amount": 0.8,
+            "phys_stereo_width": 0.5,
+            "phys_pitch_bend_range_cents": 200,
+            "phys_room_mix": 0.25,
+            "phys_room_decay_ms": 1300,
+            "phys_volume_db": -5.1,
+            "brass_pressure": 0.45,
+            "brass_lip": 0.55,
+            "brass_attack_ms": 30,
+            "brass_bell": 0.45,
+            "amp_type": 0,
+            "amp_gain": 0.5,
+            "amp_tone": 0.5,
+            "amp_level_db": 0,
+            "phys_sustain_mode": 1,
+            "phys_pressure_excitation": 0.45,
+            "phys_pressure_vibrato_cents": 15,
+            "phys_pressure_brightness": 0.4
+          }
+        },
+        {
+          "name": "Breath Clarinet",
+          "category": "Wind",
+          "description": "Clarinet with aftertouch as breath: press in for more reed pressure and a little vibrato.",
+          "params": {
+            "phys_model": 3,
+            "string_excitation": 0,
+            "string_decay_ms": 3000,
+            "string_damping": 0.35,
+            "string_pick_position": 0.13,
+            "string_brightness": 0.7,
+            "modal_material": 0,
+            "modal_decay_ms": 1500,
+            "modal_high_damping": 0.5,
+            "modal_hardness": 0.5,
+            "modal_strike_position": 0.22,
+            "modal_inharmonicity": 0,
+            "bow_pressure": 0.45,
+            "bow_speed": 0.55,
+            "bow_position": 0.127,
+            "bow_attack_ms": 90,
+            "bowed_brightness": 0.6,
+            "wind_type": 0,
+            "breath_pressure": 0.45,
+            "breath_noise": 0.12,
+            "wind_attack_ms": 35,
+            "wind_embouchure": 0.45,
+            "mesh_shape": 0,
+            "mesh_size": 12,
+            "mesh_decay_ms": 900,
+            "mesh_high_damping": 0.3,
+            "mesh_strike_x": 0.3,
+            "mesh_strike_y": 0.42,
+            "mesh_hardness": 0.5,
+            "piano_inharmonicity": 0.35,
+            "piano_hammer_hardness": 0.5,
+            "piano_strike_position": 0.12,
+            "piano_decay_ms": 8000,
+            "piano_damping": 0.25,
+            "piano_soundboard": 0.6,
+            "piano_unison_detune_cents": 1.2,
+            "phys_vibrato_cents": 0,
+            "phys_vibrato_rate_hz": 5,
+            "phys_release_ms": 120,
+            "phys_velocity_amount": 0.8,
+            "phys_stereo_width": 0.5,
+            "phys_pitch_bend_range_cents": 200,
+            "phys_room_mix": 0.25,
+            "phys_room_decay_ms": 1300,
+            "phys_volume_db": -8.8,
+            "brass_pressure": 0.6,
+            "brass_lip": 0.5,
+            "brass_attack_ms": 30,
+            "brass_bell": 0.5,
+            "amp_type": 0,
+            "amp_gain": 0.5,
+            "amp_tone": 0.5,
+            "amp_level_db": 0,
+            "phys_sustain_mode": 1,
+            "phys_pressure_excitation": 0.5,
+            "phys_pressure_vibrato_cents": 18,
+            "phys_pressure_brightness": 0
           }
         }
       ],

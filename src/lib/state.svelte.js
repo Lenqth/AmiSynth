@@ -66,6 +66,7 @@ export const app = $state({
   baseNote: 48,
   bend: 0,
   modwheel: 0,
+  pressure: 0,
   sustain: false,
   /** notes currently held from the UI / PC keyboard / MIDI: note -> velocity (for highlighting) */
   held: /** @type {Record<number, number>} */ ({}),
@@ -243,6 +244,14 @@ export function setBend(v) {
 export function setModwheel(v) {
   app.modwheel = v;
   engine.midi('synth', [0xb0, 1, Math.round(v * 127)]);
+}
+
+/** On-screen aftertouch: channel pressure (0xD0) to both melodic instruments, like the bend. */
+export function setPressure(v) {
+  app.pressure = v;
+  const value = Math.max(0, Math.min(127, Math.round(v * 127)));
+  engine.midi('synth', [0xd0, value, 0]);
+  engine.midi('phys', [0xd0, value, 0]);
 }
 
 export function setSustain(on) {

@@ -21,6 +21,7 @@
 /** @typedef {{id:string,name:string,group:string,min:number,max:number,default:number,step:number,unit:string,scale?:'log',options?:string[],description:string}} ParamDef */
 
 const WAVES = ['Saw', 'Pulse', 'Triangle', 'Sine'];
+const LFO_WAVES = ['Sine', 'Triangle', 'Saw Down', 'Square', 'Sample & Hold', 'Duck (pump)'];
 
 /** Note values for the tempo-synced LFO, in beats (quarter notes). Index 0 = free running. */
 export const LFO_SYNC_BEATS = [0, 16, 8, 4, 2, 3, 4 / 3, 1, 1.5, 2 / 3, 0.5, 0.75, 1 / 3, 0.25, 0.375, 1 / 6, 0.125];
@@ -30,6 +31,36 @@ const LFO_SYNC_NAMES = ['Off', '4 bars', '2 bars', '1/1', '1/2', '1/2 dotted', '
 /** Arpeggiator step lengths in beats. */
 export const ARP_RATE_BEATS = [1, 0.5, 1 / 3, 0.75, 0.25, 1 / 6, 0.125];
 const ARP_RATE_NAMES = ['1/4', '1/8', '1/8 triplet', '1/8 dotted', '1/16', '1/16 triplet', '1/32'];
+
+/** Number of mod matrix slots of the synth (mod1_* .. mod4_*). */
+export const MOD_SLOTS = 4;
+
+/**
+ * Mod matrix sources (value = index). Ranges: LFO 1 / LFO 2 / Random -1..1; Mod Env, Velocity,
+ * Mod Wheel, Pressure 0..1; Key Track = octaves from middle C (261.63 Hz, any tuning).
+ */
+export const MOD_SOURCES = ['Off', 'LFO 1', 'LFO 2', 'Mod Env', 'Velocity', 'Key Track', 'Mod Wheel', 'Pressure', 'Random (per note)'];
+
+/**
+ * Mod matrix destinations (value = index) and the unit of the slot amount for each: the amount is
+ * what the destination moves by at source value 1. `range` / `step` only size the web UI knob
+ * (the JSFX slider takes the whole -4800..4800 range). LFO 1 / LFO 2 Rate are global: they follow
+ * only LFO 1, LFO 2, Mod Wheel and channel pressure (per-note sources are ignored there).
+ */
+export const MOD_DESTINATIONS = [
+  { name: 'Off', unit: '', range: 1, step: 0.001 },
+  { name: 'Pitch', unit: 'cents', range: 2400, step: 0.1 },
+  { name: 'Filter Cutoff', unit: 'oct', range: 8, step: 0.01 },
+  { name: 'Filter Resonance', unit: '', range: 1, step: 0.001 },
+  { name: 'Pulse Width', unit: '', range: 0.45, step: 0.001 },
+  { name: 'Osc2 Pitch', unit: 'cents', range: 4800, step: 1 },
+  { name: 'FM Index', unit: 'rad', range: 10, step: 0.01 },
+  { name: 'Amp', unit: 'dB', range: 48, step: 0.1 },
+  { name: 'Pan', unit: '', range: 1, step: 0.001 },
+  { name: 'LFO 1 Rate', unit: 'oct', range: 6, step: 0.01 },
+  { name: 'LFO 2 Rate', unit: 'oct', range: 6, step: 0.01 },
+  { name: 'Noise Level', unit: '', range: 1, step: 0.001 },
+];
 
 /** Tuning is shared by synth & piano roll. 12-EDO is just the default. */
 export const TUNING_PARAMS = /** @type {ParamDef[]} */ ([
@@ -130,7 +161,7 @@ export const SYNTH_PARAMS = /** @type {ParamDef[]} */ ([
   { id: 'amp_velocity_amount', name: 'Amp Velocity Amount', group: 'Amp Envelope', min: 0, max: 1, default: 0.7, step: 0.001, unit: '',
     description: 'How much note velocity scales loudness (0 = ignore velocity).' },
 
-  { id: 'lfo_waveform', name: 'LFO Waveform', group: 'LFO', min: 0, max: 5, default: 0, step: 1, unit: '', options: ['Sine', 'Triangle', 'Saw Down', 'Square', 'Sample & Hold', 'Duck (pump)'],
+  { id: 'lfo_waveform', name: 'LFO Waveform', group: 'LFO', min: 0, max: 5, default: 0, step: 1, unit: '', options: LFO_WAVES,
     description: 'Shape of the global LFO. Duck drops at the start of every cycle and recovers (sidechain-style pumping; use it with LFO Tremolo Depth and LFO Sync).' },
   { id: 'lfo_rate_hz', name: 'LFO Rate', group: 'LFO', min: 0.05, max: 20, default: 5, step: 0.01, unit: 'Hz', scale: 'log',
     description: 'Rate of the global LFO (used while LFO Sync is Off).' },
@@ -211,6 +242,32 @@ export const SYNTH_PARAMS = /** @type {ParamDef[]} */ ([
     description: 'How far the cutoff CC moves the cutoff: CC 0 = this many octaves down, CC 127 = up.' },
   TUNING_SOURCE,
   TUNING_SLOT,
+
+  // ---- modulation (added later, appended so the older slider numbers stay)
+  { id: 'lfo2_waveform', name: 'LFO2 Waveform', group: 'LFO 2', min: 0, max: 5, default: 0, step: 1, unit: '', options: LFO_WAVES,
+    description: 'Shape of the second global LFO. It only acts through the mod matrix (source LFO 2).' },
+  { id: 'lfo2_rate_hz', name: 'LFO2 Rate', group: 'LFO 2', min: 0.05, max: 20, default: 0.5, step: 0.01, unit: 'Hz', scale: 'log',
+    description: 'Rate of LFO 2 (used while LFO2 Sync is Off).' },
+  { id: 'lfo2_sync', name: 'LFO2 Sync', group: 'LFO 2', min: 0, max: LFO_SYNC_BEATS.length - 1, default: 0, step: 1, unit: '', options: LFO_SYNC_NAMES,
+    description: 'Lock LFO 2 to the host tempo (one cycle per note value, phase locked to the beat grid). Off = free running at LFO2 Rate.' },
+  { id: 'mod_env_attack_ms', name: 'Mod Env Attack', group: 'Mod Envelope', min: 0.5, max: 5000, default: 5, step: 0.1, unit: 'ms', scale: 'log',
+    description: 'Attack time of the per-note modulation envelope (mod matrix source Mod Env).' },
+  { id: 'mod_env_decay_ms', name: 'Mod Env Decay', group: 'Mod Envelope', min: 1, max: 10000, default: 300, step: 1, unit: 'ms', scale: 'log',
+    description: 'Decay time of the modulation envelope.' },
+  { id: 'mod_env_sustain', name: 'Mod Env Sustain', group: 'Mod Envelope', min: 0, max: 1, default: 0, step: 0.001, unit: '',
+    description: 'Sustain level of the modulation envelope.' },
+  { id: 'mod_env_release_ms', name: 'Mod Env Release', group: 'Mod Envelope', min: 1, max: 10000, default: 300, step: 1, unit: 'ms', scale: 'log',
+    description: 'Release time of the modulation envelope.' },
+  ...Array.from({ length: MOD_SLOTS }, (_, i) => [
+    { id: `mod${i + 1}_source`, name: `Mod ${i + 1} Source`, group: 'Mod Matrix', min: 0, max: MOD_SOURCES.length - 1, default: 0, step: 1, unit: '',
+      options: MOD_SOURCES,
+      description: `Mod matrix slot ${i + 1}: what modulates. LFO 1 / LFO 2 / Random (a new value per note) swing -1..1; Mod Env, Velocity, Mod Wheel (CC1) and Pressure (channel pressure or polyphonic aftertouch) go 0..1; Key Track is the octaves above (+) / below (-) middle C. Off = slot unused.` },
+    { id: `mod${i + 1}_destination`, name: `Mod ${i + 1} Destination`, group: 'Mod Matrix', min: 0, max: MOD_DESTINATIONS.length - 1, default: 0, step: 1, unit: '',
+      options: MOD_DESTINATIONS.map((d) => d.name),
+      description: `Mod matrix slot ${i + 1}: what is modulated (per note, except LFO 1 / LFO 2 Rate which are global and only follow LFO 1, LFO 2, Mod Wheel and channel pressure). Off = slot unused.` },
+    { id: `mod${i + 1}_amount`, name: `Mod ${i + 1} Amount`, group: 'Mod Matrix', min: -4800, max: 4800, default: 0, step: 0.001, unit: '',
+      description: `Mod matrix slot ${i + 1}: how far the destination moves at source value 1, in the destination's unit: Pitch / Osc2 Pitch in cents, Filter Cutoff / LFO Rate in octaves, FM Index in rad, Amp in dB, Resonance / Pulse Width / Noise Level added to the knob value (0..1), Pan -1 (left) .. +1 (right). Negative values invert.` },
+  ]).flat(),
 ]);
 
 // ---------------------------------------------------------------------------
@@ -347,6 +404,12 @@ export const PHYS_PARAMS = /** @type {ParamDef[]} */ ([
   { id: 'phys_sustain_mode', name: 'Sustain Pedal', group: 'Output', min: 0, max: 2, default: 1, step: 1, unit: '',
     options: ['Off', 'Auto (strings / piano / modal)', 'On (all models)'],
     description: 'MIDI CC64 delays note-off damping until pedal release. Auto supports plucked strings, piano and modal materials except Drum Membrane; bowed, wind, brass and mesh ignore it. On sustains all models. Natural decay still continues.' },
+  { id: 'phys_pressure_excitation', name: 'Pressure to Breath / Bow', group: 'Pressure', min: 0, max: 1, default: 0, step: 0.001, unit: '',
+    description: 'How much aftertouch (channel pressure or polyphonic aftertouch, 0..1) adds to Breath Pressure (wind), Brass Blowing Pressure (brass) and Bow Pressure (bowed) while a note sounds. 0 = off.' },
+  { id: 'phys_pressure_vibrato_cents', name: 'Pressure to Vibrato', group: 'Pressure', min: 0, max: 100, default: 0, step: 0.1, unit: 'cents',
+    description: 'Extra vibrato depth at full aftertouch, per note (delay-line models: string, bowed, wind, stiff string, brass). 0 = off.' },
+  { id: 'phys_pressure_brightness', name: 'Pressure to Brightness', group: 'Pressure', min: 0, max: 1, default: 0, step: 0.001, unit: '',
+    description: 'How much aftertouch adds to Bowed String Brightness (bowed) and Brass Bell Brightness (brass). 0 = off.' },
 ]);
 
 // ---------------------------------------------------------------------------

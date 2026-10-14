@@ -87,4 +87,13 @@ export const PHYS_PRESETS = [
     params: { phys_volume_db: -8.7, phys_model: 3, wind_type: 1, breath_pressure: 0.55, breath_noise: 0.05,
       wind_embouchure: 0.45, wind_attack_ms: 45, phys_vibrato_cents: 5, phys_vibrato_rate_hz: 4.8,
       phys_release_ms: 180, phys_room_mix: 0.15, phys_room_decay_ms: 1200 } },
+  { name: 'Expressive Violin', category: 'Bowed', description: 'The Violin with aftertouch: pressing harder digs the bow in, brightens the bridge and widens the vibrato (needs a keyboard with aftertouch, or the Pressure strip).',
+    params: { phys_volume_db: -17.9, phys_model: 2, bow_pressure: 0.4, bow_speed: 0.6, bow_position: 0.11, bow_attack_ms: 80, bowed_brightness: 0.55, phys_vibrato_cents: 8, phys_vibrato_rate_hz: 5.5,
+      phys_release_ms: 250, phys_room_mix: 0.25, phys_pressure_excitation: 0.35, phys_pressure_brightness: 0.35, phys_pressure_vibrato_cents: 25 } },
+  { name: 'Breath Trumpet', category: 'Brass', description: 'Trumpet blown by aftertouch: soft keys start mellow, pressing in blows harder (brassier, brighter bell) and adds vibrato.',
+    params: { phys_volume_db: -5.1, phys_model: 6, brass_pressure: 0.45, brass_lip: 0.55, brass_attack_ms: 30, brass_bell: 0.45, phys_vibrato_rate_hz: 5.2, phys_release_ms: 120,
+      phys_room_mix: 0.25, phys_pressure_excitation: 0.45, phys_pressure_brightness: 0.4, phys_pressure_vibrato_cents: 15 } },
+  { name: 'Breath Clarinet', category: 'Wind', description: 'Clarinet with aftertouch as breath: press in for more reed pressure and a little vibrato.',
+    params: { phys_volume_db: -8.8, phys_model: 3, wind_type: 0, breath_pressure: 0.45, breath_noise: 0.12, wind_attack_ms: 35, wind_embouchure: 0.45, phys_vibrato_rate_hz: 5,
+      phys_release_ms: 120, phys_room_mix: 0.25, phys_pressure_excitation: 0.5, phys_pressure_vibrato_cents: 18 } },
 ];

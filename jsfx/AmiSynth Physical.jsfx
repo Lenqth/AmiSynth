@@ -70,6 +70,9 @@ slider57:amp_tone=0.5<0,1,0.001>Amp Tone
 slider58:amp_level_db=0<-24,12,0.1>Amp Level [dB]
 slider59:tuning_slot=1<1,8,1>Tuning Slot
 slider60:phys_sustain_mode=1<0,2,1{Off,Auto (strings / piano / modal),On (all models)}>Sustain Pedal
+slider61:phys_pressure_excitation=0<0,1,0.001>Pressure to Breath / Bow
+slider62:phys_pressure_vibrato_cents=0<0,100,0.1>Pressure to Vibrato [cents]
+slider63:phys_pressure_brightness=0<0,1,0.001>Pressure to Brightness
 // </generated sliders>
 
 import amisynth_lib.jsfx-inc
@@ -129,9 +132,18 @@ brass_row(1, 68.9, 71.7, 75.5, 75.2, 74.7, 72.6, 71.2, 69.5, 67.8, 60.7, 55.6, 5
 brass_row(2, 70.8, 74.4, 72.5, 75.9, 77, 79.5, 79.5, 78.2, 76.5, 69.5, 63.6, 57.7, 54.6, 51.6, 48.9, 47.3, 46, 46.4, 50.8, 51.1);
 brass_row(3, 59.4, 67.1, 61.5, 62.4, 60.8, 70.2, 70.9, 71.4, 71.8, 69.2, 63.5, 62.3, 59.2, 55.4, 52.1, 50, 48.5, 49, 54.2, 43.9);
 
-/** mouth pressure: the knob, scaled by the velocity over up to 20 dB (Velocity Amount) */
-function brass_pressure_of(vel_raw) (
-  clamp((0.2 + 0.8 * brass_pressure) * pow(10, phys_velocity_amount * (vel_raw - 1)), 0.05, 1);
+/** mouth pressure: the knob (plus aftertouch), scaled by the velocity over up to 20 dB (Velocity Amount) */
+function brass_pressure_of(vel_raw, press) (
+  clamp((0.2 + 0.8 * clamp(brass_pressure + phys_pressure_excitation * press, 0, 1)) * pow(10, phys_velocity_amount * (vel_raw - 1)), 0.05, 1);
+);
+
+/** bow friction slope from Bow Pressure (plus aftertouch) */
+function bow_slope(press) ( 5 - 4 * clamp(bow_pressure + phys_pressure_excitation * press, 0, 1); );
+
+/** wind: breath pressure (plus aftertouch) -> reed pressure / jet strength */
+function wind_maxv(press, slope, jet_boost) local(bp) (
+  bp = clamp(breath_pressure + phys_pressure_excitation * press, 0, 1);
+  wind_type < 0.5 ? (0.2 + 0.06 * bp) / -slope : (0.6 + 0.4 * bp) * jet_boost;
 );
 
 /** drive multiple 1.1 .. 3 from Lip Buzz and the pressure, half each */
@@ -220,6 +232,7 @@ sustain_pedal = 0;
 v_age = mem_alloc(MAX_VOICES);
 age_counter = 0;
 bend_ratio = 1;
+pressure = 0; // channel pressure 0..1
 dc.onepole_set(20);
 dc_r.onepole_set(20);
 level_coef = t60_coef(300);
@@ -359,8 +372,8 @@ function thiran_split(which, L, w) instance(delay_len delay_len2 tune_d tune_d2 
 );
 
 function voice_tune(keep_decay) instance(hz0 damp_b delay_len delay_len2 loop_gain loop_gain2 modes mhz mt60 jet_bias jet_boost mesh_c2 mesh_omega ap_a ap_count
-  vel_raw lip_a1 lip_a2 lip_g maxv dc_r refl_b bell_b rad_k)
-  local(hz, m, k, ratio, pos_w, b, total, x, sharp, w, a, det, hzA, hzB, wA, wB, t, press, note, mult, drive, f, r) (
+  vel_raw lip_a1 lip_a2 lip_g maxv dc_r refl_b bell_b rad_k press)
+  local(hz, m, k, ratio, pos_w, b, total, x, sharp, w, a, det, hzA, hzB, wA, wB, t, bpress, note, mult, drive, f, r) (
   hz = hz0 * bend_ratio;
   model === MODEL_STRING ? (
     damp_b = string_damp_b;
@@ -380,7 +393,7 @@ function voice_tune(keep_decay) instance(hz0 damp_b delay_len delay_len2 loop_ga
     );
   ) : model === MODEL_BOWED ? (
     // loop = bow->nut line + bow->bridge line + bridge low-pass
-    b = 0.1 + 0.75 * (1 - bowed_brightness);
+    b = 0.1 + 0.75 * (1 - clamp(bowed_brightness + phys_pressure_brightness * press, 0, 1));
     damp_b = b;
     total = srate / hz - lp_phase_delay(b, hz);
     delay_len = clamp(total * bow_position, 2, MAX_DELAY - 2);
@@ -388,9 +401,9 @@ function voice_tune(keep_decay) instance(hz0 damp_b delay_len delay_len2 loop_ga
   ) : model === MODEL_BRASS ? (
     // lip drive = a multiple of what the note needs to speak; bore + lips scaled together by
     // the tuning residual; lip bandwidth 42 Hz, narrower (Q ~7) for low notes
-    press = brass_pressure_of(vel_raw);
+    bpress = brass_pressure_of(vel_raw, press);
     note = 69 + (12 * log(hz / 440)) / log(2);
-    mult = brass_mult_of(press);
+    mult = brass_mult_of(bpress);
     drive = brass_min_drive(note) * mult;
     f = hz * pow(2, -brass_sharp_of(note, mult) / 1200);
     delay_len = clamp((2 * srate) / f, 2, MAX_DELAY - 2);
@@ -398,12 +411,12 @@ function voice_tune(keep_decay) instance(hz0 damp_b delay_len delay_len2 loop_ga
     w = (2 * $pi * f) / srate;
     lip_a1 = -2 * r * cos(w);
     lip_a2 = r * r;
-    lip_g = (drive * hz * 2 * sin(w) * (1 - r)) / (0.3 * press);
-    maxv = press;
+    lip_g = (drive * hz * 2 * sin(w) * (1 - r)) / (0.3 * bpress);
+    maxv = bpress;
     dc_r = exp((-2 * $pi * 0.05 * f) / srate);
     refl_b = exp((-2 * $pi * max(1500, 5 * f)) / srate);
     rad_k = 1 / (2 * sin(w / 2));
-    bell_b = exp((-2 * $pi * (1500 + 6000 * brass_bell)) / srate);
+    bell_b = exp((-2 * $pi * (1500 + 6000 * clamp(brass_bell + phys_pressure_brightness * press, 0, 1))) / srate);
   ) : model === MODEL_WIND ? (
     wind_type < 0.5 ? (
       // clarinet: inverting, low-passed reflection (tone holes / bell let the highs escape)
@@ -485,7 +498,7 @@ function hammer_force(out, hz, v0, hardness, beta) local(m, Z, K, dt, lag, max_n
 // op: 0 init(index), 1 start(note, velocity), 2 note off, 3 retune for pitch bend
 function voice_op(op, a, b) instance(idx vel hz0 level frames lp_z lp_z2 loop_gain loop_gain2 damp_b delay_len delay_len2 read_gain
   exc_t exc_len exc modes mhz mt60 maxv slope mesh_u mesh_up mesh_un mesh_sig mesh_omega jet_boost flut hiss_lp
-  vel_raw lip_y1 lip_y2 dc_x dc_y bell_z refl_z rad_x steep steep_w boost boost_c)
+  vel_raw lip_y1 lip_y2 dc_x dc_y bell_z refl_z rad_x steep steep_w boost boost_c poly_at press)
   local(v, n, bright, aa, pick, norm, lp, i, j, c, x, width, ia, ib, hard, g_rel, k, R, amp, sx, sy, d, len, decay, sb_a, sb_env,
     v0, scale, total, hp_a, hp_z, hp_z2, hp_z3, hp_z4, w0, re, im, mag, around, m, top, want, blen, burst, release_ms, mesh_ms) (
   op === 0 ? (
@@ -508,6 +521,8 @@ function voice_op(op, a, b) instance(idx vel hz0 level frames lp_z lp_z2 loop_ga
     hz0 = tuning_note_to_hz(a);
     frames = 0;
     level = 1;
+    poly_at = 0;
+    press = pressure;
     this.pan_gains(clamp(((a - 60) / 36) * phys_stereo_width, -1, 1));
     this.voice_tune(0);
     model === MODEL_STRING ? (
@@ -559,7 +574,7 @@ function voice_op(op, a, b) instance(idx vel hz0 level frames lp_z lp_z2 loop_ga
       this.env.adsr_set(bow_attack_ms, 1, 1, phys_release_ms);
       this.env.adsr_gate_on();
       maxv = (0.03 + 0.25 * bow_speed) * vel;
-      slope = 5 - 4 * bow_pressure;
+      slope = bow_slope(press);
       this.body1.svf_set(290, 0.6);
       this.body2.svf_set(1150, 0.9);
     ) : model === MODEL_BRASS ? (
@@ -602,12 +617,8 @@ function voice_op(op, a, b) instance(idx vel hz0 level frames lp_z lp_z2 loop_ga
       this.env.adsr_set(wind_attack_ms, 1, 1, min(phys_release_ms, 400));
       this.env.adsr_gate_on();
       // both only speak inside a band of blowing pressure; velocity sets the output level
-      wind_type < 0.5 ? (
-        slope = -(0.2 + 0.25 * wind_embouchure);
-        maxv = (0.2 + 0.06 * breath_pressure) / -slope;
-      ) : (
-        maxv = (0.6 + 0.4 * breath_pressure) * jet_boost;
-      );
+      wind_type < 0.5 ? slope = -(0.2 + 0.25 * wind_embouchure);
+      maxv = wind_maxv(press, slope, jet_boost);
     ) : model === MODEL_MESH ? (
       n = mesh_n;
       memset(mesh_u, 0, MESH_CELLS);
@@ -764,6 +775,22 @@ function voice_op(op, a, b) instance(idx vel hz0 level frames lp_z lp_z2 loop_ga
     );
   ) : op === 3 ? (
     this.voice_tune(1);
+  ) : op === 5 ? (
+    poly_at = 0;
+  ) : op === 4 ? (
+    // aftertouch changed (a >= 0: this key's polyphonic aftertouch): the blown / bowed models follow
+    a >= 0 ? poly_at = a;
+    press = max(pressure, poly_at);
+    phys_pressure_excitation > 0 || phys_pressure_brightness > 0 ? (
+      model === MODEL_BOWED ? (
+        slope = bow_slope(press);
+        phys_pressure_brightness > 0 ? this.voice_tune(1);
+      ) : model === MODEL_WIND ? (
+        maxv = wind_maxv(press, slope, jet_boost);
+      ) : model === MODEL_BRASS ? (
+        this.voice_tune(1);
+      );
+    );
   );
 );
 
@@ -960,8 +987,11 @@ function render_stiff() instance(ap_a ap_count delay_len delay_len2 tune_a tune_
   (fa + fb) * read_gain;
 );
 
-function voice_render() instance(idx level frames gl gr) local(y, a) (
+function voice_render() instance(idx level frames gl gr press) local(y, a) (
   v_active[idx] ? (
+    // aftertouch deepens the vibrato of this note (render_* read the global vib)
+    vib = phys_pressure_vibrato_cents > 0 && press > 0
+      ? pow(2, ((phys_vibrato_cents + phys_pressure_vibrato_cents * press) * vib_sin) / 1200) : vib_g;
     y = model === MODEL_STRING ? this.render_string()
       : model === MODEL_MODAL ? this.render_modal()
       : model === MODEL_BOWED ? this.render_bowed()
@@ -1149,15 +1179,35 @@ function pitch_bend(value) local(i) (
   loop(MAX_VOICES, v_active[i] ? vcall(i, 3, 0, 0); i += 1;);
 );
 
+function channel_pressure(value) local(i) (
+  pressure = clamp(value, 0, 1);
+  i = 0;
+  loop(MAX_VOICES, v_active[i] ? vcall(i, 4, -1, 0); i += 1;);
+);
+
+function poly_pressure(note, value) local(i) (
+  i = 0;
+  loop(MAX_VOICES, v_active[i] && v_note[i] === note ? vcall(i, 4, clamp(value, 0, 1), 0); i += 1;);
+);
+
+/** Reset All Controllers: channel pressure and every key's aftertouch back to 0 */
+function pressure_reset() local(i) (
+  i = 0;
+  loop(MAX_VOICES, vcall(i, 5, 0, 0); i += 1;);
+  channel_pressure(0);
+);
+
 function handle_midi(m1, m2, m3) local(type) (
   type = m1 & 0xF0;
   type === 0x90 ? note_on(m2, m3)
   : type === 0x80 ? note_off(m2)
   : type === 0xE0 ? pitch_bend(((m3 * 128 + m2) / 8192) - 1)
+  : type === 0xD0 ? channel_pressure(m2 / 127) // channel pressure (one data byte)
+  : type === 0xA0 ? poly_pressure(m2, m3 / 127) // polyphonic aftertouch
   : type === 0xB0 ? (
     m2 === 64 ? sustain(m3 >= 64)
     : m2 === 120 || m2 === 123 ? all_notes_off()
-    : m2 === 121 ? (sustain(0); pitch_bend(0););
+    : m2 === 121 ? (sustain(0); pitch_bend(0); pressure_reset(););
   );
 );
 
@@ -1201,10 +1251,12 @@ tuning_shared_changed() ? tuning_apply();
 while (midi_pop()) ( handle_midi(midi_m1, midi_m2, midi_m3); );
 midi_tick();
 
-// vibrato for the delay-line models (ratio = 1 exactly when off)
-vib = 1;
-phys_vibrato_cents > 0 ? (
-  vib = pow(2, (phys_vibrato_cents * sin(2 * $pi * vib_phase)) / 1200);
+// vibrato for the delay-line models (ratio = 1 exactly when off); aftertouch can deepen it per note
+vib_g = 1;
+vib_sin = 0;
+phys_vibrato_cents > 0 || phys_pressure_vibrato_cents > 0 ? (
+  vib_sin = sin(2 * $pi * vib_phase);
+  vib_g = pow(2, (phys_vibrato_cents * vib_sin) / 1200);
   vib_phase += vib_inc;
   vib_phase >= 1 ? vib_phase -= 1;
 );

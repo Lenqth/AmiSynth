@@ -11,18 +11,23 @@
 // Signal flow per voice:
 //   [osc1 + osc2] x unison (detuned, panned) + sub + noise -> drive -> SVF (12/24 dB, LP/HP/BP/notch) -> amp env
 //   osc2 can hard-sync to osc1 and phase-modulate osc1 (FM). The filter envelope can bend osc2 pitch.
+// Mod matrix: MOD_SLOTS slots of source -> destination x amount (real units), evaluated per sample.
+//   Global sources (LFO 1, LFO 2, mod wheel) are summed once per sample, per-note sources (mod env,
+//   velocity, key track, pressure, random) per voice. Slots that are Off cost nothing, and every code
+//   path a slot adds is skipped unless a slot uses it, so patches without modulation render exactly
+//   as before.
 //
 // Voices are matched by "key" (the incoming MIDI note, or the arpeggiator's output note) and sound
 // at "pitch" (key + transpose), so changing the transpose while notes sound never leaves one hanging.
 
 import {
   adsr_gate_off, adsr_gate_on, adsr_init, adsr_process, adsr_set,
-  clamp, db_to_gain, lfo_init, lfo_process, lfo_process_at, noise_seed, noise_white, random_unit, osc_init, osc_process, osc_reset,
+  clamp, db_to_gain, lfo_init, lfo_process, lfo_process_at, lfo_wave, pan_gains, noise_seed, noise_white, random_unit, osc_init, osc_process, osc_reset,
   osc_set_freq, osc_sync_to, smoother_init, smoother_process, smoother_set, soft_clip, svf_copy_coefs,
   svf_init, svf_output, svf_process, svf_reset, svf_set, tau_coef, TWO_PI, tuning_init, tuning_note_to_hz,
   tuning_set_edo, tuning_set_table,
 } from './lib.js';
-import { ARP_RATE_BEATS, LFO_SYNC_BEATS } from './params.js';
+import { ARP_RATE_BEATS, LFO_SYNC_BEATS, MOD_DESTINATIONS, MOD_SLOTS, MOD_SOURCES } from './params.js';
 
 export const MAX_VOICES = 8;
 export const MAX_UNISON = 9;
@@ -34,6 +39,29 @@ const ARP_DOWN = 2;
 const ARP_UPDOWN = 3;
 const ARP_RANDOM = 4;
 const ARP_CHORD = 6; // 5 = as played
+
+// mod matrix sources / destinations (indices into MOD_SOURCES / MOD_DESTINATIONS in params.js)
+const SRC_LFO1 = 1;
+const SRC_LFO2 = 2;
+const SRC_MENV = 3;
+const SRC_VEL = 4;
+const SRC_KEY = 5;
+const SRC_WHEEL = 6;
+const SRC_PRESS = 7;
+const SRC_RAND = 8;
+const DST_PITCH = 1;
+const DST_CUTOFF = 2;
+const DST_RES = 3;
+const DST_PW = 4;
+const DST_OSC2 = 5;
+const DST_FM = 6;
+const DST_AMP = 7;
+const DST_PAN = 8;
+const DST_LFO1_RATE = 9;
+const DST_LFO2_RATE = 10;
+const DST_NOISE = 11;
+const N_SRC = MOD_SOURCES.length;
+const N_DST = MOD_DESTINATIONS.length;
 
 function voice_create() {
   const v = {
@@ -49,7 +77,10 @@ function voice_create() {
     osc1: [], osc2: [], prev2: [], // per unison copy (JSFX: arrays in memory)
     sub: {},
     filt_l1: {}, filt_l2: {}, filt_r1: {}, filt_r2: {},
-    amp_env: {}, filt_env: {},
+    amp_env: {}, filt_env: {}, mod_env: {},
+    // mod matrix: random value drawn per note (-1..1), polyphonic aftertouch of the key (0..1),
+    // smoothed pressure of this voice (max of channel pressure and its aftertouch)
+    rnd: 0, poly_at: 0, press: 0,
     // chip / S&H noise: shift register, clock phase, current output; noise-only filter
     nz_reg: 1, nz_phase: 0, nz_out: 0, nz_filt: {},
   };
@@ -67,6 +98,7 @@ function voice_create() {
   svf_init(v.filt_r2);
   adsr_init(v.amp_env);
   adsr_init(v.filt_env);
+  adsr_init(v.mod_env);
   svf_init(v.nz_filt);
   return v;
 }
@@ -98,6 +130,36 @@ function voice_noise(s, v, hz) {
   return v.nz_out;
 }
 
+/**
+ * The synth's own random generator for the mod matrix (LFO 2 sample & hold, random per note): the
+ * same Park-Miller formula as noise_white() with a separate state, so using these sources never
+ * changes the noise / unison phases of the shared generator.
+ */
+function mod_random(s) {
+  s.mod_rnd *= 16807;
+  s.mod_rnd -= Math.floor(s.mod_rnd / 2147483647) * 2147483647;
+  return s.mod_rnd / 1073741823.5 - 1;
+}
+
+/** LFO 2: like lfo_process / lfo_process_at, but its sample & hold draws from mod_random. */
+function lfo2_tick(s, waveform) {
+  const o = s.lfo2;
+  if (s.lfo2_sync_beats > 0) {
+    let ph = s.beat / s.lfo2_sync_beats;
+    ph -= Math.floor(ph);
+    if (ph < o.phase) o.held = mod_random(s);
+    o.phase = ph;
+    return lfo_wave(waveform, ph, o.held);
+  }
+  const y = lfo_wave(waveform, o.phase, o.held);
+  o.phase += o.inc;
+  if (o.phase >= 1) {
+    o.phase -= 1;
+    o.held = mod_random(s);
+  }
+  return y;
+}
+
 export function synth_init(s, sr) {
   noise_seed(12345);
   s.sr = sr;
@@ -113,6 +175,27 @@ export function synth_init(s, sr) {
   s.last_hz = 0; // glide source
   s.lfo = {};
   lfo_init(s.lfo);
+  s.lfo_inc = 0;
+  s.lfo2 = {};
+  lfo_init(s.lfo2);
+  s.lfo2_inc = 0;
+  s.lfo2_sync_beats = 0;
+  s.mod_rnd = 777;
+  // aftertouch: channel pressure 0..1 and its smoothed value (for the global destinations)
+  s.pressure = 0;
+  s.press_g = 0;
+  s.press_a = 1 - tau_coef(10, sr);
+  // mod matrix: the active slots packed (src / dst / amount), sources and destinations in use,
+  // per-sample sums of the global sources and the per-voice totals
+  s.mm_n = 0;
+  s.mm_src = new Array(MOD_SLOTS).fill(0);
+  s.mm_dst = new Array(MOD_SLOTS).fill(0);
+  s.mm_amt = new Array(MOD_SLOTS).fill(0);
+  s.mm_use = new Array(N_SRC).fill(0);
+  s.mm_has = new Array(N_DST).fill(0);
+  s.mm_g = new Array(N_DST).fill(0);
+  s.mm_v = new Array(N_DST).fill(0);
+  s.pan = { gl: 1, gr: 1 };
   s.cutoff_smooth = {};
   smoother_init(s.cutoff_smooth, 1000);
   smoother_set(s.cutoff_smooth, 15, sr);
@@ -160,8 +243,30 @@ export function synth_update(s, p) {
   // resonance 0..1 -> SVF damping k 2..0.02 (curved so the top of the knob is usable)
   const r = clamp(p.filter_resonance, 0, 1);
   s.filter_k = 2 - 1.98 * Math.sqrt(r);
-  s.lfo.inc = p.lfo_rate_hz / s.sr;
+  s.lfo_inc = p.lfo_rate_hz / s.sr;
+  s.lfo.inc = s.lfo_inc;
   s.lfo_sync_beats = LFO_SYNC_BEATS[clamp(Math.round(p.lfo_sync), 0, LFO_SYNC_BEATS.length - 1)];
+  s.lfo2_inc = p.lfo2_rate_hz / s.sr;
+  s.lfo2.inc = s.lfo2_inc;
+  s.lfo2_sync_beats = LFO_SYNC_BEATS[clamp(Math.round(p.lfo2_sync), 0, LFO_SYNC_BEATS.length - 1)];
+  // mod matrix: keep only the slots that do something
+  for (let i = 0; i < N_SRC; i++) s.mm_use[i] = 0;
+  for (let i = 0; i < N_DST; i++) s.mm_has[i] = 0;
+  let mm = 0;
+  for (let k = 0; k < MOD_SLOTS; k++) {
+    const src = clamp(Math.round(p[`mod${k + 1}_source`]), 0, N_SRC - 1);
+    const dst = clamp(Math.round(p[`mod${k + 1}_destination`]), 0, N_DST - 1);
+    const amt = p[`mod${k + 1}_amount`];
+    if (src > 0 && dst > 0 && amt !== 0) {
+      s.mm_src[mm] = src;
+      s.mm_dst[mm] = dst;
+      s.mm_amt[mm] = amt;
+      s.mm_use[src] = 1;
+      s.mm_has[dst] = 1;
+      mm++;
+    }
+  }
+  s.mm_n = mm;
   s.glide_coef = p.glide_ms > 0 ? tau_coef(p.glide_ms / 3, s.sr) : 0; // ~95% there after glide_ms
   s.glide_legato = p.glide_mode >= 0.5 ? 1 : 0;
   s.drive_gain = 1 + 8 * p.filter_drive;
@@ -211,6 +316,7 @@ export function synth_update(s, p) {
     const v = s.voices[i];
     adsr_set(v.amp_env, p.amp_attack_ms, p.amp_decay_ms, p.amp_sustain, p.amp_release_ms, s.sr);
     adsr_set(v.filt_env, p.filter_env_attack_ms, p.filter_env_decay_ms, p.filter_env_sustain, p.filter_env_release_ms, s.sr);
+    adsr_set(v.mod_env, p.mod_env_attack_ms, p.mod_env_decay_ms, p.mod_env_sustain, p.mod_env_release_ms, s.sr);
     svf_set(v.nz_filt, p.noise_filter_hz, 1, s.sr);
     if (v.active) v.base_hz = tuning_note_to_hz(s.tuning, v.pitch);
   }
@@ -289,6 +395,7 @@ function voice_reset(s, v) {
   svf_reset(v.filt_r2);
   v.amp_env.value = 0;
   v.filt_env.value = 0;
+  v.mod_env.value = 0;
 }
 
 function poly_note_on(s, key, pitch, velocity) {
@@ -312,8 +419,11 @@ function poly_note_on(s, key, pitch, velocity) {
   v.velocity = velocity / 127;
   v.age = ++s.age_counter;
   v.base_hz = hz;
+  v.poly_at = 0;
   adsr_gate_on(v.amp_env);
   adsr_gate_on(v.filt_env);
+  adsr_gate_on(v.mod_env);
+  v.rnd = mod_random(s);
 }
 
 function poly_note_off(s, key) {
@@ -326,6 +436,7 @@ function poly_note_off(s, key) {
       } else {
         adsr_gate_off(v.amp_env);
         adsr_gate_off(v.filt_env);
+        adsr_gate_off(v.mod_env);
       }
     }
   }
@@ -354,10 +465,13 @@ function mono_play(s, key, pitch, velocity, retrig, overlap) {
   v.pitch = pitch;
   v.age = ++s.age_counter;
   v.base_hz = hz;
+  v.poly_at = 0;
   if (retrig) {
     v.velocity = velocity / 127;
     adsr_gate_on(v.amp_env);
     adsr_gate_on(v.filt_env);
+    adsr_gate_on(v.mod_env);
+    v.rnd = mod_random(s);
   }
 }
 
@@ -567,6 +681,7 @@ function synth_release_all(s) {
     v.sustained = 0;
     adsr_gate_off(v.amp_env);
     adsr_gate_off(v.filt_env);
+    adsr_gate_off(v.mod_env);
   }
   s.stack_n = 0;
   s.arp.n = 0;
@@ -595,6 +710,19 @@ export function synth_mod_wheel(s, value) {
   s.modwheel = clamp(value, 0, 1);
 }
 
+/** Channel pressure (MIDI 0xD0), value 0..1: the Pressure source of every note. */
+export function synth_channel_pressure(s, value) {
+  s.pressure = clamp(value, 0, 1);
+}
+
+/** Polyphonic aftertouch (MIDI 0xA0), value 0..1: the Pressure source of the voice playing `key`. */
+export function synth_poly_pressure(s, key, value) {
+  for (let i = 0; i < MAX_VOICES; i++) {
+    const v = s.voices[i];
+    if (v.active && v.note === key) v.poly_at = clamp(value, 0, 1);
+  }
+}
+
 export function synth_sustain_pedal(s, on) {
   s.sustain_pedal = on ? 1 : 0;
   if (!on) {
@@ -604,6 +732,7 @@ export function synth_sustain_pedal(s, on) {
         v.sustained = 0;
         adsr_gate_off(v.amp_env);
         adsr_gate_off(v.filt_env);
+        adsr_gate_off(v.mod_env);
       }
     }
   }
@@ -625,6 +754,36 @@ export function synth_render(s) {
   } else {
     lfo = lfo_process(s.lfo, p.lfo_waveform);
   }
+
+  // ---- mod matrix, global part: LFO 1 / LFO 2 / mod wheel for every destination, channel
+  // pressure for the global ones (LFO rates). The rates take effect from the next sample.
+  const mm = s.mm_n;
+  const mg = s.mm_g;
+  if (mm > 0) {
+    const lfo2 = s.mm_use[SRC_LFO2] ? lfo2_tick(s, p.lfo2_waveform) : 0;
+    if (s.mm_use[SRC_PRESS]) s.press_g += (s.pressure - s.press_g) * s.press_a;
+    for (let d = 0; d < N_DST; d++) mg[d] = 0;
+    for (let j = 0; j < mm; j++) {
+      const src = s.mm_src[j];
+      const dst = s.mm_dst[j];
+      if (src === SRC_LFO1) mg[dst] += lfo * s.mm_amt[j];
+      else if (src === SRC_LFO2) mg[dst] += lfo2 * s.mm_amt[j];
+      else if (src === SRC_WHEEL) mg[dst] += s.modwheel * s.mm_amt[j];
+      else if (src === SRC_PRESS && dst >= DST_LFO1_RATE && dst <= DST_LFO2_RATE) mg[dst] += s.press_g * s.mm_amt[j];
+    }
+    if (s.mm_has[DST_LFO1_RATE]) s.lfo.inc = s.lfo_inc * Math.pow(2, mg[DST_LFO1_RATE]);
+    if (s.mm_has[DST_LFO2_RATE]) s.lfo2.inc = s.lfo2_inc * Math.pow(2, mg[DST_LFO2_RATE]);
+  }
+  const mv = s.mm_v;
+  const m_pitch = mm > 0 && s.mm_has[DST_PITCH];
+  const m_res = mm > 0 && s.mm_has[DST_RES];
+  const m_pw = mm > 0 && s.mm_has[DST_PW];
+  const m_osc2 = mm > 0 && s.mm_has[DST_OSC2];
+  const m_fm = mm > 0 && s.mm_has[DST_FM];
+  const m_amp = mm > 0 && s.mm_has[DST_AMP];
+  const m_pan = mm > 0 && s.mm_has[DST_PAN];
+  const m_noise = mm > 0 && s.mm_has[DST_NOISE];
+  const m_press = mm > 0 && s.mm_use[SRC_PRESS];
   const pitch_cents = s.bend * p.pitch_bend_range_cents + lfo * (p.lfo_pitch_cents + s.modwheel * p.modwheel_vibrato_cents);
   const pitch_ratio = Math.pow(2, pitch_cents / 1200);
   const osc2_cents = p.osc2_transpose_cents + p.osc2_detune_cents;
@@ -633,10 +792,10 @@ export function synth_render(s) {
   const cutoff = smoother_process(s.cutoff_smooth, s.cutoff_target * s.cc_mult);
   const lfo_filter_oct = lfo * (p.lfo_filter_oct + s.modwheel * p.modwheel_filter_oct);
   const pw_mod = lfo * p.lfo_pulse_width;
-  const pw1 = clamp(p.osc1_pulse_width + pw_mod, 0.02, 0.98);
-  const pw2 = clamp(p.osc2_pulse_width + pw_mod, 0.02, 0.98);
+  let pw1 = clamp(p.osc1_pulse_width + pw_mod, 0.02, 0.98);
+  let pw2 = clamp(p.osc2_pulse_width + pw_mod, 0.02, 0.98);
   const tremolo = 1 - p.lfo_amp * (0.5 - 0.5 * lfo);
-  const k = s.filter_k;
+  let k = s.filter_k;
   const slope24 = p.filter_slope >= 0.5;
   const mode = p.filter_mode;
   const w1 = p.osc1_waveform;
@@ -644,7 +803,7 @@ export function synth_render(s) {
   const l1 = p.osc1_level;
   const l2 = p.osc2_level;
   const sync = p.osc2_hard_sync >= 0.5;
-  const fm = s.fm_cycles;
+  let fm = s.fm_cycles;
   const un = s.unison_n;
   const stereo = s.stereo;
   const drive = p.filter_drive > 0;
@@ -662,7 +821,32 @@ export function synth_render(s) {
       if (Math.abs(v.glide_oct) < 0.0001) v.glide_oct = 0;
     }
     const fenv = adsr_process(v.filt_env);
-    const r2 = osc2_env !== 0 ? Math.pow(2, (osc2_cents + fenv * osc2_env) / 1200) : osc2_ratio;
+    const menv = adsr_process(v.mod_env);
+
+    // ---- mod matrix, per voice: the global sums plus this note's own sources
+    if (mm > 0) {
+      if (m_press) v.press += (Math.max(s.pressure, v.poly_at) - v.press) * s.press_a;
+      for (let d = 0; d < N_DST; d++) mv[d] = mg[d];
+      for (let j = 0; j < mm; j++) {
+        const src = s.mm_src[j];
+        const dst = s.mm_dst[j];
+        if (dst >= DST_LFO1_RATE && dst <= DST_LFO2_RATE) continue; // global only
+        if (src === SRC_MENV) mv[dst] += menv * s.mm_amt[j];
+        else if (src === SRC_VEL) mv[dst] += v.velocity * s.mm_amt[j];
+        else if (src === SRC_KEY) mv[dst] += (Math.log(v.base_hz / 261.6256) / Math.LN2) * s.mm_amt[j];
+        else if (src === SRC_PRESS) mv[dst] += v.press * s.mm_amt[j];
+        else if (src === SRC_RAND) mv[dst] += v.rnd * s.mm_amt[j];
+      }
+      if (m_pitch) hz *= Math.pow(2, mv[DST_PITCH] / 1200);
+      if (m_res) k = 2 - 1.98 * Math.sqrt(clamp(p.filter_resonance + mv[DST_RES], 0, 1));
+      if (m_pw) {
+        pw1 = clamp(p.osc1_pulse_width + pw_mod + mv[DST_PW], 0.02, 0.98);
+        pw2 = clamp(p.osc2_pulse_width + pw_mod + mv[DST_PW], 0.02, 0.98);
+      }
+      if (m_fm) fm = Math.max(0, p.fm_index + mv[DST_FM]) / TWO_PI;
+    }
+    const r2 = m_osc2 ? Math.pow(2, (osc2_cents + fenv * osc2_env + mv[DST_OSC2]) / 1200)
+      : osc2_env !== 0 ? Math.pow(2, (osc2_cents + fenv * osc2_env) / 1200) : osc2_ratio;
 
     // ---- oscillators (x unison)
     let xl = 0;
@@ -690,17 +874,18 @@ export function synth_render(s) {
     xr *= s.unison_norm;
 
     let common = 0;
+    const nlev = m_noise ? clamp(p.noise_level + mv[DST_NOISE], 0, 1) : p.noise_level;
     if (p.sub_osc_level > 0) {
       osc_set_freq(v.sub, hz * 0.5, sr);
       common += osc_process(v.sub, 1, 0.5, 0) * p.sub_osc_level;
     }
-    if (p.noise_level > 0) {
+    if (nlev > 0) {
       let nz = s.noise_type === 0 ? noise_white() : voice_noise(s, v, hz);
       if (s.noise_filter > 0) {
         svf_process(v.nz_filt, nz);
         nz = svf_output(v.nz_filt, s.noise_filter - 1);
       }
-      common += nz * p.noise_level;
+      common += nz * nlev;
     }
     xl += common;
     if (stereo) xr += common;
@@ -711,7 +896,8 @@ export function synth_render(s) {
 
     // ---- filter
     const env_scale = 1 - p.filter_velocity_amount + p.filter_velocity_amount * v.velocity;
-    const oct = fenv * p.filter_env_amount_oct * env_scale + lfo_filter_oct;
+    let oct = fenv * p.filter_env_amount_oct * env_scale + lfo_filter_oct;
+    if (mm > 0) oct += mv[DST_CUTOFF];
     // key tracking relative to middle C (261.63 Hz), works for any tuning
     const fc = cutoff * Math.pow(2, oct) * Math.pow(v.base_hz / 261.6256, p.filter_key_tracking);
 
@@ -743,9 +929,16 @@ export function synth_render(s) {
 
     // ---- amp
     const aenv = adsr_process(v.amp_env);
-    const g = aenv * (1 - p.amp_velocity_amount + p.amp_velocity_amount * v.velocity);
-    mix_l += yl * g;
-    mix_r += (stereo ? yr : yl) * g;
+    let g = aenv * (1 - p.amp_velocity_amount + p.amp_velocity_amount * v.velocity);
+    if (m_amp) g *= Math.pow(10, Math.min(mv[DST_AMP], 24) / 20);
+    if (m_pan) {
+      pan_gains(s.pan, mv[DST_PAN]);
+      mix_l += yl * g * s.pan.gl;
+      mix_r += (stereo ? yr : yl) * g * s.pan.gr;
+    } else {
+      mix_l += yl * g;
+      mix_r += (stereo ? yr : yl) * g;
+    }
 
     if (v.amp_env.stage === 0) {
       v.active = 0;

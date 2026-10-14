@@ -5,8 +5,8 @@
 
 | ファイル | 内容 |
 | --- | --- |
-| `AmiSynth Synth.jsfx` | 8 ボイスの減算式シンセ。2 オシレーター、シンク / FM、ユニゾン (最大 9)、LP / HP / BP / ノッチのフィルター、テンポ同期できる LFO、グライド、Mono / Legato、トランスポーズ、アルペジエーター、周期ノイズ、CC でのカットオフ。スライダー 85 本 |
-| `AmiSynth Physical.jsfx` | 物理モデル音源。弦(Karplus-Strong)、モーダル合成(8 モード × 11 素材。ゴング系を含む)、擦弦、管楽器(クラリネット / フルート)、2D 膜 / 板、硬い弦(ピアノ)、金管。ギターアンプ付き。スライダー 60 本 |
+| `AmiSynth Synth.jsfx` | 8 ボイスの減算式シンセ。2 オシレーター、シンク / FM、ユニゾン (最大 9)、LP / HP / BP / ノッチのフィルター、テンポ同期できる LFO × 2、モジュレーション・エンベロープ、4 スロットのモジュレーション・マトリクス、グライド、Mono / Legato、トランスポーズ、アルペジエーター、周期ノイズ、CC でのカットオフ、アフタータッチ。スライダー 104 本 |
+| `AmiSynth Physical.jsfx` | 物理モデル音源。弦(Karplus-Strong)、モーダル合成(8 モード × 11 素材。ゴング系を含む)、擦弦、管楽器(クラリネット / フルート)、2D 膜 / 板、硬い弦(ピアノ)、金管。ギターアンプ付き。アフタータッチで息・弓圧・明るさ・ビブラート。スライダー 63 本 |
 | `AmiSynth Drums.jsfx` | 合成ドラム 13 パーツ(GM 配置)。パーツ別出力つき(10 ch)。スライダー 78 本 |
 | `AmiSynth Tuning.jsfx` | 共通の音階を持つユーティリティ(音は出さず、オーディオと MIDI はそのまま通す)。Synth / Physical が Slot を指定して従う。スライダー 38 本 |
 | `amisynth_lib.jsfx-inc` | 共通 DSP。上のすべてが `import` します |
@@ -126,6 +126,34 @@ Synth は使用ボイス数、リリース／サステイン中のボイス数�
 
 - Synth は `cc_cutoff_number`(既定 74)の CC でカットオフを動かします。**CCの値が64**なら変化なし、値0 / 127で `cc_cutoff_depth_oct` オクターブ下 / 上です。CC番号64のサステインとは別です。REAPER の MIDI CC レーンや、オートメーションを書きにくい MCP ツールからの操作に使えます。`cc_cutoff_number` を0にすると無効です。
 
+### Synth のモジュレーション・マトリクス
+
+LFO 2 (`lfo2_*`)、モジュレーション・エンベロープ (`mod_env_*`)、マトリクス (`mod1_*`〜`mod4_*`) は slider86〜104 に追加しました(既存スライダーの番号は変えていません)。各スロットは次の 3 本です。
+
+| スライダー | 内容 |
+| --- | --- |
+| `modN_source` (enum) | Off / LFO 1 / LFO 2 / Mod Env / Velocity / Key Track / Mod Wheel / Pressure / Random (per note) |
+| `modN_destination` (enum) | Off / Pitch / Filter Cutoff / Filter Resonance / Pulse Width / Osc2 Pitch / FM Index / Amp / Pan / LFO 1 Rate / LFO 2 Rate / Noise Level |
+| `modN_amount` (実値, -4800〜4800) | ソース値 1 のときに行き先が動く量。単位は行き先ごと: Pitch・Osc2 Pitch = cents、Cutoff・LFO Rate = oct、FM Index = rad、Amp = dB (+24 dB まで)、Resonance・Pulse Width・Noise Level = ノブの値 (0〜1) に加算、Pan = -1 (左)〜+1 (右) |
+
+- ソースの範囲: LFO 1 / LFO 2 / Random は -1〜1、Mod Env / Velocity / Mod Wheel / Pressure は 0〜1、Key Track は中央 C (261.63 Hz、どの調律でも) から何オクターブ上 (+) / 下 (-) か。例: Key Track → Pitch に -600 で、鍵盤 1 オクターブにつき半オクターブだけ上がる
+- ソース・行き先・量のどれかが Off / 0 のスロットは何もせず、計算もしません(既存のプロジェクトとプリセットの音は変わりません)
+- 行き先はノートごと(ボイスごと)に計算します。LFO 1 Rate / LFO 2 Rate だけはグローバルなので、LFO 1・LFO 2・Mod Wheel・チャンネルプレッシャーだけが効きます(ノートごとのソースは無視)。テンポ同期中の LFO には Rate は効きません
+- LFO 2 の S&H と Random (per note) は、ノイズやユニゾンの位相とは別の乱数列を使います(オンにしてもほかの音が変わらないように)
+- Pressure はチャンネルプレッシャー (0xD0) とそのキーのポリフォニック・アフタータッチ (0xA0) の大きい方で、10 ms でならしています。アルペジエーター中は鳴っている音がアルペジオのノートなので、ポリフォニック・アフタータッチではなくチャンネルプレッシャーを使ってください
+
+### Physical のアフタータッチ
+
+Physical の **Pressure** グループ (slider61〜63) で、チャンネルプレッシャー / ポリフォニック・アフタータッチ (0〜1) の割り当て量を決めます。既定はすべて 0 (無効) です。
+
+| スライダー | 効き先 |
+| --- | --- |
+| `phys_pressure_excitation` | Breath Pressure (管楽器)、Brass Blowing Pressure (金管)、Bow Pressure (擦弦) に「量 × プレッシャー」を加算 |
+| `phys_pressure_vibrato_cents` | プレッシャー最大でこの cents だけビブラートを深くする(ノートごと、遅延線モデル: 弦・擦弦・管・ピアノ・金管)。速さは Vibrato Rate |
+| `phys_pressure_brightness` | Bowed String Brightness (擦弦)、Brass Bell Brightness (金管) に「量 × プレッシャー」を加算 |
+
+プレッシャーのメッセージを受けた時点で、鳴っているノートの値を更新します(モーダル・膜・撥弦はビブラート以外には反応しません)。CC121 はプレッシャーも 0 に戻します。
+
 ### Physical のサステインペダル (CC64)
 
 Physical の **Output → Sustain Pedal** (`phys_sustain_mode`、末尾のslider60)で選択します。既存スライダーの番号は変えていません。Web版の鍵盤横にある **Sustain** ボタンも、外部MIDIペダルと同じCC64を送ります。
@@ -212,6 +240,8 @@ npm run jsfx:compare    # 3 楽器の比較結果を表示する
   - Physical のゴング系素材、ギターアンプの全タイプ(ゲインとトーンの両端、44.1 kHz も)
   - Physical の全プリセット + 負荷の高い設定(全モデルでビブラート・発音数超過・44.1 kHz、メッシュの全形状)
   - Drums の全キット × 全パーツ(チョークを含む)、メインミックスから外したグループ
+  - Synth の LFO 2 (S&H・テンポ同期 Duck)、モジュレーション・エンベロープ、マトリクスの全ソース・全行き先、チャンネルプレッシャーとポリフォニック・アフタータッチ(Mono Legato + ユニゾンを含む)
+  - Physical のアフタータッチ(擦弦・クラリネット・フルート・金管の息 / 弓圧 / 明るさ、弦・ピアノのビブラート、CC121 でのリセット)
   - 演奏データにはピッチベンド、モジュレーションホイール、サステインペダル、レガートを含めています
 - 合格基準は SNR が 100 dB を超えることです。現在の結果は約 150 dB(float32 の量子化誤差程度)です。
 - `jsfx_render` がない環境(Cloudflare のビルドなど)では、このテストは自動でスキップされます。
