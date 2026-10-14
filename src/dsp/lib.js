@@ -522,3 +522,212 @@ export function ap1_phase_delay(a, w) {
 export function lp1_phase_delay(b, w) {
   return Math.atan2(b * Math.sin(w), 1 - b * Math.cos(w)) / w;
 }
+
+// ----------------------------------------------------------------------------
+// Effects building blocks (chorus, echo, reverb). Each owns its delay memory, allocated once in
+// its init (JSFX: in @init, sized from srate). The effect writes its wet output into o.l / o.r.
+
+/** Schroeder all-pass on a delay line `o` (from delay_init): flat magnitude, smears the phase. */
+export function allpass_process(o, x, d, g) {
+  const y0 = delay_read(o, d);
+  const v = x + g * y0;
+  delay_write(o, v);
+  return y0 - g * v;
+}
+
+// ---- 4-line feedback delay network (Hadamard mixing, one-pole damping in each line).
+// Used for the Physical "Room" and, behind two all-pass diffusers, for the synth reverb.
+
+/** Line lengths in samples at 48 kHz (mutually prime), scaled by sample rate and size. */
+export const FDN_LENS = [1171, 1429, 1663, 1951];
+
+/** size = samples per line (must hold the longest scaled line + 2). */
+export function fdn4_init(o, size) {
+  o.d0 = {};
+  o.d1 = {};
+  o.d2 = {};
+  o.d3 = {};
+  delay_init(o.d0, size);
+  delay_init(o.d1, size);
+  delay_init(o.d2, size);
+  delay_init(o.d3, size);
+  o.maxlen = size - 2;
+  o.len0 = o.len1 = o.len2 = o.len3 = 2;
+  o.g0 = o.g1 = o.g2 = o.g3 = 0;
+  o.z0 = o.z1 = o.z2 = o.z3 = 0;
+  o.damp = 0.55;
+  o.l = 0;
+  o.r = 0;
+}
+
+/**
+ * scale: line length multiplier (room size). decay_ms: time to -60 dB.
+ * damp: one-pole coefficient in each line (1 = no damping, smaller = high frequencies die sooner).
+ */
+export function fdn4_set(o, scale, decay_ms, damp, sr) {
+  o.len0 = clamp(Math.round((FDN_LENS[0] * scale * sr) / 48000), 2, o.maxlen);
+  o.len1 = clamp(Math.round((FDN_LENS[1] * scale * sr) / 48000), 2, o.maxlen);
+  o.len2 = clamp(Math.round((FDN_LENS[2] * scale * sr) / 48000), 2, o.maxlen);
+  o.len3 = clamp(Math.round((FDN_LENS[3] * scale * sr) / 48000), 2, o.maxlen);
+  // -60 dB after decay_ms: each pass through a line of len samples loses 60*len/(T*sr) dB
+  o.g0 = Math.pow(10, (-3 * o.len0) / (decay_ms * 0.001 * sr));
+  o.g1 = Math.pow(10, (-3 * o.len1) / (decay_ms * 0.001 * sr));
+  o.g2 = Math.pow(10, (-3 * o.len2) / (decay_ms * 0.001 * sr));
+  o.g3 = Math.pow(10, (-3 * o.len3) / (decay_ms * 0.001 * sr));
+  o.damp = damp;
+}
+
+/** Mono in; o.l = lines 0 + 2, o.r = lines 1 + 3. */
+export function fdn4_process(o, x) {
+  // read, damp (high frequencies die first) and scale by each line's decay gain
+  o.z0 += o.damp * (delay_read(o.d0, o.len0) - o.z0);
+  o.z1 += o.damp * (delay_read(o.d1, o.len1) - o.z1);
+  o.z2 += o.damp * (delay_read(o.d2, o.len2) - o.z2);
+  o.z3 += o.damp * (delay_read(o.d3, o.len3) - o.z3);
+  const a = o.z0 * o.g0;
+  const b = o.z1 * o.g1;
+  const c = o.z2 * o.g2;
+  const d = o.z3 * o.g3;
+  // orthogonal (energy preserving) Hadamard mix back into the lines
+  delay_write(o.d0, x + 0.5 * (a + b + c + d));
+  delay_write(o.d1, x + 0.5 * (a - b + c - d));
+  delay_write(o.d2, x + 0.5 * (a + b - c - d));
+  delay_write(o.d3, x + 0.5 * (a - b - c + d));
+  o.l = a + c;
+  o.r = b + d;
+}
+
+export function fdn4_clear(o) {
+  delay_clear(o.d0);
+  delay_clear(o.d1);
+  delay_clear(o.d2);
+  delay_clear(o.d3);
+  o.z0 = o.z1 = o.z2 = o.z3 = 0;
+  o.l = 0;
+  o.r = 0;
+}
+
+// ---- Stereo chorus: one modulated delay per channel, the two LFOs a quarter cycle apart
+// (so even a mono source comes out wide).
+
+/** Shortest chorus delay; the LFO sweeps from here up to base + depth. */
+export const CHORUS_BASE_MS = 7;
+/** Longest chorus depth (the delay memory holds base + depth). */
+export const CHORUS_MAX_DEPTH_MS = 8;
+
+export function chorus_init(o, sr) {
+  const n = Math.ceil((CHORUS_BASE_MS + CHORUS_MAX_DEPTH_MS + 5) * 0.001 * sr) + 4;
+  o.bl = {};
+  o.br = {};
+  delay_init(o.bl, n);
+  delay_init(o.br, n);
+  o.phase = 0;
+  o.l = 0;
+  o.r = 0;
+}
+
+export function chorus_clear(o) {
+  delay_clear(o.bl);
+  delay_clear(o.br);
+  o.l = 0;
+  o.r = 0;
+}
+
+/** base / depth in samples, inc = LFO cycles per sample. */
+export function chorus_process(o, in_l, in_r, base, depth, inc) {
+  delay_write(o.bl, in_l);
+  delay_write(o.br, in_r);
+  o.l = delay_read(o.bl, base + depth * (0.5 + 0.5 * Math.sin(TWO_PI * o.phase)));
+  o.r = delay_read(o.br, base + depth * (0.5 + 0.5 * Math.cos(TWO_PI * o.phase)));
+  o.phase += inc;
+  if (o.phase >= 1) o.phase -= 1;
+}
+
+// ---- Stereo echo with a one-pole high cut in the feedback loop (each repeat gets darker).
+// Ping-pong: the (mono summed) input enters the left line and the repeats bounce L -> R -> L.
+
+export function echo_init(o, size) {
+  o.bl = {};
+  o.br = {};
+  delay_init(o.bl, size);
+  delay_init(o.br, size);
+  o.zl = 0;
+  o.zr = 0;
+  o.l = 0;
+  o.r = 0;
+}
+
+export function echo_clear(o) {
+  delay_clear(o.bl);
+  delay_clear(o.br);
+  o.zl = 0;
+  o.zr = 0;
+  o.l = 0;
+  o.r = 0;
+}
+
+/** d = delay in samples (1 <= d < size - 1), fb = feedback, a = one-pole coefficient of the high cut. */
+export function echo_process(o, in_l, in_r, d, fb, a, pingpong) {
+  o.zl += a * (delay_read(o.bl, d) - o.zl);
+  o.zr += a * (delay_read(o.br, d) - o.zr);
+  if (pingpong) {
+    delay_write(o.bl, (in_l + in_r) * 0.5 + fb * o.zr);
+    delay_write(o.br, fb * o.zl);
+  } else {
+    delay_write(o.bl, in_l + fb * o.zl);
+    delay_write(o.br, in_r + fb * o.zr);
+  }
+  o.l = o.zl;
+  o.r = o.zr;
+}
+
+// ---- Reverb: two all-pass diffusers (smear the attack into a dense wash) into the 4-line FDN.
+
+/** All-pass diffuser lengths in samples at 48 kHz (scaled by sample rate and size). */
+export const REVERB_AP_LENS = [241, 373];
+/** Largest size multiplier the reverb memory is allocated for. */
+export const REVERB_MAX_SCALE = 2;
+/** Wet output gain (brings the reverb roughly to the level of the dry sound). */
+const REVERB_GAIN = 0.7;
+
+export function reverb_init(o, sr) {
+  o.ap1 = {};
+  o.ap2 = {};
+  delay_init(o.ap1, Math.ceil((REVERB_AP_LENS[0] * REVERB_MAX_SCALE * sr) / 48000) + 4);
+  delay_init(o.ap2, Math.ceil((REVERB_AP_LENS[1] * REVERB_MAX_SCALE * sr) / 48000) + 4);
+  o.fdn = {};
+  fdn4_init(o.fdn, Math.ceil((FDN_LENS[3] * REVERB_MAX_SCALE * sr) / 48000) + 4);
+  o.ap_len1 = 1;
+  o.ap_len2 = 1;
+  o.gain = 0;
+  o.l = 0;
+  o.r = 0;
+}
+
+/** scale 0.5..REVERB_MAX_SCALE (size), decay_ms to -60 dB, damp as in fdn4_set. */
+export function reverb_set(o, scale, decay_ms, damp, sr) {
+  o.ap_len1 = Math.max(1, Math.round((REVERB_AP_LENS[0] * scale * sr) / 48000));
+  o.ap_len2 = Math.max(1, Math.round((REVERB_AP_LENS[1] * scale * sr) / 48000));
+  fdn4_set(o.fdn, scale, decay_ms, damp, sr);
+  // a long tail piles up more energy (~ 1 / (1 - g^2) per line): keep the wet level steady
+  const f = o.fdn;
+  const g2 = (f.g0 * f.g0 + f.g1 * f.g1 + f.g2 * f.g2 + f.g3 * f.g3) * 0.25;
+  o.gain = REVERB_GAIN * Math.sqrt(1 - g2);
+}
+
+export function reverb_clear(o) {
+  delay_clear(o.ap1);
+  delay_clear(o.ap2);
+  fdn4_clear(o.fdn);
+  o.l = 0;
+  o.r = 0;
+}
+
+export function reverb_process(o, in_l, in_r) {
+  let x = (in_l + in_r) * 0.5;
+  x = allpass_process(o.ap1, x, o.ap_len1, 0.6);
+  x = allpass_process(o.ap2, x, o.ap_len2, 0.6);
+  fdn4_process(o.fdn, x);
+  o.l = o.fdn.l * o.gain;
+  o.r = o.fdn.r * o.gain;
+}

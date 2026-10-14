@@ -39,6 +39,11 @@
     ...(app.synth.unison_voices > 1 ? [] : ['unison_detune_cents', 'unison_stereo_width', 'unison_detune_curve', 'unison_side_level']),
     ...(app.synth.lfo_sync > 0 ? ['lfo_rate_hz'] : []),
     ...(app.synth.arp_mode > 0 ? [] : ['arp_octaves', 'arp_gate', 'arp_swing_percent', 'arp_steps']),
+    // effects: the knobs of a switched-off effect are greyed out; a synced delay ignores Delay Time
+    ...(app.synth.fx_chorus_on >= 0.5 ? [] : ['fx_chorus_mix', 'fx_chorus_rate_hz', 'fx_chorus_depth_ms']),
+    ...(app.synth.fx_delay_on >= 0.5 ? [] : ['fx_delay_mix', 'fx_delay_feedback', 'fx_delay_high_cut_hz']),
+    ...(app.synth.fx_delay_on >= 0.5 && app.synth.fx_delay_sync === 0 ? [] : ['fx_delay_time_ms']),
+    ...(app.synth.fx_reverb_on >= 0.5 ? [] : ['fx_reverb_mix', 'fx_reverb_decay_ms', 'fx_reverb_size', 'fx_reverb_damping']),
   ]);
   // CPU grows with (notes sounding) x (unison copies): show the worst case
   const synthLoad = $derived.by(() => {

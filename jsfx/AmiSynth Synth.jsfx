@@ -5,6 +5,7 @@ desc:AmiSynth Synth (polyphonic subtractive, microtonal)
 // src/dsp/params.js (the block between the generated markers is rewritten by
 // `npm run gen:jsfx`; do not edit it by hand).
 // Tuning: the EDO sliders, or a shared Scala scale in REAPER/Data/AmiSynth/tuning.txt (tuning_source).
+// Effects after the voice sum: chorus -> delay (synced to the REAPER tempo) -> reverb, all Off by default.
 
 options:gmem=AmiSynth
 
@@ -94,6 +95,22 @@ slider82:cc_cutoff_number=74<0,127,1>Cutoff CC Number [cc]
 slider83:cc_cutoff_depth_oct=4<0,8,0.01>Cutoff CC Depth [oct]
 slider84:tuning_source=0<0,2,1{EDO sliders,Scale file (Data/AmiSynth/tuning.txt),Shared (AmiSynth Tuning)}>Tuning Source
 slider85:tuning_slot=1<1,8,1>Tuning Slot
+slider86:fx_chorus_on=0<0,1,1{Off,On}>Chorus
+slider87:fx_chorus_mix=0.5<0,1,0.001>Chorus Mix
+slider88:fx_chorus_rate_hz=0.8<0.05,5,0.01>Chorus Rate [Hz]
+slider89:fx_chorus_depth_ms=3<0,8,0.01>Chorus Depth [ms]
+slider90:fx_delay_on=0<0,1,1{Off,On}>Delay
+slider91:fx_delay_mix=0.25<0,1,0.001>Delay Mix
+slider92:fx_delay_sync=9<0,14,1{Off,1/1,1/2,1/2 dotted,1/2 triplet,1/4,1/4 dotted,1/4 triplet,1/8,1/8 dotted,1/8 triplet,1/16,1/16 dotted,1/16 triplet,1/32}>Delay Sync
+slider93:fx_delay_time_ms=375<1,2000,1>Delay Time [ms]
+slider94:fx_delay_feedback=0.35<0,0.95,0.001>Delay Feedback
+slider95:fx_delay_ping_pong=0<0,1,1{Off,On}>Delay Ping-Pong
+slider96:fx_delay_high_cut_hz=6000<200,20000,1>Delay High Cut [Hz]
+slider97:fx_reverb_on=0<0,1,1{Off,On}>Reverb
+slider98:fx_reverb_mix=0.25<0,1,0.001>Reverb Mix
+slider99:fx_reverb_decay_ms=2500<200,15000,1>Reverb Decay [ms]
+slider100:fx_reverb_size=0.5<0,1,0.001>Reverb Size
+slider101:fx_reverb_damping=0.5<0,1,0.001>Reverb Damping
 // </generated sliders>
 
 import amisynth_lib.jsfx-inc
@@ -170,6 +187,31 @@ noise_clock_tab[0] = 0; noise_clock_tab[1] = 32; noise_clock_tab[2] = 93; noise_
 // host transport: beats (quarter notes), advanced every sample, resynced in @block while playing
 beat = 0;
 beat_inc = 120 / 60 / srate;
+host_tempo = 120;
+
+// ---- effects after the voice sum: chorus -> delay -> reverb. All delay memory is allocated
+// here, once (the echo holds DELAY_MAX_SECONDS = 4 s).
+fxc.chorus_init();
+echo_size = ceil(4 * srate) + 4;
+fxd.echo_init(echo_size);
+fxr.reverb_init();
+fx_chorus_i = fx_delay_i = fx_reverb_i = 0;
+delay_d = 1; // smoothed echo time in samples
+delay_target = 1;
+delay_sync_beats = 0;
+delay_coef = tau_coef(60);
+// note values in beats (same table as DELAY_SYNC_BEATS in params.js)
+delay_sync_tab = mem_alloc(15);
+delay_sync_tab[0] = 0; delay_sync_tab[1] = 4; delay_sync_tab[2] = 2; delay_sync_tab[3] = 3; delay_sync_tab[4] = 4 / 3;
+delay_sync_tab[5] = 1; delay_sync_tab[6] = 1.5; delay_sync_tab[7] = 2 / 3; delay_sync_tab[8] = 0.5; delay_sync_tab[9] = 0.75;
+delay_sync_tab[10] = 1 / 3; delay_sync_tab[11] = 0.25; delay_sync_tab[12] = 0.375; delay_sync_tab[13] = 1 / 6;
+delay_sync_tab[14] = 0.125;
+
+/** echo time in samples: a note value at the host tempo, or Delay Time in ms */
+function delay_retime() local(n) (
+  n = delay_sync_beats > 0 ? (delay_sync_beats * 60 * srate) / host_tempo : fx_delay_time_ms * 0.001 * srate;
+  delay_target = clamp(n, 1, echo_size - 2);
+);
 
 // ---- one unison copy: osc1 + osc2 (osc2 can sync to osc1 and FM it)
 function ucopy_reset(r1, r2) instance(prev2) (
@@ -721,6 +763,29 @@ arp_pat[4] = arp_step_5 >= 0.5; arp_pat[5] = arp_step_6 >= 0.5; arp_pat[6] = arp
 arp_pat[8] = arp_step_9 >= 0.5; arp_pat[9] = arp_step_10 >= 0.5; arp_pat[10] = arp_step_11 >= 0.5; arp_pat[11] = arp_step_12 >= 0.5;
 arp_pat[12] = arp_step_13 >= 0.5; arp_pat[13] = arp_step_14 >= 0.5; arp_pat[14] = arp_step_15 >= 0.5; arp_pat[15] = arp_step_16 >= 0.5;
 
+// effects; switching one on clears its memory, so no stale tail from earlier comes back
+fx_on = fx_chorus_on >= 0.5 ? 1 : 0;
+fx_on && !fx_chorus_i ? fxc.chorus_clear();
+fx_chorus_i = fx_on;
+chorus_base = 7 * 0.001 * srate;
+chorus_depth = clamp(fx_chorus_depth_ms, 0, 8) * 0.001 * srate;
+chorus_inc = fx_chorus_rate_hz / srate;
+fx_on = fx_delay_on >= 0.5 ? 1 : 0;
+delay_sync_beats = delay_sync_tab[clamp(floor(fx_delay_sync + 0.5), 0, 14)];
+delay_fb = clamp(fx_delay_feedback, 0, 0.95);
+delay_a = 1 - exp((-2 * $pi * clamp(fx_delay_high_cut_hz, 20, srate * 0.49)) / srate);
+delay_pp = fx_delay_ping_pong >= 0.5 ? 1 : 0;
+delay_retime();
+fx_on && !fx_delay_i ? (
+  fxd.echo_clear();
+  delay_d = delay_target; // start at the right time instead of gliding to it
+);
+fx_delay_i = fx_on;
+fx_on = fx_reverb_on >= 0.5 ? 1 : 0;
+fx_on && !fx_reverb_i ? fxr.reverb_clear();
+fx_reverb_i = fx_on;
+fxr.reverb_set(0.5 + 1.5 * clamp(fx_reverb_size, 0, 1), fx_reverb_decay_ms, 1 - 0.8 * clamp(fx_reverb_damping, 0, 1));
+
 i = 0;
 loop(MAX_VOICES, vcall(i, 3, 0, 0, 0, 0); vcall(i, 4, 0, 0, 0, 0); i += 1;);
 
@@ -738,7 +803,11 @@ tuning_shared_changed() ? (
   loop(MAX_VOICES, vcall(i, 4, 0, 0, 0, 0); i += 1;);
 );
 // host transport (play_state: 1 playing, 5 recording); when stopped the beat keeps counting
-tempo > 0 ? beat_inc = tempo / 60 / srate;
+tempo > 0 ? (
+  beat_inc = tempo / 60 / srate;
+  host_tempo = tempo;
+  delay_retime(); // a synced delay follows tempo changes (gliding)
+);
 play_state & 1 ? beat = beat_position;
 
 @sample
@@ -771,8 +840,29 @@ v0.voice_render(); v1.voice_render(); v2.voice_render(); v3.voice_render();
 v4.voice_render(); v5.voice_render(); v6.voice_render(); v7.voice_render();
 
 out_gain = gain_smooth.smoother_process(master_gain) * 0.5 * g_tremolo;
-spl0 = soft_clip(mix_l * out_gain);
-spl1 = soft_clip(mix_r * out_gain);
+fx_l = mix_l * out_gain;
+fx_r = mix_r * out_gain;
+
+// effects: chorus -> delay -> reverb, each a dry/wet crossfade
+fx_chorus_i ? (
+  fxc.chorus_process(fx_l, fx_r, chorus_base, chorus_depth, chorus_inc);
+  fx_l = fx_l * (1 - fx_chorus_mix) + fxc.l * fx_chorus_mix;
+  fx_r = fx_r * (1 - fx_chorus_mix) + fxc.r * fx_chorus_mix;
+);
+fx_delay_i ? (
+  delay_d = delay_target + delay_coef * (delay_d - delay_target);
+  fxd.echo_process(fx_l, fx_r, delay_d, delay_fb, delay_a, delay_pp);
+  fx_l = fx_l * (1 - fx_delay_mix) + fxd.l * fx_delay_mix;
+  fx_r = fx_r * (1 - fx_delay_mix) + fxd.r * fx_delay_mix;
+);
+fx_reverb_i ? (
+  fxr.reverb_process(fx_l, fx_r);
+  fx_l = fx_l * (1 - fx_reverb_mix) + fxr.l * fx_reverb_mix;
+  fx_r = fx_r * (1 - fx_reverb_mix) + fxr.r * fx_reverb_mix;
+);
+
+spl0 = soft_clip(fx_l);
+spl1 = soft_clip(fx_r);
 meter.meter_tick(spl0, spl1);
 beat += beat_inc;
 
