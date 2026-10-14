@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { defaultValues, DRUM_PARAMS, DRUM_PARTS, PHYS_PARAMS, SYNTH_PARAMS } from '../src/dsp/params.js';
+import { defaultValues, DRUM_PARAMS, DRUM_PARTS, GM_DRUM_VARIANTS, PHYS_PARAMS, SYNTH_PARAMS } from '../src/dsp/params.js';
 import { synth_init, synth_note_off, synth_note_on, synth_render, synth_update } from '../src/dsp/synth.js';
 import { drums_init, drums_note_on, drums_render, drums_update } from '../src/dsp/drums.js';
 import { tuning_init, tuning_note_to_hz, tuning_set_edo, tuning_set_table } from '../src/dsp/lib.js';
@@ -90,6 +90,39 @@ test('every drum part makes sound and decays; closed hat chokes open hat', () =>
   drums_note_on(d, 42, 120);
   stats(drums_render, d, SR * 0.03);
   assert.ok(d.open_hat.env.value < 1e-3, `open hat choked (${d.open_hat.env.value})`);
+});
+
+test('GM percussion: every part and variant note 35-81 sounds and decays, the rest stay silent', () => {
+  const played = new Set([...DRUM_PARTS.map((p) => p.note), ...GM_DRUM_VARIANTS.map((v) => v.note)]);
+  for (const v of GM_DRUM_VARIANTS) assert.ok(DRUM_PARTS.some((p) => p.key === v.part), `${v.name}: unknown part ${v.part}`);
+  for (let note = 35; note <= 81; note++) {
+    const d = {};
+    drums_init(d, SR);
+    drums_update(d, defaultValues(DRUM_PARAMS));
+    drums_note_on(d, note, 120);
+    const r = stats(drums_render, d, SR / 10);
+    if (!played.has(note)) {
+      assert.equal(r.peak, 0, `note ${note} is not a GM sound the machine plays`);
+      continue;
+    }
+    assert.ok(r.rms > 0.003, `note ${note} rms ${r.rms}`);
+    assert.ok(r.peak <= 1);
+    stats(drums_render, d, SR * 8);
+    assert.ok(stats(drums_render, d, 1000).peak < 1e-3, `note ${note} decays`);
+  }
+  // variants ring together with their part (own voice), e.g. low conga under the open conga
+  const d = {};
+  drums_init(d, SR);
+  drums_update(d, defaultValues(DRUM_PARAMS));
+  drums_note_on(d, 63, 120);
+  drums_note_on(d, 64, 120);
+  assert.ok(d.hands[3].env.value > 0 && d.hands[4].env.value > 0);
+  // the mute triangle cuts the open one short
+  drums_note_on(d, 81, 120);
+  stats(drums_render, d, 2000);
+  drums_note_on(d, 80, 120);
+  stats(drums_render, d, SR * 0.4);
+  assert.ok(d.triangle.env.value < 1e-3);
 });
 
 test('generated JSFX slider lines are well-formed', async () => {

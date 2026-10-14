@@ -30,6 +30,7 @@
       else if (snap.model === 'wind' || snap.model === 'brass') drawWind(ctx, w, h, dpr, snap);
       else if (snap.model === 'mesh') drawMesh(ctx, w, h, dpr, snap);
       else if (snap.model === 'stiff') drawStiff(ctx, w, h, dpr, snap);
+      else if (snap.model === 'organ') drawOrgan(ctx, w, h, dpr, snap);
     };
     draw();
     return () => {
@@ -256,6 +257,32 @@
     info =
       `${s.f1.toFixed(1)} Hz · 上 = 弦の波形 · 下 = 第 k 倍音が整数倍よりどれだけ高いか (セント)。` +
       `硬い弦は高い倍音ほど速く伝わるので倍音が上にずれます (ピアノの「インハーモニシティ」)。調律が広め (ストレッチ) になる理由です${s.gate ? '' : ' · 離鍵 (ダンパー)'}`;
+  }
+
+  const FOOT = ["16'", "5⅓'", "8'", "4'", "2⅔'", "2'", "1⅗'", "1⅓'", "1'"];
+  const BAR_COLORS = ['#a0522d', '#a0522d', '#e8e8e8', '#e8e8e8', '#333a48', '#e8e8e8', '#333a48', '#333a48', '#e8e8e8'];
+
+  function drawOrgan(ctx, w, h, dpr, s) {
+    // drawbars pulled out from the top: 0 = pushed in, 8 = full
+    const pad = 12 * dpr;
+    const top = pad;
+    const base = h - 22 * dpr;
+    const colW = (w - 2 * pad) / 9;
+    s.drawbars.forEach((b, i) => {
+      const x = pad + i * colW + colW * 0.2;
+      const bh = (b / 8) * (base - top);
+      ctx.fillStyle = BAR_COLORS[i];
+      ctx.strokeStyle = '#8b95a8';
+      ctx.lineWidth = 1 * dpr;
+      ctx.fillRect(x, top, colW * 0.6, Math.max(2 * dpr, bh));
+      ctx.strokeRect(x, top, colW * 0.6, Math.max(2 * dpr, bh));
+      ctx.fillStyle = '#8b95a8';
+      const label = `${FOOT[i]} ${b}`;
+      ctx.fillText(label, pad + (i + 0.5) * colW - ctx.measureText(label).width / 2, base + 14 * dpr);
+    });
+    info =
+      `${s.hz.toFixed(1)} Hz · ドローバー = 足 (フィート) ごとのサイン波の音量 (8' が基音、16' が 1 オクターブ下、4' が 1 オクターブ上 …)` +
+      `${s.perc > 0.001 ? ` · パーカッション ${(s.perc * 100).toFixed(0)} %` : ''}${s.gate ? '' : ' · 離鍵'}`;
   }
 </script>
 

@@ -6,12 +6,12 @@
 
 | メッセージ | Synth | Physical | Drums |
 | --- | --- | --- | --- |
-| Note On (velocity 1〜127) | 発音。Poly／Mono／Legato、Arp設定に従う | 選択したモデルで発音 | GM配置の13パーツを発音 |
+| Note On (velocity 1〜127) | 発音。Poly／Mono／Legato、Arp設定に従う | 選択したモデルで発音 | GM Level 1 の 35〜81 をすべて 23 パーツで発音 |
 | Note Off | リリース。CC64中は保留 | モデル別のRelease Damping。CC64対応モデルでは保留 | 無視。ワンショットの自然減衰に従う |
 | Note On (velocity 0) | Note Offと同じ | Note Offと同じ | 無視 |
 | Velocity | `amp_velocity_amount`、フィルター量などへ反映 | `phys_velocity_amount`とモデル別の励振・音色へ反映 | パーツの発音強度へ反映 |
 | Pitch Bend (14 bit) | 対応。`pitch_bend_range_cents` (既定200 cents) | 対応。`phys_pitch_bend_range_cents` (既定200 cents) | 未対応 |
-| Program Change | 未対応 | 未対応 | 未対応 |
+| Program Change | 音源では未対応。Web画面では GM の番号で Synth／Physical と近いプリセットへ切り替える (ch10 以外) | 同左 | 未対応 |
 | Channel Pressure (0xD0) | 対応。モジュレーション・マトリクスのソース「Pressure」 | 対応。`phys_pressure_*` の量で息・弓圧・明るさ・ビブラートへ (既定0 = 無効) | 未対応 |
 | Polyphonic Aftertouch (0xA0) | 対応。そのキーのボイスだけの「Pressure」 | 対応。そのキーのノートだけに効く | 未対応 |
 | MIDI Clock / Start / Continue / Stop / Song Position | 未対応 | 未対応 | 未対応 |
@@ -26,7 +26,7 @@ Pitch Bendの中心は8192 (`[0xE0, 0, 64]`)です。ベンド幅は上記のパ
 | CC | 一般的な用途 | Synth | Physical | Drums |
 | --- | --- | --- | --- | --- |
 | 0 / 32 | Bank Select | 未対応 | 未対応 | 未対応 |
-| 1 | Modulation | LFOによるビブラート／フィルター変調の追加量 | 未対応 | 未対応 |
+| 1 | Modulation | LFOによるビブラート／フィルター変調の追加量 | ロータリースピーカーが Slow の時、64 以上で Fast に切り替え | 未対応 |
 | 7 | Volume | 未対応 | 未対応 | 未対応 |
 | 10 | Pan | 未対応 | 未対応 | 未対応 |
 | 11 | Expression | 未対応 | 未対応 | 未対応 |
@@ -74,7 +74,7 @@ CC120／123はどちらもリリース処理です。SynthのRelease、Physical�
 
 ## MIDIとパラメーター設定の区別
 
-CCは0〜127の値です。プリセットJSON、Companion、MCPからのスライダー操作で使うHz・ms・dB等の実値とは別です。Volume／Pan／ExpressionのCCを使いたい場合、現状はホストで割り当てるか、対応する音源パラメーターを直接設定してください。Program Changeではプリセットは切り替わらず、WebのPreset欄やCompanionを使います。
+CCは0〜127の値です。プリセットJSON、Companion、MCPからのスライダー操作で使うHz・ms・dB等の実値とは別です。Volume／Pan／ExpressionのCCを使いたい場合、現状はホストで割り当てるか、対応する音源パラメーターを直接設定してください。JSFXではProgram Changeでプリセットは切り替わらず、REAPERのプリセットやCompanionを使います。Web画面は GM Level 1 の番号から楽器と最も近い内蔵プリセットを選びます (対応表は `src/presets/gm.js`。オルガン・アコーディオン・ハーモニカなど専用の音がないものは近い音で代用)。
 
 設定可能なパラメーター全体は [生成カタログ](../jsfx/generated/automation.json)、実値／正規化値の使い分けは [MCP設定検証の説明](../jsfx/README.md#mcp-向けのカタログ設定検証)を参照してください。
 

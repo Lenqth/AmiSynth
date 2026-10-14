@@ -97,8 +97,10 @@ test('modal model: every material sounds, is bounded and rings at the fundamenta
     assert.ok(rms(out) > 0.005, `${m.name} audible`);
     assert.ok(Math.max(...out.map(Math.abs)) <= 1, `${m.name} bounded`);
     const v = s.voices[s.last_voice];
-    const k = m.ratios.indexOf(1);
-    assert.ok(Math.abs(v.mode_hz[k] - 220) < 1e-6, `${m.name} has a mode at the note frequency`);
+    // tubular bells have no partial at the heard pitch: modes 2 : 3 : 4 imply it (strike tone)
+    const k = m.ratios.includes(1) ? m.ratios.indexOf(1) : m.ratios.indexOf(2);
+    const want = m.ratios[k] * 220;
+    assert.ok(k >= 0 && Math.abs(v.mode_hz[k] - want) < 1e-6, `${m.name} has a mode at the note frequency (or its octave)`);
   });
 });
 
@@ -148,6 +150,9 @@ const NEW_MODELS = [
   ['bowed', { phys_model: 2 }, [36, 48, 60, 72, 84]],
   ['clarinet', { phys_model: 3, wind_type: 0 }, [36, 48, 60, 72, 84]],
   ['flute', { phys_model: 3, wind_type: 1, breath_noise: 0 }, [48, 60, 72, 84]],
+  ['saxophone', { phys_model: 3, wind_type: 2, breath_noise: 0 }, [36, 48, 60, 72, 84]],
+  ['double reed', { phys_model: 3, wind_type: 3, breath_noise: 0 }, [36, 48, 60, 72, 84]],
+  ['free reed', { phys_model: 3, wind_type: 4, breath_noise: 0 }, [36, 48, 60, 72, 84]],
   ['circular drum', { phys_model: 4, mesh_shape: 0 }, [48, 60, 72, 84]],
   ['square plate', { phys_model: 4, mesh_shape: 1 }, [48, 60, 72, 84]],
   // (with inharmonicity the stretched partials pull an autocorrelation estimate sharp; the
@@ -169,7 +174,7 @@ test('bowed / wind / mesh / stiff models are in tune', () => {
 });
 
 test('bowed and wind sustain while held and stop after release', () => {
-  for (const params of [{ phys_model: 2 }, { phys_model: 3, wind_type: 0 }, { phys_model: 3, wind_type: 1 }]) {
+  for (const params of [{ phys_model: 2 }, ...[0, 1, 2, 3, 4].map((wind_type) => ({ phys_model: 3, wind_type }))]) {
     const s = make({ ...params, phys_release_ms: 150 });
     phys_note_on(s, 60, 100);
     render(s, SR * 0.5);
@@ -182,7 +187,7 @@ test('bowed and wind sustain while held and stop after release', () => {
 });
 
 test('wind instruments speak over the whole pressure / embouchure range', () => {
-  for (const wind_type of [0, 1]) {
+  for (const wind_type of [0, 1, 2, 3, 4]) {
     for (const breath_pressure of [0, 0.5, 1]) {
       for (const wind_embouchure of [0, 0.5, 1]) {
         const s = make({ phys_model: 3, wind_type, breath_pressure, wind_embouchure });
@@ -430,4 +435,118 @@ test('brass: speaks within ~100 ms whatever the velocity (tongue release), soft 
     assert.ok(soft < 100 && loud < 100, `note ${note}: ${soft.toFixed(0)} ms (pp) / ${loud.toFixed(0)} ms (ff)`);
     assert.ok(Math.abs(soft - loud) < 30, `note ${note}: velocity changes the onset by ${Math.abs(soft - loud).toFixed(0)} ms`);
   }
+});
+
+/** frequency of a near-pure tone from its upward zero crossings (autocorrelation is biased on a sine) */
+function zcPitch(buf) {
+  let first = -1;
+  let last = 0;
+  let n = 0;
+  for (let i = 1; i < buf.length; i++) {
+    if (buf[i - 1] <= 0 && buf[i] > 0) {
+      const t = i - 1 + buf[i - 1] / (buf[i - 1] - buf[i]);
+      if (first < 0) first = t;
+      last = t;
+      n++;
+    }
+  }
+  return ((n - 1) * SR) / (last - first);
+}
+
+test('organ model: drawbars set the partials, in tune, single-trigger percussion, rotary moves', () => {
+  const only8 = { phys_model: 7, organ_drawbar_16: 0, organ_drawbar_5_13: 0, organ_drawbar_8: 8, organ_click: 0 };
+  for (const note of [36, 57, 81]) {
+    const s = make(only8);
+    phys_note_on(s, note, 100);
+    const out = render(s, SR * 0.3).slice(2400);
+    const hz = 440 * 2 ** ((note - 69) / 12);
+    assert.ok(Math.abs(cents(zcPitch(out), hz)) < 0.5, `organ ${note} in tune: ${zcPitch(out)}`);
+  }
+  // 16' alone sounds an octave below the note
+  const sub = make({ ...only8, organ_drawbar_16: 8, organ_drawbar_8: 0 });
+  phys_note_on(sub, 69, 100);
+  assert.ok(Math.abs(cents(zcPitch(render(sub, SR * 0.3).slice(2400)), 220)) < 0.5, '16 foot = sub-octave');
+  // percussion only on a note played with no other key down
+  const s = make({ ...only8, organ_percussion: 2 });
+  phys_note_on(s, 60, 100);
+  render(s, 100);
+  assert.ok(s.voices[s.last_voice].org_perc > 0.9, 'first note strikes');
+  phys_note_on(s, 64, 100);
+  assert.equal(s.voices[s.last_voice].org_perc, 0, 'legato note does not');
+  // the rotary speaker makes the level of a steady tone swirl; without it the tone is steady
+  const swing = (over) => {
+    const r = make({ ...only8, organ_drawbar_8: 0, organ_drawbar_1: 8, ...over });
+    phys_note_on(r, 69, 100);
+    render(r, SR * 0.2);
+    const out = render(r, SR * 0.5);
+    const blocks = [];
+    for (let i = 0; i + 1200 <= out.length; i += 1200) blocks.push(rms(out.slice(i, i + 1200)));
+    return Math.max(...blocks) / Math.min(...blocks);
+  };
+  assert.ok(swing({}) < 1.05, 'steady without the rotary');
+  assert.ok(swing({ rotary_mode: 2 }) > 1.3, 'rotary swirls');
+});
+
+/** amplitude of harmonic k (Hann-windowed DFT at k * hz) */
+function harmonic(buf, hz, k) {
+  let re = 0;
+  let im = 0;
+  for (let i = 0; i < buf.length; i++) {
+    const w = 0.5 - 0.5 * Math.cos((2 * Math.PI * i) / buf.length);
+    const ph = (2 * Math.PI * hz * k * i) / SR;
+    re += buf[i] * w * Math.cos(ph);
+    im += buf[i] * w * Math.sin(ph);
+  }
+  return Math.hypot(re, im);
+}
+
+test('sawari: the upper partials keep ringing, the pitch and the decay stay, and release frees the voice', () => {
+  for (const note of [50, 62, 69]) {
+    const hz = 440 * Math.pow(2, (note - 69) / 12);
+    const hi = {};
+    const lvl = {};
+    for (const saw of [0, 0.6]) {
+      const s = make({ phys_model: 0, string_sawari: saw, string_decay_ms: 6000, string_damping: 0.15 });
+      phys_note_on(s, note, 110);
+      const out = render(s, SR * 2.6);
+      const late = out.subarray(SR * 2, SR * 2.5);
+      let e = 0;
+      let h = 0;
+      for (let k = 1; k <= 24; k++) {
+        const a = harmonic(late, hz, k) ** 2;
+        e += a;
+        if (k >= 8) h += a;
+      }
+      hi[saw] = 10 * Math.log10(h / e);
+      lvl[saw] = 10 * Math.log10(e);
+      if (saw > 0) {
+        const cents = 1200 * Math.log2(pitch(out.subarray(SR * 0.5, SR), hz) / hz);
+        assert.ok(Math.abs(cents) < 5, `note ${note} sawari pitch ${cents.toFixed(1)} cents`);
+        phys_note_off(s, note);
+        render(s, SR * 2);
+        assert.equal(s.voices.filter((v) => v.active).length, 0, `note ${note} voice freed`);
+      }
+    }
+    assert.ok(hi[0.6] > hi[0] + 6 && hi[0.6] > -55, `note ${note}: partials 8+ at 2 s ${hi[0].toFixed(0)} -> ${hi[0.6].toFixed(0)} dB`);
+    assert.ok(Math.abs(lvl[0.6] - lvl[0]) < 8, `note ${note}: level at 2 s ${lvl[0].toFixed(1)} vs ${lvl[0.6].toFixed(1)} dB`);
+  }
+});
+
+test('rotary: switching it back on after Off does not replay the sound it held while bypassed', () => {
+  const p = { ...defaultValues(PHYS_PARAMS), phys_model: 7, organ_drawbar_8: 8, organ_click: 0, phys_room_mix: 0,
+    phys_release_ms: 10, rotary_mode: 2, rotary_mix: 1 };
+  const s = {};
+  phys_init(s, SR);
+  phys_update(s, p);
+  phys_note_on(s, 69, 100);
+  render(s, SR * 0.3);
+  phys_update(s, { ...p, rotary_mode: 0 });
+  phys_note_off(s, 69);
+  render(s, SR * 0.5);
+  assert.equal(s.voices.filter((v) => v.active).length, 0);
+  phys_update(s, { ...p, rotary_mode: 2 });
+  const out = render(s, SR * 0.1);
+  let pk = 0;
+  for (const v of out) pk = Math.max(pk, Math.abs(v));
+  assert.ok(pk < 1e-6, `peak after re-enabling ${pk}`);
 });

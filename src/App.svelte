@@ -26,6 +26,7 @@
   import { SYNTH_PRESETS } from './presets/synth.js';
   import { DRUM_PRESETS } from './presets/drums.js';
   import { PHYS_PRESETS } from './presets/phys.js';
+  import { gmProgramPreset } from './presets/gm.js';
   import PhysViz from './ui/PhysViz.svelte';
   import Scope from './ui/Scope.svelte';
   import TuningPanel from './ui/TuningPanel.svelte';
@@ -62,9 +63,9 @@
   );
   // Physical tab: show only the controls of the selected model
   // only the knobs of the selected model (+ shared ones) are shown
-  const PHYS_MODEL_GROUPS = ['String', 'Modal', 'Bowed', 'Wind', 'Mesh', 'Stiff String', 'Brass'];
+  const PHYS_MODEL_GROUPS = ['String', 'Modal', 'Bowed', 'Wind', 'Mesh', 'Stiff String', 'Brass', 'Organ'];
   const physModel = $derived(Math.round(app.phys.phys_model));
-  const physGroups = $derived(['Model', PHYS_MODEL_GROUPS[Math.round(app.phys.phys_model)] ?? 'String', 'Amp', 'Output', 'Pressure']);
+  const physGroups = $derived(['Model', PHYS_MODEL_GROUPS[Math.round(app.phys.phys_model)] ?? 'String', 'Amp', 'Rotary', 'Output', 'Pressure']);
 
   function toggleViz() {
     app.physViz = !app.physViz;
@@ -243,8 +244,11 @@
       const flat = midiToSteps(midi, { lowNote: 24, highNote: 108, maxSteps: toSong ? STEPS * 128 * 16 : STEPS });
       if (flat.notes.length === 0 && flat.drums.length === 0) throw new Error('読み込めるノートがありません');
       const warnings = [...flat.warnings];
+      // a GM program change picks the instrument and its closest preset
+      const gm = flat.program == null ? null : gmProgramPreset(flat.program);
+      const melodic = gm ? gm.kind : app.song.melodic;
       if (toSong) {
-        const { song, truncated } = songFromFlat({ ...flat, bpm: flat.bpm ?? app.song.bpm, melodic: app.song.melodic });
+        const { song, truncated } = songFromFlat({ ...flat, bpm: flat.bpm ?? app.song.bpm, melodic });
         if (truncated) warnings.push('パターン数 / 曲順の上限で後半を省きました');
         replaceSong(song);
         app.playMode = 'song';
@@ -256,8 +260,14 @@
           p.notes = flat.notes.map((n) => ({ ...n, len: Math.min(n.len, STEPS - n.start) }));
           p.drums = flat.drums;
           if (flat.bpm) s.bpm = flat.bpm;
+          s.melodic = melodic;
         });
         importMsg = `${file.name}: 最初の 4 小節を ${editedPattern().name} に読み込みました`;
+      }
+      if (gm) {
+        setMelodic(gm.kind);
+        applyPreset(gm.kind, gm.preset);
+        importMsg += ` · 音色: ${gm.gm.name} → ${gm.preset.name}${gm.gm.exact === false ? ' (近い音で代用)' : ''}`;
       }
       if (warnings.length) importMsg += ` (${warnings.join(' / ')})`;
     } catch (err) {
@@ -528,6 +538,15 @@
     const type = status & 0xf0;
     if ((status & 0x0f) === 9) {
       if (type === 0x90 && d2 > 0) drumHit(d1, d2);
+      return;
+    }
+    if (type === 0xc0) {
+      // program change: switch instrument + preset (GM Level 1 numbering)
+      const gm = gmProgramPreset(d1);
+      if (gm) {
+        setMelodic(gm.kind);
+        applyPreset(gm.kind, gm.preset);
+      }
       return;
     }
     if (type === 0x90 && d2 > 0) {

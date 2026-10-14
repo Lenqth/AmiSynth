@@ -116,7 +116,7 @@ test('MIDI import: format 0, running status, note-on vel 0, quantize, GM drum al
     35, 60, 0, // C4 off (vel 0) at tick 48 -> 2 steps
     0, 0x99, 35, 120, // GM acoustic bass drum -> kick
     0, 44, 70, // pedal hat -> closed hat (running status)
-    0, 81, 50, // open triangle: no part -> dropped
+    0, 84, 50, // not a GM percussion note -> dropped
     10, 0xb0, 7, 100, // CC, ignored
     38, 0x80, 62, 0, // D4 off at tick 96 -> step 4
     0, 0x90, 20, 90, // below the piano roll
@@ -158,4 +158,32 @@ test('MIDI import rejects broken / unsupported files without hanging', () => {
   bytes[18] = 0x7f; // MTrk length -> huge
   assert.equal(parseMidi(bytes).notes.length, 1);
   assert.throws(() => parseMidi(/** @type {any} */ ([0x4d])), /MIDI データ/);
+});
+
+test('MIDI import: program change of the main melodic channel picks a GM preset', async () => {
+  const { GM_PROGRAMS, gmProgramPreset } = await import('../src/presets/gm.js');
+  // ch1 program 65 (alto sax) with two notes, ch2 program 0 with one note, drums ch10 program 0
+  const track = [
+    0, 0xc0, 65, 0, 0xc1, 0, 0, 0xc9, 0,
+    0, 0x90, 60, 100, 0x60, 0x80, 60, 0,
+    0, 0x90, 62, 100, 0x60, 0x80, 62, 0,
+    0, 0x91, 48, 100, 0x60, 0x81, 48, 0,
+    0, 0xc0, 20, 0, // a later change does not replace the first program
+  ];
+  const flat = midiToSteps(parseMidi(smf(0, 96, [track])));
+  assert.equal(flat.program, 65);
+  assert.equal(gmProgramPreset(flat.program).preset.name, GM_PROGRAMS[65].preset);
+  assert.equal(midiToSteps(parseMidi(smf(0, 96, [[0, 0x90, 60, 100, 0x60, 0x80, 60, 0]]))).program, null);
+});
+
+test('MIDI import: the main channel counts notes doubled on another channel, whatever their order', () => {
+  const piano = Array.from({ length: 3 }, (_, i) => ({ ch: 0, note: 60, vel: 100, on: i * 120, off: i * 120 + 60 }));
+  const sax = Array.from({ length: 5 }, (_, i) => ({ ch: 1, note: 60, vel: 100, on: i * 120, off: i * 120 + 60 }));
+  for (const notes of [[...piano, ...sax], [...sax, ...piano]]) {
+    notes.sort((a, b) => a.on - b.on || a.note - b.note);
+    const programs = [{ ch: 0, program: 0, tick: 0 }, { ch: 1, program: 65, tick: 0 }];
+    const flat = midiToSteps({ ppq: 480, tempo: 500000, tempoChanges: 0, notes, programs });
+    assert.equal(flat.notes.length, 5);
+    assert.equal(flat.program, 65);
+  }
 });

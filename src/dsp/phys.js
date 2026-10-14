@@ -27,6 +27,10 @@
 //   pressure difference across the reed sets how far it opens (a clipped straight line).
 //   Flute: the bore plus a short "jet" delay; the jet is deflected in or out of the pipe by
 //   the returning wave through a cubic curve.
+//   Free reed (accordion, harmonica): a stiff metal tongue swings through a close-fitting slot
+//   at its own pitch (the small cavity barely pulls it), so it is an oscillator whose swing
+//   grows with the breath; air flows only while the tongue is clear of the slot, twice a
+//   period, and the radiated sound is that pulsed flow differentiated, through a cavity resonance.
 //
 // Model 4 - Membrane / plate (2D finite-difference wave equation)
 //   A grid of points; every sample each point is pushed by the curvature (Laplacian) of its
@@ -44,6 +48,12 @@
 //   pressure difference between the mouth and the mouthpiece. Their opening (squared, clipped)
 //   lets mouth pressure into the bore, a delay line two periods long (the note is the bore's
 //   2nd resonance, as on a real trumpet). Blowing harder saturates the lips more: brighter.
+//
+// Model 7 - Organ (tonewheel, additive)
+//   Not a physical model of a pipe: nine sine partials at the drawbar footages (16' .. 1' =
+//   0.5 .. 8 x the note), each drawbar 0..8 in 3 dB steps. All of them are harmonics of half
+//   the note, so one phase per voice drives them (sin(k x) by recurrence). Single-trigger
+//   percussion, a key-contact click, and the rotary speaker (any model) after the amp.
 
 import {
   adsr_gate_off, adsr_gate_on, adsr_init, adsr_process, adsr_set, ap1_init, ap1_phase_delay, ap1_process,
@@ -62,6 +72,18 @@ const MESH_W = MESH_MAX + 2; // padded row length (zero border = fixed edge)
 const MAX_DELAY = 8192;
 const K_MESH = 5.5;
 const FLUTE_JET_RATIO = 1.03;
+export const WIND_CLARINET = 0;
+export const WIND_FLUTE = 1;
+export const WIND_SAX = 2;
+export const WIND_DOUBLE_REED = 3;
+export const WIND_FREE_REED = 4;
+/** free reed: how far the tongue overlaps the slot (it lets air through only beyond this), output gain */
+const FREE_REED_OVERLAP = 0.35;
+const FREE_REED_GAIN = 1.1;
+/** conical bore (sax, double reed): where along the loop the reed sees the reflected wave (the missing cone tip) */
+const CONE_REED_POS = [0, 0, 0.4, 0.35];
+/** conical bore output gain (the double reed's second difference is much hotter) */
+const CONE_GAIN = [0, 0, 0.7, 0.9];
 const FLUTE_JET_GAIN = 1.6;
 const N_AP = 4; // dispersion all-passes per stiff string
 const EXC_MAX = 16384; // piano excitation buffer (hammer + strike comb, up to 192 kHz)
@@ -85,6 +107,18 @@ export const MODEL_WIND = 3;
 export const MODEL_MESH = 4;
 export const MODEL_STIFF = 5;
 export const MODEL_BRASS = 6;
+export const MODEL_ORGAN = 7;
+// sawari: largest gain correction for the bridge contact's loss
+const SAW_GMAX = 1.5;
+
+/** drawbar footages 16' 5 1/3' 8' 4' 2 2/3' 2' 1 3/5' 1 1/3' 1' as harmonics of half the note */
+export const ORGAN_K = [1, 3, 2, 4, 6, 8, 10, 12, 16];
+export const ORGAN_BARS = ['organ_drawbar_16', 'organ_drawbar_5_13', 'organ_drawbar_8', 'organ_drawbar_4', 'organ_drawbar_2_23',
+  'organ_drawbar_2', 'organ_drawbar_1_35', 'organ_drawbar_1_13', 'organ_drawbar_1'];
+/** the top tonewheel is ~ 5.9 kHz: partials above it fold back an octave, as on the real organ */
+const ORGAN_FOLD_HZ = 6000;
+const ORGAN_GAIN = 0.12;
+const ROTARY_LEN = 1024;
 
 // Brass lip drive: every note needs a minimum drive to speak (measured on notes 28, 32, .. 104);
 // Lip Buzz and the blowing pressure choose a multiple of it (BRASS_MULTS range).
@@ -131,6 +165,12 @@ export const MATERIALS = [
   { name: 'Gong Ageng (gamelan)', ratios: [1, 1.004, 2.01, 2.94, 3.98, 4.62, 5.86, 7.12], gains: [1, 0.85, 0.4, 0.3, 0.18, 0.12, 0.08, 0.05] },
   { name: 'Kettle Gong (bonang)', ratios: [1, 1.005, 2.06, 2.73, 3.02, 4.17, 5.11, 6.32], gains: [1, 0.6, 0.45, 0.4, 0.35, 0.15, 0.1, 0.06] },
   { name: 'Tam-tam', ratios: [1, 1.38, 1.83, 2.27, 2.76, 3.31, 3.93, 4.62], gains: [0.7, 0.8, 0.85, 0.8, 0.75, 0.7, 0.6, 0.5] },
+  // Steel pan note area: tuned so the fundamental, octave and twelfth line up (slightly off),
+  // with weaker untuned modes above.
+  { name: 'Steel Drum', ratios: [1, 1.997, 2.988, 3.97, 4.62, 5.08, 6.03, 7.4], gains: [1, 0.85, 0.5, 0.28, 0.14, 0.1, 0.07, 0.04] },
+  // Tubular bell (chime): free-bar modes scaled so the heard strike note (an octave below the
+  // 4th mode, the virtual pitch of modes 4-6 at ~2:3:4) is the played note.
+  { name: 'Tubular Bell', ratios: [0.224, 0.617, 1.208, 2, 2.985, 4.17, 5.55, 7.13], gains: [0.1, 0.3, 0.6, 1, 0.8, 0.6, 0.35, 0.2] },
 ];
 
 const MESH_CELLS = MESH_W * MESH_W;
@@ -151,13 +191,19 @@ function voice_create() {
     mesh_c2: 0, mesh_sig: 0, mesh_omega: 0, jet_bias: 0, jet_boost: 1, flut: 0, hiss_lp: 0,
     // brass lips (two-pole resonator), dc blocker, bell low-pass
     lip_y1: 0, lip_y2: 0, lip_a1: 0, lip_a2: 0, lip_g: 0, dc_x: 0, dc_y: 0, dc_r: 0, bell_b: 0, bell_z: 0,
-    refl_b: 0, refl_z: 0, rad_x: 0, rad_k: 1, boost: 0, boost_c: 0, steep: { buf: new Float64Array(STEEP_LEN), w: 0 },
+    refl_b: 0, refl_z: 0, rad_x: 0, rad_x2: 0, rad_k: 1, boost: 0, boost_c: 0, steep: { buf: new Float64Array(STEEP_LEN), w: 0 },
     // stiff string
     ap_a: 0, n_ap: N_AP, apA: [], apB: [], tuneA: {}, tuneB: {}, tune_a: 0, tune_a2: 0, tune_d: 1, tune_d2: 1,
     exc: new Float64Array(EXC_MAX), hp: new Float64Array(PIANO_HP),
     gl: 1, gr: 1,
     // aftertouch: this key's polyphonic aftertouch, and max(channel pressure, it) (0..1)
     poly_at: 0, press: 0,
+    // organ: phase of half the note, its increment, percussion envelope, click samples left
+    org_ph: 0, org_inc: 0, org_perc: 0, org_clk: 0,
+    // free reed: the two musette reeds' phases and increments (the main reed uses org_ph / org_inc)
+    fr_ph2: 0, fr_ph3: 0, fr_inc2: 0, fr_inc3: 0,
+    // sawari: envelope of the loop, DC of the bridge contact, mean |in| / |out| and the gain correction
+    saw_env: 0, saw_dc: 0, saw_mx: 0, saw_my: 0, saw_g: 1, saw_on: 0,
   };
   delay_init(v.line, MAX_DELAY);
   delay_init(v.line2, MAX_DELAY);
@@ -217,6 +263,17 @@ export function phys_init(s, sr) {
   s.sb_l = 0;
   s.sb_r = 0;
   soundboard_setup(s);
+  s.org_w = new Float64Array(9);
+  s.org_sn = new Float64Array(17);
+  s.modwheel = 0;
+  s.rot_line = {};
+  delay_init(s.rot_line, ROTARY_LEN);
+  s.rot_xo = {};
+  onepole_init(s.rot_xo);
+  s.horn_ph = 0;
+  s.drum_ph = 0;
+  s.horn_hz = 0.8;
+  s.drum_hz = 0.65;
   s.p = {};
   s.out_l = 0;
   s.out_r = 0;
@@ -239,6 +296,38 @@ export function phys_update(s, p) {
   room_update(s, p.phys_room_decay_ms);
   amp_update(s, p);
   s.hiss_a = 1 - Math.exp((-TWO_PI * 1000) / s.sr);
+  s.reed_k = 1 / (2 * Math.sin((Math.PI * 1000) / s.sr));
+  s.fr_bias = 0.25 + 0.3 * (p.wind_embouchure ?? 0.5);
+  s.fr_det = Math.pow(2, (p.free_reed_detune_cents ?? 0) / 1200);
+  s.fr_n = (p.free_reed_detune_cents ?? 0) > 0 ? 3 : 1;
+  s.saw = p.string_sawari ?? 0;
+  s.saw_c = 0.8 - 0.55 * s.saw;
+  s.saw_env_c = Math.exp(-1 / (0.03 * s.sr));
+  s.saw_dc_a = 1 - Math.exp((-TWO_PI * 5) / s.sr);
+  s.saw_m_a = 1 - Math.exp(-1 / (0.02 * s.sr));
+  for (let j = 0; j < 9; j++) {
+    const bar = clamp(Math.round(p[ORGAN_BARS[j]] ?? 0), 0, 8);
+    s.org_w[j] = bar > 0 ? ORGAN_GAIN * db_to_gain(3 * (bar - 8)) : 0;
+  }
+  const perc = Math.round(p.organ_percussion ?? 0);
+  s.org_perc_k = perc === 1 ? 4 : perc === 2 ? 6 : 0;
+  s.org_perc_coef = t60_coef(p.organ_perc_decay_ms ?? 300, s.sr);
+  s.org_perc_lvl = 2 * ORGAN_GAIN * (p.organ_perc_level ?? 0);
+  s.org_click_len = Math.max(1, Math.round(0.004 * s.sr));
+  s.org_click = 0.4 * (p.organ_click ?? 0);
+  const rot_mode = Math.round(p.rotary_mode ?? 0);
+  if (rot_mode > 0 && !(s.rot_mode > 0)) {
+    // the bypassed speaker kept its last sound; start it again from silence
+    delay_clear(s.rot_line);
+    s.rot_xo.z = 0;
+  }
+  s.rot_mode = rot_mode;
+  s.rot_mix = p.rotary_mix ?? 1;
+  onepole_set(s.rot_xo, 800, s.sr);
+  s.rot_d0 = Math.max(1, 0.0002 * s.sr);
+  s.rot_dd = 0.00035 * s.sr;
+  s.horn_c = 1 - Math.exp(-1 / (0.5 * s.sr));
+  s.drum_c = 1 - Math.exp(-1 / (3 * s.sr));
   const n = clamp(Math.floor(p.mesh_size + 0.5), 6, MESH_MAX);
   const shape = Math.floor(p.mesh_shape + 0.5);
   if (n !== s.mesh_n || shape !== s.mesh_shape) mesh_setup(s, n, shape);
@@ -474,10 +563,20 @@ function bow_slope(s, p, v) {
   return 5 - 4 * clamp(p.bow_pressure + s.press_exc * v.press, 0, 1);
 }
 
+/** Wind Type as an integer (WIND_CLARINET .. WIND_FREE_REED) */
+function wind_kind(p) {
+  return Math.floor(p.wind_type + 0.5);
+}
+
 /** wind: breath pressure (plus aftertouch) -> reed pressure / jet strength (needs v.slope / v.jet_boost) */
 function wind_maxv(s, p, v) {
   const bp = clamp(p.breath_pressure + s.press_exc * v.press, 0, 1);
-  if (p.wind_type < 0.5) return (0.2 + 0.06 * bp) / -v.slope;
+  const kind = wind_kind(p);
+  // free reed: how far the tongue swings (it only sounds once it clears the slot overlap)
+  if (kind === WIND_FREE_REED) return 0.3 + 0.7 * bp;
+  // a conical bore needs a little more reed pressure to start
+  if (kind >= WIND_SAX) return (0.24 + 0.05 * bp) / -v.slope;
+  if (kind === WIND_CLARINET) return (0.2 + 0.06 * bp) / -v.slope;
   return (0.6 + 0.4 * bp) * v.jet_boost;
 }
 
@@ -541,7 +640,8 @@ function voice_tune(s, v, keep_decay) {
       // stretch: ratio^(1+x) bends the series away from / toward harmonic
       const ratio = Math.pow(mat.ratios[k], 1 + p.modal_inharmonicity);
       v.mode_hz[k] = hz * ratio;
-      if (!keep_decay) v.mode_t60[k] = p.modal_decay_ms / (1 + p.modal_high_damping * 4 * (ratio - 1));
+      // (modes below the note ring longer; the floor keeps a sub mode's decay finite at full damping)
+      if (!keep_decay) v.mode_t60[k] = p.modal_decay_ms / Math.max(0.25, 1 + p.modal_high_damping * 4 * (ratio - 1));
       const pos_w = Math.abs(Math.sin(Math.PI * (k + 1) * p.modal_strike_position));
       reson_set(v.modes[k], v.mode_hz[k], v.mode_t60[k], mat.gains[k] * (0.3 + 0.7 * pos_w), sr);
     }
@@ -576,7 +676,29 @@ function voice_tune(s, v, keep_decay) {
     v.rad_k = 1 / (2 * Math.sin(w / 2));
     v.bell_b = Math.exp((-TWO_PI * (1500 + 6000 * clamp(p.brass_bell + s.press_bright * v.press, 0, 1))) / sr);
   } else if (model === MODEL_WIND) {
-    if (p.wind_type < 0.5) {
+    const kind = wind_kind(p);
+    if (kind === WIND_FREE_REED) {
+      // the reed's own pitch; the musette reeds above / below; radiation = first difference
+      v.org_inc = hz / sr;
+      v.fr_inc2 = v.org_inc * s.fr_det;
+      v.fr_inc3 = v.org_inc / s.fr_det;
+      v.rad_k = 1 / (2 * Math.sin((Math.PI * hz) / sr));
+    } else if (kind >= WIND_SAX) {
+      // saxophone / oboe (after Scavone, STK Saxofony): a cone behaves like a cylinder open at
+      // both ends, so the loop is one period long (all harmonics) instead of two. The reed sits
+      // at CONE_REED_POS of the loop: it hears the wave reflected at the bell and the same wave
+      // a little later, which carves the formant-like dips of a truncated cone.
+      v.damp_b = Math.exp((-TWO_PI * Math.max(kind === WIND_SAX ? 2500 : 3500, 6 * hz)) / sr);
+      // measured residual of the reed loop (cents flat), x = octaves above C4 at 48 kHz
+      const x = Math.log((hz * 48000) / (sr * 261.63)) / Math.log(2);
+      const flat = kind === WIND_SAX ? clamp(2.5 + 4 * x, 2, 7) : clamp(1.5 + 3.5 * x, 1, 9);
+      const total = clamp((sr / hz) * Math.pow(2, -flat / 1200) - lp_phase_delay(v.damp_b, hz, sr), 4, 2 * MAX_DELAY - 4);
+      v.delay_len2 = clamp(CONE_REED_POS[kind] * total, 2, MAX_DELAY - 2);
+      v.delay_len = clamp(total - v.delay_len2, 2, MAX_DELAY - 2);
+      // the bell radiates the bore pressure high-passed (~ its time derivative): a first
+      // difference, normalised to unity gain at the fundamental like the brass bell
+      v.rad_k = 1 / (2 * Math.sin((Math.PI * hz) / sr));
+    } else if (kind === WIND_CLARINET) {
       // clarinet: inverting reflection at the bell -> period = 2 x (bore + reflection low-pass).
       // The low-pass stands in for the tone-hole lattice / bell, which lets high frequencies
       // escape instead of reflecting (~1.5 kHz), so upper harmonics do not keep building up.
@@ -598,6 +720,8 @@ function voice_tune(s, v, keep_decay) {
       // high notes need a faster (harder blown) jet
       v.jet_boost = clamp(1 + 0.5 * (Math.log((hz * 48000) / (sr * 1046.5)) / Math.log(2)), 1, 1.6);
     }
+  } else if (model === MODEL_ORGAN) {
+    v.org_inc = (0.5 * hz) / sr;
   } else if (model === MODEL_MESH) {
     const w = (TWO_PI * hz) / sr;
     v.mesh_c2 = Math.min(0.49, (2 * (1 - Math.cos(w))) / s.mesh_mu);
@@ -710,6 +834,12 @@ export function phys_note_on(s, note, velocity) {
       const idx_b = (v.line.w - n + i - pick + v.line.size) % v.line.size;
       v.line.buf[idx_a] -= v.line.buf[idx_b];
     }
+    v.saw_env = 0;
+    v.saw_dc = 0;
+    v.saw_mx = 0;
+    v.saw_my = 0;
+    v.saw_g = 1;
+    v.saw_on = 1;
     // high notes lose more energy per second (more round trips); compensate gently
     v.read_gain = 1.2 * v.vel * clamp(Math.pow(v.hz / 220, 0.3), 0.7, 2);
   } else if (model === MODEL_MODAL) {
@@ -774,18 +904,33 @@ export function phys_note_on(s, note, velocity) {
       v.env.value = 0;
       v.flut = 0;
       v.hiss_lp = 0;
+      v.rad_x = 0;
+      v.rad_x2 = 0;
+      svf_reset(v.body1);
+      v.org_ph = 0;
+      v.fr_ph2 = 0.33;
+      v.fr_ph3 = 0.67;
     }
     onepole_set(v.dc, 20, sr);
+    svf_set(v.body1, 1600, 1.2, sr);
     adsr_set(v.env, p.wind_attack_ms, 1, 1, Math.min(p.phys_release_ms, 400), sr);
     adsr_gate_on(v.env);
     // Both instruments only speak inside a band of blowing pressure, so the knobs move the
     // pressure within that band (velocity sets the output level instead).
-    if (p.wind_type < 0.5) {
+    if (wind_kind(p) !== WIND_FLUTE) {
       // reed stiffness (slope) x pressure must stay around 0.2 .. 0.26
       v.slope = -(0.2 + 0.25 * p.wind_embouchure);
     }
     // (flute) jet strength: below ~0.5 the jet is too weak to keep the pipe going
     v.maxv = wind_maxv(s, p, v);
+  } else if (model === MODEL_ORGAN) {
+    // single-trigger percussion: only when no other key is down
+    let others = 0;
+    for (let i = 0; i < limit; i++) if (i !== idx && s.voices[i].active && s.voices[i].gate) others = 1;
+    v.org_perc = others ? 0 : 1;
+    v.org_clk = s.org_click > 0 ? s.org_click_len : 0;
+    adsr_set(v.env, 1.5, 1, 1, p.phys_release_ms, sr);
+    adsr_gate_on(v.env);
   } else if (model === MODEL_MESH) {
     const n = s.mesh_n;
     const m = s.mesh_mask;
@@ -931,12 +1076,14 @@ function phys_release_voice(s, v) {
   if (model === MODEL_STRING) {
     const g_rel = Math.exp(-6.907755 / (v.hz * p.phys_release_ms * 0.001));
     v.loop_gain = Math.min(v.loop_gain, g_rel);
+    v.saw_on = 0;
+    v.saw_g = 1;
   } else if (model === MODEL_MODAL) {
     for (let k = 0; k < MAX_MODES; k++) {
       v.mode_t60[k] = Math.min(v.mode_t60[k], p.phys_release_ms);
       reson_set_decay(v.modes[k], v.mode_hz[k], v.mode_t60[k], s.sr);
     }
-  } else if (model === MODEL_BOWED || model === MODEL_WIND || model === MODEL_BRASS) {
+  } else if (model === MODEL_BOWED || model === MODEL_WIND || model === MODEL_BRASS || model === MODEL_ORGAN) {
     adsr_gate_off(v.env);
   } else if (model === MODEL_MESH) {
     v.mesh_sig = Math.max(v.mesh_sig, mesh_sigma(Math.min(p.mesh_decay_ms, p.phys_release_ms), s.sr));
@@ -1029,11 +1176,29 @@ export function phys_pressure_reset(s) {
 // ---------------------------------------------------------------------------
 // Per-model sample renderers (return the voice's mono output)
 
-function render_string(v, vib) {
+function render_string(s, v, vib) {
   // read the oldest sample, damp it, feed it back
   const x = delay_read(v.line, v.delay_len / vib);
   v.lp_z = (1 - v.damp_b) * x + v.damp_b * v.lp_z;
-  const fb = v.lp_z * v.loop_gain;
+  let fb = v.lp_z * v.loop_gain;
+  if (s.saw > 0) {
+    // sawari (jawari bridge): above a fraction of its own swing the string lies on the curved
+    // bridge, which throws it back - a kink every cycle that regenerates the high partials.
+    // The contact point scales with the envelope, so the buzz lasts as long as the note.
+    const a = v.lp_z < 0 ? -v.lp_z : v.lp_z;
+    v.saw_env = a > v.saw_env ? a : v.saw_env * s.saw_env_c;
+    const b = s.saw_c * v.saw_env;
+    let y = v.lp_z;
+    if (y > b) y = b - 0.5 * (y - b);
+    v.saw_dc += s.saw_dc_a * (y - v.saw_dc);
+    y -= v.saw_dc;
+    // the contact itself loses energy every cycle; give back what it took (mean |y| vs mean |x|)
+    // so the note keeps the decay set by String Decay / Damping
+    v.saw_mx += s.saw_m_a * (a - v.saw_mx);
+    v.saw_my += s.saw_m_a * ((y < 0 ? -y : y) - v.saw_my);
+    if (v.saw_on && v.saw_my > 1e-12) v.saw_g = Math.min(v.saw_mx / v.saw_my, SAW_GMAX);
+    fb = y * v.loop_gain * v.saw_g;
+  }
   delay_write(v.line, fb);
   return fb * v.read_gain;
 }
@@ -1118,7 +1283,7 @@ function render_brass(v, vib) {
   return v.bell_z * BRASS_GAIN * v.vel;
 }
 
-function render_wind(s, v, vib, flute, noise_amt) {
+function render_wind(s, v, vib, kind, noise_amt) {
   const env = adsr_process(v.env);
   const nz = noise_white();
   // a player's breath is never perfectly steady: slow (~5 Hz low-passed) pressure wobble of
@@ -1128,7 +1293,54 @@ function render_wind(s, v, vib, flute, noise_amt) {
   // turbulence heard as an airy hiss (noise above ~1 kHz) on top of the tone
   v.hiss_lp += s.hiss_a * (nz - v.hiss_lp);
   const hiss = (nz - v.hiss_lp) * env * noise_amt * 0.05;
-  if (!flute) {
+  if (kind === WIND_FREE_REED) {
+    // the tongue swings at its own pitch; air passes while it is clear of the slot
+    bp += bp * noise_amt * 0.25 * nz;
+    v.org_ph += v.org_inc * vib;
+    if (v.org_ph >= 1) v.org_ph -= 1;
+    const x = bp * Math.sin(TWO_PI * v.org_ph);
+    v.slip = x;
+    let u = free_reed_flow(s, x);
+    if (s.fr_n > 1) {
+      v.fr_ph2 += v.fr_inc2 * vib;
+      if (v.fr_ph2 >= 1) v.fr_ph2 -= 1;
+      v.fr_ph3 += v.fr_inc3 * vib;
+      if (v.fr_ph3 >= 1) v.fr_ph3 -= 1;
+      u = 0.6 * (u + free_reed_flow(s, bp * Math.sin(TWO_PI * v.fr_ph2)) + free_reed_flow(s, bp * Math.sin(TWO_PI * v.fr_ph3)));
+    }
+    const rad = (u - v.rad_x) * v.rad_k;
+    v.rad_x = u;
+    svf_process(v.body1, rad);
+    return ((0.7 * rad + 0.5 * v.body1.bp) * FREE_REED_GAIN + hiss) * v.vel;
+  }
+  if (kind >= WIND_SAX) {
+    bp += bp * noise_amt * 0.25 * nz;
+    // bell side: lossy, low-passed, inverting reflection at the open end
+    const bell = delay_read(v.line, v.delay_len / vib);
+    v.lp_z = (1 - v.damp_b) * bell + v.damp_b * v.lp_z;
+    const t = -0.95 * v.lp_z;
+    // pressure at the reed: the fresh reflection minus the one that went on past the reed
+    const mouth = t - delay_read(v.line2, v.delay_len2 / vib);
+    const pd = bp - mouth;
+    // (pd has the opposite sign of the clarinet's, so the same slope enters negated)
+    let reed = 0.7 - v.slope * pd;
+    if (reed > 1) reed = 1;
+    if (reed < -1) reed = -1;
+    v.slip = reed;
+    delay_write(v.line2, t);
+    delay_write(v.line, bp - pd * reed - t);
+    let rad = (t - v.rad_x) * v.rad_k;
+    v.rad_x = t;
+    if (kind === WIND_DOUBLE_REED) {
+      // narrow cone: the radiation adds a second difference with a fixed corner (~1 kHz),
+      // lifting the partials above it whatever the note (the nasal oboe / bassoon formant)
+      const r2 = (rad - v.rad_x2) * s.reed_k;
+      v.rad_x2 = rad;
+      rad = 0.4 * rad + 0.6 * r2;
+    }
+    return (rad * CONE_GAIN[kind] + hiss) * v.vel;
+  }
+  if (kind === WIND_CLARINET) {
     bp += bp * noise_amt * 0.25 * nz;
     const bore = delay_read(v.line, v.delay_len / vib);
     // lossy, low-passed, inverting reflection at the bell
@@ -1154,6 +1366,43 @@ function render_wind(s, v, vib, flute, noise_amt) {
   v.slip = j;
   delay_write(v.line, bp * j + 0.5 * t);
   return (bore * 0.3 + hiss) * v.vel;
+}
+
+/** air through the slot for a tongue at x (offset by the embouchure bias) */
+function free_reed_flow(s, x) {
+  const d = Math.abs(x - s.fr_bias) - FREE_REED_OVERLAP;
+  return d > 0 ? d : 0;
+}
+
+function render_organ(s, v, vib) {
+  v.org_ph += v.org_inc * vib;
+  if (v.org_ph >= 1) v.org_ph -= 1;
+  const th = TWO_PI * v.org_ph;
+  const sn = s.org_sn;
+  const c2 = 2 * Math.cos(th);
+  sn[0] = 0;
+  sn[1] = Math.sin(th);
+  for (let k = 2; k <= 16; k++) sn[k] = c2 * sn[k - 1] - sn[k - 2];
+  const half = v.org_inc * s.sr;
+  const top = 0.45 * s.sr;
+  let y = 0;
+  for (let j = 0; j < 9; j++) {
+    const w = s.org_w[j];
+    if (w === 0) continue;
+    let k = ORGAN_K[j];
+    if (k * half > ORGAN_FOLD_HZ && k > 3) k = k / 2;
+    if (k * half < top) y += w * sn[k];
+  }
+  if (s.org_perc_k > 0 && v.org_perc > 0.00001) {
+    if (s.org_perc_k * half < top) y += s.org_perc_lvl * v.org_perc * sn[s.org_perc_k];
+    v.org_perc *= s.org_perc_coef;
+  }
+  if (v.org_clk > 0) {
+    const e = v.org_clk / s.org_click_len;
+    y += s.org_click * e * e * noise_white();
+    v.org_clk--;
+  }
+  return y * adsr_process(v.env) * v.vel;
 }
 
 function render_mesh(s, v) {
@@ -1239,7 +1488,7 @@ export function phys_render(s) {
     s.vib_phase += s.vib_inc;
     if (s.vib_phase >= 1) s.vib_phase -= 1;
   }
-  const flute = p.wind_type >= 0.5;
+  const wkind = wind_kind(p);
   let l = 0;
   let r = 0;
   let bridge = 0;
@@ -1248,12 +1497,13 @@ export function phys_render(s) {
     if (!v.active) continue;
     const vv = pvib > 0 && v.press > 0 ? Math.pow(2, ((p.phys_vibrato_cents + pvib * v.press) * vsin) / 1200) : vib;
     let y;
-    if (model === MODEL_STRING) y = render_string(v, vv);
+    if (model === MODEL_STRING) y = render_string(s, v, vv);
     else if (model === MODEL_MODAL) y = render_modal(v);
     else if (model === MODEL_BOWED) y = render_bowed(v, vv);
-    else if (model === MODEL_WIND) y = render_wind(s, v, vv, flute, p.breath_noise);
+    else if (model === MODEL_WIND) y = render_wind(s, v, vv, wkind, p.breath_noise);
     else if (model === MODEL_BRASS) y = render_brass(v, vv);
     else if (model === MODEL_MESH) y = render_mesh(s, v);
+    else if (model === MODEL_ORGAN) y = render_organ(s, v, vv);
     else y = render_stiff(v, vv);
     l += y * v.gl;
     r += y * v.gr;
@@ -1277,6 +1527,11 @@ export function phys_render(s) {
   if (s.amp_type > 0) {
     l = amp_process(s, s.amp_l, l);
     r = amp_process(s, s.amp_r, r);
+  }
+  if (s.rot_mode > 0) rotary_process(s, l, r);
+  if (s.rot_mode > 0 && s.rot_mix > 0) {
+    l += s.rot_mix * (s.rot_l - l);
+    r += s.rot_mix * (s.rot_r - r);
   }
   if (p.phys_room_mix > 0) {
     room_process(s, l, r);
@@ -1325,6 +1580,38 @@ function amp_process(s, a, x) {
   svf_process(a.cab, y);
   svf_process(a.cab_hp, a.cab.lp);
   return a.cab_hp.hp * s.amp_out;
+}
+
+// ---------------------------------------------------------------------------
+// Rotary speaker: an 800 Hz crossover; the highs go to a spinning horn (a delay swept by the
+// horn's distance to each microphone = Doppler, plus its loudness as it points towards / away),
+// the lows to a spinning drum (loudness only). The two mics are 90 degrees apart (stereo). The
+// rotors speed up and slow down gradually, the light horn much faster than the heavy drum.
+
+function rotary_process(s, l, r) {
+  const fast = s.rot_mode === 2 || s.modwheel >= 0.5;
+  s.horn_hz += s.horn_c * ((fast ? 6.8 : 0.8) - s.horn_hz);
+  s.drum_hz += s.drum_c * ((fast ? 5.9 : 0.65) - s.drum_hz);
+  s.horn_ph += s.horn_hz / s.sr;
+  if (s.horn_ph >= 1) s.horn_ph -= 1;
+  s.drum_ph += s.drum_hz / s.sr;
+  if (s.drum_ph >= 1) s.drum_ph -= 1;
+  const x = (l + r) * 0.5;
+  const lo = onepole_lp(s.rot_xo, x);
+  delay_write(s.rot_line, x - lo);
+  const hc = Math.cos(TWO_PI * s.horn_ph);
+  const hs = Math.sin(TWO_PI * s.horn_ph);
+  const dc = Math.cos(TWO_PI * s.drum_ph);
+  const ds = Math.sin(TWO_PI * s.drum_ph);
+  const hl = delay_read(s.rot_line, s.rot_d0 + s.rot_dd * (1 - hc)) * (0.65 + 0.35 * hc);
+  const hr = delay_read(s.rot_line, s.rot_d0 + s.rot_dd * (1 - hs)) * (0.65 + 0.35 * hs);
+  s.rot_l = 1.2 * (hl + lo * (0.8 + 0.2 * dc));
+  s.rot_r = 1.2 * (hr + lo * (0.8 + 0.2 * ds));
+}
+
+/** Mod wheel 0..1 (CC1): above half switches the rotary speaker from Slow to Fast. */
+export function phys_mod_wheel(s, value) {
+  s.modwheel = clamp(value, 0, 1);
 }
 
 // ---------------------------------------------------------------------------
@@ -1386,7 +1673,7 @@ function stiff_partials(s, v, count) {
 export function phys_snapshot(s, points = 192) {
   const v = s.voices[s.last_voice];
   const model = Math.floor(s.p.phys_model + 0.5);
-  const names = ['string', 'modal', 'bowed', 'wind', 'mesh', 'stiff', 'brass'];
+  const names = ['string', 'modal', 'bowed', 'wind', 'mesh', 'stiff', 'brass', 'organ'];
   if (!v || !v.active) return { active: false, model: names[model] };
   const base = { active: true, model: names[model], note: v.note, hz: v.hz * s.bend_ratio, gate: v.gate, sr: s.sr };
   if (model === MODEL_STRING) {
@@ -1407,10 +1694,13 @@ export function phys_snapshot(s, points = 192) {
     return { ...base, nut: nut.reverse(), bridge, slip: v.slip, bow: v.env.value * v.maxv, bowPos: s.p.bow_position };
   }
   if (model === MODEL_WIND) {
-    return { ...base, wave: line_wave(v.line, v.delay_len, points), flute: s.p.wind_type >= 0.5, valve: v.slip, breath: v.env.value * v.maxv };
+    return { ...base, wave: line_wave(v.line, v.delay_len, points), flute: wind_kind(s.p) === WIND_FLUTE, valve: v.slip, breath: v.env.value * v.maxv };
   }
   if (model === MODEL_BRASS) {
     return { ...base, wave: line_wave(v.line, v.delay_len, points), valve: v.slip, breath: v.env.value * v.maxv };
+  }
+  if (model === MODEL_ORGAN) {
+    return { ...base, drawbars: ORGAN_BARS.map((id) => clamp(Math.round(s.p[id] ?? 0), 0, 8)), perc: v.org_perc, env: v.env.value };
   }
   if (model === MODEL_MESH) {
     const n = s.mesh_n;

@@ -341,14 +341,14 @@ export const SYNTH_PARAMS = /** @type {ParamDef[]} */ ([
 
 /** Mode tables used by the modal model (see src/dsp/phys.js MATERIALS). */
 export const MODAL_MATERIALS = ['Marimba Bar', 'Vibraphone Bar', 'Glockenspiel (free bar)', 'Wine Glass', 'Church Bell', 'Drum Membrane', 'Harmonic (string-like)', 'Kalimba Tine',
-  'Gong Ageng (gamelan)', 'Kettle Gong (bonang)', 'Tam-tam'];
+  'Gong Ageng (gamelan)', 'Kettle Gong (bonang)', 'Tam-tam', 'Steel Drum', 'Tubular Bell'];
 
 export const PHYS_PARAMS = /** @type {ParamDef[]} */ ([
   ...TUNING_PARAMS,
 
-  { id: 'phys_model', name: 'Physical Model', group: 'Model', min: 0, max: 6, default: 0, step: 1, unit: '',
-    options: ['String (Karplus-Strong)', 'Modal (resonators)', 'Bowed String', 'Wind (reed / jet)', 'Membrane / Plate (2D mesh)', 'Stiff String (piano)', 'Brass (lip reed)'],
-    description: 'String: plucked delay-line loop. Modal: tuned resonators struck by a mallet. Bowed: delay lines + bow friction. Wind: bore + reed/jet. Mesh: 2D wave equation on a grid. Stiff string: string with dispersion (inharmonic partials). Brass: bore + buzzing lips.' },
+  { id: 'phys_model', name: 'Physical Model', group: 'Model', min: 0, max: 7, default: 0, step: 1, unit: '',
+    options: ['String (Karplus-Strong)', 'Modal (resonators)', 'Bowed String', 'Wind (reed / jet)', 'Membrane / Plate (2D mesh)', 'Stiff String (piano)', 'Brass (lip reed)', 'Organ (tonewheel drawbars)'],
+    description: 'String: plucked delay-line loop. Modal: tuned resonators struck by a mallet. Bowed: delay lines + bow friction. Wind: bore + reed/jet. Mesh: 2D wave equation on a grid. Stiff string: string with dispersion (inharmonic partials). Brass: bore + buzzing lips. Organ: nine drawbar sine partials (tonewheel organ) with percussion and key click.' },
 
   { id: 'string_excitation', name: 'String Excitation', group: 'String', min: 0, max: 1, default: 0, step: 1, unit: '', options: ['Pluck (noise burst)', 'Strike (hammer pulse)'],
     description: 'What initially fills the delay line: a burst of noise (plucked) or a smooth pulse (hammered).' },
@@ -385,8 +385,9 @@ export const PHYS_PARAMS = /** @type {ParamDef[]} */ ([
   { id: 'bowed_brightness', name: 'Bowed String Brightness', group: 'Bowed', min: 0, max: 1, default: 0.6, step: 0.001, unit: '',
     description: 'Losses of high frequencies at the bridge (string material / damping).' },
 
-  { id: 'wind_type', name: 'Wind Type', group: 'Wind', min: 0, max: 1, default: 0, step: 1, unit: '', options: ['Clarinet (reed)', 'Flute (air jet)'],
-    description: 'Reed: a pressure-controlled valve at a closed bore end (odd harmonics). Jet: an air jet across an open bore.' },
+  { id: 'wind_type', name: 'Wind Type', group: 'Wind', min: 0, max: 4, default: 0, step: 1, unit: '',
+    options: ['Clarinet (reed)', 'Flute (air jet)', 'Saxophone (conical reed)', 'Oboe / Bassoon (double reed)', 'Free reed (accordion / harmonica)'],
+    description: 'Clarinet: a reed valve at the closed end of a cylindrical bore (odd harmonics). Flute: an air jet across an open bore. Saxophone / Oboe: a reed on a conical bore (all harmonics); the double reed sits further down a narrower cone, for a thinner, nasal tone. Free reed: a metal tongue swinging through a slot at its own pitch (accordion, harmonica, harmonium); breath pressure sets how far it swings (louder, fuller), embouchure the reed offset (tone).' },
   { id: 'breath_pressure', name: 'Breath Pressure', group: 'Wind', min: 0, max: 1, default: 0.6, step: 0.001, unit: '',
     description: 'Blowing pressure; too low does not start the tone, too high overblows.' },
   { id: 'breath_noise', name: 'Breath Noise', group: 'Wind', min: 0, max: 1, default: 0.15, step: 0.001, unit: '',
@@ -475,7 +476,43 @@ export const PHYS_PARAMS = /** @type {ParamDef[]} */ ([
   { id: 'phys_pressure_vibrato_cents', name: 'Pressure to Vibrato', group: 'Pressure', min: 0, max: 100, default: 0, step: 0.1, unit: 'cents',
     description: 'Extra vibrato depth at full aftertouch, per note (delay-line models: string, bowed, wind, stiff string, brass). 0 = off.' },
   { id: 'phys_pressure_brightness', name: 'Pressure to Brightness', group: 'Pressure', min: 0, max: 1, default: 0, step: 0.001, unit: '',
-    description: 'How much aftertouch adds to Bowed String Brightness (bowed) and Brass Bell Brightness (brass). 0 = off.' },
+    description: 'How much aftertouch adds to Bowed String Brightness (bowed) and Brass Bell Brightness (brass). 0 = off.' },  // Organ model and rotary speaker (added later)
+  { id: 'organ_drawbar_16', name: "Drawbar 16'", group: 'Organ', min: 0, max: 8, default: 8, step: 1, unit: '',
+    description: 'Sub-octave. 0 = pushed in, each step +3 dB, 8 = full (as on a tonewheel organ).' },
+  { id: 'organ_drawbar_5_13', name: "Drawbar 5 1/3'", group: 'Organ', min: 0, max: 8, default: 8, step: 1, unit: '',
+    description: 'Fifth above the fundamental (3rd harmonic of the sub-octave). 0 = pushed in, each step +3 dB, 8 = full (as on a tonewheel organ).' },
+  { id: 'organ_drawbar_8', name: "Drawbar 8'", group: 'Organ', min: 0, max: 8, default: 8, step: 1, unit: '',
+    description: 'Fundamental. 0 = pushed in, each step +3 dB, 8 = full (as on a tonewheel organ).' },
+  { id: 'organ_drawbar_4', name: "Drawbar 4'", group: 'Organ', min: 0, max: 8, default: 0, step: 1, unit: '',
+    description: 'Octave. 0 = pushed in, each step +3 dB, 8 = full (as on a tonewheel organ).' },
+  { id: 'organ_drawbar_2_23', name: "Drawbar 2 2/3'", group: 'Organ', min: 0, max: 8, default: 0, step: 1, unit: '',
+    description: 'Twelfth (octave + fifth). 0 = pushed in, each step +3 dB, 8 = full (as on a tonewheel organ).' },
+  { id: 'organ_drawbar_2', name: "Drawbar 2'", group: 'Organ', min: 0, max: 8, default: 0, step: 1, unit: '',
+    description: 'Two octaves. 0 = pushed in, each step +3 dB, 8 = full (as on a tonewheel organ).' },
+  { id: 'organ_drawbar_1_35', name: "Drawbar 1 3/5'", group: 'Organ', min: 0, max: 8, default: 0, step: 1, unit: '',
+    description: 'Seventeenth (two octaves + major third). 0 = pushed in, each step +3 dB, 8 = full (as on a tonewheel organ).' },
+  { id: 'organ_drawbar_1_13', name: "Drawbar 1 1/3'", group: 'Organ', min: 0, max: 8, default: 0, step: 1, unit: '',
+    description: 'Nineteenth (two octaves + fifth). 0 = pushed in, each step +3 dB, 8 = full (as on a tonewheel organ).' },
+  { id: 'organ_drawbar_1', name: "Drawbar 1'", group: 'Organ', min: 0, max: 8, default: 0, step: 1, unit: '',
+    description: 'Three octaves. 0 = pushed in, each step +3 dB, 8 = full (as on a tonewheel organ).' },
+  { id: 'organ_percussion', name: 'Percussion', group: 'Organ', min: 0, max: 2, default: 0, step: 1, unit: '',
+    options: ["Off", "Second (4')", "Third (2 2/3')"],
+    description: 'A decaying extra partial at the octave or the twelfth on each attack. Single trigger: only a note played with no other key held starts it, so legato lines do not re-strike.' },
+  { id: 'organ_perc_decay_ms', name: 'Percussion Decay', group: 'Organ', min: 50, max: 3000, default: 300, step: 1, unit: 'ms', scale: 'log',
+    description: 'Time for the percussion to fall by 60 dB (fast ~ 200 ms, slow ~ 1000 ms).' },
+  { id: 'organ_perc_level', name: 'Percussion Level', group: 'Organ', min: 0, max: 1, default: 0.6, step: 0.001, unit: '',
+    description: 'Loudness of the percussion partial.' },
+  { id: 'organ_click', name: 'Key Click', group: 'Organ', min: 0, max: 1, default: 0.3, step: 0.001, unit: '',
+    description: 'Short noise burst of the key contacts closing.' },
+  { id: 'rotary_mode', name: 'Rotary Speaker', group: 'Rotary', min: 0, max: 2, default: 0, step: 1, unit: '',
+    options: ['Off', 'Slow (chorale)', 'Fast (tremolo)'],
+    description: 'Rotating speaker after the amp: a horn (highs, Doppler + loudness swirl) and a drum (lows) spin at their own speeds and speed up / slow down gradually. The mod wheel above half switches Slow to Fast. Works on every model.' },
+  { id: 'rotary_mix', name: 'Rotary Mix', group: 'Rotary', min: 0, max: 1, default: 1, step: 0.001, unit: '',
+    description: 'Share of the rotary speaker in the output (1 = the speaker only).' },
+  { id: 'free_reed_detune_cents', name: 'Free Reed Musette', group: 'Wind', min: 0, max: 50, default: 0, step: 0.1, unit: 'cents',
+    description: 'Free reed only: two more reeds this many cents above and below the note beat against it (accordion musette / tremolo). 0 = a single reed.' },
+  { id: 'string_sawari', name: 'String Sawari', group: 'String', min: 0, max: 1, default: 0, step: 0.001, unit: '',
+    description: 'Sitar / tanpura bridge (jawari): the string grazes a flat curved bridge on every swing, which keeps folding energy into the high partials - the sustained buzz. Higher = the string lies on the bridge for more of each cycle. 0 = an ordinary bridge.' },
 ]);
 
 // ---------------------------------------------------------------------------
@@ -523,6 +560,51 @@ export const DRUM_PARTS = [
   { key: 'ride', name: 'Ride', note: 51 },
   { key: 'cowbell', name: 'Cowbell', note: 56 },
   { key: 'shaker', name: 'Shaker', note: 70 },
+  // GM percussion added later (the other GM notes of each family play variants of these, see
+  // GM_DRUM_VARIANTS)
+  { key: 'tambourine', name: 'Tambourine', note: 54 },
+  { key: 'conga', name: 'Conga', note: 63 },
+  { key: 'timbale', name: 'Timbale', note: 65 },
+  { key: 'agogo', name: 'Agogo', note: 67 },
+  { key: 'claves', name: 'Claves', note: 75 },
+  { key: 'triangle', name: 'Triangle', note: 81 },
+  { key: 'vibraslap', name: 'Vibraslap', note: 58 },
+  { key: 'whistle', name: 'Whistle', note: 72 },
+  { key: 'guiro', name: 'Guiro', note: 74 },
+  { key: 'cuica', name: 'Cuica', note: 79 },
+];
+
+/**
+ * Other GM percussion notes the drum machine plays as a variant of a part: its parameters with
+ * the pitch / decay / level scaled. Variants of the kick, snare, closed hat and shaker (35, 40,
+ * 44, 69) retrigger the part itself; the others have a voice of their own, so they can ring
+ * together with the part. With these every GM note 35-81 sounds.
+ */
+export const GM_DRUM_VARIANTS = [
+  { note: 35, name: 'Acoustic Bass Drum', part: 'kick', pitch: 1, decay: 1, level: 1 },
+  { note: 40, name: 'Electric Snare', part: 'snare', pitch: 1, decay: 1, level: 1 },
+  { note: 41, name: 'Low Floor Tom', part: 'low_tom', pitch: 0.75, decay: 1.15, level: 1 },
+  { note: 43, name: 'High Floor Tom', part: 'low_tom', pitch: 0.87, decay: 1.1, level: 1 },
+  { note: 44, name: 'Pedal Hi-Hat', part: 'closed_hat', pitch: 1, decay: 0.8, level: 0.6 },
+  { note: 48, name: 'Hi-Mid Tom', part: 'mid_tom', pitch: 1.2, decay: 1, level: 1 },
+  { note: 52, name: 'Chinese Cymbal', part: 'crash', pitch: 0.8, decay: 0.8, level: 1 },
+  { note: 53, name: 'Ride Bell', part: 'ride', pitch: 1.55, decay: 0.7, level: 1 },
+  { note: 55, name: 'Splash Cymbal', part: 'crash', pitch: 1.45, decay: 0.3, level: 0.9 },
+  { note: 57, name: 'Crash Cymbal 2', part: 'crash', pitch: 1.1, decay: 1, level: 1 },
+  { note: 59, name: 'Ride Cymbal 2', part: 'ride', pitch: 0.92, decay: 1, level: 1 },
+  { note: 60, name: 'Hi Bongo', part: 'conga', pitch: 2, decay: 0.6, level: 0.9 },
+  { note: 61, name: 'Low Bongo', part: 'conga', pitch: 1.5, decay: 0.7, level: 0.9 },
+  { note: 62, name: 'Mute Hi Conga', part: 'conga', pitch: 1.05, decay: 0.25, level: 1 },
+  { note: 64, name: 'Low Conga', part: 'conga', pitch: 0.75, decay: 1.2, level: 1 },
+  { note: 66, name: 'Low Timbale', part: 'timbale', pitch: 0.78, decay: 1.1, level: 1 },
+  { note: 68, name: 'Low Agogo', part: 'agogo', pitch: 0.75, decay: 1, level: 1 },
+  { note: 69, name: 'Cabasa', part: 'shaker', pitch: 1, decay: 1, level: 1 },
+  { note: 76, name: 'Hi Wood Block', part: 'claves', pitch: 0.62, decay: 0.6, level: 1 },
+  { note: 77, name: 'Low Wood Block', part: 'claves', pitch: 0.47, decay: 0.6, level: 1 },
+  { note: 80, name: 'Mute Triangle', part: 'triangle', pitch: 1, decay: 0.05, level: 1 },
+  { note: 71, name: 'Short Whistle', part: 'whistle', pitch: 1, decay: 0.3, level: 1 },
+  { note: 73, name: 'Short Guiro', part: 'guiro', pitch: 1, decay: 0.3, level: 1 },
+  { note: 78, name: 'Mute Cuica', part: 'cuica', pitch: 1.5, decay: 0.35, level: 1 },
 ];
 
 /**
@@ -533,7 +615,7 @@ export const DRUM_BUSES = [
   { key: 'kick', name: 'Kick Out', parts: 'kick', pins: '3/4' },
   { key: 'snare', name: 'Snare/Clap Out', parts: 'snare, clap and rimshot', pins: '5/6' },
   { key: 'hats', name: 'Hats/Cymbals Out', parts: 'hi-hats, crash and ride', pins: '7/8' },
-  { key: 'perc', name: 'Toms/Perc Out', parts: 'toms, cowbell and shaker', pins: '9/10' },
+  { key: 'perc', name: 'Toms/Perc Out', parts: 'toms, cowbell, shaker and the Latin / hand percussion', pins: '9/10' },
 ];
 
 /** Common per-part parameters: pitch, decay, tone, level, pan. */
@@ -666,6 +748,68 @@ export const DRUM_PARAMS = /** @type {ParamDef[]} */ ([
     id: `${b.key}_bus_in_main`, name: `${b.name} In Main Mix`, group: 'In Main Mix (JSFX: separate outputs)', min: 0, max: 1, default: 1, step: 1, unit: '', options: ['Off', 'On'],
     description: `Whether the ${b.parts} also play in the main mix (outputs 1/2). In the JSFX they always play on their own outputs ${b.pins}.`,
   })),
+
+  // ---- GM percussion parts (and the variants in GM_DRUM_VARIANTS)
+  ...partParams('tambourine', 'Tambourine', {
+    pitch: [200, 2000, 700], decay: [20, 1000, 180], tone: 0.5, level: -10, pan: -0.15,
+    pitchDesc: 'Base frequency of the jingle cluster (metallic squares).',
+    decayDesc: 'Decay time of the jingles.',
+    toneDesc: 'High-pass cutoff (brightness).',
+  }),
+  ...partParams('conga', 'Conga', {
+    pitch: [80, 600, 200], decay: [30, 1500, 250], tone: 0.5, level: -4, pan: 0.2,
+    pitchDesc: 'Open hi conga (note 63); low conga, mute conga and the bongos (60-64) are tuned from it.',
+    decayDesc: 'Decay time of the open hi conga.',
+    toneDesc: 'Hand slap: pitch bend at the attack plus slap noise.',
+  }),
+  ...partParams('timbale', 'Timbale', {
+    pitch: [150, 1200, 420], decay: [50, 2000, 600], tone: 0.7, level: -6, pan: -0.2,
+    pitchDesc: 'High timbale (note 65); the low timbale (66) sits ~0.78x below.',
+    decayDesc: 'Decay time of the timbale shell.',
+    toneDesc: 'Stick attack: pitch bend plus stick noise.',
+  }),
+  ...partParams('agogo', 'Agogo', {
+    pitch: [300, 3000, 900], decay: [30, 2000, 500], tone: 0.4, level: -9, pan: 0.3,
+    pitchDesc: 'High agogo bell (note 67); the low bell (68) is 0.75x.',
+    decayDesc: 'Decay time of the bell.',
+    toneDesc: 'Band-pass brightness.',
+  }),
+  ...partParams('claves', 'Claves', {
+    pitch: [800, 5000, 2500], decay: [10, 500, 80], tone: 0.5, level: -8, pan: -0.3,
+    pitchDesc: 'Claves (note 75); the hi / low wood blocks (76 / 77) are tuned from it.',
+    decayDesc: 'Ring time of the wood.',
+    toneDesc: 'Upper mode and click (hardness).',
+  }),
+  ...partParams('triangle', 'Triangle', {
+    pitch: [400, 4000, 1200], decay: [100, 8000, 2200], tone: 0.6, level: -12, pan: 0.35,
+    pitchDesc: 'Lowest partial of the triangle.',
+    decayDesc: 'Ring time of the open triangle (note 81); the mute triangle (80) is cut short and chokes it.',
+    toneDesc: 'Balance of the upper partials (brightness).',
+  }),
+  ...partParams('vibraslap', 'Vibraslap', {
+    pitch: [1000, 6000, 2800], decay: [200, 3000, 900], tone: 0.5, level: -10, pan: -0.25,
+    pitchDesc: 'Resonance of the rattle box.',
+    decayDesc: 'How long the rattle goes on.',
+    toneDesc: 'Rattle rate (slow .. fast clicks).',
+  }),
+  ...partParams('whistle', 'Whistle', {
+    pitch: [1000, 5000, 2600], decay: [100, 2000, 450], tone: 0.6, level: -8, pan: 0.1,
+    pitchDesc: 'Pitch of the samba whistle.',
+    decayDesc: 'Length of the long whistle (note 72); the short whistle (71) is 0.3x.',
+    toneDesc: 'Trill of the pea inside (pitch and loudness warble).',
+  }),
+  ...partParams('guiro', 'Guiro', {
+    pitch: [1000, 8000, 3500], decay: [100, 1000, 380], tone: 0.5, level: -8, pan: 0.25,
+    pitchDesc: 'Resonance of the gourd (each ridge click rings at it).',
+    decayDesc: 'Length of the long scrape (note 74); the short guiro (73) is 0.3x.',
+    toneDesc: 'Ridge rate of the scrape (slow .. fast).',
+  }),
+  ...partParams('cuica', 'Cuica', {
+    pitch: [200, 1200, 520], decay: [100, 1500, 450], tone: 0.6, level: -8, pan: -0.1,
+    pitchDesc: 'Open cuica (note 79); the mute cuica (78) is 1.5x higher and short.',
+    decayDesc: 'Decay of the open cuica.',
+    toneDesc: 'Upward glide of the rubbed stick at the start.',
+  }),
 ]);
 
 /** @param {ParamDef[]} defs */

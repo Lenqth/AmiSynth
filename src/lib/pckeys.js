@@ -22,7 +22,8 @@ export function offsetToKeyLabel(offset, periodSize) {
 }
 
 /** Drum pads in DRUM_PARTS order (Drums tab only). */
-export const DRUM_KEYS = ['KeyA', 'KeyS', 'KeyD', 'KeyF', 'KeyG', 'KeyH', 'KeyJ', 'KeyK', 'KeyL', 'KeyZ', 'KeyX', 'KeyC', 'KeyV'];
+export const DRUM_KEYS = ['KeyA', 'KeyS', 'KeyD', 'KeyF', 'KeyG', 'KeyH', 'KeyJ', 'KeyK', 'KeyL', 'KeyZ', 'KeyX', 'KeyC', 'KeyV',
+  'KeyB', 'KeyN', 'KeyM', 'Comma', 'Period', 'Slash', 'KeyQ', 'KeyW', 'KeyE', 'KeyR'];
 
 // Fallback for environments that leave KeyboardEvent.code empty (some remote desktops,
 // VMs, IMEs): map the produced character back to the physical key of a US/JIS layout.

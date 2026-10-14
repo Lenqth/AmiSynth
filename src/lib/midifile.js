@@ -3,7 +3,7 @@
 //   track 0: tempo, track 1: melodic notes (channel 1), track 2: drums (channel 10)
 // And import of SMF format 0 / 1 files (quantized to the 16th-step grid; channel 10 -> drum steps).
 
-import { DRUM_PARTS } from '../dsp/params.js';
+import { DRUM_PARTS, GM_DRUM_VARIANTS } from '../dsp/params.js';
 import { STEPS, STEPS_PER_BEAT } from './pattern.js';
 import { BPM_MAX, BPM_MIN } from './song.js';
 
@@ -98,17 +98,15 @@ export const GM_DRUM_MAP = (() => {
   /** @type {Record<number, number>} */
   const m = {};
   for (const p of DRUM_PARTS) m[p.note] = p.note;
+  // the step grid has one row per part, so GM variants (GM_DRUM_VARIANTS) land on their part's row
   const alias = {
-    35: 36, // acoustic bass drum -> kick
-    40: 38, // electric snare -> snare
-    44: 42, // pedal hi-hat -> closed hat
-    41: 45, 43: 45, // low floor / high floor tom -> low tom
-    48: 50, // hi-mid tom -> high tom
-    52: 49, 55: 49, 57: 49, // china / splash / crash 2 -> crash
-    53: 51, 59: 51, // ride bell / ride 2 -> ride
-    54: 70, 69: 70, 82: 70, // tambourine / cabasa / shaker -> shaker
     31: 37, // sticks -> rimshot
+    82: 70, // shaker (GM2) -> shaker
   };
+  for (const v of GM_DRUM_VARIANTS) {
+    const part = DRUM_PARTS.find((p) => p.key === v.part);
+    if (part) alias[v.note] = part.note;
+  }
   for (const [from, to] of Object.entries(alias)) m[Number(from)] = to;
   return m;
 })();
@@ -117,8 +115,10 @@ export const GM_DRUM_MAP = (() => {
  * Parse a Standard MIDI File (format 0 or 1, PPQ timing).
  * @param {Uint8Array} bytes
  * @returns {{format:number, ppq:number, tempo:number|null, tempoChanges:number,
- *   notes: {ch:number, note:number, vel:number, on:number, off:number}[], lastTick:number}}
- *   notes in ticks (note-on/off paired per channel and key, first-in first-out)
+ *   notes: {ch:number, note:number, vel:number, on:number, off:number}[], lastTick:number,
+ *   programs: {ch:number, program:number, tick:number}[]}}
+ *   notes in ticks (note-on/off paired per channel and key, first-in first-out); programs: the
+ *   first program change of each channel
  */
 export function parseMidi(bytes) {
   const u = bytes;
@@ -139,6 +139,8 @@ export function parseMidi(bytes) {
   let o = 8 + hlen;
   /** @type {{tick:number, order:number, kind:'on'|'off'|'tempo', ch?:number, note?:number, vel?:number, us?:number}[]} */
   const events = [];
+  /** @type {{ch:number, program:number, tick:number}[]} */
+  const programs = [];
   let order = 0;
   let lastTick = 0;
   for (let t = 0; t < ntracks && o + 8 <= u.length; t++) {
@@ -199,6 +201,11 @@ export function parseMidi(bytes) {
         if (events.length >= MAX_NOTE_EVENTS) throw new Error('MIDI のノートが多すぎます');
         const on = type === 0x90 && d2 > 0;
         events.push({ tick, order: order++, kind: on ? 'on' : 'off', ch: status & 0x0f, note: d1, vel: d2 });
+      } else if (type === 0xc0) {
+        const ch = status & 0x0f;
+        const prev = programs.find((x) => x.ch === ch);
+        if (!prev) programs.push({ ch, program: d1, tick });
+        else if (tick < prev.tick) Object.assign(prev, { program: d1, tick });
       }
       lastTick = Math.max(lastTick, tick);
     }
@@ -230,12 +237,14 @@ export function parseMidi(bytes) {
   // notes never released: end them at the end of the file
   for (const [key, q] of open) for (const n of q) notes.push({ ch: Math.floor(key / 128), note: key % 128, vel: n.vel, on: n.on, off: Math.max(n.on, lastTick) });
   notes.sort((a, b) => a.on - b.on || a.note - b.note);
-  return { format, ppq, tempo, tempoChanges, notes, lastTick };
+  programs.sort((a, b) => a.tick - b.tick || a.ch - b.ch);
+  return { format, ppq, tempo, tempoChanges, notes, lastTick, programs };
 }
 
 /**
  * Notes of a parsed MIDI file on the 16th-step grid, counted from the start of the file:
- * channel 10 -> drum hits (GM_DRUM_MAP), everything else -> piano-roll notes.
+ * channel 10 -> drum hits (GM_DRUM_MAP), everything else -> piano-roll notes. `program` is the GM
+ * program (0..127) of the melodic channel with the most imported notes, or null if it sets none.
  * @param {ReturnType<typeof parseMidi>} midi
  * @param {{lowNote?:number, highNote?:number, maxSteps?:number}} [opts]
  */
@@ -249,6 +258,7 @@ export function midiToSteps(midi, opts = {}) {
   /** @type {Map<number, {note:number, step:number, vel:number}>} */
   const drums = new Map();
   const seen = new Set();
+  const perChannel = new Array(16).fill(0);
   let unmapped = 0;
   let outOfRange = 0;
   let beyond = 0;
@@ -275,6 +285,8 @@ export function midiToSteps(midi, opts = {}) {
     }
     const end = Math.round(n.off / perStep);
     const key = `${start}:${n.note}`;
+    // count before de-duplicating, so the main channel doesn't depend on which doubled note came first
+    perChannel[n.ch]++;
     if (seen.has(key)) continue; // same key at the same step (e.g. doubled on two channels)
     seen.add(key);
     notes.push({ note: n.note, start, len: Math.max(1, end - start), vel: n.vel });
@@ -284,5 +296,8 @@ export function midiToSteps(midi, opts = {}) {
   if (beyond) warnings.push(`読み込める長さを超えた ${beyond} 個のノートを省きました`);
   if (midi.tempoChanges) warnings.push('テンポチェンジは最初のテンポだけを使いました');
   const bpm = midi.tempo ? Math.min(BPM_MAX, Math.max(BPM_MIN, Math.round((60000000 / midi.tempo) * 100) / 100)) : null;
-  return { bpm, notes, drums: [...drums.values()].sort((a, b) => a.step - b.step || a.note - b.note), warnings };
+  let main = -1;
+  for (let ch = 0; ch < 16; ch++) if (perChannel[ch] > 0 && (main < 0 || perChannel[ch] > perChannel[main])) main = ch;
+  const program = (midi.programs ?? []).find((x) => x.ch === main)?.program ?? null;
+  return { bpm, notes, drums: [...drums.values()].sort((a, b) => a.step - b.step || a.note - b.note), warnings, program };
 }

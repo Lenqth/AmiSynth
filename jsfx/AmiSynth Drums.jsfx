@@ -1,8 +1,11 @@
-desc:AmiSynth Drums (13 synthesized parts, GM notes)
+desc:AmiSynth Drums (23 synthesized parts, GM notes)
 //tags: instrument drum
 //author: AmiSynth
 // Port of src/dsp/drums.js. Notes: 36 kick, 37 rimshot, 38 snare, 39 clap, 42 closed hat,
-// 45/47/50 toms, 46 open hat (choked by 42), 49 crash, 51 ride, 56 cowbell, 70 shaker.
+// 45/47/50 toms, 46 open hat (choked by 42), 49 crash, 51 ride, 56 cowbell, 70 shaker,
+// 54 tambourine, 63 conga, 65 timbale, 67 agogo, 75 claves, 81 triangle, 58 vibraslap,
+// 72 whistle, 74 guiro, 79 cuica; the other GM notes 35-81 play variants of these
+// (GM_DRUM_VARIANTS in params.js).
 
 // <generated sliders>
 slider1:kick_pitch_hz=50<25,200,0.1>Kick Pitch [Hz]
@@ -83,6 +86,56 @@ slider75:kick_bus_in_main=1<0,1,1{Off,On}>Kick Out In Main Mix
 slider76:snare_bus_in_main=1<0,1,1{Off,On}>Snare/Clap Out In Main Mix
 slider77:hats_bus_in_main=1<0,1,1{Off,On}>Hats/Cymbals Out In Main Mix
 slider78:perc_bus_in_main=1<0,1,1{Off,On}>Toms/Perc Out In Main Mix
+slider79:tambourine_pitch_hz=700<200,2000,0.1>Tambourine Pitch [Hz]
+slider80:tambourine_decay_ms=180<20,1000,1>Tambourine Decay [ms]
+slider81:tambourine_tone=0.5<0,1,0.001>Tambourine Tone
+slider82:tambourine_level_db=-10<-60,6,0.1>Tambourine Level [dB]
+slider83:tambourine_pan=-0.15<-1,1,0.01>Tambourine Pan
+slider84:conga_pitch_hz=200<80,600,0.1>Conga Pitch [Hz]
+slider85:conga_decay_ms=250<30,1500,1>Conga Decay [ms]
+slider86:conga_tone=0.5<0,1,0.001>Conga Tone
+slider87:conga_level_db=-4<-60,6,0.1>Conga Level [dB]
+slider88:conga_pan=0.2<-1,1,0.01>Conga Pan
+slider89:timbale_pitch_hz=420<150,1200,0.1>Timbale Pitch [Hz]
+slider90:timbale_decay_ms=600<50,2000,1>Timbale Decay [ms]
+slider91:timbale_tone=0.7<0,1,0.001>Timbale Tone
+slider92:timbale_level_db=-6<-60,6,0.1>Timbale Level [dB]
+slider93:timbale_pan=-0.2<-1,1,0.01>Timbale Pan
+slider94:agogo_pitch_hz=900<300,3000,0.1>Agogo Pitch [Hz]
+slider95:agogo_decay_ms=500<30,2000,1>Agogo Decay [ms]
+slider96:agogo_tone=0.4<0,1,0.001>Agogo Tone
+slider97:agogo_level_db=-9<-60,6,0.1>Agogo Level [dB]
+slider98:agogo_pan=0.3<-1,1,0.01>Agogo Pan
+slider99:claves_pitch_hz=2500<800,5000,0.1>Claves Pitch [Hz]
+slider100:claves_decay_ms=80<10,500,1>Claves Decay [ms]
+slider101:claves_tone=0.5<0,1,0.001>Claves Tone
+slider102:claves_level_db=-8<-60,6,0.1>Claves Level [dB]
+slider103:claves_pan=-0.3<-1,1,0.01>Claves Pan
+slider104:triangle_pitch_hz=1200<400,4000,0.1>Triangle Pitch [Hz]
+slider105:triangle_decay_ms=2200<100,8000,1>Triangle Decay [ms]
+slider106:triangle_tone=0.6<0,1,0.001>Triangle Tone
+slider107:triangle_level_db=-12<-60,6,0.1>Triangle Level [dB]
+slider108:triangle_pan=0.35<-1,1,0.01>Triangle Pan
+slider109:vibraslap_pitch_hz=2800<1000,6000,0.1>Vibraslap Pitch [Hz]
+slider110:vibraslap_decay_ms=900<200,3000,1>Vibraslap Decay [ms]
+slider111:vibraslap_tone=0.5<0,1,0.001>Vibraslap Tone
+slider112:vibraslap_level_db=-10<-60,6,0.1>Vibraslap Level [dB]
+slider113:vibraslap_pan=-0.25<-1,1,0.01>Vibraslap Pan
+slider114:whistle_pitch_hz=2600<1000,5000,0.1>Whistle Pitch [Hz]
+slider115:whistle_decay_ms=450<100,2000,1>Whistle Decay [ms]
+slider116:whistle_tone=0.6<0,1,0.001>Whistle Tone
+slider117:whistle_level_db=-8<-60,6,0.1>Whistle Level [dB]
+slider118:whistle_pan=0.1<-1,1,0.01>Whistle Pan
+slider119:guiro_pitch_hz=3500<1000,8000,0.1>Guiro Pitch [Hz]
+slider120:guiro_decay_ms=380<100,1000,1>Guiro Decay [ms]
+slider121:guiro_tone=0.5<0,1,0.001>Guiro Tone
+slider122:guiro_level_db=-8<-60,6,0.1>Guiro Level [dB]
+slider123:guiro_pan=0.25<-1,1,0.01>Guiro Pan
+slider124:cuica_pitch_hz=520<200,1200,0.1>Cuica Pitch [Hz]
+slider125:cuica_decay_ms=450<100,1500,1>Cuica Decay [ms]
+slider126:cuica_tone=0.6<0,1,0.001>Cuica Tone
+slider127:cuica_level_db=-8<-60,6,0.1>Cuica Level [dB]
+slider128:cuica_pan=-0.1<-1,1,0.01>Cuica Pan
 // </generated sliders>
 
 import amisynth_lib.jsfx-inc
@@ -108,22 +161,30 @@ kick_meter.meter_init(); snare_meter.meter_init(); hats_meter.meter_init(); perc
 noise_seed(12345);
 
 // ---- metallic cymbal circuit: 6 detuned squares (808 ratios) + noise -> BP -> HP
-function hat_init() instance(value choke vel) (
+function hat_init() instance(value choke vel mul) (
+  mul = 1;
   this.o0.phase = random_unit(); this.o1.phase = random_unit(); this.o2.phase = random_unit();
   this.o3.phase = random_unit(); this.o4.phase = random_unit(); this.o5.phase = random_unit();
   this.env.value = 0;
   choke = 0;
 );
 
-function hat_update(pitch_hz, tone, level_db, pan, bp_hz, hp_base_hz) instance(gain) (
+// square cluster at the hat's pitch times its variant multiplier
+function hat_tune() instance(pitch_hz mul) local(f) (
+  f = pitch_hz * mul;
+  this.o0.inc = clamp((f * 1) / srate, 0, 0.49);
+  this.o1.inc = clamp((f * 1.4827) / srate, 0, 0.49);
+  this.o2.inc = clamp((f * 1.8003) / srate, 0, 0.49);
+  this.o3.inc = clamp((f * 2.546) / srate, 0, 0.49);
+  this.o4.inc = clamp((f * 2.6303) / srate, 0, 0.49);
+  this.o5.inc = clamp((f * 3.8967) / srate, 0, 0.49);
+);
+
+function hat_update(pitch, tone, level_db, pan, bp_hz, hp_base_hz) instance(gain pitch_hz) (
   this.pan_gains(pan);
   gain = db_to_gain(level_db);
-  this.o0.inc = clamp((pitch_hz * 1) / srate, 0, 0.49);
-  this.o1.inc = clamp((pitch_hz * 1.4827) / srate, 0, 0.49);
-  this.o2.inc = clamp((pitch_hz * 1.8003) / srate, 0, 0.49);
-  this.o3.inc = clamp((pitch_hz * 2.546) / srate, 0, 0.49);
-  this.o4.inc = clamp((pitch_hz * 2.6303) / srate, 0, 0.49);
-  this.o5.inc = clamp((pitch_hz * 3.8967) / srate, 0, 0.49);
+  pitch_hz = pitch;
+  this.hat_tune();
   this.hp.svf_set(hp_base_hz * pow(4, tone), 1.2);
   this.bp.svf_set(bp_hz, 1.0);
 );
@@ -162,9 +223,9 @@ function tom_trigger(vgain, decay_ms) instance(vel pitch_env) (
   this.noise_env.decay_env_trigger(1, 25);
 );
 
-function tom_render(pitch_hz, tone) instance(vel gain pitch_env pitch_coef) local(body, stick) (
+function tom_render(pitch_hz, tone) instance(vel gain pitch_env pitch_coef mul) local(body, stick) (
   this.env.value === 0 ? 0 : (
-    this.osc.inc = (pitch_hz * pow(2, tone * pitch_env)) / srate;
+    this.osc.inc = (pitch_hz * mul * pow(2, tone * pitch_env)) / srate;
     pitch_env *= pitch_coef;
     body = this.osc.sine_process() * this.env.decay_env_process();
     stick = this.hp.onepole_hp(noise_white()) * this.noise_env.decay_env_process() * tone * 0.4;
@@ -172,15 +233,149 @@ function tom_render(pitch_hz, tone) instance(vel gain pitch_env pitch_coef) loca
   );
 );
 
+// ---- GM percussion: hand drum (conga / bongo / timbale): sine + second mode bent up at the
+// slap, plus slap noise. ratio / share = second mode ratio and its decay share.
+function hand_set(level_db, pan, pitch, tone, decay_ms, ratio, share, hp_hz) instance(gain hz tn dms mul dmul lmul rt sh) (
+  this.pan_gains(pan);
+  gain = db_to_gain(level_db) * lmul;
+  hz = pitch * mul;
+  tn = tone;
+  dms = decay_ms * dmul;
+  rt = ratio;
+  sh = share;
+  this.hp.onepole_set(hp_hz);
+);
+
+function hand_trigger(vgain) instance(vel pitch_env dms sh) (
+  this.osc.phase = 0;
+  this.osc2.phase = 0;
+  pitch_env = 1;
+  vel = vgain;
+  this.env.decay_env_trigger(1, dms);
+  this.env2.decay_env_trigger(1, dms * sh);
+  this.noise_env.decay_env_trigger(1, 15);
+);
+
+function hand_render() instance(vel gain hz tn rt pitch_env) local(f, body, slap) (
+  this.env.value === 0 ? 0 : (
+    f = hz * pow(2, 0.5 * tn * pitch_env);
+    pitch_env *= hand_pitch_coef;
+    this.osc.inc = clamp(f / srate, 0, 0.49);
+    this.osc2.inc = clamp((f * rt) / srate, 0, 0.49);
+    body = this.osc.sine_process() * this.env.decay_env_process() + 0.35 * this.osc2.sine_process() * this.env2.decay_env_process();
+    slap = this.hp.onepole_hp(noise_white()) * this.noise_env.decay_env_process() * tn * 0.5;
+    (body + slap) * vel * gain;
+  );
+);
+
+// ---- agogo bell: two band-passed squares
+function bell_set() instance(gain mul lmul dmul) local(f) (
+  this.pan_gains(agogo_pan);
+  gain = db_to_gain(agogo_level_db) * lmul;
+  f = agogo_pitch_hz * mul;
+  this.osc1.inc = clamp(f / srate, 0, 0.49);
+  this.osc2.inc = clamp((f * 1.6) / srate, 0, 0.49);
+  this.bp.svf_set(f * 1.3 * pow(3, agogo_tone), 0.8);
+);
+
+function bell_trigger(vgain) instance(vel dmul) (
+  vel = vgain;
+  this.fast.decay_env_trigger(1, 25);
+  this.slow.decay_env_trigger(1, agogo_decay_ms * dmul);
+);
+
+function bell_render() instance(vel gain) local(env) (
+  this.slow.value === 0 ? 0 : (
+    env = 0.5 * this.fast.decay_env_process() + 0.5 * this.slow.decay_env_process();
+    this.bp.svf_process((this.osc1.square_naive_process() + this.osc2.square_naive_process()) * 0.5);
+    this.bp.bp * env * vel * gain * 2;
+  );
+);
+
+// ---- claves / wood block: sine + wood bar mode (2.76x) + click
+function knock_set() instance(gain mul lmul) local(f) (
+  this.pan_gains(claves_pan);
+  gain = db_to_gain(claves_level_db) * lmul;
+  f = claves_pitch_hz * mul;
+  this.osc.inc = clamp(f / srate, 0, 0.49);
+  this.osc2.inc = clamp((f * 2.76) / srate, 0, 0.49);
+  this.hp.onepole_set(3000);
+);
+
+function knock_trigger(vgain) instance(vel dmul) local(ms) (
+  this.osc.phase = 0;
+  this.osc2.phase = 0;
+  vel = vgain;
+  ms = claves_decay_ms * dmul;
+  this.env.decay_env_trigger(1, ms);
+  this.env2.decay_env_trigger(1, ms * 0.4);
+  this.click.decay_env_trigger(1, 2);
+);
+
+function knock_render() instance(vel gain) local(body, click) (
+  this.env.value === 0 ? 0 : (
+    body = this.osc.sine_process() * this.env.decay_env_process() + 0.4 * claves_tone * this.osc2.sine_process() * this.env2.decay_env_process();
+    click = this.hp.onepole_hp(noise_white()) * this.click.decay_env_process() * claves_tone * 0.6;
+    (body + click) * vel * gain * 1.2;
+  );
+);
+
+// variant voices: pitch / decay / level multipliers (GM_DRUM_VARIANTS in params.js)
+function variant(m, dm, lm) instance(mul dmul lmul) ( mul = m; dmul = dm; lmul = lm; );
+
 closed_hat.hat_init();
 open_hat.hat_init();
 crash.hat_init();
 ride.hat_init();
 clap.t = -1;
+low_tom.mul = 1; mid_tom.mul = 1; high_tom.mul = 1;
+tambourine.hat_init();
+crash2.hat_init();
+ride2.hat_init();
+floor_tom_low.mul = 0.75; floor_tom_low.dmul = 1.15;
+floor_tom_high.mul = 0.87; floor_tom_high.dmul = 1.1;
+hi_mid_tom.mul = 1.2; hi_mid_tom.dmul = 1;
+hand60.variant(2, 0.6, 0.9);
+hand61.variant(1.5, 0.7, 0.9);
+hand62.variant(1.05, 0.25, 1);
+hand63.variant(1, 1, 1);
+hand64.variant(0.75, 1.2, 1);
+hand65.variant(1, 1, 1);
+hand66.variant(0.78, 1.1, 1);
+bell67.variant(1, 1, 1);
+bell68.variant(0.75, 1, 1);
+knock75.variant(1, 1, 1);
+knock76.variant(0.62, 0.6, 1);
+knock77.variant(0.47, 0.6, 1);
+tri_r0 = 1; tri_r1 = 2.05; tri_r2 = 3.13; tri_r3 = 4.27; tri_r4 = 5.4;
 
-function note_on(note, velocity) local(vel, vgain) (
+function cymbal_variant(note) local(m, dm, lm) (
+  // china / splash / crash 2 share one voice, bell / ride 2 another, retuned per note
+  note === 52 ? (m = 0.8; dm = 0.8; lm = 1;)
+  : note === 55 ? (m = 1.45; dm = 0.3; lm = 0.9;)
+  : note === 57 ? (m = 1.1; dm = 1; lm = 1;)
+  : note === 53 ? (m = 1.55; dm = 0.7; lm = 1;)
+  : (m = 0.92; dm = 1; lm = 1;);
+  note === 53 || note === 59 ? (
+    ride2.mul = m;
+    ride2.hat_tune();
+    ride2.hat_trigger(vg * lm, ride_decay_ms * dm);
+  ) : (
+    crash2.mul = m;
+    crash2.hat_tune();
+    crash2.hat_trigger(vg * lm, crash_decay_ms * dm);
+  );
+);
+
+function note_on(note, velocity) local(vel, vgain, dmul, ms) (
   vel = clamp(velocity / 127, 0, 1);
   vgain = 0.2 + 0.8 * vel * vel;
+  dmul = 1;
+  // variants that retrigger the part itself
+  note === 35 ? (note = 36)
+  : note === 40 ? (note = 38)
+  : note === 69 ? (note = 70)
+  : note === 44 ? (note = 42; vgain *= 0.6; dmul = 0.8;);
   note === 36 ? (
     kick.osc.phase = 0;
     kick.pitch_env = 1;
@@ -204,7 +399,7 @@ function note_on(note, velocity) local(vel, vgain) (
     // choke: the closed hat fades the open hat out within a few ms
     open_hat.choke = 1;
     open_hat.choke_coef = t60_coef(8);
-    closed_hat.hat_trigger(vgain, closed_hat_decay_ms);
+    closed_hat.hat_trigger(vgain, closed_hat_decay_ms * dmul);
   ) : note === 46 ? (
     open_hat.hat_trigger(vgain, open_hat_decay_ms);
   ) : note === 49 ? (
@@ -231,6 +426,62 @@ function note_on(note, velocity) local(vel, vgain) (
     shaker.vel = vgain;
     shaker.attack = 0;
     shaker.env.decay_env_trigger(1, shaker_decay_ms);
+  ) : note === 41 ? (
+    floor_tom_low.tom_trigger(vgain, low_tom_decay_ms * floor_tom_low.dmul);
+  ) : note === 43 ? (
+    floor_tom_high.tom_trigger(vgain, low_tom_decay_ms * floor_tom_high.dmul);
+  ) : note === 48 ? (
+    hi_mid_tom.tom_trigger(vgain, mid_tom_decay_ms * hi_mid_tom.dmul);
+  ) : note === 52 || note === 55 || note === 57 || note === 53 || note === 59 ? (
+    vg = vgain;
+    cymbal_variant(note);
+  ) : note === 54 ? (
+    tambourine.hat_trigger(vgain, tambourine_decay_ms);
+  ) : note === 60 ? hand60.hand_trigger(vgain)
+  : note === 61 ? hand61.hand_trigger(vgain)
+  : note === 62 ? hand62.hand_trigger(vgain)
+  : note === 63 ? hand63.hand_trigger(vgain)
+  : note === 64 ? hand64.hand_trigger(vgain)
+  : note === 65 ? hand65.hand_trigger(vgain)
+  : note === 66 ? hand66.hand_trigger(vgain)
+  : note === 67 ? bell67.bell_trigger(vgain)
+  : note === 68 ? bell68.bell_trigger(vgain)
+  : note === 75 ? knock75.knock_trigger(vgain)
+  : note === 76 ? knock76.knock_trigger(vgain)
+  : note === 77 ? knock77.knock_trigger(vgain)
+  : note === 80 || note === 81 ? (
+    // one voice: the mute triangle (80) cuts the open one short
+    tri0.phase = 0; tri1.phase = 0; tri2.phase = 0; tri3.phase = 0; tri4.phase = 0;
+    triangle.vel = vgain;
+    ms = max(30, triangle_decay_ms * (note === 80 ? 0.05 : 1));
+    triangle.env.decay_env_trigger(1, ms);
+    triangle.env2.decay_env_trigger(1, ms * 0.5);
+    triangle.click.decay_env_trigger(1, 3);
+  ) : note === 58 ? (
+    vslap.vel = vgain;
+    vslap.ph = 1;
+    vslap.click = 0;
+    vslap.bp.svf_reset();
+    vslap.env.decay_env_trigger(1, vibraslap_decay_ms);
+  ) : note === 71 || note === 72 ? (
+    whistle.vel = vgain;
+    whistle.active = 1;
+    whistle.t = 0;
+    whistle.rel = 1;
+    whistle.len = max(1, floor(whistle_decay_ms * (note === 71 ? 0.3 : 1) * 0.001 * srate + 0.5));
+  ) : note === 73 || note === 74 ? (
+    guiro.vel = vgain;
+    guiro.t = 0;
+    guiro.ph = 1;
+    guiro.click = 0;
+    guiro.len = max(1, floor(guiro_decay_ms * (note === 73 ? 0.3 : 1) * 0.001 * srate + 0.5));
+  ) : note === 78 || note === 79 ? (
+    cuica.vel = vgain;
+    cuica.osc.phase = 0;
+    cuica.osc2.phase = 0;
+    cuica.pe = 1;
+    cuica.cmul = note === 78 ? 1.5 : 1;
+    cuica.env.decay_env_trigger(1, cuica_decay_ms * (note === 78 ? 0.35 : 1));
   );
 );
 
@@ -283,6 +534,54 @@ shaker.pan_gains(shaker_pan);
 shaker.gain = db_to_gain(shaker_level_db);
 shaker.bp.svf_set(shaker_pitch_hz, 1.0);
 shaker.attack_inc = 1 / ((1 + 40 * shaker_tone) * 0.001 * srate);
+
+// GM percussion
+tambourine.hat_update(tambourine_pitch_hz, tambourine_tone, tambourine_level_db, tambourine_pan, 9000, 4000);
+floor_tom_low.tom_update(low_tom_level_db, low_tom_pan);
+floor_tom_high.tom_update(low_tom_level_db, low_tom_pan);
+hi_mid_tom.tom_update(mid_tom_level_db, mid_tom_pan);
+crash2.hat_update(crash_pitch_hz, crash_tone, crash_level_db, crash_pan, 6500, 1500);
+ride2.hat_update(ride_pitch_hz, ride_tone, ride_level_db, ride_pan, 8000, 2000);
+hand_pitch_coef = tau_coef(25);
+hand60.hand_set(conga_level_db, conga_pan, conga_pitch_hz, conga_tone, conga_decay_ms, 1.59, 0.35, 1200);
+hand61.hand_set(conga_level_db, conga_pan, conga_pitch_hz, conga_tone, conga_decay_ms, 1.59, 0.35, 1200);
+hand62.hand_set(conga_level_db, conga_pan, conga_pitch_hz, conga_tone, conga_decay_ms, 1.59, 0.35, 1200);
+hand63.hand_set(conga_level_db, conga_pan, conga_pitch_hz, conga_tone, conga_decay_ms, 1.59, 0.35, 1200);
+hand64.hand_set(conga_level_db, conga_pan, conga_pitch_hz, conga_tone, conga_decay_ms, 1.59, 0.35, 1200);
+hand65.hand_set(timbale_level_db, timbale_pan, timbale_pitch_hz, timbale_tone, timbale_decay_ms, 2.32, 0.8, 3000);
+hand66.hand_set(timbale_level_db, timbale_pan, timbale_pitch_hz, timbale_tone, timbale_decay_ms, 2.32, 0.8, 3000);
+bell67.bell_set();
+bell68.bell_set();
+knock75.knock_set();
+knock76.knock_set();
+knock77.knock_set();
+triangle.pan_gains(triangle_pan);
+triangle.gain = db_to_gain(triangle_level_db);
+tri0.inc = clamp((triangle_pitch_hz * tri_r0) / srate, 0, 0.49);
+tri1.inc = clamp((triangle_pitch_hz * tri_r1) / srate, 0, 0.49);
+tri2.inc = clamp((triangle_pitch_hz * tri_r2) / srate, 0, 0.49);
+tri3.inc = clamp((triangle_pitch_hz * tri_r3) / srate, 0, 0.49);
+tri4.inc = clamp((triangle_pitch_hz * tri_r4) / srate, 0, 0.49);
+triangle.hp.onepole_set(4000);
+vslap.pan_gains(vibraslap_pan);
+vslap.gain = db_to_gain(vibraslap_level_db);
+vslap.bp.svf_set(vibraslap_pitch_hz, 0.25);
+vslap.inc = (18 + 30 * vibraslap_tone) / srate;
+click_coef = t60_coef(1.5);
+whistle.pan_gains(whistle_pan);
+whistle.gain = db_to_gain(whistle_level_db);
+whistle.bp.svf_set(whistle_pitch_hz, 0.5);
+whistle.trill_inc = 30 / srate;
+whistle.att = 1 / (0.008 * srate);
+whistle.rel_coef = t60_coef(60);
+guiro.pan_gains(guiro_pan);
+guiro.gain = db_to_gain(guiro_level_db);
+guiro.bp.svf_set(guiro_pitch_hz, 0.6);
+guiro.inc = (40 + 80 * guiro_tone) / srate;
+guiro.click_coef = t60_coef(0.8);
+cuica.pan_gains(cuica_pan);
+cuica.gain = db_to_gain(cuica_level_db);
+cuica.pe_coef = tau_coef(60);
 
 @block
 midi_queue_read();
@@ -386,6 +685,93 @@ shaker.env.value > 0 ? (
   y = shaker.bp.bp * env * shaker.vel * shaker.gain * 2.5;
   perc_l += y * shaker.gl;
   perc_r += y * shaker.gr;
+);
+
+// ---- GM percussion (perc bus, except the cymbal variants on the hats bus)
+y = tambourine.hat_render(0.7); perc_l += y * tambourine.gl; perc_r += y * tambourine.gr;
+ft1 = floor_tom_low.tom_render(low_tom_pitch_hz, low_tom_tone);
+ft2 = floor_tom_high.tom_render(low_tom_pitch_hz, low_tom_tone);
+hmt = hi_mid_tom.tom_render(mid_tom_pitch_hz, mid_tom_tone);
+perc_l += ft1 * floor_tom_low.gl + ft2 * floor_tom_high.gl + hmt * hi_mid_tom.gl;
+perc_r += ft1 * floor_tom_low.gr + ft2 * floor_tom_high.gr + hmt * hi_mid_tom.gr;
+y = crash2.hat_render(crash_metal_mix); hat_l += y * crash2.gl; hat_r += y * crash2.gr;
+// ride bell: the square cluster alone (no noise)
+y = ride2.hat_render(ride2.mul > 1 ? 1 : ride_metal_mix); hat_l += y * ride2.gl; hat_r += y * ride2.gr;
+y = hand60.hand_render(); perc_l += y * hand60.gl; perc_r += y * hand60.gr;
+y = hand61.hand_render(); perc_l += y * hand61.gl; perc_r += y * hand61.gr;
+y = hand62.hand_render(); perc_l += y * hand62.gl; perc_r += y * hand62.gr;
+y = hand63.hand_render(); perc_l += y * hand63.gl; perc_r += y * hand63.gr;
+y = hand64.hand_render(); perc_l += y * hand64.gl; perc_r += y * hand64.gr;
+y = hand65.hand_render(); perc_l += y * hand65.gl; perc_r += y * hand65.gr;
+y = hand66.hand_render(); perc_l += y * hand66.gl; perc_r += y * hand66.gr;
+y = bell67.bell_render(); perc_l += y * bell67.gl; perc_r += y * bell67.gr;
+y = bell68.bell_render(); perc_l += y * bell68.gl; perc_r += y * bell68.gr;
+y = knock75.knock_render(); perc_l += y * knock75.gl; perc_r += y * knock75.gr;
+y = knock76.knock_render(); perc_l += y * knock76.gl; perc_r += y * knock76.gr;
+y = knock77.knock_render(); perc_l += y * knock77.gl; perc_r += y * knock77.gr;
+triangle.env.value > 0 ? (
+  e1 = triangle.env.decay_env_process();
+  e2 = triangle.env2.decay_env_process();
+  hi = 1.5 * triangle_tone;
+  x = tri0.sine_process() * (1 - 0.5 * triangle_tone) * e1
+    + tri1.sine_process() * 0.7 * hi * e1
+    + tri2.sine_process() * 0.55 * hi * e1
+    + tri3.sine_process() * 0.45 * hi * e2
+    + tri4.sine_process() * 0.35 * hi * e2;
+  x += triangle.hp.onepole_hp(noise_white()) * triangle.click.decay_env_process() * 0.5;
+  y = x * 0.35 * triangle.vel * triangle.gain;
+  perc_l += y * triangle.gl;
+  perc_r += y * triangle.gr;
+);
+// vibraslap: the rattle hits the box at a steady rate while the whole thing dies away
+vslap.env.value > 0 ? (
+  vslap.ph += vslap.inc;
+  vslap.ph >= 1 ? ( vslap.ph -= 1; vslap.click = 1; );
+  vslap.bp.svf_process(noise_white() * vslap.click);
+  vslap.click *= click_coef;
+  y = vslap.bp.bp * vslap.env.decay_env_process() * vslap.vel * vslap.gain * 6;
+  perc_l += y * vslap.gl;
+  perc_r += y * vslap.gr;
+);
+// whistle: the pea trills the pitch and the level; 8 ms attack, held, 60 ms release
+whistle.active ? (
+  wtr = sin(2 * $pi * whistle.trill);
+  whistle.trill += whistle.trill_inc;
+  whistle.trill >= 1 ? whistle.trill -= 1;
+  whistle.osc.inc = clamp((whistle_pitch_hz * (1 + 0.025 * whistle_tone * wtr)) / srate, 0, 0.49);
+  wam = 1 - 0.6 * whistle_tone * (0.5 + 0.5 * wtr);
+  whistle.bp.svf_process(noise_white());
+  whistle.t >= whistle.len ? whistle.rel *= whistle.rel_coef;
+  wa = min(1, whistle.t * whistle.att) * whistle.rel;
+  whistle.t += 1;
+  whistle.rel < 0.0001 ? whistle.active = 0;
+  y = (whistle.osc.sine_process() * wam + 0.15 * whistle.bp.bp) * wa * whistle.vel * whistle.gain * 0.5;
+  perc_l += y * whistle.gl;
+  perc_r += y * whistle.gr;
+);
+// guiro: one click per ridge, faster towards the end of the stroke
+guiro.t < guiro.len ? (
+  gfrac = guiro.t / guiro.len;
+  guiro.ph += guiro.inc * (1 + 0.6 * gfrac);
+  guiro.ph >= 1 ? ( guiro.ph -= 1; guiro.click = 1; );
+  guiro.bp.svf_process(noise_white() * guiro.click);
+  guiro.click *= guiro.click_coef;
+  ga = min(1, guiro.t / (0.015 * srate)) * min(1, (guiro.len - guiro.t) / (0.008 * srate));
+  guiro.t += 1;
+  y = guiro.bp.bp * ga * guiro.vel * guiro.gain * 5;
+  perc_l += y * guiro.gl;
+  perc_r += y * guiro.gr;
+);
+// cuica: the stick drags the head up to pitch; friction noise roughens it
+cuica.env.value > 0 ? (
+  hz = cuica_pitch_hz * cuica.cmul * (1 - 0.35 * cuica_tone * cuica.pe);
+  cuica.pe *= cuica.pe_coef;
+  cuica.osc.inc = clamp(hz / srate, 0, 0.49);
+  cuica.osc2.inc = clamp((2 * hz) / srate, 0, 0.49);
+  body = cuica.osc.sine_process() + 0.3 * cuica.osc2.sine_process();
+  y = body * (1 + 0.2 * noise_white()) * cuica.env.decay_env_process() * cuica.vel * cuica.gain * 0.6;
+  perc_l += y * cuica.gl;
+  perc_r += y * cuica.gr;
 );
 
 g = master_gain * 0.8;

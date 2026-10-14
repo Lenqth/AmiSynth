@@ -137,7 +137,7 @@ test('JSFX Physical matches JS for CC64 Auto/Off/On, retrigger, stealing and res
       [20000, 0x90, 60, 100], [21000, 0xb0, 64, 127], [22000, 0x80, 60, 0], [23000, 0xb0, 121, 0],
       [25000, 0x90, 60, 100], [26000, 0xb0, 64, 127], [27000, 0x80, 60, 0], [28000, 0xb0, 120, 0],
     ];
-    for (let model = 0; model <= 6; model++) {
+    for (let model = 0; model <= 7; model++) {
       for (let mode = 0; mode <= 2; mode++) {
         check('phys', scenario('phys', { phys_model: model, phys_sustain_mode: mode, phys_release_ms: 40 }),
           events, 0.7, `phys/sustain model ${model} mode ${mode}`);
@@ -154,16 +154,29 @@ test('JSFX physical model matches JS with stress settings (vibrato, voice steali
     ['bowed+vibrato', { phys_model: 2, phys_vibrato_cents: 30, bow_pressure: 0.9, bow_position: 0.3 }],
     ['clarinet', { phys_model: 3, wind_type: 0, wind_embouchure: 1, breath_pressure: 0, phys_vibrato_cents: 20 }],
     ['flute', { phys_model: 3, wind_type: 1, breath_noise: 1, wind_embouchure: 0, tuning_divisions: 19 }],
+    ['saxophone', { phys_model: 3, wind_type: 2, breath_noise: 0.5, breath_pressure: 1, phys_vibrato_cents: 20 }],
+    ['double reed', { phys_model: 3, wind_type: 3, wind_embouchure: 0, tuning_divisions: 19 }],
+    ['free reed', { phys_model: 3, wind_type: 4, breath_noise: 0.4, phys_vibrato_cents: 15 }],
+    ['musette', { phys_model: 3, wind_type: 4, free_reed_detune_cents: 18, wind_embouchure: 1, tuning_divisions: 19 }],
+    ['sitar sawari', { phys_model: 0, string_sawari: 1, string_damping: 0.1, string_decay_ms: 8000, phys_vibrato_cents: 20 }],
     ['circular mesh', { phys_model: 4, mesh_shape: 0, mesh_size: 16, mesh_high_damping: 1, mesh_hardness: 1 }],
     ['square mesh', { phys_model: 4, mesh_shape: 1, mesh_size: 7, mesh_strike_x: 0.9, mesh_strike_y: 0.1 }],
     ['stiff+vibrato', { phys_model: 5, piano_inharmonicity: 1, piano_unison_detune_cents: 10, phys_vibrato_cents: 25 }],
     ['brass+vibrato', { phys_model: 6, brass_pressure: 1, brass_lip: 1, brass_bell: 0, phys_vibrato_cents: 30, tuning_divisions: 19 }],
     ['brass soft', { phys_model: 6, brass_pressure: 0, brass_lip: 0, brass_attack_ms: 3 }],
+    ['organ+rotary', { phys_model: 7, organ_percussion: 2, organ_click: 1, rotary_mode: 1, organ_drawbar_4: 6, organ_drawbar_1: 8, phys_vibrato_cents: 20 }],
+    ['organ fast rotary+amp', { phys_model: 7, organ_percussion: 1, rotary_mode: 2, rotary_mix: 0.6, amp_type: 3, phys_room_mix: 0.3, tuning_divisions: 19 }],
+    ['vibes+rotary', { phys_model: 1, modal_material: 1, rotary_mode: 1 }],
   ];
   for (const [label, over] of cases) {
     check('phys', scenario('phys', over), busy, 0.7, `phys/${label}`);
     check('phys', scenario('phys', over), busy, 0.4, `phys/${label} @44.1k`, 44100);
   }
+});
+
+test('JSFX rotary speaker follows the mod wheel like JS', { skip: !HAVE && 'jsfx_render not built' }, () => {
+  const ev = [[0, 0x90, 60, 100], [0, 0x90, 67, 100], [6000, 0xb0, 1, 127], [20000, 0xb0, 1, 0], [26000, 0x90, 72, 90]];
+  check('phys', scenario('phys', { phys_model: 7, rotary_mode: 1, organ_drawbar_2: 8 }), ev, 0.7, 'phys/organ mod wheel');
 });
 
 test('JSFX piano matches JS up to the top of the MIDI range', { skip: !HAVE && 'jsfx_render not built' }, () => {
@@ -175,9 +188,18 @@ test('JSFX piano matches JS up to the top of the MIDI range', { skip: !HAVE && '
 test('JSFX drums match JS for every kit and part', { skip: !HAVE && 'jsfx_render not built' }, () => {
   const hits = DRUM_PARTS.map((part, i) => [i * 2400, 0x90, part.note, 60 + (i % 3) * 30]);
   hits.push([30000, 0x90, 46, 120], [31000, 0x90, 42, 100]); // choke
+  hits.sort((a, b) => a[0] - b[0]);
   for (const kit of DRUM_PRESETS) {
-    check('drums', resolvePreset(INSTRUMENTS.drums.defs, kit), hits, 0.8, `drums/${kit.name}`);
+    check('drums', resolvePreset(INSTRUMENTS.drums.defs, kit), hits, 1, `drums/${kit.name}`);
   }
+});
+
+test('JSFX drums match JS on every GM percussion note (parts and their variants)', { skip: !HAVE && 'jsfx_render not built' }, () => {
+  const hits = [];
+  for (let note = 35; note <= 81; note++) hits.push([(note - 35) * 1200, 0x90, note, 50 + (note % 4) * 25]);
+  hits.push([57000, 0x90, 81, 110], [60000, 0x90, 80, 110], [61000, 0x90, 55, 100], [61500, 0x90, 53, 100]);
+  check('drums', scenario('drums', {}), hits, 1.4, 'drums/GM notes');
+  check('drums', scenario('drums', { conga_tone: 1, timbale_tone: 0, claves_tone: 1, triangle_tone: 0, agogo_tone: 1 }), hits, 1.4, 'drums/GM notes, tones', 44100);
 });
 
 function checkHost(name, params, events, seconds, label, host) {
@@ -304,6 +326,8 @@ test('JSFX physical model matches JS with aftertouch mapped to breath, bow, brig
       ['bowed', { phys_model: 2, ...press }],
       ['clarinet', { phys_model: 3, wind_type: 0, ...press }],
       ['flute', { phys_model: 3, wind_type: 1, phys_vibrato_cents: 10, ...press }],
+      ['saxophone', { phys_model: 3, wind_type: 2, ...press }],
+      ['free reed', { phys_model: 3, wind_type: 4, ...press }],
       ['brass', { phys_model: 6, ...press }],
       ['string vibrato only', { phys_model: 0, phys_pressure_vibrato_cents: 60 }],
       ['stiff vibrato only', { phys_model: 5, phys_pressure_vibrato_cents: 30 }],
@@ -317,7 +341,7 @@ test('JSFX physical model matches JS with aftertouch mapped to breath, bow, brig
 
 test('JSFX drums match JS with groups left out of the main mix (separate outputs)', { skip: !HAVE && 'jsfx_render not built' }, () => {
   const hits = DRUM_PARTS.map((part, i) => [i * 2400, 0x90, part.note, 100]);
-  check('drums', scenario('drums', { kick_bus_in_main: 0, hats_bus_in_main: 0 }), hits, 0.8, 'drums/buses off');
+  check('drums', scenario('drums', { kick_bus_in_main: 0, hats_bus_in_main: 0, perc_bus_in_main: 0 }), hits, 1, 'drums/buses off');
 });
 
 // a Scala file the way people write them: comments, a blank-ish description, ratios, cents, a whole number

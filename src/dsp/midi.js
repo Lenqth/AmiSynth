@@ -5,7 +5,7 @@ import {
   synth_poly_pressure, synth_sustain_pedal,
 } from './synth.js';
 import {
-  phys_all_notes_off, phys_channel_pressure, phys_note_off, phys_note_on, phys_pitch_bend, phys_poly_pressure, phys_pressure_reset, phys_sustain_pedal,
+  phys_all_notes_off, phys_channel_pressure, phys_mod_wheel, phys_note_off, phys_note_on, phys_pitch_bend, phys_poly_pressure, phys_pressure_reset, phys_sustain_pedal,
 } from './phys.js';
 import { drums_note_on } from './drums.js';
 
@@ -33,6 +33,7 @@ export function phys_midi(s, status, d1, d2) {
   else if (type === 0xa0) phys_poly_pressure(s, d1, d2 / 127);
   else if (type === 0xb0) {
     if (d1 === 64) phys_sustain_pedal(s, d2 >= 64);
+    else if (d1 === 1) phys_mod_wheel(s, d2 / 127);
     else if (d1 === 120 || d1 === 123) phys_all_notes_off(s);
     else if (d1 === 121) { phys_sustain_pedal(s, false); phys_pitch_bend(s, 0); phys_pressure_reset(s); }
   }
