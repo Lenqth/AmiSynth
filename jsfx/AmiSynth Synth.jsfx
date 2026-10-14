@@ -14,10 +14,10 @@ slider1:tuning_divisions=12<1,72,1>Tuning Divisions Per Period [steps]
 slider2:tuning_period_cents=1200<100,2400,0.001>Tuning Period [cents]
 slider3:tuning_ref_note=69<0,127,1>Tuning Reference Note [note]
 slider4:tuning_ref_hz=440<100,1000,0.01>Tuning Reference Frequency [Hz]
-slider5:osc1_waveform=0<0,3,1{Saw,Pulse,Triangle,Sine}>Osc1 Waveform
+slider5:osc1_waveform=0<0,4,1{Saw,Pulse,Triangle,Sine,Wavetable}>Osc1 Waveform
 slider6:osc1_pulse_width=0.5<0.05,0.95,0.001>Osc1 Pulse Width
 slider7:osc1_level=0.8<0,1,0.001>Osc1 Level
-slider8:osc2_waveform=1<0,3,1{Saw,Pulse,Triangle,Sine}>Osc2 Waveform
+slider8:osc2_waveform=1<0,4,1{Saw,Pulse,Triangle,Sine,Wavetable}>Osc2 Waveform
 slider9:osc2_pulse_width=0.5<0.05,0.95,0.001>Osc2 Pulse Width
 slider10:osc2_level=0.5<0,1,0.001>Osc2 Level
 slider11:osc2_transpose_cents=0<-2400,2400,1>Osc2 Transpose [cents]
@@ -111,25 +111,32 @@ slider98:fx_reverb_mix=0.25<0,1,0.001>Reverb Mix
 slider99:fx_reverb_decay_ms=2500<200,15000,1>Reverb Decay [ms]
 slider100:fx_reverb_size=0.5<0,1,0.001>Reverb Size
 slider101:fx_reverb_damping=0.5<0,1,0.001>Reverb Damping
-slider102:lfo2_waveform=0<0,5,1{Sine,Triangle,Saw Down,Square,Sample & Hold,Duck (pump)}>LFO2 Waveform
-slider103:lfo2_rate_hz=0.5<0.05,20,0.01>LFO2 Rate [Hz]
-slider104:lfo2_sync=0<0,16,1{Off,4 bars,2 bars,1/1,1/2,1/2 dotted,1/2 triplet,1/4,1/4 dotted,1/4 triplet,1/8,1/8 dotted,1/8 triplet,1/16,1/16 dotted,1/16 triplet,1/32}>LFO2 Sync
-slider105:mod_env_attack_ms=5<0.5,5000,0.1>Mod Env Attack [ms]
-slider106:mod_env_decay_ms=300<1,10000,1>Mod Env Decay [ms]
-slider107:mod_env_sustain=0<0,1,0.001>Mod Env Sustain
-slider108:mod_env_release_ms=300<1,10000,1>Mod Env Release [ms]
-slider109:mod1_source=0<0,8,1{Off,LFO 1,LFO 2,Mod Env,Velocity,Key Track,Mod Wheel,Pressure,Random (per note)}>Mod 1 Source
-slider110:mod1_destination=0<0,11,1{Off,Pitch,Filter Cutoff,Filter Resonance,Pulse Width,Osc2 Pitch,FM Index,Amp,Pan,LFO 1 Rate,LFO 2 Rate,Noise Level}>Mod 1 Destination
-slider111:mod1_amount=0<-4800,4800,0.001>Mod 1 Amount
-slider112:mod2_source=0<0,8,1{Off,LFO 1,LFO 2,Mod Env,Velocity,Key Track,Mod Wheel,Pressure,Random (per note)}>Mod 2 Source
-slider113:mod2_destination=0<0,11,1{Off,Pitch,Filter Cutoff,Filter Resonance,Pulse Width,Osc2 Pitch,FM Index,Amp,Pan,LFO 1 Rate,LFO 2 Rate,Noise Level}>Mod 2 Destination
-slider114:mod2_amount=0<-4800,4800,0.001>Mod 2 Amount
-slider115:mod3_source=0<0,8,1{Off,LFO 1,LFO 2,Mod Env,Velocity,Key Track,Mod Wheel,Pressure,Random (per note)}>Mod 3 Source
-slider116:mod3_destination=0<0,11,1{Off,Pitch,Filter Cutoff,Filter Resonance,Pulse Width,Osc2 Pitch,FM Index,Amp,Pan,LFO 1 Rate,LFO 2 Rate,Noise Level}>Mod 3 Destination
-slider117:mod3_amount=0<-4800,4800,0.001>Mod 3 Amount
-slider118:mod4_source=0<0,8,1{Off,LFO 1,LFO 2,Mod Env,Velocity,Key Track,Mod Wheel,Pressure,Random (per note)}>Mod 4 Source
-slider119:mod4_destination=0<0,11,1{Off,Pitch,Filter Cutoff,Filter Resonance,Pulse Width,Osc2 Pitch,FM Index,Amp,Pan,LFO 1 Rate,LFO 2 Rate,Noise Level}>Mod 4 Destination
-slider120:mod4_amount=0<-4800,4800,0.001>Mod 4 Amount
+slider102:osc1_wt_bank=0<0,4,1{Basic Shapes,PWM Sweep,Vocal Formants,Harmonic Sweep,Digital}>Osc1 Wavetable
+slider103:osc1_wt_position=0<0,1,0.001>Osc1 WT Position
+slider104:osc2_wt_bank=0<0,4,1{Basic Shapes,PWM Sweep,Vocal Formants,Harmonic Sweep,Digital}>Osc2 Wavetable
+slider105:osc2_wt_position=0<0,1,0.001>Osc2 WT Position
+slider106:wt_position_lfo=0<-1,1,0.001>WT Position LFO
+slider107:wt_position_filter_env=0<-1,1,0.001>WT Position Filter Env
+slider108:wt_position_amp_env=0<-1,1,0.001>WT Position Amp Env
+slider109:lfo2_waveform=0<0,5,1{Sine,Triangle,Saw Down,Square,Sample & Hold,Duck (pump)}>LFO2 Waveform
+slider110:lfo2_rate_hz=0.5<0.05,20,0.01>LFO2 Rate [Hz]
+slider111:lfo2_sync=0<0,16,1{Off,4 bars,2 bars,1/1,1/2,1/2 dotted,1/2 triplet,1/4,1/4 dotted,1/4 triplet,1/8,1/8 dotted,1/8 triplet,1/16,1/16 dotted,1/16 triplet,1/32}>LFO2 Sync
+slider112:mod_env_attack_ms=5<0.5,5000,0.1>Mod Env Attack [ms]
+slider113:mod_env_decay_ms=300<1,10000,1>Mod Env Decay [ms]
+slider114:mod_env_sustain=0<0,1,0.001>Mod Env Sustain
+slider115:mod_env_release_ms=300<1,10000,1>Mod Env Release [ms]
+slider116:mod1_source=0<0,8,1{Off,LFO 1,LFO 2,Mod Env,Velocity,Key Track,Mod Wheel,Pressure,Random (per note)}>Mod 1 Source
+slider117:mod1_destination=0<0,11,1{Off,Pitch,Filter Cutoff,Filter Resonance,Pulse Width,Osc2 Pitch,FM Index,Amp,Pan,LFO 1 Rate,LFO 2 Rate,Noise Level}>Mod 1 Destination
+slider118:mod1_amount=0<-4800,4800,0.001>Mod 1 Amount
+slider119:mod2_source=0<0,8,1{Off,LFO 1,LFO 2,Mod Env,Velocity,Key Track,Mod Wheel,Pressure,Random (per note)}>Mod 2 Source
+slider120:mod2_destination=0<0,11,1{Off,Pitch,Filter Cutoff,Filter Resonance,Pulse Width,Osc2 Pitch,FM Index,Amp,Pan,LFO 1 Rate,LFO 2 Rate,Noise Level}>Mod 2 Destination
+slider121:mod2_amount=0<-4800,4800,0.001>Mod 2 Amount
+slider122:mod3_source=0<0,8,1{Off,LFO 1,LFO 2,Mod Env,Velocity,Key Track,Mod Wheel,Pressure,Random (per note)}>Mod 3 Source
+slider123:mod3_destination=0<0,11,1{Off,Pitch,Filter Cutoff,Filter Resonance,Pulse Width,Osc2 Pitch,FM Index,Amp,Pan,LFO 1 Rate,LFO 2 Rate,Noise Level}>Mod 3 Destination
+slider124:mod3_amount=0<-4800,4800,0.001>Mod 3 Amount
+slider125:mod4_source=0<0,8,1{Off,LFO 1,LFO 2,Mod Env,Velocity,Key Track,Mod Wheel,Pressure,Random (per note)}>Mod 4 Source
+slider126:mod4_destination=0<0,11,1{Off,Pitch,Filter Cutoff,Filter Resonance,Pulse Width,Osc2 Pitch,FM Index,Amp,Pan,LFO 1 Rate,LFO 2 Rate,Noise Level}>Mod 4 Destination
+slider127:mod4_amount=0<-4800,4800,0.001>Mod 4 Amount
 // </generated sliders>
 
 import amisynth_lib.jsfx-inc
@@ -290,6 +297,280 @@ function mm_slot(src, dst, amt) local(si, di) (
   );
 );
 
+// ---- wavetable oscillator (port of src/dsp/wavetable.js; same formulas, loops and table layout)
+//
+// JSFX local memory layout (slot = one double):
+//   0 .. 1023                   unused (mem_alloc starts at 1024)
+//   1024 .. mem_top-1           mem_alloc heap: tuning tables, MIDI queue, voice / arp / unison arrays
+//                               (about 5.7k slots + the effects' delay lines: the echo alone takes
+//                               2 x (4 s x srate) slots, about 1.54M at 192 kHz)
+//   WT_BASE = 4194304 (2^22)    wavetables: WT_BANKS x WT_FRAMES x WT_MIPS x WT_SIZE = 5 x 8 x 10 x 2048
+//                               = 819200 slots; table(bank, frame, mip) at
+//                               WT_BASE + ((bank * WT_FRAMES + frame) * WT_MIPS + mip) * WT_SIZE
+//   WT_SCRATCH = 5013504        FFT work re / im (2 x 2048), twiddles cos / sin (2 x 1024), spectrum
+//                               a / b (2 x 513), vowel formants (15), Digital multipliers (8),
+//                               per-bank ready flags (5)
+//   WT_END = 5020702            first slot after the region (< 8388608 = default JSFX memory, __memtop())
+// The fixed region is far above the heap and nothing else writes there. wt_ok checks once (here,
+// after the last mem_alloc of @init) that the heap stays below WT_BASE and the region fits in memory;
+// otherwise the wavetable oscillator is silent (and the JSFX comparison test fails) instead of
+// reading or overwriting other buffers.
+// Banks are built in @slider the first time an oscillator selects them. A bank's ready flag lives
+// in the region itself, so if REAPER clears the memory the bank is simply built again.
+WT_SIZE = 2048;
+WT_FRAMES = 8;
+WT_MIPS = 10;
+WT_MAX_HARM = 512;
+WT_FADE = 0.7071067811865476; // mip crossfade starts 1/2 octave below each level's boundary
+WT_BANKS = 5;
+WT_FRAME_LEN = WT_MIPS * WT_SIZE;
+WT_BANK_LEN = WT_FRAMES * WT_FRAME_LEN;
+WT_BASE = 4194304;
+WT_SCRATCH = WT_BASE + WT_BANKS * WT_BANK_LEN;
+wt_re = WT_SCRATCH;
+wt_im = wt_re + WT_SIZE;
+wt_twc = wt_im + WT_SIZE;
+wt_tws = wt_twc + WT_SIZE / 2;
+wt_sa = wt_tws + WT_SIZE / 2;
+wt_sb = wt_sa + WT_MAX_HARM + 1;
+wt_vow = wt_sb + WT_MAX_HARM + 1;
+wt_dmul = wt_vow + 15;
+wt_ready = wt_dmul + 8;
+WT_END = wt_ready + WT_BANKS;
+WT_MAGIC = 20261014.5;
+wt_ok = mem_top <= WT_BASE && WT_END <= __memtop();
+
+// vowel formants (Hz) a, e, i, o, u; multipliers of the Digital bank (same as VOWELS / DIGITAL_MUL)
+wt_vow[0] = 730; wt_vow[1] = 1090; wt_vow[2] = 2440;
+wt_vow[3] = 530; wt_vow[4] = 1840; wt_vow[5] = 2480;
+wt_vow[6] = 270; wt_vow[7] = 2290; wt_vow[8] = 3010;
+wt_vow[9] = 570; wt_vow[10] = 840; wt_vow[11] = 2410;
+wt_vow[12] = 300; wt_vow[13] = 870; wt_vow[14] = 2240;
+wt_dmul[0] = 0; wt_dmul[1] = 2; wt_dmul[2] = 3; wt_dmul[3] = 4;
+wt_dmul[4] = 5; wt_dmul[5] = 7; wt_dmul[6] = 9; wt_dmul[7] = 13;
+
+/** in-place radix-2 FFT of wt_re / wt_im; sign +1 inverse (unscaled), -1 forward */
+function wt_fft(sign) local(n, i, j, m, t, len, half, step, k, wr, wi, a, b, tr, ti) (
+  n = WT_SIZE;
+  j = 0;
+  i = 0;
+  loop(n - 1,
+    i < j ? (
+      t = wt_re[i]; wt_re[i] = wt_re[j]; wt_re[j] = t;
+      t = wt_im[i]; wt_im[i] = wt_im[j]; wt_im[j] = t;
+    );
+    m = n / 2;
+    while (m >= 1 && j >= m) ( j -= m; m /= 2; );
+    j += m;
+    i += 1;
+  );
+  len = 2;
+  while (len <= n) (
+    half = len / 2;
+    step = n / len;
+    i = 0;
+    while (i < n) (
+      k = 0;
+      loop(half,
+        wr = wt_twc[k * step];
+        wi = sign * wt_tws[k * step];
+        a = i + k;
+        b = a + half;
+        tr = wt_re[b] * wr - wt_im[b] * wi;
+        ti = wt_re[b] * wi + wt_im[b] * wr;
+        wt_re[b] = wt_re[a] - tr;
+        wt_im[b] = wt_im[a] - ti;
+        wt_re[a] += tr;
+        wt_im[a] += ti;
+        k += 1;
+      );
+      i += len;
+    );
+    len *= 2;
+  );
+);
+
+/** sine coefficient of harmonic k of the Basic Shapes anchors: 0 sine, 1 triangle, 2 saw, 3 square */
+function wt_basic(shape, k) local(odd, h) (
+  odd = k - 2 * floor(k / 2);
+  shape === 0 ? (k === 1 ? 1 : 0)
+  : shape === 1 ? (
+    odd ? (
+      h = (k - 1) / 2;
+      ((h - 2 * floor(h / 2) ? -8 : 8) / ($pi * $pi)) / (k * k);
+    ) : 0;
+  ) : shape === 2 ? (odd ? 2 : -2) / ($pi * k)
+  : odd ? 4 / ($pi * k) : 0;
+);
+
+/** spectrum of a frame of the analytic banks 0..3 into wt_sa (sine) / wt_sb (cosine) */
+function wt_spectrum(bank, frame) local(x, p, seg, w, k, duty, g, hz, i, f, d, amp, ph, centre) (
+  x = frame / (WT_FRAMES - 1);
+  wt_sa[0] = 0;
+  wt_sb[0] = 0;
+  k = 1;
+  bank === 0 ? (
+    p = x * 3;
+    seg = min(floor(p), 2);
+    w = p - seg;
+    loop(WT_MAX_HARM,
+      wt_sa[k] = (1 - w) * wt_basic(seg, k) + w * wt_basic(seg + 1, k);
+      wt_sb[k] = 0;
+      k += 1;
+    );
+  ) : bank === 1 ? (
+    duty = 0.5 - 0.45 * x;
+    loop(WT_MAX_HARM,
+      g = 2 / ($pi * k);
+      wt_sa[k] = g * (1 - cos(2 * $pi * k * duty));
+      wt_sb[k] = g * sin(2 * $pi * k * duty);
+      k += 1;
+    );
+  ) : bank === 2 ? (
+    p = x * 4;
+    seg = min(floor(p), 3);
+    w = p - seg;
+    loop(WT_MAX_HARM,
+      hz = k * 110;
+      g = 0.03;
+      i = 0;
+      loop(3,
+        f = wt_vow[seg * 3 + i] + w * (wt_vow[seg * 3 + 3 + i] - wt_vow[seg * 3 + i]);
+        d = (hz - f) / (i === 0 ? 80 : i === 1 ? 100 : 140);
+        g += (i === 0 ? 1 : i === 1 ? 0.6 : 0.3) / (1 + d * d);
+        i += 1;
+      );
+      amp = g / pow(k, 0.7);
+      ph = ($pi * k * (k - 1)) / 48;
+      wt_sa[k] = amp * cos(ph);
+      wt_sb[k] = amp * sin(ph);
+      k += 1;
+    );
+  ) : (
+    centre = 5 * x;
+    loop(WT_MAX_HARM,
+      d = log(k) / log(2) - centre;
+      amp = (k === 1 ? 0.5 : 0) + exp(-2 * d * d) / sqrt(k);
+      ph = ($pi * k * (k - 1)) / 48;
+      wt_sa[k] = amp * cos(ph);
+      wt_sb[k] = amp * sin(ph);
+      k += 1;
+    );
+  );
+);
+
+/** Digital bank: 8-bit integer waveform v = u XOR (u * mul mod 256), spectrum by forward FFT */
+function wt_digital_spectrum(frame) local(mul, n, u, um, k) (
+  mul = wt_dmul[frame];
+  n = 0;
+  loop(WT_SIZE,
+    u = floor(n / 8);
+    um = u * mul - 256 * floor((u * mul) / 256);
+    wt_re[n] = ((u ~ um) / 127.5) - 1;
+    wt_im[n] = 0;
+    n += 1;
+  );
+  wt_fft(-1);
+  wt_sa[0] = 0;
+  wt_sb[0] = 0;
+  k = 1;
+  loop(WT_MAX_HARM,
+    wt_sb[k] = (2 * wt_re[k]) / WT_SIZE;
+    wt_sa[k] = (-2 * wt_im[k]) / WT_SIZE;
+    k += 1;
+  );
+);
+
+/** the current spectrum truncated to harm harmonics -> table at dst, times gain */
+function wt_render_table(dst, harm, gain) local(i, k) (
+  memset(wt_re, 0, WT_SIZE);
+  memset(wt_im, 0, WT_SIZE);
+  k = 1;
+  loop(harm,
+    wt_re[k] = wt_sb[k];
+    wt_im[k] = -wt_sa[k];
+    k += 1;
+  );
+  wt_fft(1);
+  i = 0;
+  loop(WT_SIZE, dst[i] = wt_re[i] * gain; i += 1;);
+);
+
+/** build every frame and mip level of a bank (no-op when already built) */
+function wt_build(bank) local(i, f, base, peak, a, gain, harm, m) (
+  wt_ok && wt_ready[bank] !== WT_MAGIC ? (
+    i = 0;
+    loop(WT_SIZE / 2,
+      wt_twc[i] = cos((2 * $pi * i) / WT_SIZE);
+      wt_tws[i] = sin((2 * $pi * i) / WT_SIZE);
+      i += 1;
+    );
+    f = 0;
+    loop(WT_FRAMES,
+      bank === 4 ? wt_digital_spectrum(f) : wt_spectrum(bank, f);
+      base = WT_BASE + bank * WT_BANK_LEN + f * WT_FRAME_LEN;
+      // mip 0 first: its peak sets the gain of the whole frame
+      wt_render_table(base, WT_MAX_HARM, 1);
+      peak = 0;
+      i = 0;
+      loop(WT_SIZE, a = abs(base[i]); a > peak ? peak = a; i += 1;);
+      gain = peak > 0 ? 1 / peak : 0;
+      i = 0;
+      loop(WT_SIZE, base[i] *= gain; i += 1;);
+      harm = WT_MAX_HARM;
+      m = 1;
+      loop(WT_MIPS - 1,
+        harm /= 2;
+        wt_render_table(base + m * WT_SIZE, harm, gain);
+        m += 1;
+      );
+      f += 1;
+    );
+    wt_ready[bank] = WT_MAGIC;
+  );
+);
+
+/** one sample of a wavetable oscillator (same phase / inc / wrapped state as osc_process) */
+function wt_process(bank, pos, pm) instance(phase inc wrapped) local(t, m, th, lo, w, fp, f0, ff, x, i0, fr, i1, b0, b1, a, b, c0, c1, a2, b2) (
+  t = phase + pm;
+  t -= floor(t);
+  // lowest mip level whose top harmonic (WT_MAX_HARM / 2^m) * inc stays at or below 0.5
+  m = 0;
+  th = 0.5 / WT_MAX_HARM;
+  while (inc > th && m < WT_MIPS - 1) ( th *= 2; m += 1; );
+  // weight of level m + 1 (fewer harmonics, band-safe): 0 below WT_FADE * th, linear in inc up to
+  // exactly 1 at the boundary th, so crossing a level never makes the waveform jump; last level: none
+  lo = th * WT_FADE;
+  w = m < WT_MIPS - 1 && inc > lo ? (inc - lo) / (th - lo) : 0;
+  fp = pos * (WT_FRAMES - 1);
+  f0 = floor(fp);
+  f0 > WT_FRAMES - 2 ? f0 = WT_FRAMES - 2;
+  ff = fp - f0;
+  x = t * WT_SIZE;
+  i0 = floor(x);
+  fr = x - i0;
+  i1 = i0 + 1 >= WT_SIZE ? 0 : i0 + 1;
+  b0 = WT_BASE + bank * WT_BANK_LEN + f0 * WT_FRAME_LEN + m * WT_SIZE;
+  b1 = b0 + WT_FRAME_LEN;
+  a = b0[i0] + fr * (b0[i1] - b0[i0]);
+  b = b1[i0] + fr * (b1[i1] - b1[i0]);
+  w > 0 ? (
+    c0 = b0 + WT_SIZE;
+    c1 = b1 + WT_SIZE;
+    a2 = c0[i0] + fr * (c0[i1] - c0[i0]);
+    b2 = c1[i0] + fr * (c1[i1] - c1[i0]);
+    a += w * (a2 - a);
+    b += w * (b2 - b);
+  );
+  phase += inc;
+  wrapped = 0;
+  phase >= 1 ? (
+    phase -= 1;
+    wrapped = 1;
+  );
+  wt_ok ? a + ff * (b - a) : 0;
+);
+
 // ---- one unison copy: osc1 + osc2 (osc2 can sync to osc1 and FM it)
 function ucopy_reset(r1, r2) instance(prev2) (
   this.o1.osc_reset(r1);
@@ -301,9 +582,10 @@ function ucopy_process(f, r2, w1, w2, pw1, pw2, fm, sync, l1, l2) instance(prev2
   this.o1.osc_set_freq(f);
   this.o2.osc_set_freq(f * r2);
   // FM uses osc2's previous sample so sync (osc1 -> osc2) and FM (osc2 -> osc1) can coexist
-  y1 = this.o1.osc_process(w1, pw1, fm * prev2);
+  // wavetable oscillators read the per-voice positions g_wpos1 / g_wpos2 (set in voice_render)
+  y1 = wt_osc1 ? this.o1.wt_process(wt_bank1_i, g_wpos1, fm * prev2) : this.o1.osc_process(w1, pw1, fm * prev2);
   sync && this.o1.wrapped ? this.o2.osc_sync(this.o1.phase, this.o1.inc);
-  y2 = this.o2.osc_process(w2, pw2, 0);
+  y2 = wt_osc2 ? this.o2.wt_process(wt_bank2_i, g_wpos2, 0) : this.o2.osc_process(w2, pw2, 0);
   prev2 = y2;
   y1 * l1 + y2 * l2;
 );
@@ -389,7 +671,7 @@ function ucopy_mix(y, u) (
 );
 
 function voice_render() instance(idx velocity base_hz glide_oct rnd poly_at press)
-  local(hz, fenv, menv, r2, common, nz, nlev, env_scale, oct, fc, yl, yr, aenv, g, pw1, pw2, kf, fmc, j, src, dst) (
+  local(hz, fenv, menv, r2, common, nz, nlev, env_scale, oct, fc, yl, yr, aenv, g, pw1, pw2, kf, fmc, j, src, dst, pmod) (
   v_active[idx] ? (
     hz = base_hz * g_pitch_ratio;
     glide_oct !== 0 ? (
@@ -399,6 +681,7 @@ function voice_render() instance(idx velocity base_hz glide_oct rnd poly_at pres
     );
     fenv = this.fenv.adsr_process();
     menv = this.menv.adsr_process();
+    aenv = this.aenv.adsr_process();
     pw1 = g_pw1; pw2 = g_pw2; kf = filter_k; fmc = fm_cycles;
 
     // mod matrix, per voice: the global sums plus this note's own sources
@@ -428,6 +711,13 @@ function voice_render() instance(idx velocity base_hz glide_oct rnd poly_at pres
     );
     r2 = m_osc2 ? pow(2, (g_osc2_cents + fenv * osc2_env_pitch_cents + mm_v[5]) / 1200)
       : osc2_env_pitch_cents !== 0 ? pow(2, (g_osc2_cents + fenv * osc2_env_pitch_cents) / 1200) : g_osc2_ratio;
+    g_wpos1 = 0;
+    g_wpos2 = 0;
+    wt_osc1 || wt_osc2 ? (
+      pmod = g_wt_lfo + fenv * wt_position_filter_env + aenv * wt_position_amp_env;
+      g_wpos1 = clamp(osc1_wt_position + pmod, 0, 1);
+      g_wpos2 = clamp(osc2_wt_position + pmod, 0, 1);
+    );
 
     // oscillators x unison (xl / xr are globals summed by ucopy_mix)
     xl = 0; xr = 0;
@@ -495,8 +785,7 @@ function voice_render() instance(idx velocity base_hz glide_oct rnd poly_at pres
       );
     );
 
-    // amp
-    aenv = this.aenv.adsr_process();
+    // amp (aenv was advanced above, before the oscillators, so it can move the wavetable position)
     g = aenv * (1 - amp_velocity_amount + amp_velocity_amount * velocity);
     m_amp ? g *= pow(10, min(mm_v[7], 24) / 20);
     m_pan ? (
@@ -867,6 +1156,13 @@ fm_cycles = fm_index / (2 * $pi);
 transpose_n = floor(transpose_semitones + 0.5);
 voice_mono = voice_mode >= 0.5 ? 1 : 0;
 voice_legato = voice_mode >= 1.5 ? 1 : 0;
+// wavetable oscillators: build the selected banks (once; the tables do not depend on srate)
+wt_osc1 = osc1_waveform >= 3.5 ? 1 : 0;
+wt_osc2 = osc2_waveform >= 3.5 ? 1 : 0;
+wt_bank1_i = clamp(floor(osc1_wt_bank + 0.5), 0, WT_BANKS - 1);
+wt_bank2_i = clamp(floor(osc2_wt_bank + 0.5), 0, WT_BANKS - 1);
+wt_osc1 ? wt_build(wt_bank1_i);
+wt_osc2 ? wt_build(wt_bank2_i);
 noise_type_i = clamp(floor(noise_type + 0.5), 0, 3);
 noise_clock = noise_clock_tab[noise_type_i] * pow(2, noise_clock_oct);
 noise_filter_i = clamp(floor(noise_filter_mode + 0.5), 0, 3);
@@ -1006,6 +1302,7 @@ g_pw1 = clamp(osc1_pulse_width + g_lfo * lfo_pulse_width, 0.02, 0.98);
 g_pw2 = clamp(osc2_pulse_width + g_lfo * lfo_pulse_width, 0.02, 0.98);
 g_tremolo = 1 - lfo_amp * (0.5 - 0.5 * g_lfo);
 g_sync = osc2_hard_sync >= 0.5;
+g_wt_lfo = g_lfo * wt_position_lfo;
 
 mix_l = 0;
 mix_r = 0;
