@@ -5,7 +5,7 @@ import { defaultValues, SYNTH_PARAMS } from '../src/dsp/params.js';
 import { synth_init, synth_note_on, synth_render, synth_update } from '../src/dsp/synth.js';
 import { osc_init, osc_set_freq } from '../src/dsp/lib.js';
 import {
-  wt_build, wt_mip, wt_process, wt_table_value, WT_BANK_NAMES, WT_BANKS, WT_FRAMES, WT_MAX_HARM, WT_MIPS, WT_SIZE,
+  wt_build, wt_mip, wt_mip_fade, wt_process, wt_table_value, WT_BANK_NAMES, WT_BANKS, WT_FRAMES, WT_MAX_HARM, WT_MIPS, WT_SIZE,
 } from '../src/dsp/wavetable.js';
 import { SYNTH_PRESETS } from '../src/presets/synth.js';
 
@@ -95,6 +95,95 @@ test('the table picked for a pitch never puts a harmonic above Nyquist (and keep
       const top = WT_MAX_HARM / 2 ** m;
       assert.ok(top * inc <= 0.5, `${hz} Hz @${sr}: harmonic ${top} aliases`);
       if (m > 0) assert.ok(2 * top * inc > 0.5, `${hz} Hz @${sr}: mip ${m} is darker than needed`);
+    }
+  }
+});
+
+/** Lower edge (cycles per sample) of the top mip level that is band-safe at inc: inc of the boundary m -> m + 1. */
+const boundary = (m) => (0.5 / WT_MAX_HARM) * 2 ** m;
+
+test('crossing a mip boundary does not make the waveform jump (adjacent levels are crossfaded)', () => {
+  // reviewer's repro: 48 kHz, Basic Shapes square, 750 Hz is the mip 4 -> 5 boundary
+  const at = (inc, bank = 0, pos = 1, phase = 21 / 2048) => wt_process({ phase, inc, wrapped: 0 }, bank, pos, 0);
+  const lo = at((750 - 0.00001) / SR);
+  const hi = at((750 + 0.00001) / SR);
+  assert.ok(Math.abs(lo - hi) < 1e-3, `750 Hz: ${lo} vs ${hi}`);
+  for (let bank = 0; bank < WT_BANKS; bank++) {
+    wt_build(bank);
+    for (const pos of [0, 0.37, 1]) {
+      for (let m = 0; m < WT_MIPS - 1; m++) {
+        const inc = boundary(m);
+        for (const phase of [0.013, 21 / 2048, 0.25, 0.5007, 0.77]) {
+          const a = at(inc * (1 - 1e-9), bank, pos, phase);
+          const b = at(inc * (1 + 1e-9), bank, pos, phase);
+          assert.ok(Math.abs(a - b) < 1e-3, `bank ${bank} pos ${pos} mip ${m}->${m + 1} phase ${phase}: ${a} vs ${b}`);
+        }
+      }
+    }
+  }
+});
+
+test('a slow pitch sweep over many mip boundaries has no extra steps at the boundaries', () => {
+  // 30 Hz -> 15 kHz exponentially; d[n] is the part of the sample-to-sample change that comes from the
+  // frequency moving (same phase, previous vs current inc). It must stay tiny everywhere, and in
+  // particular not be larger near a boundary than inside an octave.
+  for (const [bank, pos] of [[0, 1], [1, 0.8], [3, 0.5], [4, 0.3]]) {
+    wt_build(bank);
+    const n = 120000;
+    const o = { phase: 0, inc: 30 / SR, wrapped: 0 };
+    const k = Math.pow(15000 / 30, 1 / n);
+    let prevInc = o.inc;
+    let prevMip = wt_mip(o.inc);
+    let crossings = 0;
+    let nearMax = 0;
+    let farMax = 0;
+    let lastCross = -1e9;
+    const d = new Float64Array(n);
+    for (let i = 0; i < n; i++) {
+      const old = wt_process({ phase: o.phase, inc: prevInc, wrapped: 0 }, bank, pos, 0);
+      const y = wt_process(o, bank, pos, 0);
+      d[i] = Math.abs(y - old);
+      prevInc = o.inc;
+      o.inc *= k;
+      const m = wt_mip(prevInc);
+      if (m !== prevMip) {
+        crossings++;
+        lastCross = i;
+        nearMax = Math.max(nearMax, d[i], d[i - 1]);
+      }
+      prevMip = m;
+      if (i - lastCross > 4) farMax = Math.max(farMax, d[i]);
+    }
+    assert.ok(crossings >= 8, `only ${crossings} boundaries crossed`);
+    assert.ok(nearMax < 1e-3, `bank ${bank}: step ${nearMax} at a mip boundary`);
+    assert.ok(nearMax <= 2 * farMax + 1e-6, `bank ${bank}: boundary step ${nearMax} vs ${farMax} elsewhere`);
+  }
+});
+
+test('the crossfade only ever gives weight to band-safe tables', () => {
+  for (let bank = 0; bank < WT_BANKS; bank++) wt_build(bank);
+  for (let inc = 1e-4; inc < 0.49; inc *= 1.07) {
+    const m = wt_mip(inc);
+    const w = wt_mip_fade(inc, m);
+    assert.ok(w >= 0 && w <= 1, `inc ${inc}: weight ${w}`);
+    assert.ok((WT_MAX_HARM >> m) * inc <= 0.5 || m === WT_MIPS - 1);
+    if (w > 0) assert.ok(m + 1 < WT_MIPS, `inc ${inc}: fades past the last level`);
+  }
+  // the table the oscillator actually plays (read at the sample points) has nothing above Nyquist
+  for (const bank of [0, 1, 4]) {
+    for (const hz of [700, 1300, 1460, 2900, 5500]) {
+      const inc = hz / SR;
+      const tbl = new Float64Array(WT_SIZE);
+      for (let i = 0; i < WT_SIZE; i++) tbl[i] = wt_process({ phase: i / WT_SIZE, inc, wrapped: 0 }, bank, 0.9, 0);
+      for (const kk of [Math.floor(0.5 / inc) + 1, Math.floor(0.5 / inc) + 3, Math.floor(0.75 / inc)]) {
+        let re = 0;
+        let im = 0;
+        for (let i = 0; i < WT_SIZE; i++) {
+          re += tbl[i] * Math.cos((2 * Math.PI * kk * i) / WT_SIZE);
+          im -= tbl[i] * Math.sin((2 * Math.PI * kk * i) / WT_SIZE);
+        }
+        assert.ok((2 * Math.hypot(re, im)) / WT_SIZE < 1e-9, `bank ${bank} ${hz} Hz: harmonic ${kk} above Nyquist`);
+      }
     }
   }
 });

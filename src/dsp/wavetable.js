@@ -7,7 +7,9 @@
 //   WT_BANKS banks x WT_FRAMES frames x WT_MIPS mip levels x WT_SIZE samples, one flat array.
 //   table(bank, frame, mip) starts at ((bank * WT_FRAMES + frame) * WT_MIPS + mip) * WT_SIZE.
 // Mip level m holds only harmonics 1 .. WT_MAX_HARM / 2^m (512, 256, ... 1). The oscillator picks the
-// lowest level whose top harmonic stays below Nyquist, so nothing aliases. Each table is made by one
+// lowest level m whose top harmonic stays below Nyquist, so nothing aliases. Over the top half-octave
+// of m's range it crossfades towards level m + 1 (half the harmonics, so also band-safe), reaching
+// m + 1 alone exactly at the boundary: the waveform never jumps when a bend / glide crosses a level. Each table is made by one
 // inverse FFT of the frame's spectrum truncated to the level's harmonics (plain radix-2 loops,
 // written the same way in EEL2). Every frame is scaled so its full-band (mip 0) table peaks at 1,
 // and all its mip levels share that gain (no level jump when the pitch crosses a mip boundary).
@@ -247,6 +249,25 @@ export function wt_mip(inc) {
 }
 
 /**
+ * Crossfade start, as a fraction of the boundary inc of a level: the top half-octave (1 / sqrt(2)).
+ * Written as a literal so the JSFX uses the bit-identical constant.
+ */
+export const WT_FADE = 0.7071067811865476;
+
+/**
+ * Weight (0..1) of mip level m + 1 when level m = wt_mip(inc) is playing: 0 below WT_FADE * th (th = the
+ * boundary inc of level m, where wt_mip switches to m + 1), rising linearly in inc to exactly 1 at th.
+ * Level m + 1 has fewer harmonics than m, so giving it weight never aliases. The last level does not fade.
+ */
+export function wt_mip_fade(inc, m) {
+  if (m >= WT_MIPS - 1) return 0;
+  let th = 0.5 / WT_MAX_HARM;
+  for (let i = 0; i < m; i++) th *= 2;
+  const lo = th * WT_FADE;
+  return inc > lo ? (inc - lo) / (th - lo) : 0;
+}
+
+/**
  * One sample of a wavetable oscillator. o is an osc_init() object (phase / inc / wrapped, like
  * osc_process, so hard sync and FM work the same). bank 0..WT_BANKS-1 (built), pos 0..1, pm in cycles.
  */
@@ -265,8 +286,18 @@ export function wt_process(o, bank, pos, pm) {
   const i1 = i0 + 1 >= WT_SIZE ? 0 : i0 + 1;
   const b0 = bank * BANK_LEN + f0 * FRAME_LEN + m * WT_SIZE;
   const b1 = b0 + FRAME_LEN;
-  const a = wt_data[b0 + i0] + fr * (wt_data[b0 + i1] - wt_data[b0 + i0]);
-  const b = wt_data[b1 + i0] + fr * (wt_data[b1 + i1] - wt_data[b1 + i0]);
+  let a = wt_data[b0 + i0] + fr * (wt_data[b0 + i1] - wt_data[b0 + i0]);
+  let b = wt_data[b1 + i0] + fr * (wt_data[b1 + i1] - wt_data[b1 + i0]);
+  // top half-octave of the level: blend towards the next (band-poorer) level, read only when needed
+  const w = wt_mip_fade(dt, m);
+  if (w > 0) {
+    const c0 = b0 + WT_SIZE;
+    const c1 = b1 + WT_SIZE;
+    const a2 = wt_data[c0 + i0] + fr * (wt_data[c0 + i1] - wt_data[c0 + i0]);
+    const b2 = wt_data[c1 + i0] + fr * (wt_data[c1 + i1] - wt_data[c1 + i0]);
+    a += w * (a2 - a);
+    b += w * (b2 - b);
+  }
   o.phase += dt;
   o.wrapped = 0;
   if (o.phase >= 1) {

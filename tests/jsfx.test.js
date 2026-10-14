@@ -95,6 +95,30 @@ test('JSFX synth matches JS: wavetable oscillators (every bank, position modulat
     check('synth', scenario('synth', { osc1_waveform: 4, osc1_wt_bank: 0, osc1_wt_position: 0.6, fx_delay_on: 1, fx_reverb_on: 1 }), sweep, 0.3, 'synth/wavetable + fx @192k', 192000);
   });
 
+test('JSFX synth matches JS: wavetable mip crossfade during slow bends and glides across level boundaries',
+  { skip: !HAVE && 'jsfx_render not built' }, () => {
+    // a 2-octave bend up and back down in small steps from A4 crosses the 750 / 1500 Hz (48 kHz)
+    // boundaries and sits inside the crossfade regions for long stretches
+    const bend = [[0, 0x90, 69, 100]];
+    for (let i = 0; i <= 256; i++) {
+      const b = 8192 + Math.round(((i <= 128 ? i : 256 - i) / 128) * 8191);
+      bend.push([200 + i * 100, 0xe0, b & 127, b >> 7]);
+    }
+    bend.push([26000, 0x80, 69, 0]);
+    for (const [bank, pos] of [[0, 1], [1, 0.7], [4, 0.4]]) {
+      const p = scenario('synth', {
+        osc1_waveform: 4, osc1_wt_bank: bank, osc1_wt_position: pos, osc2_level: 0, pitch_bend_range_cents: 2400,
+        filter_cutoff_hz: 20000,
+      });
+      check('synth', p, bend, 0.6, `synth/wavetable bend across mip boundaries bank ${bank}`);
+    }
+    // legato glide over 4 octaves (crosses four boundaries)
+    const glide = [[0, 0x90, 40, 100], [1000, 0x90, 88, 100], [16000, 0x90, 52, 100], [16100, 0x80, 40, 0],
+      [16100, 0x80, 88, 0], [27000, 0x80, 52, 0]];
+    const g = scenario('synth', { osc1_waveform: 4, osc1_wt_bank: 2, osc1_wt_position: 0.5, glide_ms: 250, voice_mode: 2 });
+    check('synth', g, glide, 0.6, 'synth/wavetable glide across mip boundaries');
+  });
+
 test('JSFX physical model matches JS for every preset', { skip: !HAVE && 'jsfx_render not built' }, () => {
   for (const preset of PHYS_PRESETS) {
     check('phys', resolvePreset(INSTRUMENTS.phys.defs, preset), PERFORMANCE, 0.7, `phys/${preset.name}`);

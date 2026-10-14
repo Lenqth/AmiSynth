@@ -244,6 +244,7 @@ WT_SIZE = 2048;
 WT_FRAMES = 8;
 WT_MIPS = 10;
 WT_MAX_HARM = 512;
+WT_FADE = 0.7071067811865476; // mip crossfade starts 1/2 octave below each level's boundary
 WT_BANKS = 5;
 WT_FRAME_LEN = WT_MIPS * WT_SIZE;
 WT_BANK_LEN = WT_FRAMES * WT_FRAME_LEN;
@@ -453,13 +454,17 @@ function wt_build(bank) local(i, f, base, peak, a, gain, harm, m) (
 );
 
 /** one sample of a wavetable oscillator (same phase / inc / wrapped state as osc_process) */
-function wt_process(bank, pos, pm) instance(phase inc wrapped) local(t, m, th, fp, f0, ff, x, i0, fr, i1, b0, b1, a, b) (
+function wt_process(bank, pos, pm) instance(phase inc wrapped) local(t, m, th, lo, w, fp, f0, ff, x, i0, fr, i1, b0, b1, a, b, c0, c1, a2, b2) (
   t = phase + pm;
   t -= floor(t);
   // lowest mip level whose top harmonic (WT_MAX_HARM / 2^m) * inc stays at or below 0.5
   m = 0;
   th = 0.5 / WT_MAX_HARM;
   while (inc > th && m < WT_MIPS - 1) ( th *= 2; m += 1; );
+  // weight of level m + 1 (fewer harmonics, band-safe): 0 below WT_FADE * th, linear in inc up to
+  // exactly 1 at the boundary th, so crossing a level never makes the waveform jump; last level: none
+  lo = th * WT_FADE;
+  w = m < WT_MIPS - 1 && inc > lo ? (inc - lo) / (th - lo) : 0;
   fp = pos * (WT_FRAMES - 1);
   f0 = floor(fp);
   f0 > WT_FRAMES - 2 ? f0 = WT_FRAMES - 2;
@@ -472,6 +477,14 @@ function wt_process(bank, pos, pm) instance(phase inc wrapped) local(t, m, th, f
   b1 = b0 + WT_FRAME_LEN;
   a = b0[i0] + fr * (b0[i1] - b0[i0]);
   b = b1[i0] + fr * (b1[i1] - b1[i0]);
+  w > 0 ? (
+    c0 = b0 + WT_SIZE;
+    c1 = b1 + WT_SIZE;
+    a2 = c0[i0] + fr * (c0[i1] - c0[i0]);
+    b2 = c1[i0] + fr * (c1[i1] - c1[i0]);
+    a += w * (a2 - a);
+    b += w * (b2 - b);
+  );
   phase += inc;
   wrapped = 0;
   phase >= 1 ? (
