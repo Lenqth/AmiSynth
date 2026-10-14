@@ -17,6 +17,8 @@ The installer updates only bundled AmiSynth JSFX, Lua scripts, catalog files and
 | Script | Purpose / prerequisites | Project changes | MCP result |
 | --- | --- | --- | --- |
 | `AmiSynth - MCP guide.lua` | Read this guide; no selection required | None | Guide text in `reaper_mcp_script_result/last_result` |
+| `AmiSynth - Read sound.lua` | Read the current sound of a track's Synth/Physical/Drums as a JSON diff; optional request | None | `ok: {type, name, params, tuning, ...}` or `error: ...` |
+| `AmiSynth - Apply sound.lua` | Apply a JSON diff (real units) to a track; inserts the JSFX if missing; request required | Changes parameters (may add one FX); one Undo step | `ok: {applied, clamped, rejected, changed, sound, meter}` or `error: ...` |
 | `AmiSynth Companion.lua` | Interactive GUI; select a track containing an installed AmiSynth JSFX | User edits presets, macros or parameters; Undo available | No completion result; background GUI stays open |
 | `AmiSynth Drums - Create routed tracks.lua` | Create an instrument and four buses; install JSFX first | Adds 5 tracks and routes outputs; Undo available | No completion result; query tracks/routing afterwards |
 | `toolkit.lua` | Function library, loaded by `dofile`; requires sibling `../generated/catalog.lua` | Only when a caller invokes editing functions | None by itself; wrapper must publish a result |
@@ -24,7 +26,66 @@ The installer updates only bundled AmiSynth JSFX, Lua scripts, catalog files and
 
 Register interactive actions with Actions → New action → Load ReaScript. For the current REAPER MCP, `script_list(filter="AmiSynth")` discovers `.lua` / `.eel` files **only inside REAPER's Scripts directory**, reading the `@description` / `@about` headers. The filter matches paths, so keep “AmiSynth” in the directory or filename. Pass the relative path returned by `script_list` unchanged to `script_run`; do not assume a repository path is runnable.
 
-Start with `AmiSynth - MCP guide.lua`. It is read-only and returns instructions without requiring a GUI. Running Companion does not expose its buttons as MCP tools; running toolkit.lua does not apply a preset. `result_found=false` means no completion result was reported and does not prove failure.
+Start with `AmiSynth - MCP guide.lua`. To design a sound, use **Read sound → edit the diff → Apply sound** (next section). It is read-only and returns instructions without requiring a GUI. Running Companion does not expose its buttons as MCP tools; running toolkit.lua does not apply a preset. `result_found=false` means no completion result was reported and does not prove failure.
+
+## Design a sound in one round trip (Read sound / Apply sound)
+
+`script_run` takes no arguments, so both actions read a JSON **request** placed beforehand:
+
+1. ExtState section `AmiSynthMCP`, key `apply_sound` (or `read_sound`), non-persistent. It is **deleted when read**, so a request is used once. Use this when your MCP server can set ExtState (or run one line of Lua: `reaper.SetExtState('AmiSynthMCP', 'apply_sound', json, false)`).
+2. Otherwise the file `Scripts/AmiSynth/apply_sound.json` (or `read_sound.json`), next to the `reaper/` directory. Files are **not** deleted; the result's `request_source` says which one was used, so overwrite or remove a stale file yourself.
+
+Both publish one line to `reaper_mcp_script_result/last_result`: `ok: <JSON>` or `error: <message>`. On `error:` nothing was changed.
+
+### Read sound
+
+Request (all optional; with no request, the first selected track's only AmiSynth instrument is read):
+
+```json
+{ "track": "Bass", "instrument": "Synth" }
+```
+
+Result (`params` holds only values that differ from the defaults, in real units, exactly like the web **JSON コピー**):
+
+```json
+{"fx":0,"instrument":"synth","meter":{...},"name":"Bass","ok":true,
+ "params":{"amp_release_ms":180,"filter_cutoff_hz":650,"voice_mode":1},
+ "request_source":"ExtState AmiSynthMCP/read_sound","track":"Bass",
+ "tuning":{"tuning_divisions":12,...},"type":"amisynth-synth-preset"}
+```
+
+The whole object can be pasted into the web **JSON 貼り付け**. Tuning is reported separately and never changed by Apply sound.
+
+### Apply sound
+
+```json
+{
+  "track": "Bass",
+  "instrument": "Synth",
+  "base": "Sub Bass",
+  "params": { "filter_cutoff_hz": 650, "voice_mode": "Mono", "amp_release_ms": 180 }
+}
+```
+
+- `track`: `"selected"` (default; first selected track) or an exact track name (case-insensitive if unique).
+- `instrument`: `Synth`, `Physical` or `Drums` (also `synth`/`phys`/`drums` or a web `type` such as `amisynth-phys-preset`). If omitted, the track's only AmiSynth instrument is used. If the track has none, the JSFX `Effects/AmiSynth/AmiSynth <instrument>.jsfx` is inserted at the end of the chain (`"insert": false` forbids this). `fx` (zero-based) picks one instance when there are several.
+- `base`: what unspecified parameters become. `"current"` (**default**: edit the current sound), `"default"` (all defaults: same meaning as the web paste, use it to reproduce a Read sound result exactly) or a built-in preset name from `generated/automation.json`.
+- `params`: parameter id → real value (Hz/ms/dB/…), enum index or enum label. Out-of-range values are clamped and integer parameters rounded (`clamped`, with the range); unknown ids, `tuning_*`, file indices and non-numbers are skipped (`rejected`, with a reason). The rest is still applied. If every given id is rejected, nothing changes and an error is returned.
+- `dry_run: true`: validate and preview the resulting `sound` without changing the project.
+- `audition: true`: currently answered with `"audition": "skipped: ..."`. A one-shot ReaScript cannot play and measure audio before it returns; start playback yourself and look at the meter.
+
+All writes (plus an inserted JSFX) form **one Undo step** named `AmiSynth MCP: apply sound (<track>)`. Each write is verified by readback; on failure the previous values are restored and an inserted JSFX is removed. Result:
+
+```json
+{"applied":{"amp_release_ms":180,"filter_cutoff_hz":650,"voice_mode":1},"base":"Sub Bass",
+ "changed":["filter_cutoff_hz","voice_mode","amp_release_ms", ...],"clamped":[],"dry_run":false,
+ "fx":0,"inserted":false,"instrument":"synth","meter":{...},"ok":true,"rejected":[],
+ "sound":{"params":{...},"type":"amisynth-synth-preset"},"track":"Bass"}
+```
+
+`sound` is the resulting diff (same as a following Read sound). `meter` is REAPER's **track** meter at the moment of the call (`peak_l_db`/`peak_r_db`, absent at -inf, plus `playing`); it only shows something while the project is playing. The JSFX's own peak/RMS display is drawing state inside the plug-in and cannot be read from ReaScript.
+
+Typical LLM loop: Read sound → change a few values → Apply sound with `"base": "current"` (or the full edited diff with `"base": "default"`) → ask the user to listen.
 
 ## Headless wrapper example
 
@@ -44,7 +105,7 @@ reaper.SetExtState('reaper_mcp_script_result', 'last_result',
   ok and result or ('error: ' .. tostring(result)), false)
 ```
 
-Discover the wrapper with `script_list`, then execute its returned path with `script_run`. `result_found=true` only says a result was delivered: inspect the text for `ok:` or `error:`. Do not run project-changing actions without the user's authorization. No arbitrary arguments are accepted by `script_run`; customize the wrapper beforehand or use another integration capable of executing Lua.
+Discover the wrapper with `script_list`, then execute its returned path with `script_run`. `result_found=true` only says a result was delivered: inspect the text for `ok:` or `error:`. Do not run project-changing actions without the user's authorization. No arbitrary arguments are accepted by `script_run`; customize the wrapper beforehand, or pass a request to Read sound / Apply sound as described above.
 
 ## Toolkit API and units
 
