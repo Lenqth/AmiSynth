@@ -28,6 +28,16 @@ export const LFO_SYNC_BEATS = [0, 16, 8, 4, 2, 3, 4 / 3, 1, 1.5, 2 / 3, 0.5, 0.7
 const LFO_SYNC_NAMES = ['Off', '4 bars', '2 bars', '1/1', '1/2', '1/2 dotted', '1/2 triplet', '1/4', '1/4 dotted', '1/4 triplet',
   '1/8', '1/8 dotted', '1/8 triplet', '1/16', '1/16 dotted', '1/16 triplet', '1/32'];
 
+/**
+ * Note values for the tempo-synced delay, in beats (same style as LFO_SYNC_BEATS, without the bar
+ * lengths). Index 0 = not synced (Delay Time in ms).
+ */
+export const DELAY_SYNC_BEATS = [0, 4, 2, 3, 4 / 3, 1, 1.5, 2 / 3, 0.5, 0.75, 1 / 3, 0.25, 0.375, 1 / 6, 0.125];
+const DELAY_SYNC_NAMES = ['Off', '1/1', '1/2', '1/2 dotted', '1/2 triplet', '1/4', '1/4 dotted', '1/4 triplet',
+  '1/8', '1/8 dotted', '1/8 triplet', '1/16', '1/16 dotted', '1/16 triplet', '1/32'];
+/** Longest echo (seconds of delay memory); synced times beyond it (1/1 below 60 bpm) are capped. */
+export const DELAY_MAX_SECONDS = 4;
+
 /** Arpeggiator step lengths in beats. */
 export const ARP_RATE_BEATS = [1, 0.5, 1 / 3, 0.75, 0.25, 1 / 6, 0.125];
 const ARP_RATE_NAMES = ['1/4', '1/8', '1/8 triplet', '1/8 dotted', '1/16', '1/16 triplet', '1/32'];
@@ -242,6 +252,42 @@ export const SYNTH_PARAMS = /** @type {ParamDef[]} */ ([
     description: 'How far the cutoff CC moves the cutoff: CC 0 = this many octaves down, CC 127 = up.' },
   TUNING_SOURCE,
   TUNING_SLOT,
+
+  // ---- effects after the voice sum: chorus -> delay -> reverb (all Off by default)
+  { id: 'fx_chorus_on', name: 'Chorus', group: 'Chorus', min: 0, max: 1, default: 0, step: 1, unit: '', options: ['Off', 'On'],
+    description: 'Stereo chorus on the whole synth (first effect). Off = bypassed, no CPU.' },
+  { id: 'fx_chorus_mix', name: 'Chorus Mix', group: 'Chorus', min: 0, max: 1, default: 0.5, step: 0.001, unit: '',
+    description: 'Dry/wet balance of the chorus (0 = dry, 0.5 = classic chorus, 1 = only the modulated copy: vibrato).' },
+  { id: 'fx_chorus_rate_hz', name: 'Chorus Rate', group: 'Chorus', min: 0.05, max: 5, default: 0.8, step: 0.01, unit: 'Hz', scale: 'log',
+    description: 'Speed of the chorus sweep (left and right a quarter cycle apart).' },
+  { id: 'fx_chorus_depth_ms', name: 'Chorus Depth', group: 'Chorus', min: 0, max: 8, default: 3, step: 0.01, unit: 'ms',
+    description: 'How far the delay sweeps (from 7 ms up to 7 ms + depth). More = more detune and wobble.' },
+
+  { id: 'fx_delay_on', name: 'Delay', group: 'Delay', min: 0, max: 1, default: 0, step: 1, unit: '', options: ['Off', 'On'],
+    description: 'Stereo echo after the chorus. Off = bypassed, no CPU.' },
+  { id: 'fx_delay_mix', name: 'Delay Mix', group: 'Delay', min: 0, max: 1, default: 0.25, step: 0.001, unit: '',
+    description: 'Dry/wet balance of the delay (0 = dry, 1 = only the echoes).' },
+  { id: 'fx_delay_sync', name: 'Delay Sync', group: 'Delay', min: 0, max: DELAY_SYNC_BEATS.length - 1, default: 9, step: 1, unit: '', options: DELAY_SYNC_NAMES,
+    description: `Echo time as a note value at the host tempo (JSFX: REAPER tempo, web: BPM). Off = use Delay Time. Capped at ${DELAY_MAX_SECONDS} s.` },
+  { id: 'fx_delay_time_ms', name: 'Delay Time', group: 'Delay', min: 1, max: 2000, default: 375, step: 1, unit: 'ms', scale: 'log',
+    description: 'Echo time in ms when Delay Sync is Off. Changes glide (tape-like) instead of clicking.' },
+  { id: 'fx_delay_feedback', name: 'Delay Feedback', group: 'Delay', min: 0, max: 0.95, default: 0.35, step: 0.001, unit: '',
+    description: 'How much of each echo is fed back (more = more repeats).' },
+  { id: 'fx_delay_ping_pong', name: 'Delay Ping-Pong', group: 'Delay', min: 0, max: 1, default: 0, step: 1, unit: '', options: ['Off', 'On'],
+    description: 'On: the echoes bounce left -> right -> left (input summed to mono). Off: each side echoes itself.' },
+  { id: 'fx_delay_high_cut_hz', name: 'Delay High Cut', group: 'Delay', min: 200, max: 20000, default: 6000, step: 1, unit: 'Hz', scale: 'log',
+    description: 'Low-pass in the feedback loop: every repeat gets darker (damping, like tape or analog delays).' },
+
+  { id: 'fx_reverb_on', name: 'Reverb', group: 'Reverb', min: 0, max: 1, default: 0, step: 1, unit: '', options: ['Off', 'On'],
+    description: 'Algorithmic reverb (diffusers + 4-line feedback delay network) after the delay. Off = bypassed, no CPU.' },
+  { id: 'fx_reverb_mix', name: 'Reverb Mix', group: 'Reverb', min: 0, max: 1, default: 0.25, step: 0.001, unit: '',
+    description: 'Dry/wet balance of the reverb (0 = dry, 1 = only the reverb).' },
+  { id: 'fx_reverb_decay_ms', name: 'Reverb Decay', group: 'Reverb', min: 200, max: 15000, default: 2500, step: 1, unit: 'ms', scale: 'log',
+    description: 'Reverb time: how long the tail takes to fall by 60 dB.' },
+  { id: 'fx_reverb_size', name: 'Reverb Size', group: 'Reverb', min: 0, max: 1, default: 0.5, step: 0.001, unit: '',
+    description: 'Size of the space (spacing of the reflections): 0 = small room, 1 = large hall.' },
+  { id: 'fx_reverb_damping', name: 'Reverb Damping', group: 'Reverb', min: 0, max: 1, default: 0.5, step: 0.001, unit: '',
+    description: 'How fast high frequencies die in the tail (0 = bright, 1 = dark).' },
 
   // ---- modulation (added later, appended so the older slider numbers stay)
   { id: 'lfo2_waveform', name: 'LFO2 Waveform', group: 'LFO 2', min: 0, max: 5, default: 0, step: 1, unit: '', options: LFO_WAVES,

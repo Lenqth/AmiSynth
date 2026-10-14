@@ -47,7 +47,8 @@
 
 import {
   adsr_gate_off, adsr_gate_on, adsr_init, adsr_process, adsr_set, ap1_init, ap1_phase_delay, ap1_process,
-  clamp, db_to_gain, delay_clear, delay_init, delay_read, delay_write, lp1_phase_delay, noise_seed, noise_white,
+  clamp, db_to_gain, delay_clear, delay_init, delay_read, delay_write, fdn4_init, fdn4_process, fdn4_set,
+  lp1_phase_delay, noise_seed, noise_white,
   onepole_hp, onepole_init, onepole_lp, onepole_set, pan_gains, reson_init, reson_process, reson_reset,
   reson_set, reson_set_decay, soft_clip, svf_init, svf_process, svf_reset, svf_set, t60_coef, tuning_init,
   tuning_note_to_hz, tuning_set_edo, tuning_set_table, TWO_PI,
@@ -1327,53 +1328,24 @@ function amp_process(s, a, x) {
 }
 
 // ---------------------------------------------------------------------------
-// Room: 4-line feedback delay network (Hadamard mixing, one-pole damping in each line).
+// Room: the shared 4-line feedback delay network (lib.js fdn4_*) at its natural size.
 // Acoustic instruments sound dry and synthetic without at least a small room.
 
-const ROOM_LENS = [1171, 1429, 1663, 1951]; // samples at 48 kHz (mutually prime)
-
 function room_init(s) {
-  s.room = [];
-  for (let k = 0; k < 4; k++) {
-    const o = { line: {}, len: 0, g: 0, z: 0 };
-    delay_init(o.line, 8192);
-    s.room.push(o);
-  }
+  s.room = {};
+  fdn4_init(s.room, 8192);
   s.room_l = 0;
   s.room_r = 0;
 }
 
 function room_update(s, decay_ms) {
-  for (let k = 0; k < 4; k++) {
-    const o = s.room[k];
-    o.len = clamp(Math.round((ROOM_LENS[k] * s.sr) / 48000), 2, 8190);
-    // -60 dB after decay_ms: each pass through a line of len samples loses 60*len/(T*sr) dB
-    o.g = Math.pow(10, (-3 * o.len) / (decay_ms * 0.001 * s.sr));
-  }
+  fdn4_set(s.room, 1, decay_ms, 0.55, s.sr);
 }
 
 function room_process(s, l, r) {
-  const x = (l + r) * 0.5;
-  const o0 = s.room[0];
-  const o1 = s.room[1];
-  const o2 = s.room[2];
-  const o3 = s.room[3];
-  // read, damp (high frequencies die first) and scale by each line's decay gain
-  o0.z += 0.55 * (delay_read(o0.line, o0.len) - o0.z);
-  o1.z += 0.55 * (delay_read(o1.line, o1.len) - o1.z);
-  o2.z += 0.55 * (delay_read(o2.line, o2.len) - o2.z);
-  o3.z += 0.55 * (delay_read(o3.line, o3.len) - o3.z);
-  const a = o0.z * o0.g;
-  const b = o1.z * o1.g;
-  const c = o2.z * o2.g;
-  const d = o3.z * o3.g;
-  // orthogonal (energy preserving) Hadamard mix back into the lines
-  delay_write(o0.line, x + 0.5 * (a + b + c + d));
-  delay_write(o1.line, x + 0.5 * (a - b + c - d));
-  delay_write(o2.line, x + 0.5 * (a + b - c - d));
-  delay_write(o3.line, x + 0.5 * (a - b - c + d));
-  s.room_l = 2.5 * (a + c);
-  s.room_r = 2.5 * (b + d);
+  fdn4_process(s.room, (l + r) * 0.5);
+  s.room_l = 2.5 * s.room.l;
+  s.room_r = 2.5 * s.room.r;
 }
 
 /** Read a delay line oldest -> newest into `points` samples. */
