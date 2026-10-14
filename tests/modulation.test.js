@@ -200,3 +200,46 @@ test('presets with aftertouch / mod matrix stay unchanged without pressure and r
     }
   }
 });
+
+test('extreme amounts on every destination stay finite, also summed over all slots, and recover when the slots go off', () => {
+  // the amount slider takes -4800..4800 for every destination (JSFX / preset JSON / MCP): 2^4800 on an
+  // LFO rate used to make the LFO phase Infinity and the output NaN for good
+  for (let d = 1; d < MOD_DESTINATIONS.length; d++) {
+    for (const src of [1, 2, 6, 7]) {
+      for (const amt of [4800, -4800]) {
+        const s = {};
+        synth_init(s, SR);
+        const p = { ...defaultValues(SYNTH_PARAMS), lfo_pitch_cents: 30, lfo2_rate_hz: 3 };
+        for (let k = 1; k <= MOD_SLOTS; k++) Object.assign(p, { [`mod${k}_source`]: src, [`mod${k}_destination`]: d, [`mod${k}_amount`]: amt });
+        synth_update(s, p);
+        synth_midi(s, 0x90, 72, 127);
+        synth_midi(s, 0xb0, 1, 127);
+        synth_midi(s, 0xd0, 127, 0);
+        const label = `${MOD_DESTINATIONS[d].name} <- ${MOD_SOURCES[src]} x${MOD_SLOTS} ${amt}`;
+        for (let i = 0; i < 2000; i++) {
+          synth_render(s);
+          assert.ok(Number.isFinite(s.out_l) && Number.isFinite(s.out_r), label);
+        }
+        assert.ok(Number.isFinite(s.lfo.phase) && Number.isFinite(s.lfo2.phase), `${label}: LFO phase`);
+        const off = { ...p };
+        for (let k = 1; k <= MOD_SLOTS; k++) off[`mod${k}_source`] = 0;
+        synth_update(s, off);
+        for (let i = 0; i < 500; i++) synth_render(s);
+        assert.ok(Number.isFinite(s.out_l), `${label}: after the slots are off`);
+      }
+    }
+  }
+});
+
+test('LFO rate modulation is limited to the destination range (+/- 6 oct in total)', () => {
+  const s = {};
+  synth_init(s, SR);
+  synth_update(s, { ...defaultValues(SYNTH_PARAMS), lfo_rate_hz: 5, mod1_source: 6, mod1_destination: 9, mod1_amount: 4800,
+    mod2_source: 6, mod2_destination: 9, mod2_amount: 3 });
+  synth_midi(s, 0xb0, 1, 127);
+  synth_render(s);
+  assert.ok(Math.abs(s.lfo.inc - (5 * 64) / SR) < 1e-12, `inc ${s.lfo.inc}`);
+  synth_update(s, { ...s.p, mod1_amount: -4800, mod2_amount: -3 });
+  synth_render(s);
+  assert.ok(Math.abs(s.lfo.inc - 5 / 64 / SR) < 1e-12, `inc ${s.lfo.inc}`);
+});

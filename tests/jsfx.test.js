@@ -234,6 +234,10 @@ test('JSFX synth matches JS: LFO 2, mod envelope, mod matrix and aftertouch', { 
       mod_env_sustain: 0.5, ...slots([[6, 9, 2], [7, 10, 3], [1, 3, 0.4], [3, 11, 0.6]]),
     }],
     // pressure per voice in mono legato + unison stereo, pressure -> pitch and pan
+    // extreme amounts on the LFO rates (summed over slots): limited to +/- 6 oct, never Infinity / NaN
+    ['lfo rates at the slider ends', {
+      lfo_rate_hz: 7, lfo_pitch_cents: 30, lfo2_rate_hz: 2, ...slots([[6, 9, 4800], [7, 9, 4800], [1, 10, -4800], [7, 10, 4800]]),
+    }],
     ['legato unison pressure', {
       voice_mode: 2, glide_ms: 40, unison_voices: 3, ...slots([[7, 1, 50], [7, 8, -1], [2, 10, 1]]),
     }],

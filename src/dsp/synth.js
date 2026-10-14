@@ -60,6 +60,8 @@ const DST_FM = 6;
 const DST_AMP = 7;
 const DST_PAN = 8;
 const DST_LFO1_RATE = 9;
+/** Max total LFO rate offset in octaves (= the LFO 1 / LFO 2 Rate destination range). */
+const LFO_RATE_MOD_OCT = MOD_DESTINATIONS[DST_LFO1_RATE].range;
 const DST_LFO2_RATE = 10;
 const DST_NOISE = 11;
 const N_SRC = MOD_SOURCES.length;
@@ -819,8 +821,11 @@ export function synth_render(s) {
       else if (src === SRC_WHEEL) mg[dst] += s.modwheel * s.mm_amt[j];
       else if (src === SRC_PRESS && dst >= DST_LFO1_RATE && dst <= DST_LFO2_RATE) mg[dst] += s.press_g * s.mm_amt[j];
     }
-    if (s.mm_has[DST_LFO1_RATE]) s.lfo.inc = s.lfo_inc * Math.pow(2, mg[DST_LFO1_RATE]);
-    if (s.mm_has[DST_LFO2_RATE]) s.lfo2.inc = s.lfo2_inc * Math.pow(2, mg[DST_LFO2_RATE]);
+    // The summed rate offset is limited to +/- LFO_RATE_MOD_OCT (the destination's range): the amount
+    // slider takes -4800..4800 for every destination, and 2^4800 would make the phase Infinity / NaN
+    // for good (it would not recover when the slot is turned off).
+    if (s.mm_has[DST_LFO1_RATE]) s.lfo.inc = s.lfo_inc * Math.pow(2, clamp(mg[DST_LFO1_RATE], -LFO_RATE_MOD_OCT, LFO_RATE_MOD_OCT));
+    if (s.mm_has[DST_LFO2_RATE]) s.lfo2.inc = s.lfo2_inc * Math.pow(2, clamp(mg[DST_LFO2_RATE], -LFO_RATE_MOD_OCT, LFO_RATE_MOD_OCT));
   }
   const mv = s.mm_v;
   const m_pitch = mm > 0 && s.mm_has[DST_PITCH];

@@ -984,8 +984,9 @@ mm_n > 0 ? (
     : src === 7 && dst >= 9 && dst <= 10 ? mm_g[dst] += press_g * mm_amt[j];
     j += 1;
   );
-  mm_has[9] ? lfo.inc = lfo_inc * pow(2, mm_g[9]);
-  mm_has[10] ? lfo2.inc = lfo2_inc * pow(2, mm_g[10]);
+  // total rate offset limited to +/- 6 oct (= LFO_RATE_MOD_OCT in synth.js): 2^4800 would leave the phase at inf
+  mm_has[9] ? lfo.inc = lfo_inc * pow(2, clamp(mm_g[9], -6, 6));
+  mm_has[10] ? lfo2.inc = lfo2_inc * pow(2, clamp(mm_g[10], -6, 6));
 );
 m_pitch = mm_n > 0 && mm_has[1];
 m_res = mm_n > 0 && mm_has[3];
