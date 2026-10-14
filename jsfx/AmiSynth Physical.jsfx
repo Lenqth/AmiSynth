@@ -1017,7 +1017,9 @@ function render_wind() instance(vel maxv slope lp_z damp_b delay_len delay_len2 
   kind = wind_kind();
   kind === WIND_FREE_REED ? (
     // the tongue swings at its own pitch; air passes while it is clear of the slot
-    bp += bp * breath_noise * 0.25 * nz;
+    // Slow bellows fluctuation, not white pressure noise amplified by sr / hz in radiation.
+    // The separately added hiss still supplies the broadband breath component.
+    bp += bp * breath_noise * 0.25 * flut;
     org_ph += org_inc * vib;
     org_ph >= 1 ? org_ph -= 1;
     x = bp * sin(2 * $pi * org_ph);

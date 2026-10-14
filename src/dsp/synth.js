@@ -90,6 +90,8 @@ function voice_create() {
     rnd: 0, poly_at: 0, press: 0,
     // chip / S&H noise: shift register, clock phase, current output; noise-only filter
     nz_reg: 1, nz_phase: 0, nz_out: 0, nz_filt: {},
+    // procedural sound FX noise: independent clap timers and a private random stream
+    sfx: { time: 0, phase: 0, lp1: 0, lp2: 0, env: 0, rnd: 901, claps: new Float64Array(12) },
   };
   for (let u = 0; u < MAX_UNISON; u++) {
     v.osc1.push({});
@@ -120,6 +122,7 @@ const NOISE_CLOCK = [0, 32, 93, 8];
  * feedback = bit0 XOR bit1 (long, 32767 steps) or bit0 XOR bit6 (short, 93 steps).
  */
 function voice_noise(s, v, hz) {
+  if (s.noise_type >= 4) return sound_fx_noise(s, v.sfx);
   v.nz_phase += Math.min(1, (hz * s.noise_clock) / s.sr);
   if (v.nz_phase >= 1) {
     v.nz_phase -= 1;
@@ -135,6 +138,59 @@ function voice_noise(s, v, hz) {
     }
   }
   return v.nz_out;
+}
+
+function sound_fx_reset(s, v) {
+  const f = v.sfx;
+  f.time = 0; f.phase = 0; f.lp1 = 0; f.lp2 = 0; f.env = 0;
+  f.rnd = 901 + (v.age % 997) * 37 + Math.round(v.velocity * 127) * 17;
+  for (let i = 0; i < 6; i++) {
+    f.claps[2 * i] = (0.005 + 0.047 * i) * s.sr / s.sfx_rate;
+    f.claps[2 * i + 1] = 0;
+  }
+}
+
+function sound_fx_random(f) {
+  f.rnd *= 16807;
+  f.rnd -= Math.floor(f.rnd / 2147483647) * 2147483647;
+  return f.rnd / 2147483647;
+}
+
+/** Noise sources with their own temporal structure, independent of oscillator note pitch. */
+function sound_fx_noise(s, f) {
+  const nz = noise_white();
+  f.lp1 += s.sfx_a1 * (nz - f.lp1);
+  f.lp2 += s.sfx_a2 * (nz - f.lp2);
+  if (s.noise_type === 4) {
+    const ph = f.phase;
+    f.phase += 11 * s.sfx_rate / s.sr;
+    if (f.phase >= 1) f.phase -= 1;
+    const blade = Math.exp(-18 * ph);
+    // Each blade has a low pressure thump, followed by a decaying air wash; no square gating.
+    return 3 * (f.lp1 * (0.12 + 0.88 * blade) + f.lp2 * 0.12 * blade
+      + 0.22 * Math.sin(TWO_PI * 4 * ph) * Math.exp(-10 * ph));
+  }
+  if (s.noise_type === 5) {
+    let env = 0;
+    for (let i = 0; i < 6; i++) {
+      const o = 2 * i;
+      f.claps[o]--;
+      if (f.claps[o] <= 0) {
+        f.claps[o] = (0.11 + 0.35 * sound_fx_random(f)) * s.sr / s.sfx_rate;
+        f.claps[o + 1] = 0.6 + 0.4 * sound_fx_random(f);
+      }
+      f.claps[o + 1] *= s.sfx_clap_decay;
+      env += f.claps[o + 1];
+    }
+    f.env += s.sfx_clap_attack * (env - f.env);
+    return 2 * (f.lp1 - f.lp2) * f.env;
+  }
+  const t = f.time;
+  f.time += s.sfx_rate / s.sr;
+  // A millisecond-scale crack, short low-frequency body and a dropping pressure thump.
+  // The source dies even with the key held; the regular amp envelope and room still apply.
+  const thump = Math.sin(TWO_PI * (50 * t + 2 * (1 - Math.exp(-t / 0.02)))) * Math.exp(-t / 0.05);
+  return 3 * (nz * Math.exp(-t / 0.008) + 1.2 * f.lp1 * Math.exp(-t / 0.08) + 0.5 * thump);
 }
 
 /**
@@ -295,8 +351,13 @@ export function synth_update(s, p) {
   s.drive_makeup = 1 / (1 + 1.5 * p.filter_drive);
   s.fm_cycles = p.fm_index / TWO_PI;
   s.transpose = Math.round(p.transpose_semitones);
-  s.noise_type = clamp(Math.round(p.noise_type), 0, 3);
-  s.noise_clock = NOISE_CLOCK[s.noise_type] * Math.pow(2, p.noise_clock_oct);
+  s.noise_type = clamp(Math.round(p.noise_type), 0, 6);
+  s.noise_clock = (NOISE_CLOCK[s.noise_type] ?? 0) * Math.pow(2, p.noise_clock_oct);
+  s.sfx_rate = Math.pow(2, p.noise_clock_oct);
+  s.sfx_a1 = 1 - Math.exp(-TWO_PI * (s.noise_type === 4 ? 400 : s.noise_type === 5 ? 6000 : 700) / s.sr);
+  s.sfx_a2 = 1 - Math.exp(-TWO_PI * (s.noise_type === 4 ? 2800 : 400) / s.sr);
+  s.sfx_clap_decay = Math.exp(-1 / (0.018 * s.sr));
+  s.sfx_clap_attack = 1 - Math.exp(-1 / (0.0015 * s.sr));
   s.noise_filter = clamp(Math.round(p.noise_filter_mode), 0, 3);
   s.cc_cutoff_num = Math.round(p.cc_cutoff_number);
   s.cc_mult = Math.pow(2, clamp((s.cc_cutoff_value - 64) / 63, -1, 1) * p.cc_cutoff_depth_oct);
@@ -484,6 +545,7 @@ function poly_note_on(s, key, pitch, velocity) {
   adsr_gate_on(v.filt_env);
   adsr_gate_on(v.mod_env);
   v.rnd = mod_random(s);
+  if (s.noise_type >= 4) sound_fx_reset(s, v);
 }
 
 function poly_note_off(s, key) {
@@ -532,6 +594,7 @@ function mono_play(s, key, pitch, velocity, retrig, overlap) {
     adsr_gate_on(v.filt_env);
     adsr_gate_on(v.mod_env);
     v.rnd = mod_random(s);
+    if (s.noise_type >= 4) sound_fx_reset(s, v);
   }
 }
 
@@ -953,7 +1016,9 @@ export function synth_render(s) {
       osc_set_freq(v.sub, hz * 0.5, sr);
       common += osc_process(v.sub, 1, 0.5, 0) * p.sub_osc_level;
     }
-    if (nlev > 0) {
+    // Sound FX keep their clocks running while muted, so raising Noise Level later cannot
+    // replay a shot from an old note. Classic noise keeps its original sample/call order.
+    if (nlev > 0 || s.noise_type >= 4) {
       let nz = s.noise_type === 0 ? noise_white() : voice_noise(s, v, hz);
       if (s.noise_filter > 0) {
         svf_process(v.nz_filt, nz);

@@ -5,7 +5,7 @@
 移植できる形にしてあります。名前の由来は *LLM-friendly な synth*。
 
 - **シンセ**: 2 オシレーター (Saw / Pulse / Triangle / Sine, PolyBLEP、Wavetable) + サブオシレーター +
-  ノイズ (ホワイト / ファミコン風の周期ノイズ 2 種 / サンプル&ホールド、ノイズ専用フィルター)、
+  ノイズ (ホワイト / ファミコン風の周期ノイズ 2 種 / サンプル&ホールド / 回転翼・群衆の拍手・破裂音の合成FX、ノイズ専用フィルター)、
   パルス幅と PWM、ハードシンク、osc2→osc1 の FM、ユニゾン (最大 9 重・ステレオ、デチューンのカーブと外側の音量)、
   グライド (常時 / レガート時のみ)、ドライブ、フィルター (LP / HP / BP / ノッチ, 12/24 dB, TPT SVF)、フィルター/アンプ ADSR、
   LFO (6 波形 + ダッキング形状、テンポ同期 (1/1〜1/32・付点・3 連)、ピッチ / フィルター / PWM / トレモロ)、
@@ -86,6 +86,7 @@
 - **JSFX 版 (REAPER)**: `jsfx/` に Synth / Physical / Drums と、共通の音階を持つ Tuning。Web 版とサンプル単位で同じ音 (ysfx で自動比較)。
   スクリプトの配置・Actionsへの登録・MCPからの呼び出し → [ReaScript / MCPガイド](jsfx/reaper/README.md)。`npm run install:reaper -- --resource "REAPERのリソースパス" --dry-run` で配置先を確認できます。MCP からは `AmiSynth - Read sound.lua` / `AmiSynth - Apply sound.lua` で、Web 版の JSON コピーと同じ差分形式のまま音色を読み書きできます(1 回の Undo、範囲外は丸めて報告)。
   CC・ベンド・ペダル・チャンネル・未対応メッセージの一覧 → [MIDI対応表](docs/MIDI.md)
+  シタール／三味線、フリーリード低音域、合成FXの調整内容と比較音源の作り方 → [音色調整・試聴ガイド](docs/TIMBRE.md)。`npm run audition:timbre` でWAV・MIDI・プリセットJSON・試聴ページを生成できます。
   AmiSynth Companion で用途別プリセット選択・保存、4マクロ、機能別の詳細編集。出力ピーク／RMSとボイス状況の表示、任意のレベル補正、ドラム4バス配線アクション、MCP向け実値／正規化値カタログも付属。
   ピアノロールの「MIDI 書き出し」で作った .mid (ソングモードでは曲全体) をそのまま REAPER で鳴らせる → [jsfx/README.md](jsfx/README.md)
 - **音声書き出し**: ピアノロールのパターン (ソングモードでは曲全体) を WAV (16 bit) / MP3 (192 kbps) で書き出し (ループ回数・ノーマライズ指定可、余韻まで。ピークと LUFS を表示)。再生と同じ DSP を Web Worker でオフライン実行するので、オーディオを開始していなくても書き出せる

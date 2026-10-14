@@ -179,6 +179,27 @@ test('JSFX rotary speaker follows the mod wheel like JS', { skip: !HAVE && 'jsfx
   check('phys', scenario('phys', { phys_model: 7, rotary_mode: 1, organ_drawbar_2: 8 }), ev, 0.7, 'phys/organ mod wheel');
 });
 
+test('JSFX procedural sound FX and low free reeds match JS, including retriggers and rate settings', { skip: !HAVE && 'jsfx_render not built' }, () => {
+  const ev = [[0, 0x90, 28, 100], [3000, 0x90, 64, 80], [8000, 0x90, 28, 110],
+    [14000, 0x80, 28, 0], [16000, 0x80, 64, 0], [21000, 0x90, 96, 100]];
+  for (const type of [4, 5, 6]) for (const rate of [-1, 0, 1]) {
+    const params = scenario('synth', { noise_type: type, noise_level: 1, noise_clock_oct: rate,
+      osc1_level: 0, osc2_level: 0, filter_env_amount_oct: 0, filter_key_tracking: 0, filter_cutoff_hz: 8000 });
+    check('synth', params, ev, .7, `sound FX ${type} rate ${rate}`);
+    check('synth', params, ev, .7, `sound FX ${type} rate ${rate} @44.1k`, 44100);
+  }
+  for (const detune of [0, 12]) for (const noise of [0, .3, 1]) {
+    const params = scenario('phys', { phys_model: 3, wind_type: 4, breath_noise: noise,
+      free_reed_detune_cents: detune, breath_pressure: .6 });
+    check('phys', params, ev, .7, `low free reed detune ${detune} noise ${noise}`);
+    check('phys', params, ev, .7, `low free reed detune ${detune} noise ${noise} @44.1k`, 44100);
+  }
+  const muted = [[0, 0xb0, 1, 127], [0, 0x90, 60, 100], [48000, 0xb0, 1, 0], [57600, 0x90, 60, 100]];
+  const shot = scenario('synth', { noise_type: 6, noise_level: 1, osc1_level: 0, osc2_level: 0,
+    filter_env_amount_oct: 0, amp_sustain: 1, mod1_source: 6, mod1_destination: 11, mod1_amount: -1 });
+  check('synth', shot, muted, 1.5, 'shot muted via mod wheel: clock continues');
+});
+
 test('JSFX piano matches JS up to the top of the MIDI range', { skip: !HAVE && 'jsfx_render not built' }, () => {
   const top = [96, 103, 108, 112, 116, 120, 124, 127].map((n, i) => [i * 2400, 0x90, n, 60 + i * 8]);
   check('phys', scenario('phys', { phys_model: 5 }), top, 0.5, 'phys/piano top notes');

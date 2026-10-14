@@ -1295,7 +1295,10 @@ function render_wind(s, v, vib, kind, noise_amt) {
   const hiss = (nz - v.hiss_lp) * env * noise_amt * 0.05;
   if (kind === WIND_FREE_REED) {
     // the tongue swings at its own pitch; air passes while it is clear of the slot
-    bp += bp * noise_amt * 0.25 * nz;
+    // Radiation differentiates the flow and normalises by the fundamental. White pressure
+    // noise would therefore grow as sr / hz, drowning low reeds. Bellows fluctuate slowly;
+    // the separately added hiss below still provides the audible broadband breath component.
+    bp += bp * noise_amt * 0.25 * v.flut;
     v.org_ph += v.org_inc * vib;
     if (v.org_ph >= 1) v.org_ph -= 1;
     const x = bp * Math.sin(TWO_PI * v.org_ph);

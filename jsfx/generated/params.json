@@ -1006,7 +1006,7 @@
       "name": "Noise Type",
       "group": "Noise",
       "min": 0,
-      "max": 3,
+      "max": 6,
       "default": 0,
       "step": 1,
       "unit": "",
@@ -1014,9 +1014,12 @@
         "White",
         "Chip Long (LFSR)",
         "Chip Short (metallic)",
-        "Sample & Hold"
+        "Sample & Hold",
+        "Rotor",
+        "Crowd Claps",
+        "Shot"
       ],
-      "description": "White: hiss. Chip Long / Short: 8-bit console style shift-register noise, clocked from the note pitch (Short repeats every 93 steps: a pitched, metallic tone). Sample & Hold: random steps at the clock rate."
+      "description": "White: hiss. Chip Long / Short and Sample & Hold are clocked from the note pitch. Rotor: periodic blade thumps with air wash. Crowd Claps: six independently timed short noise bursts. Shot: a brief crack, low body and falling thump, restarted on note-on. The three sound FX sources ignore note pitch and are mixed at Noise Level before the main filter and amp envelope."
     },
     {
       "id": "noise_clock_oct",
@@ -1027,7 +1030,7 @@
       "default": 0,
       "step": 0.01,
       "unit": "oct",
-      "description": "Clock of the chip / S&H noise relative to the note (higher = brighter). At 0, Chip Short sounds at the note pitch."
+      "description": "Chip / S&H clock relative to the note (higher = brighter); at 0, Chip Short sounds at the note pitch. For Rotor / Crowd Claps this scales the blade / clap rate; for Shot it scales playback speed. These FX rates do not follow note pitch."
     },
     {
       "id": "noise_filter_mode",

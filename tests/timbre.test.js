@@ -1,0 +1,90 @@
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { defaultValues, PHYS_PARAMS, SYNTH_PARAMS } from '../src/dsp/params.js';
+import { phys_init, phys_note_on, phys_render, phys_update } from '../src/dsp/phys.js';
+import { synth_init, synth_note_on, synth_note_off, synth_render, synth_update } from '../src/dsp/synth.js';
+
+const SR = 48000;
+const rms = (a) => Math.sqrt(a.reduce((sum, v) => sum + v * v, 0) / a.length);
+function samples(s, render, seconds) {
+  const out = new Float64Array(Math.round(seconds * SR));
+  for (let i = 0; i < out.length; i++) {
+    render(s); assert.ok(Number.isFinite(s.out_l) && Number.isFinite(s.out_r));
+    assert.ok(Math.abs(s.out_l) <= 1 && Math.abs(s.out_r) <= 1);
+    out[i] = s.out_l;
+  }
+  return out;
+}
+
+test('free reed: breath noise does not overwhelm low reeds, including musette', () => {
+  for (const detune of [0, 12]) for (const note of [28, 36, 48, 60, 72]) {
+    const p = { ...defaultValues(PHYS_PARAMS), phys_model: 3, wind_type: 4, phys_room_mix: 0,
+      breath_pressure: 0.6, wind_embouchure: 0.5, free_reed_detune_cents: detune };
+    const render = (noise) => {
+      const s = {}; phys_init(s, SR); phys_update(s, { ...p, breath_noise: noise });
+      phys_note_on(s, note, 100);
+      return samples(s, phys_render, 1.5).subarray(SR / 2);
+    };
+    const tone = render(0), breath = render(1);
+    const delta = breath.map((v, i) => v - tone[i]);
+    assert.ok(rms(tone) > 0.005, `note ${note}: reed speaks`);
+    assert.ok(rms(delta) < rms(tone) * 0.3, `note ${note}, detune ${detune}: noise must stay below the reed`);
+    assert.ok(rms(delta) > 1e-5, `note ${note}: Breath Noise still adds a component`);
+  }
+});
+
+function fx(type, overrides = {}) {
+  const s = {}; synth_init(s, SR);
+  synth_update(s, { ...defaultValues(SYNTH_PARAMS), osc1_level: 0, osc2_level: 0, noise_level: 1,
+    noise_type: type, filter_cutoff_hz: 12000, filter_resonance: 0, filter_env_amount_oct: 0,
+    filter_key_tracking: 0, amp_attack_ms: 1, amp_sustain: 1, amp_velocity_amount: 0, ...overrides });
+  return s;
+}
+
+test('FX noise: rotor has repeated pressure pulses; crowd claps have irregular transients', () => {
+  const rotor = fx(4); synth_note_on(rotor, 60, 100);
+  const out = samples(rotor, synth_render, 3), early = [], late = [];
+  for (let i = SR; i < out.length; i++) {
+    const ph = (i * 11 / SR) % 1;
+    if (ph < 0.15) early.push(out[i]);
+    if (ph > 0.65 && ph < 0.9) late.push(out[i]);
+  }
+  assert.ok(rms(early) > rms(late) * 2, 'distinct blade impulses rather than steady hiss');
+  const crowd = fx(5); synth_note_on(crowd, 60, 100);
+  const claps = samples(crowd, synth_render, 3);
+  const levels = [];
+  for (let i = SR; i < claps.length; i += SR / 100) levels.push(rms(claps.subarray(i, i + SR / 100)));
+  assert.ok(Math.max(...levels) > Math.min(...levels) * 4, 'individual clap bursts rather than a continuous noise bed');
+});
+
+test('FX noise: shot stops while held, fires again on note-on, and all sources release', () => {
+  const shot = fx(6); synth_note_on(shot, 60, 100);
+  const hit = samples(shot, synth_render, 0.7);
+  assert.ok(rms(hit.subarray(0, SR / 10)) > 0.01);
+  assert.ok(rms(hit.subarray(SR / 2)) < 0.0001, 'held key does not prolong the crack');
+  synth_note_on(shot, 60, 100);
+  assert.ok(rms(samples(shot, synth_render, .1)) > 0.01, 'same-key retrigger fires again');
+  for (const type of [4, 5, 6]) for (const speed of [-4, 4]) {
+    const s = fx(type, { noise_clock_oct: speed, amp_release_ms: 60 });
+    synth_note_on(s, 28, 100); samples(s, synth_render, .25);
+    synth_note_off(s, 28); samples(s, synth_render, 1);
+    assert.equal(s.voices.filter(v => v.active).length, 0);
+  }
+});
+
+test('FX noise sources do not change character with MIDI pitch when key tracking is off', () => {
+  for (const type of [4, 5, 6]) {
+    const low = fx(type); synth_note_on(low, 28, 100); const a = samples(low, synth_render, .5);
+    const high = fx(type); synth_note_on(high, 96, 100); const b = samples(high, synth_render, .5);
+    assert.deepEqual(a, b, `noise type ${type}`);
+  }
+});
+
+test('FX noise: unmuting Noise Level does not fire a shot from an old note', () => {
+  const s = fx(6, { noise_level: 0 }); synth_note_on(s, 60, 100);
+  samples(s, synth_render, 1);
+  synth_update(s, { ...s.p, noise_level: 1 });
+  assert.ok(rms(samples(s, synth_render, .2)) < .0001);
+  synth_note_on(s, 60, 100);
+  assert.ok(rms(samples(s, synth_render, .1)) > .01, 'only a new note fires again');
+});
