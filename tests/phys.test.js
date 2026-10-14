@@ -152,6 +152,7 @@ const NEW_MODELS = [
   ['flute', { phys_model: 3, wind_type: 1, breath_noise: 0 }, [48, 60, 72, 84]],
   ['saxophone', { phys_model: 3, wind_type: 2, breath_noise: 0 }, [36, 48, 60, 72, 84]],
   ['double reed', { phys_model: 3, wind_type: 3, breath_noise: 0 }, [36, 48, 60, 72, 84]],
+  ['free reed', { phys_model: 3, wind_type: 4, breath_noise: 0 }, [36, 48, 60, 72, 84]],
   ['circular drum', { phys_model: 4, mesh_shape: 0 }, [48, 60, 72, 84]],
   ['square plate', { phys_model: 4, mesh_shape: 1 }, [48, 60, 72, 84]],
   // (with inharmonicity the stretched partials pull an autocorrelation estimate sharp; the
@@ -173,7 +174,7 @@ test('bowed / wind / mesh / stiff models are in tune', () => {
 });
 
 test('bowed and wind sustain while held and stop after release', () => {
-  for (const params of [{ phys_model: 2 }, ...[0, 1, 2, 3].map((wind_type) => ({ phys_model: 3, wind_type }))]) {
+  for (const params of [{ phys_model: 2 }, ...[0, 1, 2, 3, 4].map((wind_type) => ({ phys_model: 3, wind_type }))]) {
     const s = make({ ...params, phys_release_ms: 150 });
     phys_note_on(s, 60, 100);
     render(s, SR * 0.5);
@@ -186,7 +187,7 @@ test('bowed and wind sustain while held and stop after release', () => {
 });
 
 test('wind instruments speak over the whole pressure / embouchure range', () => {
-  for (const wind_type of [0, 1, 2, 3]) {
+  for (const wind_type of [0, 1, 2, 3, 4]) {
     for (const breath_pressure of [0, 0.5, 1]) {
       for (const wind_embouchure of [0, 0.5, 1]) {
         const s = make({ phys_model: 3, wind_type, breath_pressure, wind_embouchure });

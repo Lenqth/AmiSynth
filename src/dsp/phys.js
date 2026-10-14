@@ -27,6 +27,10 @@
 //   pressure difference across the reed sets how far it opens (a clipped straight line).
 //   Flute: the bore plus a short "jet" delay; the jet is deflected in or out of the pipe by
 //   the returning wave through a cubic curve.
+//   Free reed (accordion, harmonica): a stiff metal tongue swings through a close-fitting slot
+//   at its own pitch (the small cavity barely pulls it), so it is an oscillator whose swing
+//   grows with the breath; air flows only while the tongue is clear of the slot, twice a
+//   period, and the radiated sound is that pulsed flow differentiated, through a cavity resonance.
 //
 // Model 4 - Membrane / plate (2D finite-difference wave equation)
 //   A grid of points; every sample each point is pushed by the curvature (Laplacian) of its
@@ -72,6 +76,10 @@ export const WIND_CLARINET = 0;
 export const WIND_FLUTE = 1;
 export const WIND_SAX = 2;
 export const WIND_DOUBLE_REED = 3;
+export const WIND_FREE_REED = 4;
+/** free reed: how far the tongue overlaps the slot (it lets air through only beyond this), output gain */
+const FREE_REED_OVERLAP = 0.35;
+const FREE_REED_GAIN = 1.1;
 /** conical bore (sax, double reed): where along the loop the reed sees the reflected wave (the missing cone tip) */
 const CONE_REED_POS = [0, 0, 0.4, 0.35];
 /** conical bore output gain (the double reed's second difference is much hotter) */
@@ -190,6 +198,8 @@ function voice_create() {
     poly_at: 0, press: 0,
     // organ: phase of half the note, its increment, percussion envelope, click samples left
     org_ph: 0, org_inc: 0, org_perc: 0, org_clk: 0,
+    // free reed: the two musette reeds' phases and increments (the main reed uses org_ph / org_inc)
+    fr_ph2: 0, fr_ph3: 0, fr_inc2: 0, fr_inc3: 0,
   };
   delay_init(v.line, MAX_DELAY);
   delay_init(v.line2, MAX_DELAY);
@@ -283,6 +293,9 @@ export function phys_update(s, p) {
   amp_update(s, p);
   s.hiss_a = 1 - Math.exp((-TWO_PI * 1000) / s.sr);
   s.reed_k = 1 / (2 * Math.sin((Math.PI * 1000) / s.sr));
+  s.fr_bias = 0.25 + 0.3 * (p.wind_embouchure ?? 0.5);
+  s.fr_det = Math.pow(2, (p.free_reed_detune_cents ?? 0) / 1200);
+  s.fr_n = (p.free_reed_detune_cents ?? 0) > 0 ? 3 : 1;
   for (let j = 0; j < 9; j++) {
     const bar = clamp(Math.round(p[ORGAN_BARS[j]] ?? 0), 0, 8);
     s.org_w[j] = bar > 0 ? ORGAN_GAIN * db_to_gain(3 * (bar - 8)) : 0;
@@ -535,7 +548,7 @@ function bow_slope(s, p, v) {
   return 5 - 4 * clamp(p.bow_pressure + s.press_exc * v.press, 0, 1);
 }
 
-/** Wind Type as an integer (WIND_CLARINET .. WIND_DOUBLE_REED) */
+/** Wind Type as an integer (WIND_CLARINET .. WIND_FREE_REED) */
 function wind_kind(p) {
   return Math.floor(p.wind_type + 0.5);
 }
@@ -544,6 +557,8 @@ function wind_kind(p) {
 function wind_maxv(s, p, v) {
   const bp = clamp(p.breath_pressure + s.press_exc * v.press, 0, 1);
   const kind = wind_kind(p);
+  // free reed: how far the tongue swings (it only sounds once it clears the slot overlap)
+  if (kind === WIND_FREE_REED) return 0.3 + 0.7 * bp;
   // a conical bore needs a little more reed pressure to start
   if (kind >= WIND_SAX) return (0.24 + 0.05 * bp) / -v.slope;
   if (kind === WIND_CLARINET) return (0.2 + 0.06 * bp) / -v.slope;
@@ -647,7 +662,13 @@ function voice_tune(s, v, keep_decay) {
     v.bell_b = Math.exp((-TWO_PI * (1500 + 6000 * clamp(p.brass_bell + s.press_bright * v.press, 0, 1))) / sr);
   } else if (model === MODEL_WIND) {
     const kind = wind_kind(p);
-    if (kind >= WIND_SAX) {
+    if (kind === WIND_FREE_REED) {
+      // the reed's own pitch; the musette reeds above / below; radiation = first difference
+      v.org_inc = hz / sr;
+      v.fr_inc2 = v.org_inc * s.fr_det;
+      v.fr_inc3 = v.org_inc / s.fr_det;
+      v.rad_k = 1 / (2 * Math.sin((Math.PI * hz) / sr));
+    } else if (kind >= WIND_SAX) {
       // saxophone / oboe (after Scavone, STK Saxofony): a cone behaves like a cylinder open at
       // both ends, so the loop is one period long (all harmonics) instead of two. The reed sits
       // at CONE_REED_POS of the loop: it hears the wave reflected at the bell and the same wave
@@ -864,8 +885,13 @@ export function phys_note_on(s, note, velocity) {
       v.hiss_lp = 0;
       v.rad_x = 0;
       v.rad_x2 = 0;
+      svf_reset(v.body1);
+      v.org_ph = 0;
+      v.fr_ph2 = 0.33;
+      v.fr_ph3 = 0.67;
     }
     onepole_set(v.dc, 20, sr);
+    svf_set(v.body1, 1600, 1.2, sr);
     adsr_set(v.env, p.wind_attack_ms, 1, 1, Math.min(p.phys_release_ms, 400), sr);
     adsr_gate_on(v.env);
     // Both instruments only speak inside a band of blowing pressure, so the knobs move the
@@ -1226,6 +1252,26 @@ function render_wind(s, v, vib, kind, noise_amt) {
   // turbulence heard as an airy hiss (noise above ~1 kHz) on top of the tone
   v.hiss_lp += s.hiss_a * (nz - v.hiss_lp);
   const hiss = (nz - v.hiss_lp) * env * noise_amt * 0.05;
+  if (kind === WIND_FREE_REED) {
+    // the tongue swings at its own pitch; air passes while it is clear of the slot
+    bp += bp * noise_amt * 0.25 * nz;
+    v.org_ph += v.org_inc * vib;
+    if (v.org_ph >= 1) v.org_ph -= 1;
+    const x = bp * Math.sin(TWO_PI * v.org_ph);
+    v.slip = x;
+    let u = free_reed_flow(s, x);
+    if (s.fr_n > 1) {
+      v.fr_ph2 += v.fr_inc2 * vib;
+      if (v.fr_ph2 >= 1) v.fr_ph2 -= 1;
+      v.fr_ph3 += v.fr_inc3 * vib;
+      if (v.fr_ph3 >= 1) v.fr_ph3 -= 1;
+      u = 0.6 * (u + free_reed_flow(s, bp * Math.sin(TWO_PI * v.fr_ph2)) + free_reed_flow(s, bp * Math.sin(TWO_PI * v.fr_ph3)));
+    }
+    const rad = (u - v.rad_x) * v.rad_k;
+    v.rad_x = u;
+    svf_process(v.body1, rad);
+    return ((0.7 * rad + 0.5 * v.body1.bp) * FREE_REED_GAIN + hiss) * v.vel;
+  }
   if (kind >= WIND_SAX) {
     bp += bp * noise_amt * 0.25 * nz;
     // bell side: lossy, low-passed, inverting reflection at the open end
@@ -1279,6 +1325,12 @@ function render_wind(s, v, vib, kind, noise_amt) {
   v.slip = j;
   delay_write(v.line, bp * j + 0.5 * t);
   return (bore * 0.3 + hiss) * v.vel;
+}
+
+/** air through the slot for a tongue at x (offset by the embouchure bias) */
+function free_reed_flow(s, x) {
+  const d = Math.abs(x - s.fr_bias) - FREE_REED_OVERLAP;
+  return d > 0 ? d : 0;
 }
 
 function render_organ(s, v, vib) {

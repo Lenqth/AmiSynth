@@ -13589,7 +13589,7 @@
           "name": "Wind Type",
           "group": "Wind",
           "min": 0,
-          "max": 3,
+          "max": 4,
           "default": 0,
           "step": 1,
           "unit": "",
@@ -13597,9 +13597,10 @@
             "Clarinet (reed)",
             "Flute (air jet)",
             "Saxophone (conical reed)",
-            "Oboe / Bassoon (double reed)"
+            "Oboe / Bassoon (double reed)",
+            "Free reed (accordion / harmonica)"
           ],
-          "description": "Clarinet: a reed valve at the closed end of a cylindrical bore (odd harmonics). Flute: an air jet across an open bore. Saxophone / Oboe: a reed on a conical bore (all harmonics); the double reed sits further down a narrower cone, for a thinner, nasal tone.",
+          "description": "Clarinet: a reed valve at the closed end of a cylindrical bore (odd harmonics). Flute: an air jet across an open bore. Saxophone / Oboe: a reed on a conical bore (all harmonics); the double reed sits further down a narrower cone, for a thinner, nasal tone. Free reed: a metal tongue swinging through a slot at its own pitch (accordion, harmonica, harmonium); breath pressure sets how far it swings (louder, fuller), embouchure the reed offset (tone).",
           "slider": 22,
           "paramIndex": 21,
           "valueDomain": "real",
@@ -13619,6 +13620,10 @@
             {
               "value": 3,
               "label": "Oboe / Bassoon (double reed)"
+            },
+            {
+              "value": 4,
+              "label": "Free reed (accordion / harmonica)"
             }
           ]
         },
@@ -14531,6 +14536,20 @@
           "slider": 78,
           "paramIndex": 77,
           "valueDomain": "real"
+        },
+        {
+          "id": "free_reed_detune_cents",
+          "name": "Free Reed Musette",
+          "group": "Wind",
+          "min": 0,
+          "max": 50,
+          "default": 0,
+          "step": 0.1,
+          "unit": "cents",
+          "description": "Free reed only: two more reeds this many cents above and below the note beat against it (accordion musette / tremolo). 0 = a single reed.",
+          "slider": 79,
+          "paramIndex": 78,
+          "valueDomain": "real"
         }
       ],
       "presets": [
@@ -14610,7 +14629,8 @@
             "organ_perc_level": 0.6,
             "organ_click": 0.3,
             "rotary_mode": 0,
-            "rotary_mix": 1
+            "rotary_mix": 1,
+            "free_reed_detune_cents": 0
           }
         },
         {
@@ -14689,7 +14709,8 @@
             "organ_perc_level": 0.6,
             "organ_click": 0.3,
             "rotary_mode": 0,
-            "rotary_mix": 1
+            "rotary_mix": 1,
+            "free_reed_detune_cents": 0
           }
         },
         {
@@ -14768,7 +14789,8 @@
             "organ_perc_level": 0.6,
             "organ_click": 0.3,
             "rotary_mode": 0,
-            "rotary_mix": 1
+            "rotary_mix": 1,
+            "free_reed_detune_cents": 0
           }
         },
         {
@@ -14847,7 +14869,8 @@
             "organ_perc_level": 0.6,
             "organ_click": 0.3,
             "rotary_mode": 0,
-            "rotary_mix": 1
+            "rotary_mix": 1,
+            "free_reed_detune_cents": 0
           }
         },
         {
@@ -14926,7 +14949,8 @@
             "organ_perc_level": 0.6,
             "organ_click": 0.3,
             "rotary_mode": 0,
-            "rotary_mix": 1
+            "rotary_mix": 1,
+            "free_reed_detune_cents": 0
           }
         },
         {
@@ -15005,7 +15029,8 @@
             "organ_perc_level": 0.6,
             "organ_click": 0.3,
             "rotary_mode": 0,
-            "rotary_mix": 1
+            "rotary_mix": 1,
+            "free_reed_detune_cents": 0
           }
         },
         {
@@ -15084,7 +15109,8 @@
             "organ_perc_level": 0.6,
             "organ_click": 0.3,
             "rotary_mode": 0,
-            "rotary_mix": 1
+            "rotary_mix": 1,
+            "free_reed_detune_cents": 0
           }
         },
         {
@@ -15163,7 +15189,8 @@
             "organ_perc_level": 0.6,
             "organ_click": 0.3,
             "rotary_mode": 0,
-            "rotary_mix": 1
+            "rotary_mix": 1,
+            "free_reed_detune_cents": 0
           }
         },
         {
@@ -15242,7 +15269,8 @@
             "organ_perc_level": 0.6,
             "organ_click": 0.3,
             "rotary_mode": 0,
-            "rotary_mix": 1
+            "rotary_mix": 1,
+            "free_reed_detune_cents": 0
           }
         },
         {
@@ -15321,7 +15349,8 @@
             "organ_perc_level": 0.6,
             "organ_click": 0.3,
             "rotary_mode": 0,
-            "rotary_mix": 1
+            "rotary_mix": 1,
+            "free_reed_detune_cents": 0
           }
         },
         {
@@ -15400,7 +15429,8 @@
             "organ_perc_level": 0.6,
             "organ_click": 0.3,
             "rotary_mode": 0,
-            "rotary_mix": 1
+            "rotary_mix": 1,
+            "free_reed_detune_cents": 0
           }
         },
         {
@@ -15479,7 +15509,8 @@
             "organ_perc_level": 0.6,
             "organ_click": 0.3,
             "rotary_mode": 0,
-            "rotary_mix": 1
+            "rotary_mix": 1,
+            "free_reed_detune_cents": 0
           }
         },
         {
@@ -15558,7 +15589,8 @@
             "organ_perc_level": 0.6,
             "organ_click": 0.3,
             "rotary_mode": 0,
-            "rotary_mix": 1
+            "rotary_mix": 1,
+            "free_reed_detune_cents": 0
           }
         },
         {
@@ -15637,7 +15669,8 @@
             "organ_perc_level": 0.6,
             "organ_click": 0.3,
             "rotary_mode": 0,
-            "rotary_mix": 1
+            "rotary_mix": 1,
+            "free_reed_detune_cents": 0
           }
         },
         {
@@ -15716,7 +15749,8 @@
             "organ_perc_level": 0.6,
             "organ_click": 0.3,
             "rotary_mode": 0,
-            "rotary_mix": 1
+            "rotary_mix": 1,
+            "free_reed_detune_cents": 0
           }
         },
         {
@@ -15795,7 +15829,8 @@
             "organ_perc_level": 0.6,
             "organ_click": 0.3,
             "rotary_mode": 0,
-            "rotary_mix": 1
+            "rotary_mix": 1,
+            "free_reed_detune_cents": 0
           }
         },
         {
@@ -15874,7 +15909,8 @@
             "organ_perc_level": 0.6,
             "organ_click": 0.3,
             "rotary_mode": 0,
-            "rotary_mix": 1
+            "rotary_mix": 1,
+            "free_reed_detune_cents": 0
           }
         },
         {
@@ -15953,7 +15989,8 @@
             "organ_perc_level": 0.6,
             "organ_click": 0.3,
             "rotary_mode": 0,
-            "rotary_mix": 1
+            "rotary_mix": 1,
+            "free_reed_detune_cents": 0
           }
         },
         {
@@ -16032,7 +16069,8 @@
             "organ_perc_level": 0.6,
             "organ_click": 0.3,
             "rotary_mode": 0,
-            "rotary_mix": 1
+            "rotary_mix": 1,
+            "free_reed_detune_cents": 0
           }
         },
         {
@@ -16111,7 +16149,8 @@
             "organ_perc_level": 0.6,
             "organ_click": 0.3,
             "rotary_mode": 0,
-            "rotary_mix": 1
+            "rotary_mix": 1,
+            "free_reed_detune_cents": 0
           }
         },
         {
@@ -16190,7 +16229,8 @@
             "organ_perc_level": 0.6,
             "organ_click": 0.3,
             "rotary_mode": 0,
-            "rotary_mix": 1
+            "rotary_mix": 1,
+            "free_reed_detune_cents": 0
           }
         },
         {
@@ -16269,7 +16309,8 @@
             "organ_perc_level": 0.6,
             "organ_click": 0.3,
             "rotary_mode": 0,
-            "rotary_mix": 1
+            "rotary_mix": 1,
+            "free_reed_detune_cents": 0
           }
         },
         {
@@ -16348,7 +16389,8 @@
             "organ_perc_level": 0.6,
             "organ_click": 0.3,
             "rotary_mode": 0,
-            "rotary_mix": 1
+            "rotary_mix": 1,
+            "free_reed_detune_cents": 0
           }
         },
         {
@@ -16427,7 +16469,8 @@
             "organ_perc_level": 0.6,
             "organ_click": 0.3,
             "rotary_mode": 0,
-            "rotary_mix": 1
+            "rotary_mix": 1,
+            "free_reed_detune_cents": 0
           }
         },
         {
@@ -16506,7 +16549,8 @@
             "organ_perc_level": 0.6,
             "organ_click": 0.3,
             "rotary_mode": 0,
-            "rotary_mix": 1
+            "rotary_mix": 1,
+            "free_reed_detune_cents": 0
           }
         },
         {
@@ -16585,7 +16629,8 @@
             "organ_perc_level": 0.6,
             "organ_click": 0.3,
             "rotary_mode": 0,
-            "rotary_mix": 1
+            "rotary_mix": 1,
+            "free_reed_detune_cents": 0
           }
         },
         {
@@ -16664,7 +16709,8 @@
             "organ_perc_level": 0.6,
             "organ_click": 0.3,
             "rotary_mode": 0,
-            "rotary_mix": 1
+            "rotary_mix": 1,
+            "free_reed_detune_cents": 0
           }
         },
         {
@@ -16743,7 +16789,8 @@
             "organ_perc_level": 0.6,
             "organ_click": 0.3,
             "rotary_mode": 0,
-            "rotary_mix": 1
+            "rotary_mix": 1,
+            "free_reed_detune_cents": 0
           }
         },
         {
@@ -16822,7 +16869,8 @@
             "organ_perc_level": 0.6,
             "organ_click": 0.3,
             "rotary_mode": 0,
-            "rotary_mix": 1
+            "rotary_mix": 1,
+            "free_reed_detune_cents": 0
           }
         },
         {
@@ -16901,7 +16949,8 @@
             "organ_perc_level": 0.6,
             "organ_click": 0.3,
             "rotary_mode": 0,
-            "rotary_mix": 1
+            "rotary_mix": 1,
+            "free_reed_detune_cents": 0
           }
         },
         {
@@ -16980,7 +17029,8 @@
             "organ_perc_level": 0.6,
             "organ_click": 0.3,
             "rotary_mode": 0,
-            "rotary_mix": 1
+            "rotary_mix": 1,
+            "free_reed_detune_cents": 0
           }
         },
         {
@@ -17059,7 +17109,8 @@
             "organ_perc_level": 0.6,
             "organ_click": 0.3,
             "rotary_mode": 0,
-            "rotary_mix": 1
+            "rotary_mix": 1,
+            "free_reed_detune_cents": 0
           }
         },
         {
@@ -17138,7 +17189,8 @@
             "organ_perc_level": 0.6,
             "organ_click": 0.3,
             "rotary_mode": 0,
-            "rotary_mix": 1
+            "rotary_mix": 1,
+            "free_reed_detune_cents": 0
           }
         },
         {
@@ -17217,7 +17269,8 @@
             "organ_perc_level": 0.6,
             "organ_click": 0.3,
             "rotary_mode": 0,
-            "rotary_mix": 1
+            "rotary_mix": 1,
+            "free_reed_detune_cents": 0
           }
         },
         {
@@ -17296,7 +17349,8 @@
             "organ_perc_level": 0.6,
             "organ_click": 0.3,
             "rotary_mode": 0,
-            "rotary_mix": 1
+            "rotary_mix": 1,
+            "free_reed_detune_cents": 0
           }
         },
         {
@@ -17375,7 +17429,8 @@
             "organ_perc_level": 0.6,
             "organ_click": 0.3,
             "rotary_mode": 0,
-            "rotary_mix": 1
+            "rotary_mix": 1,
+            "free_reed_detune_cents": 0
           }
         },
         {
@@ -17454,7 +17509,8 @@
             "organ_perc_level": 0.6,
             "organ_click": 0.3,
             "rotary_mode": 0,
-            "rotary_mix": 1
+            "rotary_mix": 1,
+            "free_reed_detune_cents": 0
           }
         },
         {
@@ -17533,7 +17589,8 @@
             "organ_perc_level": 0.6,
             "organ_click": 0.3,
             "rotary_mode": 0,
-            "rotary_mix": 1
+            "rotary_mix": 1,
+            "free_reed_detune_cents": 0
           }
         },
         {
@@ -17612,7 +17669,8 @@
             "organ_perc_level": 0.6,
             "organ_click": 0.3,
             "rotary_mode": 0,
-            "rotary_mix": 1
+            "rotary_mix": 1,
+            "free_reed_detune_cents": 0
           }
         },
         {
@@ -17691,7 +17749,8 @@
             "organ_perc_level": 0.6,
             "organ_click": 0.3,
             "rotary_mode": 0,
-            "rotary_mix": 1
+            "rotary_mix": 1,
+            "free_reed_detune_cents": 0
           }
         },
         {
@@ -17770,7 +17829,8 @@
             "organ_perc_level": 0.6,
             "organ_click": 0.3,
             "rotary_mode": 0,
-            "rotary_mix": 1
+            "rotary_mix": 1,
+            "free_reed_detune_cents": 0
           }
         },
         {
@@ -17849,7 +17909,8 @@
             "organ_perc_level": 0.6,
             "organ_click": 0.3,
             "rotary_mode": 0,
-            "rotary_mix": 1
+            "rotary_mix": 1,
+            "free_reed_detune_cents": 0
           }
         },
         {
@@ -17928,7 +17989,8 @@
             "organ_perc_level": 0.6,
             "organ_click": 0.3,
             "rotary_mode": 0,
-            "rotary_mix": 1
+            "rotary_mix": 1,
+            "free_reed_detune_cents": 0
           }
         },
         {
@@ -18007,7 +18069,8 @@
             "organ_perc_level": 0.6,
             "organ_click": 0.3,
             "rotary_mode": 0,
-            "rotary_mix": 1
+            "rotary_mix": 1,
+            "free_reed_detune_cents": 0
           }
         },
         {
@@ -18086,7 +18149,8 @@
             "organ_perc_level": 0.6,
             "organ_click": 0.3,
             "rotary_mode": 0,
-            "rotary_mix": 1
+            "rotary_mix": 1,
+            "free_reed_detune_cents": 0
           }
         },
         {
@@ -18165,7 +18229,8 @@
             "organ_perc_level": 0.6,
             "organ_click": 0.3,
             "rotary_mode": 0,
-            "rotary_mix": 1
+            "rotary_mix": 1,
+            "free_reed_detune_cents": 0
           }
         },
         {
@@ -18244,7 +18309,8 @@
             "organ_perc_level": 0.6,
             "organ_click": 0.3,
             "rotary_mode": 0,
-            "rotary_mix": 1
+            "rotary_mix": 1,
+            "free_reed_detune_cents": 0
           }
         },
         {
@@ -18323,7 +18389,8 @@
             "organ_perc_level": 0.6,
             "organ_click": 0.3,
             "rotary_mode": 0,
-            "rotary_mix": 1
+            "rotary_mix": 1,
+            "free_reed_detune_cents": 0
           }
         },
         {
@@ -18402,7 +18469,8 @@
             "organ_perc_level": 0.6,
             "organ_click": 0.3,
             "rotary_mode": 0,
-            "rotary_mix": 1
+            "rotary_mix": 1,
+            "free_reed_detune_cents": 0
           }
         },
         {
@@ -18481,7 +18549,8 @@
             "organ_perc_level": 0.6,
             "organ_click": 0.3,
             "rotary_mode": 0,
-            "rotary_mix": 1
+            "rotary_mix": 1,
+            "free_reed_detune_cents": 0
           }
         },
         {
@@ -18560,7 +18629,8 @@
             "organ_perc_level": 0.6,
             "organ_click": 0.3,
             "rotary_mode": 0,
-            "rotary_mix": 1
+            "rotary_mix": 1,
+            "free_reed_detune_cents": 0
           }
         },
         {
@@ -18639,7 +18709,8 @@
             "organ_perc_level": 0.6,
             "organ_click": 0.3,
             "rotary_mode": 0,
-            "rotary_mix": 1
+            "rotary_mix": 1,
+            "free_reed_detune_cents": 0
           }
         },
         {
@@ -18718,7 +18789,8 @@
             "organ_perc_level": 0.6,
             "organ_click": 0.3,
             "rotary_mode": 0,
-            "rotary_mix": 1
+            "rotary_mix": 1,
+            "free_reed_detune_cents": 0
           }
         },
         {
@@ -18797,7 +18869,8 @@
             "organ_perc_level": 0.6,
             "organ_click": 0.3,
             "rotary_mode": 0,
-            "rotary_mix": 1
+            "rotary_mix": 1,
+            "free_reed_detune_cents": 0
           }
         },
         {
@@ -18876,7 +18949,8 @@
             "organ_perc_level": 0.6,
             "organ_click": 0.3,
             "rotary_mode": 0,
-            "rotary_mix": 1
+            "rotary_mix": 1,
+            "free_reed_detune_cents": 0
           }
         },
         {
@@ -18955,7 +19029,8 @@
             "organ_perc_level": 0.6,
             "organ_click": 0.3,
             "rotary_mode": 0,
-            "rotary_mix": 1
+            "rotary_mix": 1,
+            "free_reed_detune_cents": 0
           }
         },
         {
@@ -19034,7 +19109,8 @@
             "organ_perc_level": 0.6,
             "organ_click": 0.3,
             "rotary_mode": 0,
-            "rotary_mix": 1
+            "rotary_mix": 1,
+            "free_reed_detune_cents": 0
           }
         },
         {
@@ -19113,7 +19189,8 @@
             "organ_perc_level": 0.6,
             "organ_click": 0.3,
             "rotary_mode": 0,
-            "rotary_mix": 1
+            "rotary_mix": 1,
+            "free_reed_detune_cents": 0
           }
         },
         {
@@ -19192,7 +19269,8 @@
             "organ_perc_level": 0.6,
             "organ_click": 0.3,
             "rotary_mode": 0,
-            "rotary_mix": 1
+            "rotary_mix": 1,
+            "free_reed_detune_cents": 0
           }
         },
         {
@@ -19271,7 +19349,8 @@
             "organ_perc_level": 0.6,
             "organ_click": 0.3,
             "rotary_mode": 0,
-            "rotary_mix": 1
+            "rotary_mix": 1,
+            "free_reed_detune_cents": 0
           }
         },
         {
@@ -19350,7 +19429,8 @@
             "organ_perc_level": 0.6,
             "organ_click": 0.3,
             "rotary_mode": 0,
-            "rotary_mix": 1
+            "rotary_mix": 1,
+            "free_reed_detune_cents": 0
           }
         },
         {
@@ -19429,7 +19509,8 @@
             "organ_perc_level": 0.6,
             "organ_click": 0.3,
             "rotary_mode": 0,
-            "rotary_mix": 1
+            "rotary_mix": 1,
+            "free_reed_detune_cents": 0
           }
         },
         {
@@ -19508,7 +19589,8 @@
             "organ_perc_level": 0.6,
             "organ_click": 0.3,
             "rotary_mode": 0,
-            "rotary_mix": 1
+            "rotary_mix": 1,
+            "free_reed_detune_cents": 0
           }
         },
         {
@@ -19587,7 +19669,8 @@
             "organ_perc_level": 0.6,
             "organ_click": 0.3,
             "rotary_mode": 0,
-            "rotary_mix": 1
+            "rotary_mix": 1,
+            "free_reed_detune_cents": 0
           }
         },
         {
@@ -19666,7 +19749,8 @@
             "organ_perc_level": 0.6,
             "organ_click": 0.3,
             "rotary_mode": 0,
-            "rotary_mix": 1
+            "rotary_mix": 1,
+            "free_reed_detune_cents": 0
           }
         },
         {
@@ -19745,7 +19829,8 @@
             "organ_perc_level": 0.6,
             "organ_click": 0.3,
             "rotary_mode": 0,
-            "rotary_mix": 1
+            "rotary_mix": 1,
+            "free_reed_detune_cents": 0
           }
         },
         {
@@ -19824,7 +19909,8 @@
             "organ_perc_level": 0.6,
             "organ_click": 0.3,
             "rotary_mode": 0,
-            "rotary_mix": 1
+            "rotary_mix": 1,
+            "free_reed_detune_cents": 0
           }
         },
         {
@@ -19903,7 +19989,8 @@
             "organ_perc_level": 0.6,
             "organ_click": 0.3,
             "rotary_mode": 0,
-            "rotary_mix": 1
+            "rotary_mix": 1,
+            "free_reed_detune_cents": 0
           }
         },
         {
@@ -19982,7 +20069,8 @@
             "organ_perc_level": 0.6,
             "organ_click": 0.3,
             "rotary_mode": 0,
-            "rotary_mix": 1
+            "rotary_mix": 1,
+            "free_reed_detune_cents": 0
           }
         },
         {
@@ -20061,7 +20149,8 @@
             "organ_perc_level": 0.6,
             "organ_click": 0.3,
             "rotary_mode": 0,
-            "rotary_mix": 1
+            "rotary_mix": 1,
+            "free_reed_detune_cents": 0
           }
         },
         {
@@ -20140,7 +20229,8 @@
             "organ_perc_level": 0.6,
             "organ_click": 0.3,
             "rotary_mode": 0,
-            "rotary_mix": 1
+            "rotary_mix": 1,
+            "free_reed_detune_cents": 0
           }
         },
         {
@@ -20219,7 +20309,8 @@
             "organ_perc_level": 0.6,
             "organ_click": 0.3,
             "rotary_mode": 0,
-            "rotary_mix": 1
+            "rotary_mix": 1,
+            "free_reed_detune_cents": 0
           }
         },
         {
@@ -20298,7 +20389,8 @@
             "organ_perc_level": 0.6,
             "organ_click": 0.3,
             "rotary_mode": 0,
-            "rotary_mix": 1
+            "rotary_mix": 1,
+            "free_reed_detune_cents": 0
           }
         },
         {
@@ -20377,7 +20469,8 @@
             "organ_perc_level": 0.6,
             "organ_click": 0.3,
             "rotary_mode": 0,
-            "rotary_mix": 1
+            "rotary_mix": 1,
+            "free_reed_detune_cents": 0
           }
         },
         {
@@ -20456,7 +20549,8 @@
             "organ_perc_level": 0.6,
             "organ_click": 0.3,
             "rotary_mode": 0,
-            "rotary_mix": 1
+            "rotary_mix": 1,
+            "free_reed_detune_cents": 0
           }
         },
         {
@@ -20535,7 +20629,8 @@
             "organ_perc_level": 0.6,
             "organ_click": 0.3,
             "rotary_mode": 0,
-            "rotary_mix": 1
+            "rotary_mix": 1,
+            "free_reed_detune_cents": 0
           }
         },
         {
@@ -20614,7 +20709,8 @@
             "organ_perc_level": 0.6,
             "organ_click": 0.3,
             "rotary_mode": 0,
-            "rotary_mix": 1
+            "rotary_mix": 1,
+            "free_reed_detune_cents": 0
           }
         },
         {
@@ -20693,7 +20789,8 @@
             "organ_perc_level": 0.6,
             "organ_click": 0.3,
             "rotary_mode": 0,
-            "rotary_mix": 1
+            "rotary_mix": 1,
+            "free_reed_detune_cents": 0
           }
         },
         {
@@ -20772,7 +20869,8 @@
             "organ_perc_level": 0.6,
             "organ_click": 0.3,
             "rotary_mode": 0,
-            "rotary_mix": 1
+            "rotary_mix": 1,
+            "free_reed_detune_cents": 0
           }
         },
         {
@@ -20851,7 +20949,8 @@
             "organ_perc_level": 0.6,
             "organ_click": 0.3,
             "rotary_mode": 0,
-            "rotary_mix": 1
+            "rotary_mix": 1,
+            "free_reed_detune_cents": 0
           }
         },
         {
@@ -20930,7 +21029,8 @@
             "organ_perc_level": 0.6,
             "organ_click": 0.4,
             "rotary_mode": 1,
-            "rotary_mix": 1
+            "rotary_mix": 1,
+            "free_reed_detune_cents": 0
           }
         },
         {
@@ -21009,7 +21109,8 @@
             "organ_perc_level": 0.7,
             "organ_click": 0.6,
             "rotary_mode": 1,
-            "rotary_mix": 1
+            "rotary_mix": 1,
+            "free_reed_detune_cents": 0
           }
         },
         {
@@ -21088,7 +21189,8 @@
             "organ_perc_level": 0.6,
             "organ_click": 0.7,
             "rotary_mode": 2,
-            "rotary_mix": 1
+            "rotary_mix": 1,
+            "free_reed_detune_cents": 0
           }
         },
         {
@@ -21167,7 +21269,8 @@
             "organ_perc_level": 0.6,
             "organ_click": 0.5,
             "rotary_mode": 2,
-            "rotary_mix": 1
+            "rotary_mix": 1,
+            "free_reed_detune_cents": 0
           }
         },
         {
@@ -21246,7 +21349,8 @@
             "organ_perc_level": 0.6,
             "organ_click": 0.15,
             "rotary_mode": 1,
-            "rotary_mix": 1
+            "rotary_mix": 1,
+            "free_reed_detune_cents": 0
           }
         },
         {
@@ -21325,7 +21429,328 @@
             "organ_perc_level": 0.6,
             "organ_click": 0,
             "rotary_mode": 0,
-            "rotary_mix": 1
+            "rotary_mix": 1,
+            "free_reed_detune_cents": 0
+          }
+        },
+        {
+          "name": "Accordion",
+          "category": "Free Reed",
+          "description": "Musette accordion: three reeds per note, one in tune and two about 12 cents above and below, so every note shimmers. Steady bellows.",
+          "params": {
+            "phys_model": 3,
+            "string_excitation": 0,
+            "string_decay_ms": 3000,
+            "string_damping": 0.35,
+            "string_pick_position": 0.13,
+            "string_brightness": 0.7,
+            "modal_material": 0,
+            "modal_decay_ms": 1500,
+            "modal_high_damping": 0.5,
+            "modal_hardness": 0.5,
+            "modal_strike_position": 0.22,
+            "modal_inharmonicity": 0,
+            "bow_pressure": 0.45,
+            "bow_speed": 0.55,
+            "bow_position": 0.127,
+            "bow_attack_ms": 90,
+            "bowed_brightness": 0.6,
+            "wind_type": 4,
+            "breath_pressure": 0.6,
+            "breath_noise": 0.1,
+            "wind_attack_ms": 25,
+            "wind_embouchure": 0.5,
+            "mesh_shape": 0,
+            "mesh_size": 12,
+            "mesh_decay_ms": 900,
+            "mesh_high_damping": 0.3,
+            "mesh_strike_x": 0.3,
+            "mesh_strike_y": 0.42,
+            "mesh_hardness": 0.5,
+            "piano_inharmonicity": 0.35,
+            "piano_hammer_hardness": 0.5,
+            "piano_strike_position": 0.12,
+            "piano_decay_ms": 8000,
+            "piano_damping": 0.25,
+            "piano_soundboard": 0.6,
+            "piano_unison_detune_cents": 1.2,
+            "phys_vibrato_cents": 0,
+            "phys_vibrato_rate_hz": 5.5,
+            "phys_release_ms": 80,
+            "phys_velocity_amount": 0.2,
+            "phys_stereo_width": 0.5,
+            "phys_pitch_bend_range_cents": 200,
+            "phys_room_mix": 0.2,
+            "phys_room_decay_ms": 1300,
+            "phys_volume_db": -12.6,
+            "brass_pressure": 0.6,
+            "brass_lip": 0.5,
+            "brass_attack_ms": 30,
+            "brass_bell": 0.5,
+            "amp_type": 0,
+            "amp_gain": 0.5,
+            "amp_tone": 0.5,
+            "amp_level_db": 0,
+            "phys_sustain_mode": 1,
+            "phys_pressure_excitation": 0,
+            "phys_pressure_vibrato_cents": 0,
+            "phys_pressure_brightness": 0,
+            "organ_drawbar_16": 8,
+            "organ_drawbar_5_13": 8,
+            "organ_drawbar_8": 8,
+            "organ_drawbar_4": 0,
+            "organ_drawbar_2_23": 0,
+            "organ_drawbar_2": 0,
+            "organ_drawbar_1_35": 0,
+            "organ_drawbar_1_13": 0,
+            "organ_drawbar_1": 0,
+            "organ_percussion": 0,
+            "organ_perc_decay_ms": 300,
+            "organ_perc_level": 0.6,
+            "organ_click": 0.3,
+            "rotary_mode": 0,
+            "rotary_mix": 1,
+            "free_reed_detune_cents": 12
+          }
+        },
+        {
+          "name": "Bandoneon",
+          "category": "Free Reed",
+          "description": "Tango bandoneon: a single dry reed, darker and pushed harder, with a slower bellows attack.",
+          "params": {
+            "phys_model": 3,
+            "string_excitation": 0,
+            "string_decay_ms": 3000,
+            "string_damping": 0.35,
+            "string_pick_position": 0.13,
+            "string_brightness": 0.7,
+            "modal_material": 0,
+            "modal_decay_ms": 1500,
+            "modal_high_damping": 0.5,
+            "modal_hardness": 0.5,
+            "modal_strike_position": 0.22,
+            "modal_inharmonicity": 0,
+            "bow_pressure": 0.45,
+            "bow_speed": 0.55,
+            "bow_position": 0.127,
+            "bow_attack_ms": 90,
+            "bowed_brightness": 0.6,
+            "wind_type": 4,
+            "breath_pressure": 0.75,
+            "breath_noise": 0.08,
+            "wind_attack_ms": 35,
+            "wind_embouchure": 0.25,
+            "mesh_shape": 0,
+            "mesh_size": 12,
+            "mesh_decay_ms": 900,
+            "mesh_high_damping": 0.3,
+            "mesh_strike_x": 0.3,
+            "mesh_strike_y": 0.42,
+            "mesh_hardness": 0.5,
+            "piano_inharmonicity": 0.35,
+            "piano_hammer_hardness": 0.5,
+            "piano_strike_position": 0.12,
+            "piano_decay_ms": 8000,
+            "piano_damping": 0.25,
+            "piano_soundboard": 0.6,
+            "piano_unison_detune_cents": 1.2,
+            "phys_vibrato_cents": 0,
+            "phys_vibrato_rate_hz": 5.5,
+            "phys_release_ms": 90,
+            "phys_velocity_amount": 0.3,
+            "phys_stereo_width": 0.5,
+            "phys_pitch_bend_range_cents": 200,
+            "phys_room_mix": 0.25,
+            "phys_room_decay_ms": 1300,
+            "phys_volume_db": -15.7,
+            "brass_pressure": 0.6,
+            "brass_lip": 0.5,
+            "brass_attack_ms": 30,
+            "brass_bell": 0.5,
+            "amp_type": 0,
+            "amp_gain": 0.5,
+            "amp_tone": 0.5,
+            "amp_level_db": 0,
+            "phys_sustain_mode": 1,
+            "phys_pressure_excitation": 0,
+            "phys_pressure_vibrato_cents": 0,
+            "phys_pressure_brightness": 0,
+            "organ_drawbar_16": 8,
+            "organ_drawbar_5_13": 8,
+            "organ_drawbar_8": 8,
+            "organ_drawbar_4": 0,
+            "organ_drawbar_2_23": 0,
+            "organ_drawbar_2": 0,
+            "organ_drawbar_1_35": 0,
+            "organ_drawbar_1_13": 0,
+            "organ_drawbar_1": 0,
+            "organ_percussion": 0,
+            "organ_perc_decay_ms": 300,
+            "organ_perc_level": 0.6,
+            "organ_click": 0.3,
+            "rotary_mode": 0,
+            "rotary_mix": 1,
+            "free_reed_detune_cents": 0
+          }
+        },
+        {
+          "name": "Harmonica",
+          "category": "Free Reed",
+          "description": "Blues harp: one bright reed, breathy, a hand-tremolo vibrato; aftertouch blows harder. Bend range two semitones.",
+          "params": {
+            "phys_model": 3,
+            "string_excitation": 0,
+            "string_decay_ms": 3000,
+            "string_damping": 0.35,
+            "string_pick_position": 0.13,
+            "string_brightness": 0.7,
+            "modal_material": 0,
+            "modal_decay_ms": 1500,
+            "modal_high_damping": 0.5,
+            "modal_hardness": 0.5,
+            "modal_strike_position": 0.22,
+            "modal_inharmonicity": 0,
+            "bow_pressure": 0.45,
+            "bow_speed": 0.55,
+            "bow_position": 0.127,
+            "bow_attack_ms": 90,
+            "bowed_brightness": 0.6,
+            "wind_type": 4,
+            "breath_pressure": 0.65,
+            "breath_noise": 0.3,
+            "wind_attack_ms": 18,
+            "wind_embouchure": 0.85,
+            "mesh_shape": 0,
+            "mesh_size": 12,
+            "mesh_decay_ms": 900,
+            "mesh_high_damping": 0.3,
+            "mesh_strike_x": 0.3,
+            "mesh_strike_y": 0.42,
+            "mesh_hardness": 0.5,
+            "piano_inharmonicity": 0.35,
+            "piano_hammer_hardness": 0.5,
+            "piano_strike_position": 0.12,
+            "piano_decay_ms": 8000,
+            "piano_damping": 0.25,
+            "piano_soundboard": 0.6,
+            "piano_unison_detune_cents": 1.2,
+            "phys_vibrato_cents": 12,
+            "phys_vibrato_rate_hz": 5.5,
+            "phys_release_ms": 60,
+            "phys_velocity_amount": 0.8,
+            "phys_stereo_width": 0.5,
+            "phys_pitch_bend_range_cents": 200,
+            "phys_room_mix": 0.15,
+            "phys_room_decay_ms": 1300,
+            "phys_volume_db": -14.8,
+            "brass_pressure": 0.6,
+            "brass_lip": 0.5,
+            "brass_attack_ms": 30,
+            "brass_bell": 0.5,
+            "amp_type": 0,
+            "amp_gain": 0.5,
+            "amp_tone": 0.5,
+            "amp_level_db": 0,
+            "phys_sustain_mode": 1,
+            "phys_pressure_excitation": 0.5,
+            "phys_pressure_vibrato_cents": 0,
+            "phys_pressure_brightness": 0,
+            "organ_drawbar_16": 8,
+            "organ_drawbar_5_13": 8,
+            "organ_drawbar_8": 8,
+            "organ_drawbar_4": 0,
+            "organ_drawbar_2_23": 0,
+            "organ_drawbar_2": 0,
+            "organ_drawbar_1_35": 0,
+            "organ_drawbar_1_13": 0,
+            "organ_drawbar_1": 0,
+            "organ_percussion": 0,
+            "organ_perc_decay_ms": 300,
+            "organ_perc_level": 0.6,
+            "organ_click": 0.3,
+            "rotary_mode": 0,
+            "rotary_mix": 1,
+            "free_reed_detune_cents": 0
+          }
+        },
+        {
+          "name": "Reed Organ",
+          "category": "Free Reed",
+          "description": "Harmonium / pump organ: soft, round free reeds with a slow attack and a gentle beat between two ranks.",
+          "params": {
+            "phys_model": 3,
+            "string_excitation": 0,
+            "string_decay_ms": 3000,
+            "string_damping": 0.35,
+            "string_pick_position": 0.13,
+            "string_brightness": 0.7,
+            "modal_material": 0,
+            "modal_decay_ms": 1500,
+            "modal_high_damping": 0.5,
+            "modal_hardness": 0.5,
+            "modal_strike_position": 0.22,
+            "modal_inharmonicity": 0,
+            "bow_pressure": 0.45,
+            "bow_speed": 0.55,
+            "bow_position": 0.127,
+            "bow_attack_ms": 90,
+            "bowed_brightness": 0.6,
+            "wind_type": 4,
+            "breath_pressure": 0.45,
+            "breath_noise": 0.05,
+            "wind_attack_ms": 80,
+            "wind_embouchure": 0.15,
+            "mesh_shape": 0,
+            "mesh_size": 12,
+            "mesh_decay_ms": 900,
+            "mesh_high_damping": 0.3,
+            "mesh_strike_x": 0.3,
+            "mesh_strike_y": 0.42,
+            "mesh_hardness": 0.5,
+            "piano_inharmonicity": 0.35,
+            "piano_hammer_hardness": 0.5,
+            "piano_strike_position": 0.12,
+            "piano_decay_ms": 8000,
+            "piano_damping": 0.25,
+            "piano_soundboard": 0.6,
+            "piano_unison_detune_cents": 1.2,
+            "phys_vibrato_cents": 0,
+            "phys_vibrato_rate_hz": 5.5,
+            "phys_release_ms": 150,
+            "phys_velocity_amount": 0,
+            "phys_stereo_width": 0.5,
+            "phys_pitch_bend_range_cents": 200,
+            "phys_room_mix": 0.4,
+            "phys_room_decay_ms": 1300,
+            "phys_volume_db": -14.2,
+            "brass_pressure": 0.6,
+            "brass_lip": 0.5,
+            "brass_attack_ms": 30,
+            "brass_bell": 0.5,
+            "amp_type": 0,
+            "amp_gain": 0.5,
+            "amp_tone": 0.5,
+            "amp_level_db": 0,
+            "phys_sustain_mode": 1,
+            "phys_pressure_excitation": 0,
+            "phys_pressure_vibrato_cents": 0,
+            "phys_pressure_brightness": 0,
+            "organ_drawbar_16": 8,
+            "organ_drawbar_5_13": 8,
+            "organ_drawbar_8": 8,
+            "organ_drawbar_4": 0,
+            "organ_drawbar_2_23": 0,
+            "organ_drawbar_2": 0,
+            "organ_drawbar_1_35": 0,
+            "organ_drawbar_1_13": 0,
+            "organ_drawbar_1": 0,
+            "organ_percussion": 0,
+            "organ_perc_decay_ms": 300,
+            "organ_perc_level": 0.6,
+            "organ_click": 0.3,
+            "rotary_mode": 0,
+            "rotary_mix": 1,
+            "free_reed_detune_cents": 4
           }
         }
       ],

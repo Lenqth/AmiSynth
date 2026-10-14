@@ -2021,7 +2021,7 @@
       "name": "Wind Type",
       "group": "Wind",
       "min": 0,
-      "max": 3,
+      "max": 4,
       "default": 0,
       "step": 1,
       "unit": "",
@@ -2029,9 +2029,10 @@
         "Clarinet (reed)",
         "Flute (air jet)",
         "Saxophone (conical reed)",
-        "Oboe / Bassoon (double reed)"
+        "Oboe / Bassoon (double reed)",
+        "Free reed (accordion / harmonica)"
       ],
-      "description": "Clarinet: a reed valve at the closed end of a cylindrical bore (odd harmonics). Flute: an air jet across an open bore. Saxophone / Oboe: a reed on a conical bore (all harmonics); the double reed sits further down a narrower cone, for a thinner, nasal tone."
+      "description": "Clarinet: a reed valve at the closed end of a cylindrical bore (odd harmonics). Flute: an air jet across an open bore. Saxophone / Oboe: a reed on a conical bore (all harmonics); the double reed sits further down a narrower cone, for a thinner, nasal tone. Free reed: a metal tongue swinging through a slot at its own pitch (accordion, harmonica, harmonium); breath pressure sets how far it swings (louder, fuller), embouchure the reed offset (tone)."
     },
     {
       "id": "breath_pressure",
@@ -2686,6 +2687,17 @@
       "step": 0.001,
       "unit": "",
       "description": "Share of the rotary speaker in the output (1 = the speaker only)."
+    },
+    {
+      "id": "free_reed_detune_cents",
+      "name": "Free Reed Musette",
+      "group": "Wind",
+      "min": 0,
+      "max": 50,
+      "default": 0,
+      "step": 0.1,
+      "unit": "cents",
+      "description": "Free reed only: two more reeds this many cents above and below the note beat against it (accordion musette / tremolo). 0 = a single reed."
     }
   ],
   "drums": [

@@ -1,6 +1,6 @@
 // General MIDI Level 1 program (0..127) -> the closest built-in preset. Used when a MIDI file or
 // a MIDI controller sends a program change. `exact: false` marks programs AmiSynth has no
-// dedicated sound for yet (pipe organ, reed organ, accordion, harmonica, sitar ...): the nearest preset stands in.
+// dedicated sound for yet (pipe organ, sitar, banjo, bagpipe ...): the nearest preset stands in.
 
 import { PHYS_PRESETS } from './phys.js';
 import { SYNTH_PRESETS } from './synth.js';
@@ -21,8 +21,8 @@ export const GM_PROGRAMS = [
   P('Marimba', 'Marimba'), P('Xylophone', 'Xylophone'), P('Tubular Bells', 'Tubular Bells'), P('Dulcimer', 'Hammered Dulcimer'),
   // Organ
   P('Drawbar Organ', 'Drawbar Organ'), P('Percussive Organ', 'Percussive Organ'), P('Rock Organ', 'Rock Organ'),
-  P('Church Organ', 'Church Organ', false), S('Reed Organ', 'Organ', false), S('Accordion', 'Organ', false),
-  P('Harmonica', 'Clarinet', false), S('Tango Accordion', 'Organ', false),
+  P('Church Organ', 'Church Organ', false), P('Reed Organ', 'Reed Organ'), P('Accordion', 'Accordion'),
+  P('Harmonica', 'Harmonica'), P('Tango Accordion', 'Bandoneon'),
   // Guitar
   P('Acoustic Guitar (nylon)', 'Nylon Guitar'), P('Acoustic Guitar (steel)', 'Steel String'), P('Electric Guitar (jazz)', 'Jazz Guitar'),
   P('Electric Guitar (clean)', 'Clean Electric'), P('Electric Guitar (muted)', 'Palm Mute Chug'), P('Overdriven Guitar', 'Overdrive Lead'),

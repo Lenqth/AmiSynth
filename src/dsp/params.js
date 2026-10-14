@@ -385,9 +385,9 @@ export const PHYS_PARAMS = /** @type {ParamDef[]} */ ([
   { id: 'bowed_brightness', name: 'Bowed String Brightness', group: 'Bowed', min: 0, max: 1, default: 0.6, step: 0.001, unit: '',
     description: 'Losses of high frequencies at the bridge (string material / damping).' },
 
-  { id: 'wind_type', name: 'Wind Type', group: 'Wind', min: 0, max: 3, default: 0, step: 1, unit: '',
-    options: ['Clarinet (reed)', 'Flute (air jet)', 'Saxophone (conical reed)', 'Oboe / Bassoon (double reed)'],
-    description: 'Clarinet: a reed valve at the closed end of a cylindrical bore (odd harmonics). Flute: an air jet across an open bore. Saxophone / Oboe: a reed on a conical bore (all harmonics); the double reed sits further down a narrower cone, for a thinner, nasal tone.' },
+  { id: 'wind_type', name: 'Wind Type', group: 'Wind', min: 0, max: 4, default: 0, step: 1, unit: '',
+    options: ['Clarinet (reed)', 'Flute (air jet)', 'Saxophone (conical reed)', 'Oboe / Bassoon (double reed)', 'Free reed (accordion / harmonica)'],
+    description: 'Clarinet: a reed valve at the closed end of a cylindrical bore (odd harmonics). Flute: an air jet across an open bore. Saxophone / Oboe: a reed on a conical bore (all harmonics); the double reed sits further down a narrower cone, for a thinner, nasal tone. Free reed: a metal tongue swinging through a slot at its own pitch (accordion, harmonica, harmonium); breath pressure sets how far it swings (louder, fuller), embouchure the reed offset (tone).' },
   { id: 'breath_pressure', name: 'Breath Pressure', group: 'Wind', min: 0, max: 1, default: 0.6, step: 0.001, unit: '',
     description: 'Blowing pressure; too low does not start the tone, too high overblows.' },
   { id: 'breath_noise', name: 'Breath Noise', group: 'Wind', min: 0, max: 1, default: 0.15, step: 0.001, unit: '',
@@ -509,6 +509,8 @@ export const PHYS_PARAMS = /** @type {ParamDef[]} */ ([
     description: 'Rotating speaker after the amp: a horn (highs, Doppler + loudness swirl) and a drum (lows) spin at their own speeds and speed up / slow down gradually. The mod wheel above half switches Slow to Fast. Works on every model.' },
   { id: 'rotary_mix', name: 'Rotary Mix', group: 'Rotary', min: 0, max: 1, default: 1, step: 0.001, unit: '',
     description: 'Share of the rotary speaker in the output (1 = the speaker only).' },
+  { id: 'free_reed_detune_cents', name: 'Free Reed Musette', group: 'Wind', min: 0, max: 50, default: 0, step: 0.1, unit: 'cents',
+    description: 'Free reed only: two more reeds this many cents above and below the note beat against it (accordion musette / tremolo). 0 = a single reed.' },
 ]);
 
 // ---------------------------------------------------------------------------
