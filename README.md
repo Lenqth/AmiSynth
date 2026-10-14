@@ -43,7 +43,7 @@
 - PC キーボード / 画面鍵盤 (ピアノ・1 列・等音の格子 / 六角形、全画面モード。縦持ちのスマホ / タブレットでは画面内で 90° 回転して横向きに使える) / Web MIDI 入力 (ch10 → ドラム)。
   等音配列では PC キーボードの段 (Z 段〜数字段) がそのまま格子 / 六角形の段になる
 - **JSFX 版 (REAPER)**: `jsfx/` に Synth / Physical / Drums と、共通の音階を持つ Tuning。Web 版とサンプル単位で同じ音 (ysfx で自動比較)。
-  スクリプトの配置・Actionsへの登録・MCPからの呼び出し → [ReaScript / MCPガイド](jsfx/reaper/README.md)。`npm run install:reaper -- --resource "REAPERのリソースパス" --dry-run` で配置先を確認できます。
+  スクリプトの配置・Actionsへの登録・MCPからの呼び出し → [ReaScript / MCPガイド](jsfx/reaper/README.md)。`npm run install:reaper -- --resource "REAPERのリソースパス" --dry-run` で配置先を確認できます。MCP からは `AmiSynth - Read sound.lua` / `AmiSynth - Apply sound.lua` で、Web 版の JSON コピーと同じ差分形式のまま音色を読み書きできます(1 回の Undo、範囲外は丸めて報告)。
   CC・ベンド・ペダル・チャンネル・未対応メッセージの一覧 → [MIDI対応表](docs/MIDI.md)
   AmiSynth Companion で用途別プリセット選択・保存、4マクロ、機能別の詳細編集。出力ピーク／RMSとボイス状況の表示、任意のレベル補正、ドラム4バス配線アクション、MCP向け実値／正規化値カタログも付属。
   ピアノロールの「MIDI 書き出し」で作った .mid をそのまま REAPER で鳴らせる → [jsfx/README.md](jsfx/README.md)
