@@ -856,7 +856,8 @@ export function phys_note_on(s, note, velocity) {
     v.bachi_len = Math.max(2, Math.round(sr * (0.0012 - 0.001 * hard)));
     for (let k = 0; k < 3; k++) {
       reson_reset(v.modes[k]);
-      reson_set(v.modes[k], [430, 1250, 2850][k], [80, 55, 35][k], [0.6, 0.4, 0.25][k], sr);
+      // Short, bright skin contact: avoid the long low mode that sounds like a wood block.
+      reson_set(v.modes[k], [950, 2300, 4800][k], [30, 18, 10][k], [0.12, 0.7, 0.5][k], sr);
     }
     // high notes lose more energy per second (more round trips); compensate gently
     v.read_gain = 1.2 * v.vel * clamp(Math.pow(v.hz / 220, 0.3), 0.7, 2);
@@ -1221,7 +1222,8 @@ function render_string(s, v, vib) {
   const direct = fb * v.read_gain;
   let contact = 0;
   if (v.bachi_t < v.bachi_len) {
-    contact = s.p.string_plectrum * v.vel * (0.5 - 0.5 * Math.cos(TWO_PI * v.bachi_t / v.bachi_len)) / (0.5 * v.bachi_len);
+    // Bipolar contact/release removes the low-frequency push of the old positive pulse.
+    contact = s.p.string_plectrum * v.vel * Math.sin(TWO_PI * v.bachi_t / v.bachi_len) / (0.5 * v.bachi_len);
     v.bachi_t++;
   }
   if (!(s.p.string_body_mix > 0)) return direct;
@@ -1571,8 +1573,9 @@ export function phys_render(s) {
   }
   if (model === MODEL_STRING && p.string_sympathetic_mix > 0) {
     for (let k = 0; k < 24; k++) {
-      const y = reson_process(s.sympathetic[k], bridge) * p.string_sympathetic_mix * 0.3;
-      const pan = k % 2 ? 0.7 : 0.3;
+      // The previous 0.3 gain buried the slow-building resonances beneath the direct string.
+      const y = reson_process(s.sympathetic[k], bridge) * p.string_sympathetic_mix * 2.4;
+      const pan = k % 2 ? 0.85 : 0.15;
       l += y * pan;
       r += y * (1 - pan);
     }

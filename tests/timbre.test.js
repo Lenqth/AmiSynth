@@ -32,6 +32,25 @@ test('sympathetic strings: custom scale retunes the fixed bank; unrelated slider
   phys_update(s, { ...s.p, phys_volume_db: -10 });
   assert.equal(s.sympathetic[0].y1, tail);
 });
+test('sympathetic strings: resonance has an appreciable contribution under the direct string', () => {
+  for (const note of [48, 60, 64, 69, 76]) {
+    const render = mix => {
+      const s = string({ string_sawari: 0.65, string_damping: 0.08, string_decay_ms: 6000,
+        string_brightness: 0.85, string_pick_position: 0.08,
+        string_sympathetic_mix: mix, string_sympathetic_decay_ms: 4200, phys_volume_db: -12 });
+      phys_note_on(s, note, 100);
+      const out = new Float64Array(SR * 2);
+      for (let i = 0; i < SR; i++) {
+        phys_render(s); out[2 * i] = s.out_l; out[2 * i + 1] = s.out_r;
+      }
+      return out.subarray(SR / 5);
+    };
+    const dry = render(0), wet = render(0.7);
+    const delta = wet.map((v, i) => v - dry[i]);
+    assert.ok(rms(delta) > rms(dry) * 0.1, `note ${note}: resonance must not disappear beneath the string`);
+    assert.ok(rms(delta) < rms(dry), `note ${note}: resonance must not dominate the string`);
+  }
+});
 test('bachi: hard contact is shorter, body transient retriggers, extreme registers remain finite', () => {
   for (const note of [0, 40, 76, 127]) {
     const s = string({ string_plectrum: 1, string_body_mix: 1, string_plectrum_hardness: 1 });
@@ -44,6 +63,26 @@ test('bachi: hard contact is shorter, body transient retriggers, extreme registe
     assert.ok(v.bachi_len > hard);
     samples(s, phys_render, 0.1);
   }
+});
+test('bachi: body contact is not dominated by low wood-block resonances', () => {
+  const render = mix => {
+    const s = string({ string_plectrum: 0.45, string_plectrum_hardness: 0.95,
+      string_body_mix: mix, string_sawari: 0.35, string_damping: 0.18, phys_volume_db: -12 });
+    phys_note_on(s, 60, 100); return samples(s, phys_render, 0.05);
+  };
+  const dry = render(0), wet = render(0.45), delta = wet.map((v, i) => v - dry[i]);
+  let low = 0, total = 0;
+  for (const x of delta) total += x * x;
+  for (let k = 0; k <= 75; k++) {
+    let re = 0, im = 0;
+    for (let i = 0; i < delta.length; i++) {
+      const phase = 2 * Math.PI * k * i / delta.length;
+      re += delta[i] * Math.cos(phase); im += delta[i] * Math.sin(phase);
+    }
+    low += (re * re + im * im) * (k === 0 ? 1 : 2) / delta.length;
+  }
+  assert.ok(rms(delta) > 1e-5, 'contact remains present');
+  assert.ok(low / total < 0.2, 'body transient energy below 1.5 kHz must not dominate');
 });
 const rms = (a) => Math.sqrt(a.reduce((sum, v) => sum + v * v, 0) / a.length);
 function samples(s, render, seconds) {
