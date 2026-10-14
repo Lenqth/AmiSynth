@@ -246,6 +246,75 @@ test('JSFX synth matches JS: chorus, delay (ms / synced / ping-pong) and reverb,
   check('synth', scenario('synth', cases[3][1]), PERFORMANCE, 0.5, 'synth/fx reverb @44.1k', 44100);
 });
 
+
+// PERFORMANCE plus channel pressure swells and polyphonic aftertouch on single keys
+const PRESSURE_PLAY = [
+  ...PERFORMANCE,
+  ...[0, 30, 70, 110, 127, 90, 40, 0].map((v, i) => [1000 + i * 700, 0xd0, v, 0]),
+  [3000, 0xa0, 61, 120], [5000, 0xa0, 64, 60], [7000, 0xa0, 61, 0],
+  [17000, 0xd0, 100, 0], [19000, 0xa0, 72, 127], [21000, 0xd0, 20, 0], [24000, 0xa0, 72, 30],
+].sort((a, b) => a[0] - b[0]);
+
+/** mod matrix slots as params: [[source, destination, amount], ...] */
+function slots(list) {
+  const p = {};
+  list.forEach(([src, dst, amt], i) => {
+    p[`mod${i + 1}_source`] = src;
+    p[`mod${i + 1}_destination`] = dst;
+    p[`mod${i + 1}_amount`] = amt;
+  });
+  return p;
+}
+
+test('JSFX synth matches JS: LFO 2, mod envelope, mod matrix and aftertouch', { skip: !HAVE && 'jsfx_render not built' }, () => {
+  const cases = [
+    // LFO2 S&H (free) -> pitch and pan, mod env -> cutoff, pressure -> cutoff
+    ['lfo2 S&H + mod env + pressure', {
+      lfo2_waveform: 4, lfo2_rate_hz: 11, mod_env_attack_ms: 40, mod_env_decay_ms: 120, mod_env_sustain: 0.3,
+      ...slots([[2, 1, 35], [3, 2, 3], [7, 2, 2.5], [2, 8, 0.8]]),
+    }],
+    // synced LFO2 -> amp, velocity -> FM, key track -> osc2 pitch, random -> PW (pulse waves)
+    ['lfo2 synced + vel/key/random', {
+      osc1_waveform: 1, osc2_waveform: 1, lfo2_waveform: 5, lfo2_sync: 10,
+      ...slots([[2, 7, -9], [4, 6, 3], [5, 5, -300], [8, 4, 0.3]]),
+    }],
+    // LFO rates modulated by the mod wheel, pressure and LFO 2; LFO 1 -> resonance, mod env -> noise
+    ['rate mods + resonance + noise', {
+      lfo_waveform: 1, lfo_rate_hz: 3, lfo_pitch_cents: 20, lfo2_rate_hz: 2, noise_type: 1,
+      mod_env_sustain: 0.5, ...slots([[6, 9, 2], [7, 10, 3], [1, 3, 0.4], [3, 11, 0.6]]),
+    }],
+    // pressure per voice in mono legato + unison stereo, pressure -> pitch and pan
+    // extreme amounts on the LFO rates (summed over slots): limited to +/- 6 oct, never Infinity / NaN
+    ['lfo rates at the slider ends', {
+      lfo_rate_hz: 7, lfo_pitch_cents: 30, lfo2_rate_hz: 2, ...slots([[6, 9, 4800], [7, 9, 4800], [1, 10, -4800], [7, 10, 4800]]),
+    }],
+    ['legato unison pressure', {
+      voice_mode: 2, glide_ms: 40, unison_voices: 3, ...slots([[7, 1, 50], [7, 8, -1], [2, 10, 1]]),
+    }],
+  ];
+  for (const [label, over] of cases) {
+    checkHost('synth', scenario('synth', over), PRESSURE_PLAY, 0.7, `synth/${label}`, { tempo: 133, playing: 1 });
+  }
+});
+
+test('JSFX physical model matches JS with aftertouch mapped to breath, bow, brightness and vibrato',
+  { skip: !HAVE && 'jsfx_render not built' }, () => {
+    const press = { phys_pressure_excitation: 0.6, phys_pressure_vibrato_cents: 40, phys_pressure_brightness: 0.5 };
+    const cases = [
+      ['bowed', { phys_model: 2, ...press }],
+      ['clarinet', { phys_model: 3, wind_type: 0, ...press }],
+      ['flute', { phys_model: 3, wind_type: 1, phys_vibrato_cents: 10, ...press }],
+      ['brass', { phys_model: 6, ...press }],
+      ['string vibrato only', { phys_model: 0, phys_pressure_vibrato_cents: 60 }],
+      ['stiff vibrato only', { phys_model: 5, phys_pressure_vibrato_cents: 30 }],
+      ['bowed bow only', { phys_model: 2, phys_pressure_excitation: 1 }],
+    ];
+    const reset = [...PRESSURE_PLAY, [27000, 0xb0, 121, 0]].sort((a, b) => a[0] - b[0]);
+    for (const [label, over] of cases) {
+      check('phys', scenario('phys', over), reset, 0.7, `phys/pressure ${label}`);
+    }
+  });
+
 test('JSFX drums match JS with groups left out of the main mix (separate outputs)', { skip: !HAVE && 'jsfx_render not built' }, () => {
   const hits = DRUM_PARTS.map((part, i) => [i * 2400, 0x90, part.note, 100]);
   check('drums', scenario('drums', { kick_bus_in_main: 0, hats_bus_in_main: 0 }), hits, 0.8, 'drums/buses off');

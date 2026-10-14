@@ -1,8 +1,13 @@
 <script>
   import { playable } from './touch.js';
   import { localFraction } from '../lib/rotate.js';
-  /** @type {{ bend: number, modwheel: number, onbend: (v:number)=>void, onmod: (v:number)=>void, height?: number }} */
-  let { bend, modwheel, onbend, onmod, height = 150 } = $props();
+  /**
+   * Pressure is an on-screen aftertouch strip (touch force is not reliable in browsers): it sends
+   * channel pressure while held and springs back to 0 like a key being let go.
+   * @type {{ bend: number, modwheel: number, pressure?: number, onbend: (v:number)=>void, onmod: (v:number)=>void,
+   *   onpressure?: (v:number)=>void, height?: number }}
+   */
+  let { bend, modwheel, pressure = 0, onbend, onmod, onpressure, height = 150 } = $props();
 
   function drag(e, kind) {
     const el = e.currentTarget;
@@ -11,6 +16,7 @@
       const { fy } = localFraction(el, ev.clientX, ev.clientY);
       const n = 1 - Math.min(1, Math.max(0, fy));
       if (kind === 'bend') onbend(n * 2 - 1);
+      else if (kind === 'pressure') onpressure?.(n);
       else onmod(n);
     };
     apply(e);
@@ -20,6 +26,7 @@
       el.removeEventListener('pointerup', upHandler);
       el.removeEventListener('pointercancel', upHandler);
       if (kind === 'bend') onbend(0); // spring back
+      else if (kind === 'pressure') onpressure?.(0);
     };
     el.addEventListener('pointermove', moveHandler);
     el.addEventListener('pointerup', upHandler);
@@ -44,6 +51,17 @@
     </div>
     <span>Mod</span>
   </div>
+  {#if onpressure}
+    <div class="wheel-wrap">
+      <div class="wheel" role="slider" aria-label="Pressure (aftertouch)" aria-valuemin={0} aria-valuemax={1} aria-valuenow={pressure}
+        tabindex="-1" title="Pressure: チャンネルプレッシャー (アフタータッチ) を送ります。押している間だけ効き、離すと 0 に戻ります"
+        onpointerdown={(e) => drag(e, 'pressure')}>
+        <div class="fill press" style={`height: ${pressure * 100}%`}></div>
+        <div class="thumb" style={`bottom: calc(${pressure * 100}% - 6px)`}></div>
+      </div>
+      <span>Press</span>
+    </div>
+  {/if}
 </div>
 
 <style>
@@ -62,6 +80,7 @@
   }
   .center { position: absolute; left: 0; right: 0; top: 50%; border-top: 1px dashed var(--line); }
   .fill { position: absolute; left: 0; right: 0; bottom: 0; background: rgba(90, 209, 200, 0.25); }
+  .fill.press { background: rgba(255, 181, 71, 0.3); }
   .thumb {
     position: absolute;
     left: 2px;

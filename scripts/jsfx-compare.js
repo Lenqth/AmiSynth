@@ -10,11 +10,8 @@ import { fileURLToPath } from 'node:url';
 import { defaultValues, DRUM_PARAMS, PHYS_PARAMS, SYNTH_PARAMS, TUNING_HOLDER_PARAMS } from '../src/dsp/params.js';
 import { drums_init, drums_note_on, drums_render, drums_update } from '../src/dsp/drums.js';
 import { phys_init, phys_render, phys_set_scale, phys_update } from '../src/dsp/phys.js';
-import { phys_midi } from '../src/dsp/midi.js';
-import {
-  synth_cc, synth_init, synth_mod_wheel, synth_note_off, synth_note_on, synth_pitch_bend, synth_render, synth_set_scale,
-  synth_sustain_pedal, synth_transport, synth_update,
-} from '../src/dsp/synth.js';
+import { phys_midi, synth_midi } from '../src/dsp/midi.js';
+import { synth_init, synth_render, synth_set_scale, synth_transport, synth_update } from '../src/dsp/synth.js';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -23,15 +20,7 @@ export const INSTRUMENTS = {
     file: 'AmiSynth Synth.jsfx', defs: SYNTH_PARAMS, init: synth_init, update: synth_update, render: synth_render,
     transport: synth_transport,
     scale: synth_set_scale,
-    midi(s, st, d1, d2) {
-      const t = st & 0xf0;
-      if (t === 0xb0) synth_cc(s, d1, d2);
-      if (t === 0x90) synth_note_on(s, d1, d2);
-      else if (t === 0x80) synth_note_off(s, d1);
-      else if (t === 0xe0) synth_pitch_bend(s, ((d2 << 7) | d1) / 8192 - 1);
-      else if (t === 0xb0 && d1 === 1) synth_mod_wheel(s, d2 / 127);
-      else if (t === 0xb0 && d1 === 64) synth_sustain_pedal(s, d2 >= 64);
-    },
+    midi: synth_midi,
   },
   drums: {
     file: 'AmiSynth Drums.jsfx', defs: DRUM_PARAMS, init: drums_init, update: drums_update, render: drums_render,

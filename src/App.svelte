@@ -10,14 +10,15 @@
   import { codeToOffset, DRUM_KEYS, eventCode, isImeEvent, isoKeyCell, isTypingTarget } from './lib/pckeys.js';
   import {
     app, applyPreset, beginSongGesture, clearSeqHighlights, commitSongGesture, drumHit, editedPattern, editSong, flashDrum,
-    flashSeqNote, hadSavedState, persist, redo, replaceSong, setBend, setMelodic, setModwheel, setParam, setScale, setSustain,
-    startAudio, synthNoteOff, synthNoteOn, undo,
+    flashSeqNote, hadSavedState, persist, redo, replaceSong, setBend, setMelodic, setModwheel, setParam, setPressure, setScale,
+    setSustain, startAudio, synthNoteOff, synthNoteOn, undo,
   } from './lib/state.svelte.js';
   import { makeTuning } from './lib/tuning.js';
   import { coarsePointerQuery } from './lib/keysize.js';
   import { ISO_PRESETS, isoSteps, LAYOUTS } from './lib/layouts.js';
   import DrumPads from './ui/DrumPads.svelte';
   import Keyboard from './ui/Keyboard.svelte';
+  import ModMatrix from './ui/ModMatrix.svelte';
   import ParamPanel from './ui/ParamPanel.svelte';
   import PianoRoll from './ui/PianoRoll.svelte';
   import PresetBar from './ui/PresetBar.svelte';
@@ -41,6 +42,7 @@
     ...(app.synth.osc1_waveform === 4 || app.synth.osc2_waveform === 4 ? [] : ['wt_position_lfo', 'wt_position_filter_env', 'wt_position_amp_env']),
     ...(app.synth.unison_voices > 1 ? [] : ['unison_detune_cents', 'unison_stereo_width', 'unison_detune_curve', 'unison_side_level']),
     ...(app.synth.lfo_sync > 0 ? ['lfo_rate_hz'] : []),
+    ...(app.synth.lfo2_sync > 0 ? ['lfo2_rate_hz'] : []),
     ...(app.synth.arp_mode > 0 ? [] : ['arp_octaves', 'arp_gate', 'arp_swing_percent', 'arp_steps']),
     // effects: the knobs of a switched-off effect are greyed out; a synced delay ignores Delay Time
     ...(app.synth.fx_chorus_on >= 0.5 ? [] : ['fx_chorus_mix', 'fx_chorus_rate_hz', 'fx_chorus_depth_ms']),
@@ -62,7 +64,7 @@
   // only the knobs of the selected model (+ shared ones) are shown
   const PHYS_MODEL_GROUPS = ['String', 'Modal', 'Bowed', 'Wind', 'Mesh', 'Stiff String', 'Brass'];
   const physModel = $derived(Math.round(app.phys.phys_model));
-  const physGroups = $derived(['Model', PHYS_MODEL_GROUPS[Math.round(app.phys.phys_model)] ?? 'String', 'Amp', 'Output']);
+  const physGroups = $derived(['Model', PHYS_MODEL_GROUPS[Math.round(app.phys.phys_model)] ?? 'String', 'Amp', 'Output', 'Pressure']);
 
   function toggleViz() {
     app.physViz = !app.physViz;
@@ -321,7 +323,8 @@
     applyPreset(target, list[(i + dir + list.length) % list.length]);
   }
 
-  const synthGroups = [...new Set(SYNTH_PARAMS.map((d) => d.group))].filter((g) => g !== 'Tuning');
+  // the mod matrix slots get their own panel (amount knob sized to the chosen destination)
+  const synthGroups = [...new Set(SYNTH_PARAMS.map((d) => d.group))].filter((g) => g !== 'Tuning' && g !== 'Mod Matrix');
 
   // Start the on-screen keyboard on a period boundary (degree 0) whenever the scale size changes.
   let lastSize = 0;
@@ -534,6 +537,7 @@
     else if (type === 0x80 || type === 0x90) delete app.held[d1];
     else if (type === 0xe0) app.bend = ((d2 << 7) | d1) / 8192 - 1;
     else if (type === 0xb0 && d1 === 1) app.modwheel = d2 / 127;
+    else if (type === 0xd0) app.pressure = d1 / 127; // channel pressure (aftertouch) moves the Press strip
     else if (type === 0xb0 && d1 === 64) app.sustain = d2 >= 64;
     else if (type === 0xb0 && (d1 === 120 || d1 === 121 || d1 === 123)) {
       setSustain(false);
@@ -640,7 +644,8 @@
 {#snippet playCard()}
   <section class="card play" class:fs-play={fullscreen}>
     <div class="performance-controls">
-    <Wheels bend={app.bend} modwheel={app.modwheel} onbend={setBend} onmod={setModwheel} height={fullscreen ? Math.max(50, fsHeight - 34) : 116} />
+    <Wheels bend={app.bend} modwheel={app.modwheel} pressure={app.pressure} onbend={setBend} onmod={setModwheel} onpressure={setPressure}
+      height={fullscreen ? Math.max(50, fsHeight - 34) : 116} />
     <button class:active={app.sustain} aria-pressed={app.sustain}
       title="Sustain pedal (CC64): PhysicalはOutputのSustain Pedal設定に従います"
       onclick={async () => { await startAudio(); setSustain(!app.sustain); }}>Sustain</button>
@@ -714,6 +719,7 @@
         </p>
         <ParamPanel defs={SYNTH_PARAMS} values={app.synth} groups={synthGroups} onchange={(id, v) => setParam('synth', id, v)}
           disabledIds={synthDisabled} />
+        <ModMatrix values={app.synth} onchange={(id, v) => setParam('synth', id, v)} />
       </div>
     </div>
   {:else if app.tab === 'phys'}
