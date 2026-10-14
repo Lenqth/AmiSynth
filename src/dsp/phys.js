@@ -139,6 +139,12 @@ export const MATERIALS = [
   { name: 'Gong Ageng (gamelan)', ratios: [1, 1.004, 2.01, 2.94, 3.98, 4.62, 5.86, 7.12], gains: [1, 0.85, 0.4, 0.3, 0.18, 0.12, 0.08, 0.05] },
   { name: 'Kettle Gong (bonang)', ratios: [1, 1.005, 2.06, 2.73, 3.02, 4.17, 5.11, 6.32], gains: [1, 0.6, 0.45, 0.4, 0.35, 0.15, 0.1, 0.06] },
   { name: 'Tam-tam', ratios: [1, 1.38, 1.83, 2.27, 2.76, 3.31, 3.93, 4.62], gains: [0.7, 0.8, 0.85, 0.8, 0.75, 0.7, 0.6, 0.5] },
+  // Steel pan note area: tuned so the fundamental, octave and twelfth line up (slightly off),
+  // with weaker untuned modes above.
+  { name: 'Steel Drum', ratios: [1, 1.997, 2.988, 3.97, 4.62, 5.08, 6.03, 7.4], gains: [1, 0.85, 0.5, 0.28, 0.14, 0.1, 0.07, 0.04] },
+  // Tubular bell (chime): free-bar modes scaled so the heard strike note (an octave below the
+  // 4th mode, the virtual pitch of modes 4-6 at ~2:3:4) is the played note.
+  { name: 'Tubular Bell', ratios: [0.224, 0.617, 1.208, 2, 2.985, 4.17, 5.55, 7.13], gains: [0.1, 0.3, 0.6, 1, 0.8, 0.6, 0.35, 0.2] },
 ];
 
 const MESH_CELLS = MESH_W * MESH_W;
@@ -558,7 +564,8 @@ function voice_tune(s, v, keep_decay) {
       // stretch: ratio^(1+x) bends the series away from / toward harmonic
       const ratio = Math.pow(mat.ratios[k], 1 + p.modal_inharmonicity);
       v.mode_hz[k] = hz * ratio;
-      if (!keep_decay) v.mode_t60[k] = p.modal_decay_ms / (1 + p.modal_high_damping * 4 * (ratio - 1));
+      // (modes below the note ring longer; the floor keeps a sub mode's decay finite at full damping)
+      if (!keep_decay) v.mode_t60[k] = p.modal_decay_ms / Math.max(0.25, 1 + p.modal_high_damping * 4 * (ratio - 1));
       const pos_w = Math.abs(Math.sin(Math.PI * (k + 1) * p.modal_strike_position));
       reson_set(v.modes[k], v.mode_hz[k], v.mode_t60[k], mat.gains[k] * (0.3 + 0.7 * pos_w), sr);
     }

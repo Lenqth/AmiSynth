@@ -159,3 +159,19 @@ test('MIDI import rejects broken / unsupported files without hanging', () => {
   assert.equal(parseMidi(bytes).notes.length, 1);
   assert.throws(() => parseMidi(/** @type {any} */ ([0x4d])), /MIDI データ/);
 });
+
+test('MIDI import: program change of the main melodic channel picks a GM preset', async () => {
+  const { GM_PROGRAMS, gmProgramPreset } = await import('../src/presets/gm.js');
+  // ch1 program 65 (alto sax) with two notes, ch2 program 0 with one note, drums ch10 program 0
+  const track = [
+    0, 0xc0, 65, 0, 0xc1, 0, 0, 0xc9, 0,
+    0, 0x90, 60, 100, 0x60, 0x80, 60, 0,
+    0, 0x90, 62, 100, 0x60, 0x80, 62, 0,
+    0, 0x91, 48, 100, 0x60, 0x81, 48, 0,
+    0, 0xc0, 20, 0, // a later change does not replace the first program
+  ];
+  const flat = midiToSteps(parseMidi(smf(0, 96, [track])));
+  assert.equal(flat.program, 65);
+  assert.equal(gmProgramPreset(flat.program).preset.name, GM_PROGRAMS[65].preset);
+  assert.equal(midiToSteps(parseMidi(smf(0, 96, [[0, 0x90, 60, 100, 0x60, 0x80, 60, 0]]))).program, null);
+});

@@ -341,7 +341,7 @@ export const SYNTH_PARAMS = /** @type {ParamDef[]} */ ([
 
 /** Mode tables used by the modal model (see src/dsp/phys.js MATERIALS). */
 export const MODAL_MATERIALS = ['Marimba Bar', 'Vibraphone Bar', 'Glockenspiel (free bar)', 'Wine Glass', 'Church Bell', 'Drum Membrane', 'Harmonic (string-like)', 'Kalimba Tine',
-  'Gong Ageng (gamelan)', 'Kettle Gong (bonang)', 'Tam-tam'];
+  'Gong Ageng (gamelan)', 'Kettle Gong (bonang)', 'Tam-tam', 'Steel Drum', 'Tubular Bell'];
 
 export const PHYS_PARAMS = /** @type {ParamDef[]} */ ([
   ...TUNING_PARAMS,

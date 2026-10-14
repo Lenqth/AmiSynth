@@ -97,8 +97,10 @@ test('modal model: every material sounds, is bounded and rings at the fundamenta
     assert.ok(rms(out) > 0.005, `${m.name} audible`);
     assert.ok(Math.max(...out.map(Math.abs)) <= 1, `${m.name} bounded`);
     const v = s.voices[s.last_voice];
-    const k = m.ratios.indexOf(1);
-    assert.ok(Math.abs(v.mode_hz[k] - 220) < 1e-6, `${m.name} has a mode at the note frequency`);
+    // tubular bells have no partial at the heard pitch: modes 2 : 3 : 4 imply it (strike tone)
+    const k = m.ratios.includes(1) ? m.ratios.indexOf(1) : m.ratios.indexOf(2);
+    const want = m.ratios[k] * 220;
+    assert.ok(k >= 0 && Math.abs(v.mode_hz[k] - want) < 1e-6, `${m.name} has a mode at the note frequency (or its octave)`);
   });
 });
 

@@ -1882,7 +1882,7 @@
       "name": "Modal Material",
       "group": "Modal",
       "min": 0,
-      "max": 10,
+      "max": 12,
       "default": 0,
       "step": 1,
       "unit": "",
@@ -1897,7 +1897,9 @@
         "Kalimba Tine",
         "Gong Ageng (gamelan)",
         "Kettle Gong (bonang)",
-        "Tam-tam"
+        "Tam-tam",
+        "Steel Drum",
+        "Tubular Bell"
       ],
       "description": "Set of mode frequency ratios / gains (measured or textbook values for each object)."
     },
