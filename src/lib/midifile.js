@@ -3,7 +3,7 @@
 //   track 0: tempo, track 1: melodic notes (channel 1), track 2: drums (channel 10)
 // And import of SMF format 0 / 1 files (quantized to the 16th-step grid; channel 10 -> drum steps).
 
-import { DRUM_PARTS } from '../dsp/params.js';
+import { DRUM_PARTS, GM_DRUM_VARIANTS } from '../dsp/params.js';
 import { STEPS, STEPS_PER_BEAT } from './pattern.js';
 import { BPM_MAX, BPM_MIN } from './song.js';
 
@@ -98,17 +98,15 @@ export const GM_DRUM_MAP = (() => {
   /** @type {Record<number, number>} */
   const m = {};
   for (const p of DRUM_PARTS) m[p.note] = p.note;
+  // the step grid has one row per part, so GM variants (GM_DRUM_VARIANTS) land on their part's row
   const alias = {
-    35: 36, // acoustic bass drum -> kick
-    40: 38, // electric snare -> snare
-    44: 42, // pedal hi-hat -> closed hat
-    41: 45, 43: 45, // low floor / high floor tom -> low tom
-    48: 50, // hi-mid tom -> high tom
-    52: 49, 55: 49, 57: 49, // china / splash / crash 2 -> crash
-    53: 51, 59: 51, // ride bell / ride 2 -> ride
-    54: 70, 69: 70, 82: 70, // tambourine / cabasa / shaker -> shaker
     31: 37, // sticks -> rimshot
+    82: 70, // shaker (GM2) -> shaker
   };
+  for (const v of GM_DRUM_VARIANTS) {
+    const part = DRUM_PARTS.find((p) => p.key === v.part);
+    if (part) alias[v.note] = part.note;
+  }
   for (const [from, to] of Object.entries(alias)) m[Number(from)] = to;
   return m;
 })();

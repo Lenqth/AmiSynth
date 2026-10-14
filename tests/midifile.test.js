@@ -116,7 +116,7 @@ test('MIDI import: format 0, running status, note-on vel 0, quantize, GM drum al
     35, 60, 0, // C4 off (vel 0) at tick 48 -> 2 steps
     0, 0x99, 35, 120, // GM acoustic bass drum -> kick
     0, 44, 70, // pedal hat -> closed hat (running status)
-    0, 81, 50, // open triangle: no part -> dropped
+    0, 72, 50, // long whistle: not played -> dropped
     10, 0xb0, 7, 100, // CC, ignored
     38, 0x80, 62, 0, // D4 off at tick 96 -> step 4
     0, 0x90, 20, 90, // below the piano roll

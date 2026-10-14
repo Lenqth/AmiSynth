@@ -5,7 +5,7 @@
 
   /** @type {{ flash: Record<number, number>, onhit: (note:number, vel:number)=>void }} */
   let { flash, onhit } = $props();
-  const KEYS = DRUM_KEYS.map((c) => c.replace('Key', ''));
+  const KEYS = DRUM_KEYS.map((c) => c.replace('Key', '').replace('Comma', ',').replace('Period', '.').replace('Slash', '/'));
 
   function down(e, note) {
     e.preventDefault();

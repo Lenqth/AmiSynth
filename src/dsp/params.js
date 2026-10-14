@@ -524,6 +524,44 @@ export const DRUM_PARTS = [
   { key: 'ride', name: 'Ride', note: 51 },
   { key: 'cowbell', name: 'Cowbell', note: 56 },
   { key: 'shaker', name: 'Shaker', note: 70 },
+  // GM percussion added later (the other GM notes of each family play variants of these, see
+  // GM_DRUM_VARIANTS)
+  { key: 'tambourine', name: 'Tambourine', note: 54 },
+  { key: 'conga', name: 'Conga', note: 63 },
+  { key: 'timbale', name: 'Timbale', note: 65 },
+  { key: 'agogo', name: 'Agogo', note: 67 },
+  { key: 'claves', name: 'Claves', note: 75 },
+  { key: 'triangle', name: 'Triangle', note: 81 },
+];
+
+/**
+ * Other GM percussion notes the drum machine plays as a variant of a part: its parameters with
+ * the pitch / decay / level scaled. Variants of the kick, snare, closed hat and shaker (35, 40,
+ * 44, 69) retrigger the part itself; the others have a voice of their own, so they can ring
+ * together with the part. GM notes 58, 71-74, 78 and 79 are not played.
+ */
+export const GM_DRUM_VARIANTS = [
+  { note: 35, name: 'Acoustic Bass Drum', part: 'kick', pitch: 1, decay: 1, level: 1 },
+  { note: 40, name: 'Electric Snare', part: 'snare', pitch: 1, decay: 1, level: 1 },
+  { note: 41, name: 'Low Floor Tom', part: 'low_tom', pitch: 0.75, decay: 1.15, level: 1 },
+  { note: 43, name: 'High Floor Tom', part: 'low_tom', pitch: 0.87, decay: 1.1, level: 1 },
+  { note: 44, name: 'Pedal Hi-Hat', part: 'closed_hat', pitch: 1, decay: 0.8, level: 0.6 },
+  { note: 48, name: 'Hi-Mid Tom', part: 'mid_tom', pitch: 1.2, decay: 1, level: 1 },
+  { note: 52, name: 'Chinese Cymbal', part: 'crash', pitch: 0.8, decay: 0.8, level: 1 },
+  { note: 53, name: 'Ride Bell', part: 'ride', pitch: 1.55, decay: 0.7, level: 1 },
+  { note: 55, name: 'Splash Cymbal', part: 'crash', pitch: 1.45, decay: 0.3, level: 0.9 },
+  { note: 57, name: 'Crash Cymbal 2', part: 'crash', pitch: 1.1, decay: 1, level: 1 },
+  { note: 59, name: 'Ride Cymbal 2', part: 'ride', pitch: 0.92, decay: 1, level: 1 },
+  { note: 60, name: 'Hi Bongo', part: 'conga', pitch: 2, decay: 0.6, level: 0.9 },
+  { note: 61, name: 'Low Bongo', part: 'conga', pitch: 1.5, decay: 0.7, level: 0.9 },
+  { note: 62, name: 'Mute Hi Conga', part: 'conga', pitch: 1.05, decay: 0.25, level: 1 },
+  { note: 64, name: 'Low Conga', part: 'conga', pitch: 0.75, decay: 1.2, level: 1 },
+  { note: 66, name: 'Low Timbale', part: 'timbale', pitch: 0.78, decay: 1.1, level: 1 },
+  { note: 68, name: 'Low Agogo', part: 'agogo', pitch: 0.75, decay: 1, level: 1 },
+  { note: 69, name: 'Cabasa', part: 'shaker', pitch: 1, decay: 1, level: 1 },
+  { note: 76, name: 'Hi Wood Block', part: 'claves', pitch: 0.62, decay: 0.6, level: 1 },
+  { note: 77, name: 'Low Wood Block', part: 'claves', pitch: 0.47, decay: 0.6, level: 1 },
+  { note: 80, name: 'Mute Triangle', part: 'triangle', pitch: 1, decay: 0.05, level: 1 },
 ];
 
 /**
@@ -534,7 +572,7 @@ export const DRUM_BUSES = [
   { key: 'kick', name: 'Kick Out', parts: 'kick', pins: '3/4' },
   { key: 'snare', name: 'Snare/Clap Out', parts: 'snare, clap and rimshot', pins: '5/6' },
   { key: 'hats', name: 'Hats/Cymbals Out', parts: 'hi-hats, crash and ride', pins: '7/8' },
-  { key: 'perc', name: 'Toms/Perc Out', parts: 'toms, cowbell and shaker', pins: '9/10' },
+  { key: 'perc', name: 'Toms/Perc Out', parts: 'toms, cowbell, shaker and the Latin / hand percussion', pins: '9/10' },
 ];
 
 /** Common per-part parameters: pitch, decay, tone, level, pan. */
@@ -667,6 +705,44 @@ export const DRUM_PARAMS = /** @type {ParamDef[]} */ ([
     id: `${b.key}_bus_in_main`, name: `${b.name} In Main Mix`, group: 'In Main Mix (JSFX: separate outputs)', min: 0, max: 1, default: 1, step: 1, unit: '', options: ['Off', 'On'],
     description: `Whether the ${b.parts} also play in the main mix (outputs 1/2). In the JSFX they always play on their own outputs ${b.pins}.`,
   })),
+
+  // ---- GM percussion parts (and the variants in GM_DRUM_VARIANTS)
+  ...partParams('tambourine', 'Tambourine', {
+    pitch: [200, 2000, 700], decay: [20, 1000, 180], tone: 0.5, level: -10, pan: -0.15,
+    pitchDesc: 'Base frequency of the jingle cluster (metallic squares).',
+    decayDesc: 'Decay time of the jingles.',
+    toneDesc: 'High-pass cutoff (brightness).',
+  }),
+  ...partParams('conga', 'Conga', {
+    pitch: [80, 600, 200], decay: [30, 1500, 250], tone: 0.5, level: -4, pan: 0.2,
+    pitchDesc: 'Open hi conga (note 63); low conga, mute conga and the bongos (60-64) are tuned from it.',
+    decayDesc: 'Decay time of the open hi conga.',
+    toneDesc: 'Hand slap: pitch bend at the attack plus slap noise.',
+  }),
+  ...partParams('timbale', 'Timbale', {
+    pitch: [150, 1200, 420], decay: [50, 2000, 600], tone: 0.7, level: -6, pan: -0.2,
+    pitchDesc: 'High timbale (note 65); the low timbale (66) sits ~0.78x below.',
+    decayDesc: 'Decay time of the timbale shell.',
+    toneDesc: 'Stick attack: pitch bend plus stick noise.',
+  }),
+  ...partParams('agogo', 'Agogo', {
+    pitch: [300, 3000, 900], decay: [30, 2000, 500], tone: 0.4, level: -9, pan: 0.3,
+    pitchDesc: 'High agogo bell (note 67); the low bell (68) is 0.75x.',
+    decayDesc: 'Decay time of the bell.',
+    toneDesc: 'Band-pass brightness.',
+  }),
+  ...partParams('claves', 'Claves', {
+    pitch: [800, 5000, 2500], decay: [10, 500, 80], tone: 0.5, level: -8, pan: -0.3,
+    pitchDesc: 'Claves (note 75); the hi / low wood blocks (76 / 77) are tuned from it.',
+    decayDesc: 'Ring time of the wood.',
+    toneDesc: 'Upper mode and click (hardness).',
+  }),
+  ...partParams('triangle', 'Triangle', {
+    pitch: [400, 4000, 1200], decay: [100, 8000, 2200], tone: 0.6, level: -12, pan: 0.35,
+    pitchDesc: 'Lowest partial of the triangle.',
+    decayDesc: 'Ring time of the open triangle (note 81); the mute triangle (80) is cut short and chokes it.',
+    toneDesc: 'Balance of the upper partials (brightness).',
+  }),
 ]);
 
 /** @param {ParamDef[]} defs */

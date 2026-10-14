@@ -177,9 +177,18 @@ test('JSFX piano matches JS up to the top of the MIDI range', { skip: !HAVE && '
 test('JSFX drums match JS for every kit and part', { skip: !HAVE && 'jsfx_render not built' }, () => {
   const hits = DRUM_PARTS.map((part, i) => [i * 2400, 0x90, part.note, 60 + (i % 3) * 30]);
   hits.push([30000, 0x90, 46, 120], [31000, 0x90, 42, 100]); // choke
+  hits.sort((a, b) => a[0] - b[0]);
   for (const kit of DRUM_PRESETS) {
-    check('drums', resolvePreset(INSTRUMENTS.drums.defs, kit), hits, 0.8, `drums/${kit.name}`);
+    check('drums', resolvePreset(INSTRUMENTS.drums.defs, kit), hits, 1, `drums/${kit.name}`);
   }
+});
+
+test('JSFX drums match JS on every GM percussion note (parts and their variants)', { skip: !HAVE && 'jsfx_render not built' }, () => {
+  const hits = [];
+  for (let note = 35; note <= 81; note++) hits.push([(note - 35) * 1200, 0x90, note, 50 + (note % 4) * 25]);
+  hits.push([57000, 0x90, 81, 110], [60000, 0x90, 80, 110], [61000, 0x90, 55, 100], [61500, 0x90, 53, 100]);
+  check('drums', scenario('drums', {}), hits, 1.4, 'drums/GM notes');
+  check('drums', scenario('drums', { conga_tone: 1, timbale_tone: 0, claves_tone: 1, triangle_tone: 0, agogo_tone: 1 }), hits, 1.4, 'drums/GM notes, tones', 44100);
 });
 
 function checkHost(name, params, events, seconds, label, host) {
@@ -320,7 +329,7 @@ test('JSFX physical model matches JS with aftertouch mapped to breath, bow, brig
 
 test('JSFX drums match JS with groups left out of the main mix (separate outputs)', { skip: !HAVE && 'jsfx_render not built' }, () => {
   const hits = DRUM_PARTS.map((part, i) => [i * 2400, 0x90, part.note, 100]);
-  check('drums', scenario('drums', { kick_bus_in_main: 0, hats_bus_in_main: 0 }), hits, 0.8, 'drums/buses off');
+  check('drums', scenario('drums', { kick_bus_in_main: 0, hats_bus_in_main: 0, perc_bus_in_main: 0 }), hits, 1, 'drums/buses off');
 });
 
 // a Scala file the way people write them: comments, a blank-ish description, ratios, cents, a whole number
