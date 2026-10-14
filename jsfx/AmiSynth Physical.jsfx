@@ -31,7 +31,7 @@ slider18:bow_speed=0.55<0,1,0.001>Bow Speed
 slider19:bow_position=0.127<0.02,0.5,0.001>Bow Position
 slider20:bow_attack_ms=90<1,2000,0.1>Bow Attack [ms]
 slider21:bowed_brightness=0.6<0,1,0.001>Bowed String Brightness
-slider22:wind_type=0<0,1,1{Clarinet (reed),Flute (air jet)}>Wind Type
+slider22:wind_type=0<0,3,1{Clarinet (reed),Flute (air jet),Saxophone (conical reed),Oboe / Bassoon (double reed)}>Wind Type
 slider23:breath_pressure=0.6<0,1,0.001>Breath Pressure
 slider24:breath_noise=0.15<0,1,0.001>Breath Noise
 slider25:wind_attack_ms=40<1,2000,0.1>Breath Attack [ms]
@@ -93,6 +93,10 @@ MESH_W = MESH_MAX + 2; // padded row length (zero border = fixed edge)
 MESH_CELLS = MESH_W * MESH_W;
 K_MESH = 5.5;
 FLUTE_JET_RATIO = 1.03;
+WIND_CLARINET = 0;
+WIND_FLUTE = 1;
+WIND_SAX = 2;
+WIND_DOUBLE_REED = 3;
 FLUTE_JET_GAIN = 1.6;
 EXC_MAX = 16384;
 HAM_SUB = 4;
@@ -106,6 +110,11 @@ BRASS_BOOST = 6;
 BRASS_BOOST_PERIODS = 10;
 BRASS_SEED = 0.15;
 STEEP_LEN = 4096;
+// conical bore (sax, double reed): reed position along the loop and output gain (see phys.js)
+cone_pos = mem_alloc(4);
+cone_pos[2] = 0.4; cone_pos[3] = 0.35;
+cone_gain = mem_alloc(4);
+cone_gain[2] = 0.7; cone_gain[3] = 0.9;
 // brass: minimum lip drive per note (notes 28, 32, .. 104), drive multiples, tuning residual
 // (cents sharp, 4 multiples x 20 notes) - see phys.js
 brass_min = mem_alloc(20);
@@ -140,10 +149,17 @@ function brass_pressure_of(vel_raw, press) (
 /** bow friction slope from Bow Pressure (plus aftertouch) */
 function bow_slope(press) ( 5 - 4 * clamp(bow_pressure + phys_pressure_excitation * press, 0, 1); );
 
+/** Wind Type as an integer (WIND_CLARINET .. WIND_DOUBLE_REED) */
+function wind_kind() ( floor(wind_type + 0.5); );
+
 /** wind: breath pressure (plus aftertouch) -> reed pressure / jet strength */
-function wind_maxv(press, slope, jet_boost) local(bp) (
+function wind_maxv(press, slope, jet_boost) local(bp, kind) (
   bp = clamp(breath_pressure + phys_pressure_excitation * press, 0, 1);
-  wind_type < 0.5 ? (0.2 + 0.06 * bp) / -slope : (0.6 + 0.4 * bp) * jet_boost;
+  kind = wind_kind();
+  // a conical bore needs a little more reed pressure to start
+  kind >= WIND_SAX ? (0.24 + 0.05 * bp) / -slope
+  : kind === WIND_CLARINET ? (0.2 + 0.06 * bp) / -slope
+  : (0.6 + 0.4 * bp) * jet_boost;
 );
 
 /** drive multiple 1.1 .. 3 from Lip Buzz and the pressure, half each */
@@ -418,7 +434,20 @@ function voice_tune(keep_decay) instance(hz0 damp_b delay_len delay_len2 loop_ga
     rad_k = 1 / (2 * sin(w / 2));
     bell_b = exp((-2 * $pi * (1500 + 6000 * clamp(brass_bell + phys_pressure_brightness * press, 0, 1))) / srate);
   ) : model === MODEL_WIND ? (
-    wind_type < 0.5 ? (
+    k = wind_kind();
+    k >= WIND_SAX ? (
+      // saxophone / oboe (Scavone, STK Saxofony): a cone acts like a pipe open at both ends, so
+      // the loop is one period; the reed hears the bell reflection and the same wave later
+      damp_b = exp((-2 * $pi * max(k === WIND_SAX ? 2500 : 3500, 6 * hz)) / srate);
+      // measured residual of the reed loop (cents flat), x = octaves above C4 at 48 kHz
+      x = log((hz * 48000) / (srate * 261.63)) / log(2);
+      sharp = k === WIND_SAX ? clamp(2.5 + 4 * x, 2, 7) : clamp(1.5 + 3.5 * x, 1, 9);
+      total = clamp((srate / hz) * pow(2, -sharp / 1200) - lp_phase_delay(damp_b, hz), 4, 2 * MAX_DELAY - 4);
+      delay_len2 = clamp(cone_pos[k] * total, 2, MAX_DELAY - 2);
+      delay_len = clamp(total - delay_len2, 2, MAX_DELAY - 2);
+      // bell radiation: first difference, unity gain at the fundamental
+      rad_k = 1 / (2 * sin(($pi * hz) / srate));
+    ) : k === WIND_CLARINET ? (
       // clarinet: inverting, low-passed reflection (tone holes / bell let the highs escape)
       damp_b = exp((-2 * $pi * max(1500, 5 * hz)) / srate);
       delay_len = clamp((0.5 * srate) / hz - lp_phase_delay(damp_b, hz), 2, MAX_DELAY - 2);
@@ -498,7 +527,7 @@ function hammer_force(out, hz, v0, hardness, beta) local(m, Z, K, dt, lag, max_n
 // op: 0 init(index), 1 start(note, velocity), 2 note off, 3 retune for pitch bend
 function voice_op(op, a, b) instance(idx vel hz0 level frames lp_z lp_z2 loop_gain loop_gain2 damp_b delay_len delay_len2 read_gain
   exc_t exc_len exc modes mhz mt60 maxv slope mesh_u mesh_up mesh_un mesh_sig mesh_omega jet_boost flut hiss_lp
-  vel_raw lip_y1 lip_y2 dc_x dc_y bell_z refl_z rad_x steep steep_w boost boost_c poly_at press)
+  vel_raw lip_y1 lip_y2 dc_x dc_y bell_z refl_z rad_x rad_x2 steep steep_w boost boost_c poly_at press)
   local(v, n, bright, aa, pick, norm, lp, i, j, c, x, width, ia, ib, hard, g_rel, k, R, amp, sx, sy, d, len, decay, sb_a, sb_env,
     v0, scale, total, hp_a, hp_z, hp_z2, hp_z3, hp_z4, w0, re, im, mag, around, m, top, want, blen, burst, release_ms, mesh_ms) (
   op === 0 ? (
@@ -612,12 +641,14 @@ function voice_op(op, a, b) instance(idx vel hz0 level frames lp_z lp_z2 loop_ga
         this.env.value = 0;
         flut = 0;
         hiss_lp = 0;
+        rad_x = 0;
+        rad_x2 = 0;
       );
       this.dc.onepole_set(20);
       this.env.adsr_set(wind_attack_ms, 1, 1, min(phys_release_ms, 400));
       this.env.adsr_gate_on();
       // both only speak inside a band of blowing pressure; velocity sets the output level
-      wind_type < 0.5 ? slope = -(0.2 + 0.25 * wind_embouchure);
+      wind_kind() !== WIND_FLUTE ? slope = -(0.2 + 0.25 * wind_embouchure);
       maxv = wind_maxv(press, slope, jet_boost);
     ) : model === MODEL_MESH ? (
       n = mesh_n;
@@ -878,8 +909,8 @@ function render_brass() instance(vel maxv delay_len lip_y1 lip_y2 lip_a1 lip_a2 
   bell_z * BRASS_GAIN * vel;
 );
 
-function render_wind() instance(vel maxv slope lp_z damp_b delay_len delay_len2 jet_bias flut hiss_lp)
-  local(en, nz, bp, hiss, bore, pd, reed, t, jet, j) (
+function render_wind() instance(vel maxv slope lp_z damp_b delay_len delay_len2 jet_bias flut hiss_lp rad_x rad_x2 rad_k)
+  local(en, nz, bp, hiss, bore, pd, reed, t, jet, j, kind, mouth, rad, r2) (
   en = this.env.adsr_process();
   nz = noise_white();
   // slow (~5 Hz) breath pressure wobble of about 1.5 % and an airy hiss above ~1 kHz
@@ -887,7 +918,31 @@ function render_wind() instance(vel maxv slope lp_z damp_b delay_len delay_len2 
   bp = en * maxv * (1 + 1.4 * flut);
   hiss_lp += hiss_a * (nz - hiss_lp);
   hiss = (nz - hiss_lp) * en * breath_noise * 0.05;
-  wind_type < 0.5 ? (
+  kind = wind_kind();
+  kind >= WIND_SAX ? (
+    bp += bp * breath_noise * 0.25 * nz;
+    // bell side: lossy, low-passed, inverting reflection at the open end
+    bore = this.line.delay_read(delay_len / vib);
+    lp_z = (1 - damp_b) * bore + damp_b * lp_z;
+    t = -0.95 * lp_z;
+    // pressure at the reed: the fresh reflection minus the one that went on past the reed
+    mouth = t - this.line2.delay_read(delay_len2 / vib);
+    pd = bp - mouth;
+    reed = 0.7 - slope * pd;
+    reed > 1 ? reed = 1;
+    reed < -1 ? reed = -1;
+    this.line2.delay_write(t);
+    this.line.delay_write(bp - pd * reed - t);
+    rad = (t - rad_x) * rad_k;
+    rad_x = t;
+    kind === WIND_DOUBLE_REED ? (
+      // narrow cone: plus a second difference with a fixed ~1 kHz corner (nasal formant)
+      r2 = (rad - rad_x2) * reed_k;
+      rad_x2 = rad;
+      rad = 0.4 * rad + 0.6 * r2;
+    );
+    (rad * cone_gain[kind] + hiss) * vel;
+  ) : kind === WIND_CLARINET ? (
     bp += bp * breath_noise * 0.25 * nz;
     bore = this.line.delay_read(delay_len / vib);
     // lossy, low-passed, inverting reflection at the bell
@@ -1205,6 +1260,7 @@ model = floor(phys_model + 0.5);
 vib_inc = phys_vibrato_rate_hz / srate;
 flut_a = 1 - exp((-2 * $pi * 5) / srate);
 hiss_a = 1 - exp((-2 * $pi * 1000) / srate);
+reed_k = 1 / (2 * sin(($pi * 1000) / srate));
 room_update(phys_room_decay_ms);
 amp_t = clamp(floor(amp_type + 0.5), 0, 4);
 amp_t > 0 ? (

@@ -2018,15 +2018,17 @@
       "name": "Wind Type",
       "group": "Wind",
       "min": 0,
-      "max": 1,
+      "max": 3,
       "default": 0,
       "step": 1,
       "unit": "",
       "options": [
         "Clarinet (reed)",
-        "Flute (air jet)"
+        "Flute (air jet)",
+        "Saxophone (conical reed)",
+        "Oboe / Bassoon (double reed)"
       ],
-      "description": "Reed: a pressure-controlled valve at a closed bore end (odd harmonics). Jet: an air jet across an open bore."
+      "description": "Clarinet: a reed valve at the closed end of a cylindrical bore (odd harmonics). Flute: an air jet across an open bore. Saxophone / Oboe: a reed on a conical bore (all harmonics); the double reed sits further down a narrower cone, for a thinner, nasal tone."
     },
     {
       "id": "breath_pressure",

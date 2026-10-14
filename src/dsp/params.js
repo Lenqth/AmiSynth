@@ -385,8 +385,9 @@ export const PHYS_PARAMS = /** @type {ParamDef[]} */ ([
   { id: 'bowed_brightness', name: 'Bowed String Brightness', group: 'Bowed', min: 0, max: 1, default: 0.6, step: 0.001, unit: '',
     description: 'Losses of high frequencies at the bridge (string material / damping).' },
 
-  { id: 'wind_type', name: 'Wind Type', group: 'Wind', min: 0, max: 1, default: 0, step: 1, unit: '', options: ['Clarinet (reed)', 'Flute (air jet)'],
-    description: 'Reed: a pressure-controlled valve at a closed bore end (odd harmonics). Jet: an air jet across an open bore.' },
+  { id: 'wind_type', name: 'Wind Type', group: 'Wind', min: 0, max: 3, default: 0, step: 1, unit: '',
+    options: ['Clarinet (reed)', 'Flute (air jet)', 'Saxophone (conical reed)', 'Oboe / Bassoon (double reed)'],
+    description: 'Clarinet: a reed valve at the closed end of a cylindrical bore (odd harmonics). Flute: an air jet across an open bore. Saxophone / Oboe: a reed on a conical bore (all harmonics); the double reed sits further down a narrower cone, for a thinner, nasal tone.' },
   { id: 'breath_pressure', name: 'Breath Pressure', group: 'Wind', min: 0, max: 1, default: 0.6, step: 0.001, unit: '',
     description: 'Blowing pressure; too low does not start the tone, too high overblows.' },
   { id: 'breath_noise', name: 'Breath Noise', group: 'Wind', min: 0, max: 1, default: 0.15, step: 0.001, unit: '',

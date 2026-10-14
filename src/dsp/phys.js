@@ -62,6 +62,14 @@ const MESH_W = MESH_MAX + 2; // padded row length (zero border = fixed edge)
 const MAX_DELAY = 8192;
 const K_MESH = 5.5;
 const FLUTE_JET_RATIO = 1.03;
+export const WIND_CLARINET = 0;
+export const WIND_FLUTE = 1;
+export const WIND_SAX = 2;
+export const WIND_DOUBLE_REED = 3;
+/** conical bore (sax, double reed): where along the loop the reed sees the reflected wave (the missing cone tip) */
+const CONE_REED_POS = [0, 0, 0.4, 0.35];
+/** conical bore output gain (the double reed's second difference is much hotter) */
+const CONE_GAIN = [0, 0, 0.7, 0.9];
 const FLUTE_JET_GAIN = 1.6;
 const N_AP = 4; // dispersion all-passes per stiff string
 const EXC_MAX = 16384; // piano excitation buffer (hammer + strike comb, up to 192 kHz)
@@ -151,7 +159,7 @@ function voice_create() {
     mesh_c2: 0, mesh_sig: 0, mesh_omega: 0, jet_bias: 0, jet_boost: 1, flut: 0, hiss_lp: 0,
     // brass lips (two-pole resonator), dc blocker, bell low-pass
     lip_y1: 0, lip_y2: 0, lip_a1: 0, lip_a2: 0, lip_g: 0, dc_x: 0, dc_y: 0, dc_r: 0, bell_b: 0, bell_z: 0,
-    refl_b: 0, refl_z: 0, rad_x: 0, rad_k: 1, boost: 0, boost_c: 0, steep: { buf: new Float64Array(STEEP_LEN), w: 0 },
+    refl_b: 0, refl_z: 0, rad_x: 0, rad_x2: 0, rad_k: 1, boost: 0, boost_c: 0, steep: { buf: new Float64Array(STEEP_LEN), w: 0 },
     // stiff string
     ap_a: 0, n_ap: N_AP, apA: [], apB: [], tuneA: {}, tuneB: {}, tune_a: 0, tune_a2: 0, tune_d: 1, tune_d2: 1,
     exc: new Float64Array(EXC_MAX), hp: new Float64Array(PIANO_HP),
@@ -239,6 +247,7 @@ export function phys_update(s, p) {
   room_update(s, p.phys_room_decay_ms);
   amp_update(s, p);
   s.hiss_a = 1 - Math.exp((-TWO_PI * 1000) / s.sr);
+  s.reed_k = 1 / (2 * Math.sin((Math.PI * 1000) / s.sr));
   const n = clamp(Math.floor(p.mesh_size + 0.5), 6, MESH_MAX);
   const shape = Math.floor(p.mesh_shape + 0.5);
   if (n !== s.mesh_n || shape !== s.mesh_shape) mesh_setup(s, n, shape);
@@ -474,10 +483,18 @@ function bow_slope(s, p, v) {
   return 5 - 4 * clamp(p.bow_pressure + s.press_exc * v.press, 0, 1);
 }
 
+/** Wind Type as an integer (WIND_CLARINET .. WIND_DOUBLE_REED) */
+function wind_kind(p) {
+  return Math.floor(p.wind_type + 0.5);
+}
+
 /** wind: breath pressure (plus aftertouch) -> reed pressure / jet strength (needs v.slope / v.jet_boost) */
 function wind_maxv(s, p, v) {
   const bp = clamp(p.breath_pressure + s.press_exc * v.press, 0, 1);
-  if (p.wind_type < 0.5) return (0.2 + 0.06 * bp) / -v.slope;
+  const kind = wind_kind(p);
+  // a conical bore needs a little more reed pressure to start
+  if (kind >= WIND_SAX) return (0.24 + 0.05 * bp) / -v.slope;
+  if (kind === WIND_CLARINET) return (0.2 + 0.06 * bp) / -v.slope;
   return (0.6 + 0.4 * bp) * v.jet_boost;
 }
 
@@ -576,7 +593,23 @@ function voice_tune(s, v, keep_decay) {
     v.rad_k = 1 / (2 * Math.sin(w / 2));
     v.bell_b = Math.exp((-TWO_PI * (1500 + 6000 * clamp(p.brass_bell + s.press_bright * v.press, 0, 1))) / sr);
   } else if (model === MODEL_WIND) {
-    if (p.wind_type < 0.5) {
+    const kind = wind_kind(p);
+    if (kind >= WIND_SAX) {
+      // saxophone / oboe (after Scavone, STK Saxofony): a cone behaves like a cylinder open at
+      // both ends, so the loop is one period long (all harmonics) instead of two. The reed sits
+      // at CONE_REED_POS of the loop: it hears the wave reflected at the bell and the same wave
+      // a little later, which carves the formant-like dips of a truncated cone.
+      v.damp_b = Math.exp((-TWO_PI * Math.max(kind === WIND_SAX ? 2500 : 3500, 6 * hz)) / sr);
+      // measured residual of the reed loop (cents flat), x = octaves above C4 at 48 kHz
+      const x = Math.log((hz * 48000) / (sr * 261.63)) / Math.log(2);
+      const flat = kind === WIND_SAX ? clamp(2.5 + 4 * x, 2, 7) : clamp(1.5 + 3.5 * x, 1, 9);
+      const total = clamp((sr / hz) * Math.pow(2, -flat / 1200) - lp_phase_delay(v.damp_b, hz, sr), 4, 2 * MAX_DELAY - 4);
+      v.delay_len2 = clamp(CONE_REED_POS[kind] * total, 2, MAX_DELAY - 2);
+      v.delay_len = clamp(total - v.delay_len2, 2, MAX_DELAY - 2);
+      // the bell radiates the bore pressure high-passed (~ its time derivative): a first
+      // difference, normalised to unity gain at the fundamental like the brass bell
+      v.rad_k = 1 / (2 * Math.sin((Math.PI * hz) / sr));
+    } else if (kind === WIND_CLARINET) {
       // clarinet: inverting reflection at the bell -> period = 2 x (bore + reflection low-pass).
       // The low-pass stands in for the tone-hole lattice / bell, which lets high frequencies
       // escape instead of reflecting (~1.5 kHz), so upper harmonics do not keep building up.
@@ -774,13 +807,15 @@ export function phys_note_on(s, note, velocity) {
       v.env.value = 0;
       v.flut = 0;
       v.hiss_lp = 0;
+      v.rad_x = 0;
+      v.rad_x2 = 0;
     }
     onepole_set(v.dc, 20, sr);
     adsr_set(v.env, p.wind_attack_ms, 1, 1, Math.min(p.phys_release_ms, 400), sr);
     adsr_gate_on(v.env);
     // Both instruments only speak inside a band of blowing pressure, so the knobs move the
     // pressure within that band (velocity sets the output level instead).
-    if (p.wind_type < 0.5) {
+    if (wind_kind(p) !== WIND_FLUTE) {
       // reed stiffness (slope) x pressure must stay around 0.2 .. 0.26
       v.slope = -(0.2 + 0.25 * p.wind_embouchure);
     }
@@ -1118,7 +1153,7 @@ function render_brass(v, vib) {
   return v.bell_z * BRASS_GAIN * v.vel;
 }
 
-function render_wind(s, v, vib, flute, noise_amt) {
+function render_wind(s, v, vib, kind, noise_amt) {
   const env = adsr_process(v.env);
   const nz = noise_white();
   // a player's breath is never perfectly steady: slow (~5 Hz low-passed) pressure wobble of
@@ -1128,7 +1163,34 @@ function render_wind(s, v, vib, flute, noise_amt) {
   // turbulence heard as an airy hiss (noise above ~1 kHz) on top of the tone
   v.hiss_lp += s.hiss_a * (nz - v.hiss_lp);
   const hiss = (nz - v.hiss_lp) * env * noise_amt * 0.05;
-  if (!flute) {
+  if (kind >= WIND_SAX) {
+    bp += bp * noise_amt * 0.25 * nz;
+    // bell side: lossy, low-passed, inverting reflection at the open end
+    const bell = delay_read(v.line, v.delay_len / vib);
+    v.lp_z = (1 - v.damp_b) * bell + v.damp_b * v.lp_z;
+    const t = -0.95 * v.lp_z;
+    // pressure at the reed: the fresh reflection minus the one that went on past the reed
+    const mouth = t - delay_read(v.line2, v.delay_len2 / vib);
+    const pd = bp - mouth;
+    // (pd has the opposite sign of the clarinet's, so the same slope enters negated)
+    let reed = 0.7 - v.slope * pd;
+    if (reed > 1) reed = 1;
+    if (reed < -1) reed = -1;
+    v.slip = reed;
+    delay_write(v.line2, t);
+    delay_write(v.line, bp - pd * reed - t);
+    let rad = (t - v.rad_x) * v.rad_k;
+    v.rad_x = t;
+    if (kind === WIND_DOUBLE_REED) {
+      // narrow cone: the radiation adds a second difference with a fixed corner (~1 kHz),
+      // lifting the partials above it whatever the note (the nasal oboe / bassoon formant)
+      const r2 = (rad - v.rad_x2) * s.reed_k;
+      v.rad_x2 = rad;
+      rad = 0.4 * rad + 0.6 * r2;
+    }
+    return (rad * CONE_GAIN[kind] + hiss) * v.vel;
+  }
+  if (kind === WIND_CLARINET) {
     bp += bp * noise_amt * 0.25 * nz;
     const bore = delay_read(v.line, v.delay_len / vib);
     // lossy, low-passed, inverting reflection at the bell
@@ -1239,7 +1301,7 @@ export function phys_render(s) {
     s.vib_phase += s.vib_inc;
     if (s.vib_phase >= 1) s.vib_phase -= 1;
   }
-  const flute = p.wind_type >= 0.5;
+  const wkind = wind_kind(p);
   let l = 0;
   let r = 0;
   let bridge = 0;
@@ -1251,7 +1313,7 @@ export function phys_render(s) {
     if (model === MODEL_STRING) y = render_string(v, vv);
     else if (model === MODEL_MODAL) y = render_modal(v);
     else if (model === MODEL_BOWED) y = render_bowed(v, vv);
-    else if (model === MODEL_WIND) y = render_wind(s, v, vv, flute, p.breath_noise);
+    else if (model === MODEL_WIND) y = render_wind(s, v, vv, wkind, p.breath_noise);
     else if (model === MODEL_BRASS) y = render_brass(v, vv);
     else if (model === MODEL_MESH) y = render_mesh(s, v);
     else y = render_stiff(v, vv);
@@ -1407,7 +1469,7 @@ export function phys_snapshot(s, points = 192) {
     return { ...base, nut: nut.reverse(), bridge, slip: v.slip, bow: v.env.value * v.maxv, bowPos: s.p.bow_position };
   }
   if (model === MODEL_WIND) {
-    return { ...base, wave: line_wave(v.line, v.delay_len, points), flute: s.p.wind_type >= 0.5, valve: v.slip, breath: v.env.value * v.maxv };
+    return { ...base, wave: line_wave(v.line, v.delay_len, points), flute: wind_kind(s.p) === WIND_FLUTE, valve: v.slip, breath: v.env.value * v.maxv };
   }
   if (model === MODEL_BRASS) {
     return { ...base, wave: line_wave(v.line, v.delay_len, points), valve: v.slip, breath: v.env.value * v.maxv };
