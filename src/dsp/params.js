@@ -511,6 +511,8 @@ export const PHYS_PARAMS = /** @type {ParamDef[]} */ ([
     description: 'Share of the rotary speaker in the output (1 = the speaker only).' },
   { id: 'free_reed_detune_cents', name: 'Free Reed Musette', group: 'Wind', min: 0, max: 50, default: 0, step: 0.1, unit: 'cents',
     description: 'Free reed only: two more reeds this many cents above and below the note beat against it (accordion musette / tremolo). 0 = a single reed.' },
+  { id: 'string_sawari', name: 'String Sawari', group: 'String', min: 0, max: 1, default: 0, step: 0.001, unit: '',
+    description: 'Sitar / tanpura bridge (jawari): the string grazes a flat curved bridge on every swing, which keeps folding energy into the high partials - the sustained buzz. Higher = the string lies on the bridge for more of each cycle. 0 = an ordinary bridge.' },
 ]);
 
 // ---------------------------------------------------------------------------

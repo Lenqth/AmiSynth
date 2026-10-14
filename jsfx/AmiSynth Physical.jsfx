@@ -90,6 +90,7 @@ slider76:organ_click=0.3<0,1,0.001>Key Click
 slider77:rotary_mode=0<0,2,1{Off,Slow (chorale),Fast (tremolo)}>Rotary Speaker
 slider78:rotary_mix=1<0,1,0.001>Rotary Mix
 slider79:free_reed_detune_cents=0<0,50,0.1>Free Reed Musette [cents]
+slider80:string_sawari=0<0,1,0.001>String Sawari
 // </generated sliders>
 
 import amisynth_lib.jsfx-inc
@@ -116,6 +117,7 @@ WIND_SAX = 2;
 WIND_DOUBLE_REED = 3;
 WIND_FREE_REED = 4;
 FREE_REED_OVERLAP = 0.35;
+SAW_GMAX = 1.5; // sawari: largest gain correction for the bridge contact's loss
 FREE_REED_GAIN = 1.1;
 FLUTE_JET_GAIN = 1.6;
 EXC_MAX = 16384;
@@ -575,7 +577,8 @@ function hammer_force(out, hz, v0, hardness, beta) local(m, Z, K, dt, lag, max_n
 // op: 0 init(index), 1 start(note, velocity), 2 note off, 3 retune for pitch bend
 function voice_op(op, a, b) instance(idx vel hz0 level frames lp_z lp_z2 loop_gain loop_gain2 damp_b delay_len delay_len2 read_gain
   exc_t exc_len exc modes mhz mt60 maxv slope mesh_u mesh_up mesh_un mesh_sig mesh_omega jet_boost flut hiss_lp
-  vel_raw lip_y1 lip_y2 dc_x dc_y bell_z refl_z rad_x rad_x2 steep steep_w boost boost_c poly_at press org_perc org_clk org_ph fr_ph2 fr_ph3)
+  vel_raw lip_y1 lip_y2 dc_x dc_y bell_z refl_z rad_x rad_x2 steep steep_w boost boost_c poly_at press org_perc org_clk org_ph fr_ph2 fr_ph3
+  saw_env saw_dc saw_mx saw_my saw_g saw_on)
   local(others, v, n, bright, aa, pick, norm, lp, i, j, c, x, width, ia, ib, hard, g_rel, k, R, amp, sx, sy, d, len, decay, sb_a, sb_env,
     v0, scale, total, hp_a, hp_z, hp_z2, hp_z3, hp_z4, w0, re, im, mag, around, m, top, want, blen, burst, release_ms, mesh_ms) (
   op === 0 ? (
@@ -632,6 +635,12 @@ function voice_op(op, a, b) instance(idx vel hz0 level frames lp_z lp_z2 loop_ga
         this.line.base[ia] -= this.line.base[ib];
         i -= 1;
       );
+      saw_env = 0;
+      saw_dc = 0;
+      saw_mx = 0;
+      saw_my = 0;
+      saw_g = 1;
+      saw_on = 1;
       read_gain = 1.2 * vel * clamp(pow(hz0 / 220, 0.3), 0.7, 2);
     ) : model === MODEL_MODAL ? (
       k = 0;
@@ -850,6 +859,8 @@ function voice_op(op, a, b) instance(idx vel hz0 level frames lp_z lp_z2 loop_ga
     model === MODEL_STRING ? (
       g_rel = exp(-6.907755 / (hz0 * release_ms * 0.001));
       loop_gain = min(loop_gain, g_rel);
+      saw_on = 0;
+      saw_g = 1;
     ) : model === MODEL_MODAL ? (
       k = 0;
       loop(NMODES,
@@ -889,11 +900,30 @@ function voice_op(op, a, b) instance(idx vel hz0 level frames lp_z lp_z2 loop_ga
 
 // --- per-model renderers (return the voice's mono output) ---
 
-function render_string() instance(lp_z damp_b loop_gain delay_len read_gain) local(x, fb) (
+function render_string() instance(lp_z damp_b loop_gain delay_len read_gain saw_env saw_dc saw_mx saw_my saw_g saw_on)
+  local(x, fb, a, b, y) (
   // read the oldest sample, damp it, feed it back
   x = this.line.delay_read(delay_len / vib);
   lp_z = (1 - damp_b) * x + damp_b * lp_z;
   fb = lp_z * loop_gain;
+  string_sawari > 0 ? (
+    // sawari (jawari bridge): above a fraction of its own swing the string lies on the curved
+    // bridge, which throws it back - a kink every cycle that regenerates the high partials.
+    // The contact point scales with the envelope, so the buzz lasts as long as the note.
+    a = abs(lp_z);
+    saw_env = a > saw_env ? a : saw_env * saw_env_c;
+    b = saw_c * saw_env;
+    y = lp_z;
+    y > b ? y = b - 0.5 * (y - b);
+    saw_dc += saw_dc_a * (y - saw_dc);
+    y -= saw_dc;
+    // the contact itself loses energy every cycle; give back what it took (mean |y| vs mean |x|)
+    // so the note keeps the decay set by String Decay / Damping
+    saw_mx += saw_m_a * (a - saw_mx);
+    saw_my += saw_m_a * (abs(y) - saw_my);
+    saw_on && saw_my > 0.000000000001 ? saw_g = min(saw_mx / saw_my, SAW_GMAX);
+    fb = y * loop_gain * saw_g;
+  );
   this.line.delay_write(fb);
   fb * read_gain;
 );
@@ -1407,6 +1437,10 @@ reed_k = 1 / (2 * sin(($pi * 1000) / srate));
 fr_bias = 0.25 + 0.3 * wind_embouchure;
 fr_det = pow(2, free_reed_detune_cents / 1200);
 fr_n = free_reed_detune_cents > 0 ? 3 : 1;
+saw_c = 0.8 - 0.55 * string_sawari;
+saw_env_c = exp(-1 / (0.03 * srate));
+saw_dc_a = 1 - exp((-2 * $pi * 5) / srate);
+saw_m_a = 1 - exp(-1 / (0.02 * srate));
 organ_w[0] = organ_bar_w(organ_drawbar_16); organ_w[1] = organ_bar_w(organ_drawbar_5_13);
 organ_w[2] = organ_bar_w(organ_drawbar_8); organ_w[3] = organ_bar_w(organ_drawbar_4);
 organ_w[4] = organ_bar_w(organ_drawbar_2_23); organ_w[5] = organ_bar_w(organ_drawbar_2);

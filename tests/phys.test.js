@@ -486,3 +486,48 @@ test('organ model: drawbars set the partials, in tune, single-trigger percussion
   assert.ok(swing({}) < 1.05, 'steady without the rotary');
   assert.ok(swing({ rotary_mode: 2 }) > 1.3, 'rotary swirls');
 });
+
+/** amplitude of harmonic k (Hann-windowed DFT at k * hz) */
+function harmonic(buf, hz, k) {
+  let re = 0;
+  let im = 0;
+  for (let i = 0; i < buf.length; i++) {
+    const w = 0.5 - 0.5 * Math.cos((2 * Math.PI * i) / buf.length);
+    const ph = (2 * Math.PI * hz * k * i) / SR;
+    re += buf[i] * w * Math.cos(ph);
+    im += buf[i] * w * Math.sin(ph);
+  }
+  return Math.hypot(re, im);
+}
+
+test('sawari: the upper partials keep ringing, the pitch and the decay stay, and release frees the voice', () => {
+  for (const note of [50, 62, 69]) {
+    const hz = 440 * Math.pow(2, (note - 69) / 12);
+    const hi = {};
+    const lvl = {};
+    for (const saw of [0, 0.6]) {
+      const s = make({ phys_model: 0, string_sawari: saw, string_decay_ms: 6000, string_damping: 0.15 });
+      phys_note_on(s, note, 110);
+      const out = render(s, SR * 2.6);
+      const late = out.subarray(SR * 2, SR * 2.5);
+      let e = 0;
+      let h = 0;
+      for (let k = 1; k <= 24; k++) {
+        const a = harmonic(late, hz, k) ** 2;
+        e += a;
+        if (k >= 8) h += a;
+      }
+      hi[saw] = 10 * Math.log10(h / e);
+      lvl[saw] = 10 * Math.log10(e);
+      if (saw > 0) {
+        const cents = 1200 * Math.log2(pitch(out.subarray(SR * 0.5, SR), hz) / hz);
+        assert.ok(Math.abs(cents) < 5, `note ${note} sawari pitch ${cents.toFixed(1)} cents`);
+        phys_note_off(s, note);
+        render(s, SR * 2);
+        assert.equal(s.voices.filter((v) => v.active).length, 0, `note ${note} voice freed`);
+      }
+    }
+    assert.ok(hi[0.6] > hi[0] + 6 && hi[0.6] > -55, `note ${note}: partials 8+ at 2 s ${hi[0].toFixed(0)} -> ${hi[0.6].toFixed(0)} dB`);
+    assert.ok(Math.abs(lvl[0.6] - lvl[0]) < 8, `note ${note}: level at 2 s ${lvl[0].toFixed(1)} vs ${lvl[0.6].toFixed(1)} dB`);
+  }
+});

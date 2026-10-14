@@ -108,6 +108,8 @@ export const MODEL_MESH = 4;
 export const MODEL_STIFF = 5;
 export const MODEL_BRASS = 6;
 export const MODEL_ORGAN = 7;
+// sawari: largest gain correction for the bridge contact's loss
+const SAW_GMAX = 1.5;
 
 /** drawbar footages 16' 5 1/3' 8' 4' 2 2/3' 2' 1 3/5' 1 1/3' 1' as harmonics of half the note */
 export const ORGAN_K = [1, 3, 2, 4, 6, 8, 10, 12, 16];
@@ -200,6 +202,8 @@ function voice_create() {
     org_ph: 0, org_inc: 0, org_perc: 0, org_clk: 0,
     // free reed: the two musette reeds' phases and increments (the main reed uses org_ph / org_inc)
     fr_ph2: 0, fr_ph3: 0, fr_inc2: 0, fr_inc3: 0,
+    // sawari: envelope of the loop, DC of the bridge contact, mean |in| / |out| and the gain correction
+    saw_env: 0, saw_dc: 0, saw_mx: 0, saw_my: 0, saw_g: 1, saw_on: 0,
   };
   delay_init(v.line, MAX_DELAY);
   delay_init(v.line2, MAX_DELAY);
@@ -296,6 +300,11 @@ export function phys_update(s, p) {
   s.fr_bias = 0.25 + 0.3 * (p.wind_embouchure ?? 0.5);
   s.fr_det = Math.pow(2, (p.free_reed_detune_cents ?? 0) / 1200);
   s.fr_n = (p.free_reed_detune_cents ?? 0) > 0 ? 3 : 1;
+  s.saw = p.string_sawari ?? 0;
+  s.saw_c = 0.8 - 0.55 * s.saw;
+  s.saw_env_c = Math.exp(-1 / (0.03 * s.sr));
+  s.saw_dc_a = 1 - Math.exp((-TWO_PI * 5) / s.sr);
+  s.saw_m_a = 1 - Math.exp(-1 / (0.02 * s.sr));
   for (let j = 0; j < 9; j++) {
     const bar = clamp(Math.round(p[ORGAN_BARS[j]] ?? 0), 0, 8);
     s.org_w[j] = bar > 0 ? ORGAN_GAIN * db_to_gain(3 * (bar - 8)) : 0;
@@ -819,6 +828,12 @@ export function phys_note_on(s, note, velocity) {
       const idx_b = (v.line.w - n + i - pick + v.line.size) % v.line.size;
       v.line.buf[idx_a] -= v.line.buf[idx_b];
     }
+    v.saw_env = 0;
+    v.saw_dc = 0;
+    v.saw_mx = 0;
+    v.saw_my = 0;
+    v.saw_g = 1;
+    v.saw_on = 1;
     // high notes lose more energy per second (more round trips); compensate gently
     v.read_gain = 1.2 * v.vel * clamp(Math.pow(v.hz / 220, 0.3), 0.7, 2);
   } else if (model === MODEL_MODAL) {
@@ -1055,6 +1070,8 @@ function phys_release_voice(s, v) {
   if (model === MODEL_STRING) {
     const g_rel = Math.exp(-6.907755 / (v.hz * p.phys_release_ms * 0.001));
     v.loop_gain = Math.min(v.loop_gain, g_rel);
+    v.saw_on = 0;
+    v.saw_g = 1;
   } else if (model === MODEL_MODAL) {
     for (let k = 0; k < MAX_MODES; k++) {
       v.mode_t60[k] = Math.min(v.mode_t60[k], p.phys_release_ms);
@@ -1153,11 +1170,29 @@ export function phys_pressure_reset(s) {
 // ---------------------------------------------------------------------------
 // Per-model sample renderers (return the voice's mono output)
 
-function render_string(v, vib) {
+function render_string(s, v, vib) {
   // read the oldest sample, damp it, feed it back
   const x = delay_read(v.line, v.delay_len / vib);
   v.lp_z = (1 - v.damp_b) * x + v.damp_b * v.lp_z;
-  const fb = v.lp_z * v.loop_gain;
+  let fb = v.lp_z * v.loop_gain;
+  if (s.saw > 0) {
+    // sawari (jawari bridge): above a fraction of its own swing the string lies on the curved
+    // bridge, which throws it back - a kink every cycle that regenerates the high partials.
+    // The contact point scales with the envelope, so the buzz lasts as long as the note.
+    const a = v.lp_z < 0 ? -v.lp_z : v.lp_z;
+    v.saw_env = a > v.saw_env ? a : v.saw_env * s.saw_env_c;
+    const b = s.saw_c * v.saw_env;
+    let y = v.lp_z;
+    if (y > b) y = b - 0.5 * (y - b);
+    v.saw_dc += s.saw_dc_a * (y - v.saw_dc);
+    y -= v.saw_dc;
+    // the contact itself loses energy every cycle; give back what it took (mean |y| vs mean |x|)
+    // so the note keeps the decay set by String Decay / Damping
+    v.saw_mx += s.saw_m_a * (a - v.saw_mx);
+    v.saw_my += s.saw_m_a * ((y < 0 ? -y : y) - v.saw_my);
+    if (v.saw_on && v.saw_my > 1e-12) v.saw_g = Math.min(v.saw_mx / v.saw_my, SAW_GMAX);
+    fb = y * v.loop_gain * v.saw_g;
+  }
   delay_write(v.line, fb);
   return fb * v.read_gain;
 }
@@ -1456,7 +1491,7 @@ export function phys_render(s) {
     if (!v.active) continue;
     const vv = pvib > 0 && v.press > 0 ? Math.pow(2, ((p.phys_vibrato_cents + pvib * v.press) * vsin) / 1200) : vib;
     let y;
-    if (model === MODEL_STRING) y = render_string(v, vv);
+    if (model === MODEL_STRING) y = render_string(s, v, vv);
     else if (model === MODEL_MODAL) y = render_modal(v);
     else if (model === MODEL_BOWED) y = render_bowed(v, vv);
     else if (model === MODEL_WIND) y = render_wind(s, v, vv, wkind, p.breath_noise);

@@ -78,3 +78,4 @@ slider76:organ_click=0.3<0,1,0.001>Key Click
 slider77:rotary_mode=0<0,2,1{Off,Slow (chorale),Fast (tremolo)}>Rotary Speaker
 slider78:rotary_mix=1<0,1,0.001>Rotary Mix
 slider79:free_reed_detune_cents=0<0,50,0.1>Free Reed Musette [cents]
+slider80:string_sawari=0<0,1,0.001>String Sawari

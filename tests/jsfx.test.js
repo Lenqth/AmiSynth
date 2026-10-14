@@ -158,6 +158,7 @@ test('JSFX physical model matches JS with stress settings (vibrato, voice steali
     ['double reed', { phys_model: 3, wind_type: 3, wind_embouchure: 0, tuning_divisions: 19 }],
     ['free reed', { phys_model: 3, wind_type: 4, breath_noise: 0.4, phys_vibrato_cents: 15 }],
     ['musette', { phys_model: 3, wind_type: 4, free_reed_detune_cents: 18, wind_embouchure: 1, tuning_divisions: 19 }],
+    ['sitar sawari', { phys_model: 0, string_sawari: 1, string_damping: 0.1, string_decay_ms: 8000, phys_vibrato_cents: 20 }],
     ['circular mesh', { phys_model: 4, mesh_shape: 0, mesh_size: 16, mesh_high_damping: 1, mesh_hardness: 1 }],
     ['square mesh', { phys_model: 4, mesh_shape: 1, mesh_size: 7, mesh_strike_x: 0.9, mesh_strike_y: 0.1 }],
     ['stiff+vibrato', { phys_model: 5, piano_inharmonicity: 1, piano_unison_detune_cents: 10, phys_vibrato_cents: 25 }],

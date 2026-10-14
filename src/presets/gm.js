@@ -59,7 +59,7 @@ export const GM_PROGRAMS = [
   S('FX 1 (rain)', 'Rain'), S('FX 2 (soundtrack)', 'Soundtrack'), S('FX 3 (crystal)', 'Crystal'), P('FX 4 (atmosphere)', 'Glass Atmosphere'),
   S('FX 5 (brightness)', 'Brightness'), S('FX 6 (goblins)', 'Goblin'), S('FX 7 (echoes)', 'Echo Drops'), S('FX 8 (sci-fi)', 'Sci-Fi'),
   // Ethnic
-  P('Sitar', 'Koto-ish', false), P('Banjo', 'Steel String', false), P('Shamisen', 'Koto-ish', false), P('Koto', 'Koto-ish'),
+  P('Sitar', 'Sitar'), P('Banjo', 'Steel String', false), P('Shamisen', 'Shamisen'), P('Koto', 'Koto-ish'),
   P('Kalimba', 'Kalimba'), P('Bagpipe', 'Shanai', false), P('Fiddle', 'Fiddle'), P('Shanai', 'Shanai'),
   // Percussive
   P('Tinkle Bell', 'Tinkle Bell'), P('Agogo', 'Agogo'), P('Steel Drums', 'Steel Drums'), P('Woodblock', 'Woodblock'),
