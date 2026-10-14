@@ -34,6 +34,8 @@
 
 MCPの `script_list` に見つけてもらうには、`Scripts/AmiSynth/reaper/` と `Scripts/AmiSynth/generated/` に配置します。一覧には `@description`／`@about` の説明が表示されます。最初に読み取り専用の `AmiSynth - MCP guide.lua` を実行すると案内文が返ります。CompanionはGUI、toolkit.luaはライブラリなので、直接のプリセット変更には説明付きラッパーを使ってください。
 
+MCPから音色を作るときは、**`AmiSynth - Read sound.lua`(読み取り)→ 差分を編集 → `AmiSynth - Apply sound.lua`(適用)** の往復だけで済みます。`script_run` には引数を渡せないので、実行前に ExtState `AmiSynthMCP/apply_sound`(読み取り用は `read_sound`)か `Scripts/AmiSynth/apply_sound.json` に JSON の依頼を置きます。依頼は「トラック(選択中 / 名前)」「楽器(Synth / Physical / Drums、無ければ挿入)」「元にするプリセット」「Web 版の **JSON コピー** と同じ差分(id → 実値)」です。範囲外は丸め、不明な id は理由付きで除外し、全体を 1 回の Undo で適用して、適用値・丸め・除外の一覧を返します。Read sound の結果はそのまま Web 版の **JSON 貼り付け** にも使えます。書式と例は [ガイド](reaper/README.md#design-a-sound-in-one-round-trip-read-sound--apply-sound) を参照してください。
+
 - **Choose preset**: 用途別の内蔵カタログ(Bass / Lead / Pad など)とユーザープリセット。
 - **Save preset**: 現在の音色を REAPER の永続 ExtState に保存。同じ名前なら上書きします。内蔵プリセットと同名は使えません。調律は含めず、音色変更時も現在の調律を維持します。
 - **機能グループ**: Oscillators / Filter / Amp Envelope などを選択し、実単位で詳細編集。長い一覧はマウスホイールでスクロールします。ファイル選択は JSFX 本体のセレクターを使います。
