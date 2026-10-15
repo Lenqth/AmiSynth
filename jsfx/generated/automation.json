@@ -1668,7 +1668,7 @@
           "name": "Noise Type",
           "group": "Noise",
           "min": 0,
-          "max": 3,
+          "max": 7,
           "default": 0,
           "step": 1,
           "unit": "",
@@ -1676,9 +1676,13 @@
             "White",
             "Chip Long (LFSR)",
             "Chip Short (metallic)",
-            "Sample & Hold"
+            "Sample & Hold",
+            "Rotor",
+            "Crowd Claps",
+            "Shot",
+            "Rain"
           ],
-          "description": "White: hiss. Chip Long / Short: 8-bit console style shift-register noise, clocked from the note pitch (Short repeats every 93 steps: a pitched, metallic tone). Sample & Hold: random steps at the clock rate.",
+          "description": "White: hiss. Chip Long / Short and Sample & Hold are clocked from the note pitch. Rotor: periodic blade thumps with air wash. Crowd Claps: eighteen independently timed short high-passed hand impacts. Shot: a very brief broadband crack with a short early reflection, restarted on note-on. Rain: continuous filtered rain wash with irregular short droplets of varying strength and resonance. The four sound FX sources ignore note pitch and are mixed at Noise Level before the main filter and amp envelope.",
           "slider": 78,
           "paramIndex": 77,
           "valueDomain": "real",
@@ -1698,6 +1702,22 @@
             {
               "value": 3,
               "label": "Sample & Hold"
+            },
+            {
+              "value": 4,
+              "label": "Rotor"
+            },
+            {
+              "value": 5,
+              "label": "Crowd Claps"
+            },
+            {
+              "value": 6,
+              "label": "Shot"
+            },
+            {
+              "value": 7,
+              "label": "Rain"
             }
           ]
         },
@@ -1710,7 +1730,7 @@
           "default": 0,
           "step": 0.01,
           "unit": "oct",
-          "description": "Clock of the chip / S&H noise relative to the note (higher = brighter). At 0, Chip Short sounds at the note pitch.",
+          "description": "Chip / S&H clock relative to the note (higher = brighter); at 0, Chip Short sounds at the note pitch. For Rotor / Crowd Claps / Rain this scales the blade / clap / droplet rate; for Shot it scales playback speed. These FX rates do not follow note pitch.",
           "slider": 79,
           "paramIndex": 78,
           "valueDomain": "real"
@@ -11194,7 +11214,7 @@
         {
           "name": "Rain",
           "category": "FX",
-          "description": "Random droplets: band-passed noise whose brightness and level jump with a fast sample & hold LFO.",
+          "description": "Rainfall: a steady rain wash with irregular short surface droplets of different strengths and resonances. Hold a note; Noise Clock changes droplet density.",
           "params": {
             "osc1_waveform": 0,
             "osc1_pulse_width": 0.5,
@@ -11205,14 +11225,14 @@
             "osc2_transpose_cents": 0,
             "osc2_detune_cents": 7,
             "sub_osc_level": 0,
-            "noise_level": 0.8,
+            "noise_level": 1,
             "osc2_hard_sync": 0,
             "osc2_env_pitch_cents": 0,
             "fm_index": 0,
-            "filter_mode": 2,
-            "filter_cutoff_hz": 2500,
-            "filter_resonance": 0.5,
-            "filter_slope": 1,
+            "filter_mode": 0,
+            "filter_cutoff_hz": 9000,
+            "filter_resonance": 0,
+            "filter_slope": 0,
             "filter_drive": 0,
             "filter_env_amount_oct": 0,
             "filter_key_tracking": 0,
@@ -11221,17 +11241,17 @@
             "filter_env_decay_ms": 300,
             "filter_env_sustain": 0.2,
             "filter_env_release_ms": 300,
-            "amp_attack_ms": 300,
+            "amp_attack_ms": 400,
             "amp_decay_ms": 400,
             "amp_sustain": 1,
             "amp_release_ms": 800,
             "amp_velocity_amount": 0.7,
-            "lfo_waveform": 4,
-            "lfo_rate_hz": 16,
+            "lfo_waveform": 0,
+            "lfo_rate_hz": 5,
             "lfo_pitch_cents": 0,
-            "lfo_filter_oct": 1.8,
+            "lfo_filter_oct": 0,
             "lfo_pulse_width": 0,
-            "lfo_amp": 0.7,
+            "lfo_amp": 0,
             "modwheel_vibrato_cents": 30,
             "modwheel_filter_oct": 0,
             "pitch_bend_range_cents": 200,
@@ -11240,7 +11260,7 @@
             "unison_voices": 1,
             "unison_detune_cents": 15,
             "unison_stereo_width": 0.7,
-            "master_volume_db": 2.7,
+            "master_volume_db": 1.3,
             "transpose_semitones": 0,
             "voice_mode": 0,
             "glide_mode": 0,
@@ -11269,7 +11289,7 @@
             "arp_step_14": 1,
             "arp_step_15": 1,
             "arp_step_16": 1,
-            "noise_type": 0,
+            "noise_type": 7,
             "noise_clock_oct": 0,
             "noise_filter_mode": 0,
             "noise_filter_hz": 4000,
@@ -11287,9 +11307,9 @@
             "fx_delay_ping_pong": 0,
             "fx_delay_high_cut_hz": 6000,
             "fx_reverb_on": 1,
-            "fx_reverb_mix": 0.35,
-            "fx_reverb_decay_ms": 2000,
-            "fx_reverb_size": 0.5,
+            "fx_reverb_mix": 0.08,
+            "fx_reverb_decay_ms": 650,
+            "fx_reverb_size": 0.3,
             "fx_reverb_damping": 0.5,
             "osc1_wt_bank": 0,
             "osc1_wt_position": 0,
@@ -12884,7 +12904,7 @@
         {
           "name": "Helicopter",
           "category": "FX",
-          "description": "Rotor thump: low-passed noise chopped by a square tremolo about 11 times per second.",
+          "description": "Rotor blades: repeated low pressure thumps with a decaying air wash over a steady engine rumble. Hold a note; Noise Clock changes rotor speed, not note pitch.",
           "params": {
             "osc1_waveform": 0,
             "osc1_pulse_width": 0.5,
@@ -12895,17 +12915,17 @@
             "osc2_transpose_cents": 0,
             "osc2_detune_cents": 7,
             "sub_osc_level": 0,
-            "noise_level": 0.9,
+            "noise_level": 1,
             "osc2_hard_sync": 0,
             "osc2_env_pitch_cents": 0,
             "fm_index": 0,
             "filter_mode": 0,
-            "filter_cutoff_hz": 800,
-            "filter_resonance": 0.2,
+            "filter_cutoff_hz": 4000,
+            "filter_resonance": 0,
             "filter_slope": 1,
             "filter_drive": 0,
             "filter_env_amount_oct": 0,
-            "filter_key_tracking": 0.4,
+            "filter_key_tracking": 0,
             "filter_velocity_amount": 0.3,
             "filter_env_attack_ms": 5,
             "filter_env_decay_ms": 300,
@@ -12914,14 +12934,14 @@
             "amp_attack_ms": 600,
             "amp_decay_ms": 400,
             "amp_sustain": 1,
-            "amp_release_ms": 1200,
+            "amp_release_ms": 1000,
             "amp_velocity_amount": 0.7,
-            "lfo_waveform": 3,
-            "lfo_rate_hz": 11,
+            "lfo_waveform": 0,
+            "lfo_rate_hz": 5,
             "lfo_pitch_cents": 0,
-            "lfo_filter_oct": 0.8,
+            "lfo_filter_oct": 0,
             "lfo_pulse_width": 0,
-            "lfo_amp": 0.75,
+            "lfo_amp": 0,
             "modwheel_vibrato_cents": 30,
             "modwheel_filter_oct": 0,
             "pitch_bend_range_cents": 200,
@@ -12930,7 +12950,7 @@
             "unison_voices": 1,
             "unison_detune_cents": 15,
             "unison_stereo_width": 0.7,
-            "master_volume_db": 4.3,
+            "master_volume_db": 4.9,
             "transpose_semitones": 0,
             "voice_mode": 0,
             "glide_mode": 0,
@@ -12959,7 +12979,7 @@
             "arp_step_14": 1,
             "arp_step_15": 1,
             "arp_step_16": 1,
-            "noise_type": 0,
+            "noise_type": 4,
             "noise_clock_oct": 0,
             "noise_filter_mode": 0,
             "noise_filter_hz": 4000,
@@ -13014,7 +13034,7 @@
         {
           "name": "Applause",
           "category": "FX",
-          "description": "Crowd clapping: band-passed noise flickering with a fast sample & hold on the level, in a room.",
+          "description": "Crowd applause: eighteen independently timed, short hand impacts with reduced low body, overlapping into a crowd and room tail. Hold a note; Noise Clock changes crowd activity.",
           "params": {
             "osc1_waveform": 0,
             "osc1_pulse_width": 0.5,
@@ -13025,13 +13045,13 @@
             "osc2_transpose_cents": 0,
             "osc2_detune_cents": 7,
             "sub_osc_level": 0,
-            "noise_level": 0.9,
+            "noise_level": 1,
             "osc2_hard_sync": 0,
             "osc2_env_pitch_cents": 0,
             "fm_index": 0,
-            "filter_mode": 2,
-            "filter_cutoff_hz": 2500,
-            "filter_resonance": 0.1,
+            "filter_mode": 0,
+            "filter_cutoff_hz": 8000,
+            "filter_resonance": 0,
             "filter_slope": 0,
             "filter_drive": 0,
             "filter_env_amount_oct": 0,
@@ -13041,17 +13061,17 @@
             "filter_env_decay_ms": 300,
             "filter_env_sustain": 0.2,
             "filter_env_release_ms": 300,
-            "amp_attack_ms": 500,
+            "amp_attack_ms": 350,
             "amp_decay_ms": 400,
             "amp_sustain": 1,
-            "amp_release_ms": 1500,
+            "amp_release_ms": 700,
             "amp_velocity_amount": 0.7,
-            "lfo_waveform": 4,
-            "lfo_rate_hz": 20,
+            "lfo_waveform": 0,
+            "lfo_rate_hz": 5,
             "lfo_pitch_cents": 0,
-            "lfo_filter_oct": 0.5,
+            "lfo_filter_oct": 0,
             "lfo_pulse_width": 0,
-            "lfo_amp": 0.35,
+            "lfo_amp": 0,
             "modwheel_vibrato_cents": 30,
             "modwheel_filter_oct": 0,
             "pitch_bend_range_cents": 200,
@@ -13060,7 +13080,7 @@
             "unison_voices": 1,
             "unison_detune_cents": 15,
             "unison_stereo_width": 0.7,
-            "master_volume_db": 2.4,
+            "master_volume_db": 4.2,
             "transpose_semitones": 0,
             "voice_mode": 0,
             "glide_mode": 0,
@@ -13089,7 +13109,7 @@
             "arp_step_14": 1,
             "arp_step_15": 1,
             "arp_step_16": 1,
-            "noise_type": 0,
+            "noise_type": 5,
             "noise_clock_oct": 0,
             "noise_filter_mode": 0,
             "noise_filter_hz": 4000,
@@ -13144,11 +13164,11 @@
         {
           "name": "Gunshot",
           "category": "FX",
-          "description": "Cartoon gunshot: a noise crack whose low-pass closes fast over a sine thump that drops in pitch, with a short room tail.",
+          "description": "Short gunshot: a sharp broadband crack and short early reflection without a pitched bass thump. Each note-on fires once, even if held; Noise Clock changes playback speed.",
           "params": {
-            "osc1_waveform": 3,
+            "osc1_waveform": 0,
             "osc1_pulse_width": 0.5,
-            "osc1_level": 0.9,
+            "osc1_level": 0,
             "osc2_waveform": 1,
             "osc2_pulse_width": 0.5,
             "osc2_level": 0,
@@ -13160,21 +13180,21 @@
             "osc2_env_pitch_cents": 0,
             "fm_index": 0,
             "filter_mode": 0,
-            "filter_cutoff_hz": 1500,
+            "filter_cutoff_hz": 12000,
             "filter_resonance": 0,
             "filter_slope": 1,
-            "filter_drive": 1,
-            "filter_env_amount_oct": 4,
+            "filter_drive": 0,
+            "filter_env_amount_oct": 0,
             "filter_key_tracking": 0,
             "filter_velocity_amount": 0.3,
-            "filter_env_attack_ms": 0.5,
-            "filter_env_decay_ms": 200,
-            "filter_env_sustain": 0,
+            "filter_env_attack_ms": 5,
+            "filter_env_decay_ms": 300,
+            "filter_env_sustain": 0.2,
             "filter_env_release_ms": 300,
             "amp_attack_ms": 0.5,
-            "amp_decay_ms": 1400,
+            "amp_decay_ms": 450,
             "amp_sustain": 0,
-            "amp_release_ms": 250,
+            "amp_release_ms": 180,
             "amp_velocity_amount": 0.7,
             "lfo_waveform": 0,
             "lfo_rate_hz": 5,
@@ -13219,7 +13239,7 @@
             "arp_step_14": 1,
             "arp_step_15": 1,
             "arp_step_16": 1,
-            "noise_type": 0,
+            "noise_type": 6,
             "noise_clock_oct": 0,
             "noise_filter_mode": 0,
             "noise_filter_hz": 4000,
@@ -13237,9 +13257,9 @@
             "fx_delay_ping_pong": 0,
             "fx_delay_high_cut_hz": 6000,
             "fx_reverb_on": 1,
-            "fx_reverb_mix": 0.3,
-            "fx_reverb_decay_ms": 1200,
-            "fx_reverb_size": 0.4,
+            "fx_reverb_mix": 0.09,
+            "fx_reverb_decay_ms": 400,
+            "fx_reverb_size": 0.2,
             "fx_reverb_damping": 0.5,
             "osc1_wt_bank": 0,
             "osc1_wt_position": 0,
@@ -13251,13 +13271,13 @@
             "lfo2_waveform": 0,
             "lfo2_rate_hz": 0.5,
             "lfo2_sync": 0,
-            "mod_env_attack_ms": 0.5,
-            "mod_env_decay_ms": 50,
+            "mod_env_attack_ms": 5,
+            "mod_env_decay_ms": 300,
             "mod_env_sustain": 0,
             "mod_env_release_ms": 300,
-            "mod1_source": 3,
-            "mod1_destination": 1,
-            "mod1_amount": 2400,
+            "mod1_source": 0,
+            "mod1_destination": 0,
+            "mod1_amount": 0,
             "mod2_source": 0,
             "mod2_destination": 0,
             "mod2_amount": 0,
@@ -14772,6 +14792,90 @@
           "valueDomain": "real"
         },
         {
+          "id": "string_plectrum",
+          "name": "String Plectrum",
+          "group": "String",
+          "min": 0,
+          "max": 1,
+          "default": 0,
+          "step": 0.001,
+          "unit": "",
+          "description": "String only: blends a displaced-string release into the pluck and adds a short bachi contact pulse. 0 preserves the original excitation. Use Body Mix to hear the skin contact.",
+          "slider": 81,
+          "paramIndex": 80,
+          "valueDomain": "real"
+        },
+        {
+          "id": "string_plectrum_hardness",
+          "name": "Plectrum Hardness",
+          "group": "String",
+          "min": 0,
+          "max": 1,
+          "default": 0.7,
+          "step": 0.001,
+          "unit": "",
+          "description": "Shortens the bachi contact pulse; higher velocity also hardens the contact. Used with String Plectrum.",
+          "slider": 82,
+          "paramIndex": 81,
+          "valueDomain": "real"
+        },
+        {
+          "id": "string_body_mix",
+          "name": "String Body Mix",
+          "group": "String",
+          "min": 0,
+          "max": 1,
+          "default": 0,
+          "step": 0.001,
+          "unit": "",
+          "description": "String only: short skin/body resonances driven by both the bridge and bachi contact. Fixed approximate body frequencies, independent of the played pitch.",
+          "slider": 83,
+          "paramIndex": 82,
+          "valueDomain": "real"
+        },
+        {
+          "id": "string_sympathetic_mix",
+          "name": "Sympathetic Mix",
+          "group": "String",
+          "min": 0,
+          "max": 1,
+          "default": 0,
+          "step": 0.001,
+          "unit": "",
+          "description": "String only: shared bank of 24 tuned resonators excited by all played strings. Adds a stereo pitched after-ring, including after note release. 0 bypasses and clears the bank.",
+          "slider": 84,
+          "paramIndex": 83,
+          "valueDomain": "real"
+        },
+        {
+          "id": "string_sympathetic_decay_ms",
+          "name": "Sympathetic Decay",
+          "group": "String",
+          "min": 200,
+          "max": 10000,
+          "default": 3500,
+          "step": 1,
+          "unit": "ms",
+          "description": "Approximate T60 of the sympathetic resonators. Longer decay builds up more slowly; resonance gain is normalized.",
+          "slider": 85,
+          "paramIndex": 84,
+          "valueDomain": "real"
+        },
+        {
+          "id": "string_sympathetic_root",
+          "name": "Sympathetic Root",
+          "group": "String",
+          "min": 0,
+          "max": 104,
+          "default": 60,
+          "step": 1,
+          "unit": "note",
+          "description": "Lowest MIDI key of the 24 consecutive sympathetic scale degrees. Follows the instrument tuning, including custom/shared scales; does not follow pitch bend. Choose the range for the piece.",
+          "slider": 86,
+          "paramIndex": 85,
+          "valueDomain": "real"
+        },
+        {
           "id": "amp_auto_level",
           "name": "Amp Auto Level",
           "group": "Amp",
@@ -14785,8 +14889,8 @@
             "On"
           ],
           "description": "On: the amp keeps about the loudness of the instrument without the amp, whatever the Amp type and Amp Gain (more gain = more distortion, not louder); Amp Level then trims from there. Off: the louder the gain, the louder the output (set Amp Level by ear).",
-          "slider": 81,
-          "paramIndex": 80,
+          "slider": 87,
+          "paramIndex": 86,
           "valueDomain": "real",
           "enumValues": [
             {
@@ -14880,6 +14984,12 @@
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
             "string_sawari": 0,
+            "string_plectrum": 0,
+            "string_plectrum_hardness": 0.7,
+            "string_body_mix": 0,
+            "string_sympathetic_mix": 0,
+            "string_sympathetic_decay_ms": 3500,
+            "string_sympathetic_root": 60,
             "amp_auto_level": 0
           }
         },
@@ -14962,6 +15072,12 @@
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
             "string_sawari": 0,
+            "string_plectrum": 0,
+            "string_plectrum_hardness": 0.7,
+            "string_body_mix": 0,
+            "string_sympathetic_mix": 0,
+            "string_sympathetic_decay_ms": 3500,
+            "string_sympathetic_root": 60,
             "amp_auto_level": 0
           }
         },
@@ -15044,6 +15160,12 @@
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
             "string_sawari": 0,
+            "string_plectrum": 0,
+            "string_plectrum_hardness": 0.7,
+            "string_body_mix": 0,
+            "string_sympathetic_mix": 0,
+            "string_sympathetic_decay_ms": 3500,
+            "string_sympathetic_root": 60,
             "amp_auto_level": 0
           }
         },
@@ -15126,18 +15248,24 @@
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
             "string_sawari": 0,
+            "string_plectrum": 0,
+            "string_plectrum_hardness": 0.7,
+            "string_body_mix": 0,
+            "string_sympathetic_mix": 0,
+            "string_sympathetic_decay_ms": 3500,
+            "string_sympathetic_root": 60,
             "amp_auto_level": 0
           }
         },
         {
           "name": "Sitar",
           "category": "String",
-          "description": "Jawari bridge (String Sawari): the string buzzes against the curved bridge, so the bright, nasal partials keep ringing.",
+          "description": "Jawari buzz with a shared bank of tuned sympathetic resonances; the pitched stereo after-ring follows the selected tuning. Adjust Sympathetic Root for the piece.",
           "params": {
             "phys_model": 0,
             "string_excitation": 0,
             "string_decay_ms": 6000,
-            "string_damping": 0.12,
+            "string_damping": 0.08,
             "string_pick_position": 0.08,
             "string_brightness": 0.85,
             "modal_material": 0,
@@ -15176,9 +15304,9 @@
             "phys_velocity_amount": 0.8,
             "phys_stereo_width": 0.5,
             "phys_pitch_bend_range_cents": 200,
-            "phys_room_mix": 0.15,
+            "phys_room_mix": 0.08,
             "phys_room_decay_ms": 1300,
-            "phys_volume_db": -4.3,
+            "phys_volume_db": -3.1,
             "brass_pressure": 0.6,
             "brass_lip": 0.5,
             "brass_attack_ms": 30,
@@ -15208,18 +15336,24 @@
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
             "string_sawari": 0.65,
+            "string_plectrum": 0,
+            "string_plectrum_hardness": 0.7,
+            "string_body_mix": 0,
+            "string_sympathetic_mix": 0.7,
+            "string_sympathetic_decay_ms": 4200,
+            "string_sympathetic_root": 60,
             "amp_auto_level": 0
           }
         },
         {
           "name": "Shamisen",
           "category": "String",
-          "description": "Hard plectrum near the bridge with a light sawari buzz; short, percussive decay.",
+          "description": "Bachi-style displaced-string release and short skin/body contact resonances, with a light sawari buzz.",
           "params": {
             "phys_model": 0,
             "string_excitation": 0,
             "string_decay_ms": 1800,
-            "string_damping": 0.25,
+            "string_damping": 0.18,
             "string_pick_position": 0.05,
             "string_brightness": 1,
             "modal_material": 0,
@@ -15260,7 +15394,7 @@
             "phys_pitch_bend_range_cents": 200,
             "phys_room_mix": 0,
             "phys_room_decay_ms": 1300,
-            "phys_volume_db": 2.4,
+            "phys_volume_db": 4.5,
             "brass_pressure": 0.6,
             "brass_lip": 0.5,
             "brass_attack_ms": 30,
@@ -15290,6 +15424,12 @@
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
             "string_sawari": 0.35,
+            "string_plectrum": 0.45,
+            "string_plectrum_hardness": 0.95,
+            "string_body_mix": 0.45,
+            "string_sympathetic_mix": 0,
+            "string_sympathetic_decay_ms": 3500,
+            "string_sympathetic_root": 60,
             "amp_auto_level": 0
           }
         },
@@ -15372,6 +15512,12 @@
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
             "string_sawari": 0,
+            "string_plectrum": 0,
+            "string_plectrum_hardness": 0.7,
+            "string_body_mix": 0,
+            "string_sympathetic_mix": 0,
+            "string_sympathetic_decay_ms": 3500,
+            "string_sympathetic_root": 60,
             "amp_auto_level": 0
           }
         },
@@ -15454,6 +15600,12 @@
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
             "string_sawari": 0,
+            "string_plectrum": 0,
+            "string_plectrum_hardness": 0.7,
+            "string_body_mix": 0,
+            "string_sympathetic_mix": 0,
+            "string_sympathetic_decay_ms": 3500,
+            "string_sympathetic_root": 60,
             "amp_auto_level": 0
           }
         },
@@ -15536,6 +15688,12 @@
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
             "string_sawari": 0,
+            "string_plectrum": 0,
+            "string_plectrum_hardness": 0.7,
+            "string_body_mix": 0,
+            "string_sympathetic_mix": 0,
+            "string_sympathetic_decay_ms": 3500,
+            "string_sympathetic_root": 60,
             "amp_auto_level": 0
           }
         },
@@ -15618,6 +15776,12 @@
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
             "string_sawari": 0,
+            "string_plectrum": 0,
+            "string_plectrum_hardness": 0.7,
+            "string_body_mix": 0,
+            "string_sympathetic_mix": 0,
+            "string_sympathetic_decay_ms": 3500,
+            "string_sympathetic_root": 60,
             "amp_auto_level": 0
           }
         },
@@ -15700,6 +15864,12 @@
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
             "string_sawari": 0,
+            "string_plectrum": 0,
+            "string_plectrum_hardness": 0.7,
+            "string_body_mix": 0,
+            "string_sympathetic_mix": 0,
+            "string_sympathetic_decay_ms": 3500,
+            "string_sympathetic_root": 60,
             "amp_auto_level": 0
           }
         },
@@ -15782,6 +15952,12 @@
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
             "string_sawari": 0,
+            "string_plectrum": 0,
+            "string_plectrum_hardness": 0.7,
+            "string_body_mix": 0,
+            "string_sympathetic_mix": 0,
+            "string_sympathetic_decay_ms": 3500,
+            "string_sympathetic_root": 60,
             "amp_auto_level": 0
           }
         },
@@ -15864,6 +16040,12 @@
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
             "string_sawari": 0,
+            "string_plectrum": 0,
+            "string_plectrum_hardness": 0.7,
+            "string_body_mix": 0,
+            "string_sympathetic_mix": 0,
+            "string_sympathetic_decay_ms": 3500,
+            "string_sympathetic_root": 60,
             "amp_auto_level": 0
           }
         },
@@ -15946,6 +16128,12 @@
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
             "string_sawari": 0,
+            "string_plectrum": 0,
+            "string_plectrum_hardness": 0.7,
+            "string_body_mix": 0,
+            "string_sympathetic_mix": 0,
+            "string_sympathetic_decay_ms": 3500,
+            "string_sympathetic_root": 60,
             "amp_auto_level": 0
           }
         },
@@ -16028,6 +16216,12 @@
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
             "string_sawari": 0,
+            "string_plectrum": 0,
+            "string_plectrum_hardness": 0.7,
+            "string_body_mix": 0,
+            "string_sympathetic_mix": 0,
+            "string_sympathetic_decay_ms": 3500,
+            "string_sympathetic_root": 60,
             "amp_auto_level": 0
           }
         },
@@ -16110,6 +16304,12 @@
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
             "string_sawari": 0,
+            "string_plectrum": 0,
+            "string_plectrum_hardness": 0.7,
+            "string_body_mix": 0,
+            "string_sympathetic_mix": 0,
+            "string_sympathetic_decay_ms": 3500,
+            "string_sympathetic_root": 60,
             "amp_auto_level": 0
           }
         },
@@ -16192,6 +16392,12 @@
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
             "string_sawari": 0,
+            "string_plectrum": 0,
+            "string_plectrum_hardness": 0.7,
+            "string_body_mix": 0,
+            "string_sympathetic_mix": 0,
+            "string_sympathetic_decay_ms": 3500,
+            "string_sympathetic_root": 60,
             "amp_auto_level": 0
           }
         },
@@ -16274,6 +16480,12 @@
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
             "string_sawari": 0,
+            "string_plectrum": 0,
+            "string_plectrum_hardness": 0.7,
+            "string_body_mix": 0,
+            "string_sympathetic_mix": 0,
+            "string_sympathetic_decay_ms": 3500,
+            "string_sympathetic_root": 60,
             "amp_auto_level": 0
           }
         },
@@ -16356,6 +16568,12 @@
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
             "string_sawari": 0,
+            "string_plectrum": 0,
+            "string_plectrum_hardness": 0.7,
+            "string_body_mix": 0,
+            "string_sympathetic_mix": 0,
+            "string_sympathetic_decay_ms": 3500,
+            "string_sympathetic_root": 60,
             "amp_auto_level": 0
           }
         },
@@ -16438,6 +16656,12 @@
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
             "string_sawari": 0,
+            "string_plectrum": 0,
+            "string_plectrum_hardness": 0.7,
+            "string_body_mix": 0,
+            "string_sympathetic_mix": 0,
+            "string_sympathetic_decay_ms": 3500,
+            "string_sympathetic_root": 60,
             "amp_auto_level": 0
           }
         },
@@ -16520,6 +16744,12 @@
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
             "string_sawari": 0,
+            "string_plectrum": 0,
+            "string_plectrum_hardness": 0.7,
+            "string_body_mix": 0,
+            "string_sympathetic_mix": 0,
+            "string_sympathetic_decay_ms": 3500,
+            "string_sympathetic_root": 60,
             "amp_auto_level": 0
           }
         },
@@ -16602,6 +16832,12 @@
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
             "string_sawari": 0,
+            "string_plectrum": 0,
+            "string_plectrum_hardness": 0.7,
+            "string_body_mix": 0,
+            "string_sympathetic_mix": 0,
+            "string_sympathetic_decay_ms": 3500,
+            "string_sympathetic_root": 60,
             "amp_auto_level": 0
           }
         },
@@ -16684,6 +16920,12 @@
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
             "string_sawari": 0,
+            "string_plectrum": 0,
+            "string_plectrum_hardness": 0.7,
+            "string_body_mix": 0,
+            "string_sympathetic_mix": 0,
+            "string_sympathetic_decay_ms": 3500,
+            "string_sympathetic_root": 60,
             "amp_auto_level": 0
           }
         },
@@ -16766,6 +17008,12 @@
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
             "string_sawari": 0,
+            "string_plectrum": 0,
+            "string_plectrum_hardness": 0.7,
+            "string_body_mix": 0,
+            "string_sympathetic_mix": 0,
+            "string_sympathetic_decay_ms": 3500,
+            "string_sympathetic_root": 60,
             "amp_auto_level": 0
           }
         },
@@ -16848,6 +17096,12 @@
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
             "string_sawari": 0,
+            "string_plectrum": 0,
+            "string_plectrum_hardness": 0.7,
+            "string_body_mix": 0,
+            "string_sympathetic_mix": 0,
+            "string_sympathetic_decay_ms": 3500,
+            "string_sympathetic_root": 60,
             "amp_auto_level": 0
           }
         },
@@ -16930,6 +17184,12 @@
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
             "string_sawari": 0,
+            "string_plectrum": 0,
+            "string_plectrum_hardness": 0.7,
+            "string_body_mix": 0,
+            "string_sympathetic_mix": 0,
+            "string_sympathetic_decay_ms": 3500,
+            "string_sympathetic_root": 60,
             "amp_auto_level": 0
           }
         },
@@ -17012,6 +17272,12 @@
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
             "string_sawari": 0,
+            "string_plectrum": 0,
+            "string_plectrum_hardness": 0.7,
+            "string_body_mix": 0,
+            "string_sympathetic_mix": 0,
+            "string_sympathetic_decay_ms": 3500,
+            "string_sympathetic_root": 60,
             "amp_auto_level": 0
           }
         },
@@ -17094,6 +17360,12 @@
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
             "string_sawari": 0,
+            "string_plectrum": 0,
+            "string_plectrum_hardness": 0.7,
+            "string_body_mix": 0,
+            "string_sympathetic_mix": 0,
+            "string_sympathetic_decay_ms": 3500,
+            "string_sympathetic_root": 60,
             "amp_auto_level": 0
           }
         },
@@ -17176,6 +17448,12 @@
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
             "string_sawari": 0,
+            "string_plectrum": 0,
+            "string_plectrum_hardness": 0.7,
+            "string_body_mix": 0,
+            "string_sympathetic_mix": 0,
+            "string_sympathetic_decay_ms": 3500,
+            "string_sympathetic_root": 60,
             "amp_auto_level": 0
           }
         },
@@ -17258,6 +17536,12 @@
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
             "string_sawari": 0,
+            "string_plectrum": 0,
+            "string_plectrum_hardness": 0.7,
+            "string_body_mix": 0,
+            "string_sympathetic_mix": 0,
+            "string_sympathetic_decay_ms": 3500,
+            "string_sympathetic_root": 60,
             "amp_auto_level": 0
           }
         },
@@ -17340,6 +17624,12 @@
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
             "string_sawari": 0,
+            "string_plectrum": 0,
+            "string_plectrum_hardness": 0.7,
+            "string_body_mix": 0,
+            "string_sympathetic_mix": 0,
+            "string_sympathetic_decay_ms": 3500,
+            "string_sympathetic_root": 60,
             "amp_auto_level": 0
           }
         },
@@ -17422,6 +17712,12 @@
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
             "string_sawari": 0,
+            "string_plectrum": 0,
+            "string_plectrum_hardness": 0.7,
+            "string_body_mix": 0,
+            "string_sympathetic_mix": 0,
+            "string_sympathetic_decay_ms": 3500,
+            "string_sympathetic_root": 60,
             "amp_auto_level": 0
           }
         },
@@ -17504,6 +17800,12 @@
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
             "string_sawari": 0,
+            "string_plectrum": 0,
+            "string_plectrum_hardness": 0.7,
+            "string_body_mix": 0,
+            "string_sympathetic_mix": 0,
+            "string_sympathetic_decay_ms": 3500,
+            "string_sympathetic_root": 60,
             "amp_auto_level": 0
           }
         },
@@ -17586,6 +17888,12 @@
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
             "string_sawari": 0,
+            "string_plectrum": 0,
+            "string_plectrum_hardness": 0.7,
+            "string_body_mix": 0,
+            "string_sympathetic_mix": 0,
+            "string_sympathetic_decay_ms": 3500,
+            "string_sympathetic_root": 60,
             "amp_auto_level": 0
           }
         },
@@ -17668,6 +17976,12 @@
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
             "string_sawari": 0,
+            "string_plectrum": 0,
+            "string_plectrum_hardness": 0.7,
+            "string_body_mix": 0,
+            "string_sympathetic_mix": 0,
+            "string_sympathetic_decay_ms": 3500,
+            "string_sympathetic_root": 60,
             "amp_auto_level": 0
           }
         },
@@ -17750,6 +18064,12 @@
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
             "string_sawari": 0,
+            "string_plectrum": 0,
+            "string_plectrum_hardness": 0.7,
+            "string_body_mix": 0,
+            "string_sympathetic_mix": 0,
+            "string_sympathetic_decay_ms": 3500,
+            "string_sympathetic_root": 60,
             "amp_auto_level": 0
           }
         },
@@ -17832,6 +18152,12 @@
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
             "string_sawari": 0,
+            "string_plectrum": 0,
+            "string_plectrum_hardness": 0.7,
+            "string_body_mix": 0,
+            "string_sympathetic_mix": 0,
+            "string_sympathetic_decay_ms": 3500,
+            "string_sympathetic_root": 60,
             "amp_auto_level": 0
           }
         },
@@ -17914,6 +18240,12 @@
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
             "string_sawari": 0,
+            "string_plectrum": 0,
+            "string_plectrum_hardness": 0.7,
+            "string_body_mix": 0,
+            "string_sympathetic_mix": 0,
+            "string_sympathetic_decay_ms": 3500,
+            "string_sympathetic_root": 60,
             "amp_auto_level": 0
           }
         },
@@ -17996,6 +18328,12 @@
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
             "string_sawari": 0,
+            "string_plectrum": 0,
+            "string_plectrum_hardness": 0.7,
+            "string_body_mix": 0,
+            "string_sympathetic_mix": 0,
+            "string_sympathetic_decay_ms": 3500,
+            "string_sympathetic_root": 60,
             "amp_auto_level": 0
           }
         },
@@ -18078,6 +18416,12 @@
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
             "string_sawari": 0,
+            "string_plectrum": 0,
+            "string_plectrum_hardness": 0.7,
+            "string_body_mix": 0,
+            "string_sympathetic_mix": 0,
+            "string_sympathetic_decay_ms": 3500,
+            "string_sympathetic_root": 60,
             "amp_auto_level": 0
           }
         },
@@ -18160,6 +18504,12 @@
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
             "string_sawari": 0,
+            "string_plectrum": 0,
+            "string_plectrum_hardness": 0.7,
+            "string_body_mix": 0,
+            "string_sympathetic_mix": 0,
+            "string_sympathetic_decay_ms": 3500,
+            "string_sympathetic_root": 60,
             "amp_auto_level": 0
           }
         },
@@ -18242,6 +18592,12 @@
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
             "string_sawari": 0,
+            "string_plectrum": 0,
+            "string_plectrum_hardness": 0.7,
+            "string_body_mix": 0,
+            "string_sympathetic_mix": 0,
+            "string_sympathetic_decay_ms": 3500,
+            "string_sympathetic_root": 60,
             "amp_auto_level": 0
           }
         },
@@ -18324,6 +18680,12 @@
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
             "string_sawari": 0,
+            "string_plectrum": 0,
+            "string_plectrum_hardness": 0.7,
+            "string_body_mix": 0,
+            "string_sympathetic_mix": 0,
+            "string_sympathetic_decay_ms": 3500,
+            "string_sympathetic_root": 60,
             "amp_auto_level": 0
           }
         },
@@ -18406,6 +18768,12 @@
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
             "string_sawari": 0,
+            "string_plectrum": 0,
+            "string_plectrum_hardness": 0.7,
+            "string_body_mix": 0,
+            "string_sympathetic_mix": 0,
+            "string_sympathetic_decay_ms": 3500,
+            "string_sympathetic_root": 60,
             "amp_auto_level": 0
           }
         },
@@ -18488,6 +18856,12 @@
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
             "string_sawari": 0,
+            "string_plectrum": 0,
+            "string_plectrum_hardness": 0.7,
+            "string_body_mix": 0,
+            "string_sympathetic_mix": 0,
+            "string_sympathetic_decay_ms": 3500,
+            "string_sympathetic_root": 60,
             "amp_auto_level": 0
           }
         },
@@ -18570,6 +18944,12 @@
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
             "string_sawari": 0,
+            "string_plectrum": 0,
+            "string_plectrum_hardness": 0.7,
+            "string_body_mix": 0,
+            "string_sympathetic_mix": 0,
+            "string_sympathetic_decay_ms": 3500,
+            "string_sympathetic_root": 60,
             "amp_auto_level": 0
           }
         },
@@ -18652,6 +19032,12 @@
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
             "string_sawari": 0,
+            "string_plectrum": 0,
+            "string_plectrum_hardness": 0.7,
+            "string_body_mix": 0,
+            "string_sympathetic_mix": 0,
+            "string_sympathetic_decay_ms": 3500,
+            "string_sympathetic_root": 60,
             "amp_auto_level": 0
           }
         },
@@ -18734,6 +19120,12 @@
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
             "string_sawari": 0,
+            "string_plectrum": 0,
+            "string_plectrum_hardness": 0.7,
+            "string_body_mix": 0,
+            "string_sympathetic_mix": 0,
+            "string_sympathetic_decay_ms": 3500,
+            "string_sympathetic_root": 60,
             "amp_auto_level": 0
           }
         },
@@ -18816,6 +19208,12 @@
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
             "string_sawari": 0,
+            "string_plectrum": 0,
+            "string_plectrum_hardness": 0.7,
+            "string_body_mix": 0,
+            "string_sympathetic_mix": 0,
+            "string_sympathetic_decay_ms": 3500,
+            "string_sympathetic_root": 60,
             "amp_auto_level": 0
           }
         },
@@ -18898,6 +19296,12 @@
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
             "string_sawari": 0,
+            "string_plectrum": 0,
+            "string_plectrum_hardness": 0.7,
+            "string_body_mix": 0,
+            "string_sympathetic_mix": 0,
+            "string_sympathetic_decay_ms": 3500,
+            "string_sympathetic_root": 60,
             "amp_auto_level": 0
           }
         },
@@ -18980,6 +19384,12 @@
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
             "string_sawari": 0,
+            "string_plectrum": 0,
+            "string_plectrum_hardness": 0.7,
+            "string_body_mix": 0,
+            "string_sympathetic_mix": 0,
+            "string_sympathetic_decay_ms": 3500,
+            "string_sympathetic_root": 60,
             "amp_auto_level": 0
           }
         },
@@ -19062,6 +19472,12 @@
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
             "string_sawari": 0,
+            "string_plectrum": 0,
+            "string_plectrum_hardness": 0.7,
+            "string_body_mix": 0,
+            "string_sympathetic_mix": 0,
+            "string_sympathetic_decay_ms": 3500,
+            "string_sympathetic_root": 60,
             "amp_auto_level": 0
           }
         },
@@ -19144,6 +19560,12 @@
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
             "string_sawari": 0,
+            "string_plectrum": 0,
+            "string_plectrum_hardness": 0.7,
+            "string_body_mix": 0,
+            "string_sympathetic_mix": 0,
+            "string_sympathetic_decay_ms": 3500,
+            "string_sympathetic_root": 60,
             "amp_auto_level": 0
           }
         },
@@ -19226,6 +19648,12 @@
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
             "string_sawari": 0,
+            "string_plectrum": 0,
+            "string_plectrum_hardness": 0.7,
+            "string_body_mix": 0,
+            "string_sympathetic_mix": 0,
+            "string_sympathetic_decay_ms": 3500,
+            "string_sympathetic_root": 60,
             "amp_auto_level": 0
           }
         },
@@ -19308,6 +19736,12 @@
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
             "string_sawari": 0,
+            "string_plectrum": 0,
+            "string_plectrum_hardness": 0.7,
+            "string_body_mix": 0,
+            "string_sympathetic_mix": 0,
+            "string_sympathetic_decay_ms": 3500,
+            "string_sympathetic_root": 60,
             "amp_auto_level": 0
           }
         },
@@ -19390,6 +19824,12 @@
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
             "string_sawari": 0,
+            "string_plectrum": 0,
+            "string_plectrum_hardness": 0.7,
+            "string_body_mix": 0,
+            "string_sympathetic_mix": 0,
+            "string_sympathetic_decay_ms": 3500,
+            "string_sympathetic_root": 60,
             "amp_auto_level": 0
           }
         },
@@ -19472,6 +19912,12 @@
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
             "string_sawari": 0,
+            "string_plectrum": 0,
+            "string_plectrum_hardness": 0.7,
+            "string_body_mix": 0,
+            "string_sympathetic_mix": 0,
+            "string_sympathetic_decay_ms": 3500,
+            "string_sympathetic_root": 60,
             "amp_auto_level": 0
           }
         },
@@ -19554,6 +20000,12 @@
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
             "string_sawari": 0,
+            "string_plectrum": 0,
+            "string_plectrum_hardness": 0.7,
+            "string_body_mix": 0,
+            "string_sympathetic_mix": 0,
+            "string_sympathetic_decay_ms": 3500,
+            "string_sympathetic_root": 60,
             "amp_auto_level": 0
           }
         },
@@ -19636,6 +20088,12 @@
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
             "string_sawari": 0,
+            "string_plectrum": 0,
+            "string_plectrum_hardness": 0.7,
+            "string_body_mix": 0,
+            "string_sympathetic_mix": 0,
+            "string_sympathetic_decay_ms": 3500,
+            "string_sympathetic_root": 60,
             "amp_auto_level": 0
           }
         },
@@ -19718,6 +20176,12 @@
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
             "string_sawari": 0,
+            "string_plectrum": 0,
+            "string_plectrum_hardness": 0.7,
+            "string_body_mix": 0,
+            "string_sympathetic_mix": 0,
+            "string_sympathetic_decay_ms": 3500,
+            "string_sympathetic_root": 60,
             "amp_auto_level": 0
           }
         },
@@ -19800,6 +20264,12 @@
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
             "string_sawari": 0,
+            "string_plectrum": 0,
+            "string_plectrum_hardness": 0.7,
+            "string_body_mix": 0,
+            "string_sympathetic_mix": 0,
+            "string_sympathetic_decay_ms": 3500,
+            "string_sympathetic_root": 60,
             "amp_auto_level": 0
           }
         },
@@ -19882,6 +20352,12 @@
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
             "string_sawari": 0,
+            "string_plectrum": 0,
+            "string_plectrum_hardness": 0.7,
+            "string_body_mix": 0,
+            "string_sympathetic_mix": 0,
+            "string_sympathetic_decay_ms": 3500,
+            "string_sympathetic_root": 60,
             "amp_auto_level": 0
           }
         },
@@ -19964,6 +20440,12 @@
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
             "string_sawari": 0,
+            "string_plectrum": 0,
+            "string_plectrum_hardness": 0.7,
+            "string_body_mix": 0,
+            "string_sympathetic_mix": 0,
+            "string_sympathetic_decay_ms": 3500,
+            "string_sympathetic_root": 60,
             "amp_auto_level": 0
           }
         },
@@ -20046,6 +20528,12 @@
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
             "string_sawari": 0,
+            "string_plectrum": 0,
+            "string_plectrum_hardness": 0.7,
+            "string_body_mix": 0,
+            "string_sympathetic_mix": 0,
+            "string_sympathetic_decay_ms": 3500,
+            "string_sympathetic_root": 60,
             "amp_auto_level": 0
           }
         },
@@ -20128,6 +20616,12 @@
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
             "string_sawari": 0,
+            "string_plectrum": 0,
+            "string_plectrum_hardness": 0.7,
+            "string_body_mix": 0,
+            "string_sympathetic_mix": 0,
+            "string_sympathetic_decay_ms": 3500,
+            "string_sympathetic_root": 60,
             "amp_auto_level": 0
           }
         },
@@ -20210,6 +20704,12 @@
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
             "string_sawari": 0,
+            "string_plectrum": 0,
+            "string_plectrum_hardness": 0.7,
+            "string_body_mix": 0,
+            "string_sympathetic_mix": 0,
+            "string_sympathetic_decay_ms": 3500,
+            "string_sympathetic_root": 60,
             "amp_auto_level": 0
           }
         },
@@ -20292,6 +20792,12 @@
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
             "string_sawari": 0,
+            "string_plectrum": 0,
+            "string_plectrum_hardness": 0.7,
+            "string_body_mix": 0,
+            "string_sympathetic_mix": 0,
+            "string_sympathetic_decay_ms": 3500,
+            "string_sympathetic_root": 60,
             "amp_auto_level": 0
           }
         },
@@ -20374,6 +20880,12 @@
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
             "string_sawari": 0,
+            "string_plectrum": 0,
+            "string_plectrum_hardness": 0.7,
+            "string_body_mix": 0,
+            "string_sympathetic_mix": 0,
+            "string_sympathetic_decay_ms": 3500,
+            "string_sympathetic_root": 60,
             "amp_auto_level": 0
           }
         },
@@ -20456,6 +20968,12 @@
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
             "string_sawari": 0,
+            "string_plectrum": 0,
+            "string_plectrum_hardness": 0.7,
+            "string_body_mix": 0,
+            "string_sympathetic_mix": 0,
+            "string_sympathetic_decay_ms": 3500,
+            "string_sympathetic_root": 60,
             "amp_auto_level": 0
           }
         },
@@ -20538,6 +21056,12 @@
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
             "string_sawari": 0,
+            "string_plectrum": 0,
+            "string_plectrum_hardness": 0.7,
+            "string_body_mix": 0,
+            "string_sympathetic_mix": 0,
+            "string_sympathetic_decay_ms": 3500,
+            "string_sympathetic_root": 60,
             "amp_auto_level": 0
           }
         },
@@ -20620,6 +21144,12 @@
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
             "string_sawari": 0,
+            "string_plectrum": 0,
+            "string_plectrum_hardness": 0.7,
+            "string_body_mix": 0,
+            "string_sympathetic_mix": 0,
+            "string_sympathetic_decay_ms": 3500,
+            "string_sympathetic_root": 60,
             "amp_auto_level": 0
           }
         },
@@ -20702,6 +21232,12 @@
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
             "string_sawari": 0,
+            "string_plectrum": 0,
+            "string_plectrum_hardness": 0.7,
+            "string_body_mix": 0,
+            "string_sympathetic_mix": 0,
+            "string_sympathetic_decay_ms": 3500,
+            "string_sympathetic_root": 60,
             "amp_auto_level": 0
           }
         },
@@ -20784,6 +21320,12 @@
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
             "string_sawari": 0,
+            "string_plectrum": 0,
+            "string_plectrum_hardness": 0.7,
+            "string_body_mix": 0,
+            "string_sympathetic_mix": 0,
+            "string_sympathetic_decay_ms": 3500,
+            "string_sympathetic_root": 60,
             "amp_auto_level": 0
           }
         },
@@ -20866,6 +21408,12 @@
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
             "string_sawari": 0,
+            "string_plectrum": 0,
+            "string_plectrum_hardness": 0.7,
+            "string_body_mix": 0,
+            "string_sympathetic_mix": 0,
+            "string_sympathetic_decay_ms": 3500,
+            "string_sympathetic_root": 60,
             "amp_auto_level": 0
           }
         },
@@ -20948,6 +21496,12 @@
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
             "string_sawari": 0,
+            "string_plectrum": 0,
+            "string_plectrum_hardness": 0.7,
+            "string_body_mix": 0,
+            "string_sympathetic_mix": 0,
+            "string_sympathetic_decay_ms": 3500,
+            "string_sympathetic_root": 60,
             "amp_auto_level": 0
           }
         },
@@ -21030,6 +21584,12 @@
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
             "string_sawari": 0,
+            "string_plectrum": 0,
+            "string_plectrum_hardness": 0.7,
+            "string_body_mix": 0,
+            "string_sympathetic_mix": 0,
+            "string_sympathetic_decay_ms": 3500,
+            "string_sympathetic_root": 60,
             "amp_auto_level": 0
           }
         },
@@ -21112,6 +21672,12 @@
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
             "string_sawari": 0,
+            "string_plectrum": 0,
+            "string_plectrum_hardness": 0.7,
+            "string_body_mix": 0,
+            "string_sympathetic_mix": 0,
+            "string_sympathetic_decay_ms": 3500,
+            "string_sympathetic_root": 60,
             "amp_auto_level": 0
           }
         },
@@ -21194,6 +21760,12 @@
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
             "string_sawari": 0,
+            "string_plectrum": 0,
+            "string_plectrum_hardness": 0.7,
+            "string_body_mix": 0,
+            "string_sympathetic_mix": 0,
+            "string_sympathetic_decay_ms": 3500,
+            "string_sympathetic_root": 60,
             "amp_auto_level": 0
           }
         },
@@ -21276,6 +21848,12 @@
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
             "string_sawari": 0,
+            "string_plectrum": 0,
+            "string_plectrum_hardness": 0.7,
+            "string_body_mix": 0,
+            "string_sympathetic_mix": 0,
+            "string_sympathetic_decay_ms": 3500,
+            "string_sympathetic_root": 60,
             "amp_auto_level": 0
           }
         },
@@ -21358,6 +21936,12 @@
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
             "string_sawari": 0,
+            "string_plectrum": 0,
+            "string_plectrum_hardness": 0.7,
+            "string_body_mix": 0,
+            "string_sympathetic_mix": 0,
+            "string_sympathetic_decay_ms": 3500,
+            "string_sympathetic_root": 60,
             "amp_auto_level": 0
           }
         },
@@ -21440,6 +22024,12 @@
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
             "string_sawari": 0,
+            "string_plectrum": 0,
+            "string_plectrum_hardness": 0.7,
+            "string_body_mix": 0,
+            "string_sympathetic_mix": 0,
+            "string_sympathetic_decay_ms": 3500,
+            "string_sympathetic_root": 60,
             "amp_auto_level": 0
           }
         },
@@ -21522,6 +22112,12 @@
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
             "string_sawari": 0,
+            "string_plectrum": 0,
+            "string_plectrum_hardness": 0.7,
+            "string_body_mix": 0,
+            "string_sympathetic_mix": 0,
+            "string_sympathetic_decay_ms": 3500,
+            "string_sympathetic_root": 60,
             "amp_auto_level": 0
           }
         },
@@ -21604,6 +22200,12 @@
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
             "string_sawari": 0,
+            "string_plectrum": 0,
+            "string_plectrum_hardness": 0.7,
+            "string_body_mix": 0,
+            "string_sympathetic_mix": 0,
+            "string_sympathetic_decay_ms": 3500,
+            "string_sympathetic_root": 60,
             "amp_auto_level": 0
           }
         },
@@ -21686,6 +22288,12 @@
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
             "string_sawari": 0,
+            "string_plectrum": 0,
+            "string_plectrum_hardness": 0.7,
+            "string_body_mix": 0,
+            "string_sympathetic_mix": 0,
+            "string_sympathetic_decay_ms": 3500,
+            "string_sympathetic_root": 60,
             "amp_auto_level": 0
           }
         },
@@ -21768,6 +22376,12 @@
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
             "string_sawari": 0,
+            "string_plectrum": 0,
+            "string_plectrum_hardness": 0.7,
+            "string_body_mix": 0,
+            "string_sympathetic_mix": 0,
+            "string_sympathetic_decay_ms": 3500,
+            "string_sympathetic_root": 60,
             "amp_auto_level": 0
           }
         },
@@ -21850,6 +22464,12 @@
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
             "string_sawari": 0,
+            "string_plectrum": 0,
+            "string_plectrum_hardness": 0.7,
+            "string_body_mix": 0,
+            "string_sympathetic_mix": 0,
+            "string_sympathetic_decay_ms": 3500,
+            "string_sympathetic_root": 60,
             "amp_auto_level": 0
           }
         },
@@ -21932,6 +22552,12 @@
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
             "string_sawari": 0,
+            "string_plectrum": 0,
+            "string_plectrum_hardness": 0.7,
+            "string_body_mix": 0,
+            "string_sympathetic_mix": 0,
+            "string_sympathetic_decay_ms": 3500,
+            "string_sympathetic_root": 60,
             "amp_auto_level": 0
           }
         },
@@ -22014,6 +22640,12 @@
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
             "string_sawari": 0,
+            "string_plectrum": 0,
+            "string_plectrum_hardness": 0.7,
+            "string_body_mix": 0,
+            "string_sympathetic_mix": 0,
+            "string_sympathetic_decay_ms": 3500,
+            "string_sympathetic_root": 60,
             "amp_auto_level": 0
           }
         },
@@ -22066,7 +22698,7 @@
             "phys_pitch_bend_range_cents": 200,
             "phys_room_mix": 0.2,
             "phys_room_decay_ms": 1300,
-            "phys_volume_db": -12.6,
+            "phys_volume_db": -11.3,
             "brass_pressure": 0.6,
             "brass_lip": 0.5,
             "brass_attack_ms": 30,
@@ -22096,6 +22728,12 @@
             "rotary_mix": 1,
             "free_reed_detune_cents": 12,
             "string_sawari": 0,
+            "string_plectrum": 0,
+            "string_plectrum_hardness": 0.7,
+            "string_body_mix": 0,
+            "string_sympathetic_mix": 0,
+            "string_sympathetic_decay_ms": 3500,
+            "string_sympathetic_root": 60,
             "amp_auto_level": 0
           }
         },
@@ -22148,7 +22786,7 @@
             "phys_pitch_bend_range_cents": 200,
             "phys_room_mix": 0.25,
             "phys_room_decay_ms": 1300,
-            "phys_volume_db": -15.7,
+            "phys_volume_db": -15.3,
             "brass_pressure": 0.6,
             "brass_lip": 0.5,
             "brass_attack_ms": 30,
@@ -22178,6 +22816,12 @@
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
             "string_sawari": 0,
+            "string_plectrum": 0,
+            "string_plectrum_hardness": 0.7,
+            "string_body_mix": 0,
+            "string_sympathetic_mix": 0,
+            "string_sympathetic_decay_ms": 3500,
+            "string_sympathetic_root": 60,
             "amp_auto_level": 0
           }
         },
@@ -22230,7 +22874,7 @@
             "phys_pitch_bend_range_cents": 200,
             "phys_room_mix": 0.15,
             "phys_room_decay_ms": 1300,
-            "phys_volume_db": -14.8,
+            "phys_volume_db": -9.7,
             "brass_pressure": 0.6,
             "brass_lip": 0.5,
             "brass_attack_ms": 30,
@@ -22260,6 +22904,12 @@
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
             "string_sawari": 0,
+            "string_plectrum": 0,
+            "string_plectrum_hardness": 0.7,
+            "string_body_mix": 0,
+            "string_sympathetic_mix": 0,
+            "string_sympathetic_decay_ms": 3500,
+            "string_sympathetic_root": 60,
             "amp_auto_level": 0
           }
         },
@@ -22312,7 +22962,7 @@
             "phys_pitch_bend_range_cents": 200,
             "phys_room_mix": 0.4,
             "phys_room_decay_ms": 1300,
-            "phys_volume_db": -14.2,
+            "phys_volume_db": -14,
             "brass_pressure": 0.6,
             "brass_lip": 0.5,
             "brass_attack_ms": 30,
@@ -22342,6 +22992,12 @@
             "rotary_mix": 1,
             "free_reed_detune_cents": 4,
             "string_sawari": 0,
+            "string_plectrum": 0,
+            "string_plectrum_hardness": 0.7,
+            "string_body_mix": 0,
+            "string_sympathetic_mix": 0,
+            "string_sympathetic_decay_ms": 3500,
+            "string_sympathetic_root": 60,
             "amp_auto_level": 0
           }
         }

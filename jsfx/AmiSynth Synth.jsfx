@@ -87,7 +87,7 @@ slider74:arp_step_13=1<0,1,1{Off,On}>Arp Step 13
 slider75:arp_step_14=1<0,1,1{Off,On}>Arp Step 14
 slider76:arp_step_15=1<0,1,1{Off,On}>Arp Step 15
 slider77:arp_step_16=1<0,1,1{Off,On}>Arp Step 16
-slider78:noise_type=0<0,3,1{White,Chip Long (LFSR),Chip Short (metallic),Sample & Hold}>Noise Type
+slider78:noise_type=0<0,7,1{White,Chip Long (LFSR),Chip Short (metallic),Sample & Hold,Rotor,Crowd Claps,Shot,Rain}>Noise Type
 slider79:noise_clock_oct=0<-4,4,0.01>Noise Clock [oct]
 slider80:noise_filter_mode=0<0,3,1{Off,Low-pass,High-pass,Band-pass}>Noise Filter
 slider81:noise_filter_hz=4000<20,20000,1>Noise Filter Cutoff [Hz]
@@ -218,6 +218,8 @@ cc_mult = 1;
 // clock of the chip / S&H noise in multiples of the note frequency (same as NOISE_CLOCK in synth.js)
 noise_clock_tab = mem_alloc(4);
 noise_clock_tab[0] = 0; noise_clock_tab[1] = 32; noise_clock_tab[2] = 93; noise_clock_tab[3] = 8;
+sfx_claps = mem_alloc(MAX_VOICES * 36); // eighteen independent timer / envelope pairs per voice
+sfx_drops = mem_alloc(MAX_VOICES * 24); // droplet timer / envelope / phase / frequency
 // host transport: beats (quarter notes), advanced every sample, resynced in @block while playing
 beat = 0;
 beat_inc = 120 / 60 / srate;
@@ -599,12 +601,98 @@ function ucopy_process(f, r2, w1, w2, pw1, pw2, fm, sync, l1, l2) instance(prev2
 );
 
 // ---- voice (namespace v0..v7)
+function sound_fx_random() instance(rnd) (
+  rnd *= 16807;
+  rnd -= floor(rnd / 2147483647) * 2147483647;
+  rnd / 2147483647;
+);
+
+function sound_fx_reset(vid, vel) instance(time phase lp1 lp2 env rnd claps drops) local(i) (
+  time = 0; phase = 0; lp1 = 0; lp2 = 0; env = 0;
+  rnd = 901 + (v_age[vid] % 997) * 37 + floor(vel * 127 + 0.5) * 17;
+  claps = sfx_claps + vid * 36;
+  drops = sfx_drops + vid * 24;
+  i = 0;
+  loop(18,
+    claps[2 * i] = (0.002 + 0.013 * i) * srate / sfx_rate;
+    claps[2 * i + 1] = 0;
+    i += 1;
+  );
+  i = 0;
+  loop(6,
+    drops[4 * i] = (0.001 + 0.011 * i) * srate / sfx_rate;
+    drops[4 * i + 1] = 0;
+    drops[4 * i + 2] = 0;
+    drops[4 * i + 3] = 0;
+    i += 1;
+  );
+);
+
+function sound_fx_noise() instance(time phase lp1 lp2 env rnd claps drops)
+  local(nz, ph, blade, y, sumenv, i, o, t, crack, reflection, strength, dropsum) (
+  nz = noise_white();
+  lp1 += sfx_a1 * (nz - lp1);
+  lp2 += sfx_a2 * (nz - lp2);
+  noise_type_i === 4 ? (
+    ph = phase;
+    phase += 11 * sfx_rate / srate;
+    phase >= 1 ? phase -= 1;
+    blade = exp(-18 * ph);
+    y = 3 * (lp1 * (0.12 + 0.88 * blade) + lp2 * 0.12 * blade
+      + 0.22 * sin(2 * $pi * 4 * ph) * exp(-10 * ph));
+  ) : noise_type_i === 5 ? (
+    sumenv = 0; i = 0;
+    loop(18,
+      o = 2 * i;
+      claps[o] -= 1;
+      claps[o] <= 0 ? (
+        claps[o] = (0.12 + 0.36 * this.sound_fx_random()) * srate / sfx_rate;
+        claps[o + 1] = 0.4 + 0.6 * this.sound_fx_random();
+      );
+      claps[o + 1] *= sfx_clap_decay;
+      sumenv += claps[o + 1];
+      i += 1;
+    );
+    env += sfx_clap_attack * (sumenv - env);
+    y = 1.8 * (lp1 - lp2) * env;
+  ) : noise_type_i === 7 ? (
+    dropsum = 0; i = 0;
+    loop(6,
+      o = 4 * i;
+      drops[o] -= 1;
+      drops[o] <= 0 ? (
+        drops[o] = (0.015 + 0.16 * this.sound_fx_random()) * srate / sfx_rate;
+        strength = this.sound_fx_random();
+        drops[o + 1] = 0.15 + 0.85 * strength * strength;
+        drops[o + 2] = 0;
+        drops[o + 3] = (1200 + 3300 * this.sound_fx_random()) / srate;
+      );
+      drops[o + 1] *= sfx_drop_decay;
+      drops[o + 2] += drops[o + 3];
+      drops[o + 2] >= 1 ? drops[o + 2] -= 1;
+      dropsum += (0.6 * sin(2 * $pi * drops[o + 2]) + 0.4 * nz) * drops[o + 1];
+      i += 1;
+    );
+    y = 0.45 * (lp1 - lp2) + 0.35 * dropsum;
+  ) : (
+    t = time;
+    time += sfx_rate / srate;
+    crack = nz - lp1;
+    reflection = t >= 0.007 ? exp(-(t - 0.007) / 0.004) : 0;
+    y = 6 * (crack * (exp(-t / 0.0015) + 0.18 * reflection)
+      + 0.35 * (lp1 - lp2) * exp(-t / 0.018));
+  );
+  y;
+);
+
 // op: 0 set index, 1 reset (fresh voice), 2 gate off, 3 envelopes, 4 retune,
 //     5 set pitch (a = hz, b = glide_oct), 6 trigger (a = velocity 1..127), 7 get glide_oct, 8 get base_hz,
 //     9 set polyphonic aftertouch (a = 0..1)
 function voice_op(op, a, b, c, d) instance(idx velocity base_hz glide_oct rnd poly_at) local(spread, r1, r2) (
   op === 0 ? (
     idx = a;
+    this.sfx.claps = sfx_claps + idx * 36;
+    this.sfx.drops = sfx_drops + idx * 24;
   ) : op === 1 ? (
     spread = unison_n > 1;
     // same random call order as the JS code: per copy osc1 (if spread) then osc2
@@ -645,6 +733,7 @@ function voice_op(op, a, b, c, d) instance(idx velocity base_hz glide_oct rnd po
     this.fenv.adsr_gate_on();
     this.menv.adsr_gate_on();
     rnd = mod_random();
+    noise_type_i >= 4 ? this.sfx.sound_fx_reset(idx, velocity);
   ) : op === 7 ? (
     glide_oct;
   ) : op === 8 ? (
@@ -652,6 +741,9 @@ function voice_op(op, a, b, c, d) instance(idx velocity base_hz glide_oct rnd po
   ) : op === 9 ? (
     poly_at = a;
   ) : op === 10 ? (
+    this.sfx.sound_fx_reset(idx, velocity);
+    noise_type_i === 6 ? this.sfx.time = 1000000000;
+  ) : op === 11 ? (
     // legato: a note inside the Legato Window takes the envelopes back from their release
     this.aenv.adsr_resume();
     this.fenv.adsr_resume();
@@ -752,8 +844,10 @@ function voice_render() instance(idx velocity base_hz glide_oct rnd poly_at pres
       this.sub.osc_set_freq(hz * 0.5);
       common += this.sub.osc_process(1, 0.5, 0) * sub_osc_level;
     );
-    nlev > 0 ? (
-      nz = noise_type_i === 0 ? noise_white() : this.nz.voice_noise(hz);
+    // FX clocks continue while muted; unmuting must not replay an old shot.
+    nlev > 0 || noise_type_i >= 4 ? (
+      nz = noise_type_i >= 4 ? this.sfx.sound_fx_noise()
+        : noise_type_i === 0 ? noise_white() : this.nz.voice_noise(hz);
       noise_filter_i > 0 ? (
         this.nzf.svf_process(nz);
         nz = this.nzf.svf_output(noise_filter_i - 1);
@@ -907,7 +1001,7 @@ function mono_play(key, pitch, vel, retrig, overlap) local(hz, g) (
   v_pitch[0] = pitch;
   age_counter += 1;
   v_age[0] = age_counter;
-  retrig ? v0.voice_op(6, vel, 0, 0, 0) : v0.voice_op(10, 0, 0, 0, 0);
+  retrig ? v0.voice_op(6, vel, 0, 0, 0) : v0.voice_op(11, 0, 0, 0, 0);
 );
 
 function stack_remove(key) local(i, j) (
@@ -1189,8 +1283,19 @@ wt_bank1_i = clamp(floor(osc1_wt_bank + 0.5), 0, WT_BANKS - 1);
 wt_bank2_i = clamp(floor(osc2_wt_bank + 0.5), 0, WT_BANKS - 1);
 wt_osc1 ? wt_build(wt_bank1_i);
 wt_osc2 ? wt_build(wt_bank2_i);
-noise_type_i = clamp(floor(noise_type + 0.5), 0, 3);
-noise_clock = noise_clock_tab[noise_type_i] * pow(2, noise_clock_oct);
+old_noise_type_i = noise_type_i;
+noise_type_i = clamp(floor(noise_type + 0.5), 0, 7);
+noise_clock = noise_type_i < 4 ? noise_clock_tab[noise_type_i] * pow(2, noise_clock_oct) : 0;
+sfx_rate = pow(2, noise_clock_oct);
+sfx_a1 = 1 - exp(-2 * $pi * (noise_type_i === 4 ? 400 : noise_type_i === 5 ? 6000 : noise_type_i === 7 ? 8000 : noise_type_i === 6 ? 3500 : 700) / srate);
+sfx_a2 = 1 - exp(-2 * $pi * (noise_type_i === 4 ? 2800 : noise_type_i === 5 ? 1200 : 400) / srate);
+sfx_clap_decay = exp(-1 / (0.006 * srate));
+sfx_clap_attack = 1 - exp(-1 / (0.00035 * srate));
+sfx_drop_decay = exp(-1 / (0.006 * srate));
+noise_type_i >= 4 && noise_type_i !== old_noise_type_i ? (
+  i = 0;
+  loop(MAX_VOICES, v_active[i] ? vcall(i, 10, 0, 0, 0, 0); i += 1;);
+);
 noise_filter_i = clamp(floor(noise_filter_mode + 0.5), 0, 3);
 cc_cutoff_num = floor(cc_cutoff_number + 0.5);
 cc_mult = pow(2, clamp((cc_cutoff_value - 64) / 63, -1, 1) * cc_cutoff_depth_oct);

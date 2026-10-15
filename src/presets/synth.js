@@ -696,12 +696,12 @@ export const SYNTH_PRESETS = [
   },
   {
     name: 'Rain', category: 'FX',
-    description: 'Random droplets: band-passed noise whose brightness and level jump with a fast sample & hold LFO.',
+    description: 'Rainfall: a steady rain wash with irregular short surface droplets of different strengths and resonances. Hold a note; Noise Clock changes droplet density.',
     params: {
-      master_volume_db: 2.7, osc1_level: 0, osc2_level: 0, noise_level: 0.8, filter_mode: 2, filter_cutoff_hz: 2500,
-      filter_resonance: 0.5, filter_env_amount_oct: 0, filter_key_tracking: 0, lfo_waveform: 4, lfo_rate_hz: 16,
-      lfo_filter_oct: 1.8, lfo_amp: 0.7, amp_attack_ms: 300, amp_sustain: 1, amp_release_ms: 800,
-      fx_reverb_on: 1, fx_reverb_mix: 0.35, fx_reverb_decay_ms: 2000,
+      master_volume_db: 1.3, osc1_level: 0, osc2_level: 0, noise_level: 1, noise_type: 7, filter_slope: 0, filter_cutoff_hz: 9000,
+      filter_resonance: 0, filter_env_amount_oct: 0, filter_key_tracking: 0,
+      amp_attack_ms: 400, amp_sustain: 1, amp_release_ms: 800,
+      fx_reverb_on: 1, fx_reverb_mix: 0.08, fx_reverb_decay_ms: 650, fx_reverb_size: 0.3,
     },
   },
   {
@@ -828,32 +828,30 @@ export const SYNTH_PRESETS = [
   },
   {
     name: 'Helicopter', category: 'FX',
-    description: 'Rotor thump: low-passed noise chopped by a square tremolo about 11 times per second.',
+    description: 'Rotor blades: repeated low pressure thumps with a decaying air wash over a steady engine rumble. Hold a note; Noise Clock changes rotor speed, not note pitch.',
     params: {
-      master_volume_db: 4.3, osc1_level: 0, osc2_level: 0, noise_level: 0.9, sub_osc_level: 0, filter_cutoff_hz: 800,
-      filter_resonance: 0.2, filter_env_amount_oct: 0, filter_key_tracking: 0.4, amp_attack_ms: 600, amp_sustain: 1,
-      amp_release_ms: 1200, lfo_waveform: 3, lfo_rate_hz: 11, lfo_amp: 0.75, lfo_filter_oct: 0.8,
+      master_volume_db: 4.9, osc1_level: 0, osc2_level: 0, noise_level: 1, noise_type: 4, sub_osc_level: 0, filter_cutoff_hz: 4000,
+      filter_resonance: 0, filter_env_amount_oct: 0, filter_key_tracking: 0, amp_attack_ms: 600, amp_sustain: 1,
+      amp_release_ms: 1000,
     },
   },
   {
     name: 'Applause', category: 'FX',
-    description: 'Crowd clapping: band-passed noise flickering with a fast sample & hold on the level, in a room.',
+    description: 'Crowd applause: eighteen independently timed, short hand impacts with reduced low body, overlapping into a crowd and room tail. Hold a note; Noise Clock changes crowd activity.',
     params: {
-      master_volume_db: 2.4, osc1_level: 0, osc2_level: 0, noise_level: 0.9, filter_mode: 2, filter_slope: 0, filter_cutoff_hz: 2500,
-      filter_resonance: 0.1, filter_env_amount_oct: 0, filter_key_tracking: 0, amp_attack_ms: 500, amp_sustain: 1,
-      amp_release_ms: 1500, lfo_waveform: 4, lfo_rate_hz: 20, lfo_amp: 0.35, lfo_filter_oct: 0.5,
+      master_volume_db: 4.2, osc1_level: 0, osc2_level: 0, noise_level: 1, noise_type: 5, filter_slope: 0, filter_cutoff_hz: 8000,
+      filter_resonance: 0, filter_env_amount_oct: 0, filter_key_tracking: 0, amp_attack_ms: 350, amp_sustain: 1,
+      amp_release_ms: 700,
       fx_reverb_on: 1, fx_reverb_mix: 0.35, fx_reverb_decay_ms: 1800,
     },
   },
   {
     name: 'Gunshot', category: 'FX',
-    description: 'Cartoon gunshot: a noise crack whose low-pass closes fast over a sine thump that drops in pitch, with a short room tail.',
+    description: 'Short gunshot: a sharp broadband crack and short early reflection without a pitched bass thump. Each note-on fires once, even if held; Noise Clock changes playback speed.',
     params: {
-      master_volume_db: 6, osc1_waveform: 3, osc1_level: 0.9, osc2_level: 0, noise_level: 1, filter_cutoff_hz: 1500, filter_resonance: 0,
-      filter_env_amount_oct: 4, filter_env_attack_ms: 0.5, filter_env_decay_ms: 200, filter_env_sustain: 0,
-      filter_key_tracking: 0, amp_attack_ms: 0.5, amp_decay_ms: 1400, amp_sustain: 0, amp_release_ms: 250,
-      filter_drive: 1, mod_env_attack_ms: 0.5, mod_env_decay_ms: 50, mod1_source: 3, mod1_destination: 1, mod1_amount: 2400,
-      fx_reverb_on: 1, fx_reverb_mix: 0.3, fx_reverb_decay_ms: 1200, fx_reverb_size: 0.4,
+      master_volume_db: 6, osc1_level: 0, osc2_level: 0, noise_level: 1, noise_type: 6, filter_cutoff_hz: 12000, filter_resonance: 0,
+      filter_env_amount_oct: 0, filter_key_tracking: 0, amp_attack_ms: 0.5, amp_decay_ms: 450, amp_sustain: 0, amp_release_ms: 180,
+      fx_reverb_on: 1, fx_reverb_mix: 0.09, fx_reverb_decay_ms: 400, fx_reverb_size: 0.2,
     },
   },
 ];
