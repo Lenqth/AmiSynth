@@ -10,13 +10,14 @@
 | `AmiSynth Drums.jsfx` | 合成ドラム 13 パーツ(GM 配置)。パーツ別出力つき(10 ch)。スライダー 78 本 |
 | `AmiSynth Tuning.jsfx` | 共通の音階を持つユーティリティ(音は出さず、オーディオと MIDI はそのまま通す)。Synth / Physical が Slot を指定して従う。スライダー 38 本 |
 | `amisynth_lib.jsfx-inc` | 共通 DSP。上のすべてが `import` します |
+| `AmiSynth Synth.jsfx.rpl` など 3 つ | 内蔵プリセットの REAPER 用ライブラリ(下記「プリセット」)。`npm run gen:jsfx` で生成 |
 
 ## インストール
 
 音源と補助スクリプトを一緒に配置する場合は、[ReaScript / MCPガイド](reaper/README.md) の `npm run install:reaper` を使えます。REAPERのリソースパスを明示して実行し、まず `--dry-run` で確認してください。既存の同名AmiSynthファイルは更新されます。Actionsへの登録は配置後に行います。
 
 1. REAPER のメニューで **Options → Show REAPER resource path** を開きます。
-2. `Effects/AmiSynth/` フォルダを作り、上の 5 ファイルと `amisynth_meter.jsfx-inc` をすべてコピーします。
+2. `Effects/AmiSynth/` フォルダを作り、上の 5 ファイルと `amisynth_meter.jsfx-inc`、3 つの `.rpl` をすべてコピーします。
 3. トラックの FX に「JS: AmiSynth Synth」などを追加し、MIDI を入力します。
    - Web 版のピアノロールにある「MIDI 書き出し」で作った `.mid` をそのまま使えます(メロディ ch1、ドラム ch10。ソングモードでは曲全体)。
    - 1 トラック目のメロディは、Synth か Physical のトラックに置いてください。
@@ -227,10 +228,21 @@ CC64の値64以上で踏み込み、63以下で解除です。ペダル中のノ
 
 **完成した配線を作るアクション**: `reaper/AmiSynth Drums - Create routed tracks.lua` を Actions に登録して実行すると、10チャンネルの Drums 1台と Kick / Snare / Hats / Perc の4トラックを追加します。ピン3/4・5/6・7/8・9/10をそれぞれのトラックの1/2へ送り、各グループのメインへの重複出力と音源トラックの Master send を無効にします。MIDIはバストラックへ送りません。既存トラックの配線は変更しません。作成した5トラックを選択して **Save tracks as track template** で保存すれば、以後はテンプレートとして読み込めます。
 
+### プリセット (.rpl)
+
+`AmiSynth Synth.jsfx.rpl` / `AmiSynth Physical.jsfx.rpl` / `AmiSynth Drums.jsfx.rpl` は Web 版と同じ内蔵プリセット
+(Synth 77・Physical 92・ドラムキット 8)の REAPER 用プリセットライブラリです。JSFX と同じフォルダに置くと、
+FX ウィンドウ右上のプリセット欄に「Bass: Sub Bass」のように「カテゴリ: 名前」で並びます。
+置いていない場合や別の場所に置いた場合は、プリセット欄の **+ → Import preset library…** で読み込めます。
+
+- チューニングのスライダー(`tuning_*`)とファイル選択はプリセットに含めていない(`-`)ので、プリセットを切り替えても
+  トラックの音階はそのままです(Companion / toolkit の `ami.preset` と同じ扱い)。
+- 中身は `src/presets/*.js` から `npm run gen:jsfx` で作ります。手で編集しないでください(`tests/rpl.test.js` が古いと失敗します)。
+- 64 本を超えるスライダーを含むため REAPER 6.74 以降の形式です。
+
 ### 制限
 
 - Physical の可視化は Web 版だけの機能です。
-- ネイティブの `.rpl` は未生成です。用途別プリセットとユーザー保存は AmiSynth Companion を使ってください。
 - 補助 Lua のホスト契約(保存・読戻し・失敗時の復元・配線)は `lua tests/reaper-toolkit.test.lua` (Lua 5.3+)でモック検証します。実 REAPER の GUI 操作／配線は別途確認が必要です。
 - `tools/jsfx_meter_check.cpp` を `YSFX_GFX=ON` の ysfx にリンクして `.cache/jsfx_meter_check` (Windows は `.exe`)へ置くと、`npm test` で `@gfx` の実行、出力とRMS／ピークの一致、9音目のスティール、基準記録、任意のレベル補正、無音時の補正抑止も検証します。別の場所なら `JSFX_METER_CHECK` で指定します。
 

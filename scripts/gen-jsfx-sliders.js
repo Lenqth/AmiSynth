@@ -62,6 +62,47 @@ export function withSliders(text, defs) {
   return text.slice(0, a) + BEGIN + '\n' + lines.join('\n') + '\n' + text.slice(b);
 }
 
+/** REAPER factory preset libraries, installed next to the JSFX as `<file>.rpl` */
+export const RPL_FILES = [
+  ['AmiSynth Synth.jsfx', SYNTH_PARAMS, SYNTH_PRESETS],
+  ['AmiSynth Physical.jsfx', PHYS_PARAMS, PHYS_PRESETS],
+  ['AmiSynth Drums.jsfx', DRUM_PARAMS, DRUM_PRESETS],
+];
+
+/** Sliders a preset leaves alone: the track's tuning and file choosers ('-' in the preset). */
+export const rplSkips = (d) => !!d.file || d.id.startsWith('tuning_');
+
+/** Menu name of a built-in preset in REAPER's preset list (flat, so the category goes first). */
+export const rplPresetName = (p) => (p.category && p.category !== 'Kit' ? `${p.category}: ${p.name}` : p.name);
+
+/**
+ * One preset as REAPER stores a JSFX state: sliders 1-64 ('-' = leave as is), the preset name,
+ * sliders 65-256, then NUL and the @serialize data (none here). Base64, 128 chars per line.
+ */
+export function rplPresetBlob(defs, values, name) {
+  const tok = (i) => (i < defs.length && !rplSkips(defs[i]) ? num(values[i]) : '-');
+  const head = Array.from({ length: 64 }, (_, i) => tok(i));
+  const tail = Array.from({ length: 192 }, (_, i) => tok(i + 64));
+  const text = [...head, `\`${name}\``, ...tail].join(' ') + '\0';
+  const b64 = Buffer.from(text, 'utf8').toString('base64');
+  const lines = [];
+  for (let i = 0; i < b64.length; i += 128) lines.push('    ' + b64.slice(i, i + 128));
+  return lines.join('\n');
+}
+
+/** Whole `.rpl` text for one instrument. */
+export function rplText(file, defs, presets) {
+  const out = [`<REAPER_PRESET_LIBRARY \`JS: AmiSynth/${file}\``];
+  for (const p of presets) {
+    const name = rplPresetName(p);
+    if (/[`\n]/.test(name)) throw new Error(`preset name not allowed in .rpl: ${name}`);
+    const values = resolvePreset(defs, p);
+    out.push(`  <PRESET \`${name}\``, rplPresetBlob(defs, defs.map((d) => values[d.id]), name), '  >');
+  }
+  out.push('>');
+  return out.join('\n') + '\n';
+}
+
 function main() {
   mkdirSync(outDir, { recursive: true });
   writeFileSync(join(outDir, 'synth-sliders.txt'), block('AmiSynth Synth', SYNTH_PARAMS));
@@ -79,6 +120,7 @@ function main() {
     join(outDir, 'presets.json'),
     JSON.stringify({ synth: resolved(SYNTH_PARAMS, SYNTH_PRESETS), phys: resolved(PHYS_PARAMS, PHYS_PRESETS), drums: resolved(DRUM_PARAMS, DRUM_PRESETS) }, null, 1) + '\n',
   );
+  for (const [file, defs, presets] of RPL_FILES) writeFileSync(join(root, 'jsfx', `${file}.rpl`), rplText(file, defs, presets));
   for (const [file, defs] of JSFX_FILES) {
     const path = join(root, 'jsfx', file);
     if (!existsSync(path)) continue;

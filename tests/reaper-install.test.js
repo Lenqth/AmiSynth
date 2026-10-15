@@ -14,7 +14,7 @@ const hasLua = spawnSync('lua', ['-v']).status === 0;
 test('REAPER installation dry-run is read-only; installed layout preserves dependencies and custom scripts', () => {
   const resource = mkdtempSync(join(tmpdir(), 'amisynth-install-'));
   const plan = install(resource, true);
-  assert.equal(plan.length, 15);
+  assert.equal(plan.length, 18);
   assert.deepEqual(readdirSync(resource), []);
   mkdirSync(join(resource, 'Scripts', 'AmiSynth'), { recursive: true });
   const custom = join(resource, 'Scripts', 'AmiSynth', 'Apply My Patch.lua');
