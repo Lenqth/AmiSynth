@@ -94,6 +94,7 @@ local function loop()
       local label = d.options and d.options[math.floor(value) + 1] or string.format('%.6g %s', value, d.unit)
       button(12, 95 + (row - 1) * 30, gfx.w - 24, d.name .. '  =  ' .. tostring(label), clicked, function()
         if d.file then status = 'Use the native JSFX file selector for this local Data directory.'; return end
+        if d.readonly then status = d.name .. ' is a status display written by the JSFX.'; return end
         if d.options then
           local items = {}; for i, name in ipairs(d.options) do items[#items + 1] = { name = name, value = i - 1 } end
           local p = menu(items); if p then run(function() api.apply(binding, { [d.id] = p.value }) end) end

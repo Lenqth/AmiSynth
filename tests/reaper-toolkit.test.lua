@@ -103,6 +103,12 @@ reaper.UpdateArrange = function() end
 reaper.MB = function() end
 dofile('jsfx/reaper/AmiSynth Drums - Create routed tracks.lua')
 assert(#tracks == 6 and tracks[1] == existing and selected == tracks[2] and undo == 0)
+local made = api.json_decode(assert(ext.last_result:match('^ok: (.*)$'), ext.last_result))
+assert(made.instrument.track == 2 and made.instrument.index == 1 and made.instrument.fx == 0 and #made.tracks == 5)
+for i, t in ipairs(made.tracks) do
+  assert(t.number == i + 1 and t.index == i and t.name == tracks[i + 1].P_NAME)
+end
+assert(made.tracks[1].role == 'instrument' and made.tracks[2].role == 'kick' and made.tracks[2].source_channels == '3/4')
 local source = tracks[2]
 assert(source.I_NCHAN == 10 and source.B_MAINSEND == 0 and #source.sends == 4)
 for i, send in ipairs(source.sends) do
@@ -116,6 +122,8 @@ end
 fail_fx = true
 dofile('jsfx/reaper/AmiSynth Drums - Create routed tracks.lua')
 assert(#tracks == 6 and tracks[1] == existing and tracks[2] == source and undo == 0)
+assert(ext.last_result:find('^error: Install the JSFX'), ext.last_result)
+fail_fx = false
 print('REAPER drum routing: channels, pins, all four sends, main exclusion and failure rollback passed')
 
 -- Read-only MCP entry point must publish useful text with no project mutation.
@@ -330,3 +338,86 @@ _, err = run('Read')
 io.open = open
 assert(err:find('No AmiSynth Drums'))
 print('REAPER MCP sound actions: apply/read round trip, clamping, rejection, insertion, rollback, dry run and request channels passed')
+
+-- Generic MCP entry point (AmiSynth - Run.lua): request channels, actions, batches, the Tuning JSFX.
+titles.tuning = 'Tuning'
+local function run_generic(request)
+  ext.last_result = nil
+  if request then ext.run = request end
+  dofile('jsfx/reaper/AmiSynth - Run.lua')
+  assert(undo == 0, 'Undo block left open')
+  local text = assert(ext.last_result, 'No MCP result published')
+  local status, body = text:match('^(%a+): (.*)$')
+  if status == 'ok' then return api.json_decode(body) end
+  assert(status == 'error', text)
+  return nil, body
+end
+proj = project({ { name = 'Lead', fx = { 'synth' } }, { name = 'Scale', fx = { 'tuning' } }, { name = 'Empty' } })
+proj.selected = proj.tracks[1]
+r = assert(run_generic('{"action":"list"}'))
+assert(r.action == 'list' and #r.tracks == 2 and r.tracks[1].number == 1 and r.tracks[2].number == 2)
+assert(r.tracks[2].fx[1].kind == 'tuning' and r.request_source == 'ExtState AmiSynthMCP/run' and ext.run == nil)
+r = assert(run_generic('{"action":"help"}'))
+assert(r.actions.set and r.actions.create_drum_tracks and r.actions.list)
+-- set: enum label, real units, one Undo step; get returns everything with labels
+r = assert(run_generic('{"action":"set","track":"Lead","params":{"arp_retrigger":"Every Bar","legato_window_ms":12,"tuning_divisions":19}}'))
+assert(r.written.arp_retrigger == 2 and r.written.legato_window_ms == 12 and r.written.tuning_divisions == 19)
+r = assert(run_generic('{"action":"get","track":"Lead"}'))
+assert(r.values.arp_retrigger == 2 and r.labels.arp_retrigger == 'Every Bar' and r.instrument == 'synth')
+local _, err = run_generic('{"action":"set","track":"Lead","params":{"filter_cutoff_hz":5}}')
+assert(err:find('Out of range'))
+-- the Tuning JSFX: sliders writable, status sliders read only
+local holder = proj.tracks[2].fx[1]
+r = assert(run_generic('{"action":"set","track":"Scale","instrument":"Tuning","params":{"scale_size":7,"scale_degree_7":1200}}'))
+assert(r.instrument == 'tuning' and r.written.scale_size == 7)
+_, err = run_generic('{"action":"set","track":"Scale","instrument":"Tuning","params":{"scale_status":1}}')
+assert(err:find('Read%-only'), err)
+for _, d in ipairs(catalog.instruments.tuning.parameters) do
+  if d.id == 'scale_status' then holder.values[d.paramIndex] = 2 end
+end
+r = assert(run_generic('{"action":"get","track":"Scale","instrument":"Tuning"}'))
+assert(r.labels.scale_status == 'File not found' and r.values.scale_size == 7)
+_, err = run_generic('{"action":"get","track":"Lead","instrument":"Tuning"}')
+assert(err:find('No AmiSynth Tuning'))
+-- presets / preset / macro / save_preset
+r = assert(run_generic('{"action":"presets","instrument":"Synth"}'))
+assert(#r.builtin == #catalog.instruments.synth.presets and r.builtin[1].name == catalog.instruments.synth.presets[1].name)
+r = assert(run_generic(api.json_encode({ action = 'preset', track = 'Lead', name = catalog.instruments.synth.presets[3].name })))
+assert(r.preset == catalog.instruments.synth.presets[3].name and values_of(proj.tracks[1].fx[1]).tuning_divisions == 19)
+r = assert(run_generic('{"action":"save_preset","track":"Lead","name":"Run Test"}'))
+r = assert(run_generic('{"action":"presets"}'))
+local has_user = false
+for _, n in ipairs(r.user) do if n == 'Run Test' then has_user = true end end
+assert(has_user)
+r = assert(run_generic('{"action":"macro","track":"Lead","name":"Width","amount":1}'))
+assert(values_of(proj.tracks[1].fx[1]).unison_voices == 5)
+-- batch: in order, stops at the first error and says what was done
+r = assert(run_generic('{"actions":[{"action":"set","track":"Lead","params":{"amp_release_ms":444}},{"action":"read_sound","track":"Lead"}]}'))
+assert(#r.results == 2 and r.results[2].params.amp_release_ms == 444)
+_, err = run_generic('{"actions":[{"action":"set","track":"Lead","params":{"amp_release_ms":555}},{"action":"nope"}]}')
+assert(err:find('action 2 %(nope%) failed: Unknown action') and err:find('actions 1%-1 were done'), err)
+assert(values_of(proj.tracks[1].fx[1]).amp_release_ms == 555)
+_, err = run_generic('{"action":"frobnicate"}')
+assert(err:find('Unknown action: frobnicate'))
+_, err = run_generic()
+assert(err:find('No request found'))
+-- other request channels: project ExtState (consumed), then a block in the project notes (kept)
+local proj_ext, notes = {}, ''
+reaper.GetProjExtState = function(_, section, key) assert(section == 'AmiSynthMCP'); return proj_ext[key] and 1 or 0, proj_ext[key] or '' end
+reaper.SetProjExtState = function(_, section, key, value) proj_ext[key] = value ~= '' and value or nil; return 1 end
+reaper.GetSetProjectNotes = function(_, set, text) if set then notes = text end; return notes end
+proj_ext.run = '{"action":"list"}'
+r = assert(run_generic())
+assert(r.request_source == 'project ExtState AmiSynthMCP/run' and proj_ext.run == nil)
+notes = 'My song notes\n\n```amisynth run\n{"action": "set", "track": "Lead",\n "params": {"amp_release_ms": 777}}\n```\nmore notes\n'
+r = assert(run_generic())
+assert(r.request_source == 'project notes (amisynth run)' and values_of(proj.tracks[1].fx[1]).amp_release_ms == 777)
+assert(notes:find('amp_release_ms', 1, true), 'notes are left in place')
+assert(api.notes_request('<<<amisynth read_sound\r\n{"track":"Lead"}\r\n>>>', 'read_sound') == '{"track":"Lead"}')
+assert(api.notes_request('```amisynth run\n{}\n```', 'read_sound') == nil)
+read = assert(run('Read', nil))
+assert(read.track == 'Lead', 'Read sound ignores a block for another key')
+notes = '```amisynth read_sound\n{"track":"Lead","instrument":"Synth"}\n```'
+read = assert(run('Read', nil))
+assert(read.request_source == 'project notes (amisynth read_sound)')
+print('REAPER MCP Run: list/get/set/presets/macro/batch, Tuning status read-only, project ExtState and notes requests passed')

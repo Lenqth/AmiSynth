@@ -46,6 +46,7 @@ export const DELAY_MAX_SECONDS = 4;
 /** Arpeggiator step lengths in beats. */
 export const ARP_RATE_BEATS = [1, 0.5, 1 / 3, 0.75, 0.25, 1 / 6, 0.125];
 const ARP_RATE_NAMES = ['1/4', '1/8', '1/8 triplet', '1/8 dotted', '1/16', '1/16 triplet', '1/32'];
+const ARP_RETRIGGER_NAMES = ['First Key', 'New Chord', 'Every Bar', 'Free Run'];
 
 /** Number of mod matrix slots of the synth (mod1_* .. mod4_*). */
 export const MOD_SLOTS = 4;
@@ -351,6 +352,11 @@ export const SYNTH_PARAMS = /** @type {ParamDef[]} */ ([
     { id: `mod${i + 1}_amount`, name: `Mod ${i + 1} Amount`, group: 'Mod Matrix', min: -4800, max: 4800, default: 0, step: 0.001, unit: '',
       description: `Mod matrix slot ${i + 1}: how far the destination moves at source value 1, in the destination's unit: Pitch / Osc2 Pitch in cents, Filter Cutoff / LFO Rate in octaves, FM Index in rad, Amp in dB, Resonance / Pulse Width / Noise Level added to the knob value (0..1), Pan -1 (left) .. +1 (right). Negative values invert.` },
   ]).flat(),
+  // ---- arpeggiator restart / legato window (appended so the older slider numbers stay)
+  { id: 'arp_retrigger', name: 'Arp Retrigger', group: 'Arpeggiator', min: 0, max: 3, default: 0, step: 1, unit: '', options: ARP_RETRIGGER_NAMES,
+    description: 'When the arpeggio goes back to its first note. First Key: only when a key is pressed with none held. New Chord: also when a key is pressed more than 50 ms after the previous key press (a chord changed while the old one is still held starts from its first note on the next step; notes of one chord may arrive up to 50 ms apart). Every Bar: also at every bar line (host time signature; the web version is 4/4). Free Run: never - the position follows the host step count, as if the arpeggio had been running since the start of the song.' },
+  { id: 'legato_window_ms', name: 'Legato Window', group: 'Voice', min: 0, max: 100, default: 0, step: 0.1, unit: 'ms',
+    description: 'Mono / Legato and Glide Mode "Legato only": a note that starts within this time after the previous note was released still counts as overlapping (Legato does not restart the envelopes, legato glide glides). For MIDI whose notes touch end to start or leave a small gap. 0 = notes must really overlap.' },
   ...SIDECHAIN_PARAMS,
 ]);
 
@@ -487,8 +493,8 @@ export const PHYS_PARAMS = /** @type {ParamDef[]} */ ([
     description: 'Output level of the amp.' },
   TUNING_SLOT,
   { id: 'phys_sustain_mode', name: 'Sustain Pedal', group: 'Output', min: 0, max: 2, default: 1, step: 1, unit: '',
-    options: ['Off', 'Auto (strings / piano / modal)', 'On (all models)'],
-    description: 'MIDI CC64 delays note-off damping until pedal release. Auto supports plucked strings, piano and modal materials except Drum Membrane; bowed, wind, brass and mesh ignore it. On sustains all models. Natural decay still continues.' },
+    options: ['Off', 'Auto (strings / piano / modal)', 'All models (CC64)'],
+    description: 'Which models follow the MIDI sustain pedal (CC64): while it is down, note-off damping waits for the pedal release. Off: the pedal is ignored. Auto: plucked strings, piano and modal materials except Drum Membrane; bowed, wind, brass and mesh ignore it. All models (CC64): every model follows the pedal (this does not hold the pedal down by itself). Natural decay still continues.' },
   { id: 'phys_pressure_excitation', name: 'Pressure to Breath / Bow', group: 'Pressure', min: 0, max: 1, default: 0, step: 0.001, unit: '',
     description: 'How much aftertouch (channel pressure or polyphonic aftertouch, 0..1) adds to Breath Pressure (wind), Brass Blowing Pressure (brass) and Bow Pressure (bowed) while a note sounds. 0 = off.' },
   { id: 'phys_pressure_vibrato_cents', name: 'Pressure to Vibrato', group: 'Pressure', min: 0, max: 100, default: 0, step: 0.1, unit: 'cents',
@@ -543,6 +549,8 @@ export const PHYS_PARAMS = /** @type {ParamDef[]} */ ([
     description: 'Approximate T60 of the sympathetic resonators. Longer decay builds up more slowly; resonance gain is normalized.' },
   { id: 'string_sympathetic_root', name: 'Sympathetic Root', group: 'String', min: 0, max: 104, default: 60, step: 1, unit: 'note',
     description: 'Lowest MIDI key of the 24 consecutive sympathetic scale degrees. Follows the instrument tuning, including custom/shared scales; does not follow pitch bend. Choose the range for the piece.' },
+  { id: 'amp_auto_level', name: 'Amp Auto Level', group: 'Amp', min: 0, max: 1, default: 0, step: 1, unit: '', options: ['Off', 'On'],
+    description: 'On: the amp keeps about the loudness of the instrument without the amp, whatever the Amp type and Amp Gain (more gain = more distortion, not louder); Amp Level then trims from there. Off: the louder the gain, the louder the output (set Amp Level by ear).' },
   ...SIDECHAIN_PARAMS,
 ]);
 
@@ -553,8 +561,9 @@ export const PHYS_PARAMS = /** @type {ParamDef[]} */ ([
  * Parameters of "AmiSynth Tuning". The scale is kept in sliders (real cents values, so MCP tools
  * can write it by name) or read from a Scala file in REAPER/Data/AmiSynth/ chosen by name.
  * `file` marks a JSFX file-chooser slider (its value is the index of the file in that folder).
+ * `readonly` sliders are status outputs: the JSFX overwrites them, tools must not write them.
  */
-export const TUNING_HOLDER_PARAMS = /** @type {(ParamDef & {file?: {dir:string, default:string}})[]} */ ([
+export const TUNING_HOLDER_PARAMS = /** @type {(ParamDef & {file?: {dir:string, default:string}, readonly?: boolean})[]} */ ([
   { id: 'tuning_slot', name: 'Slot', group: 'Shared Scale', min: 1, max: TUNING_SLOTS, default: 1, step: 1, unit: '',
     description: 'Slot this scale is published to. Instruments with Tuning Source = Shared and the same Tuning Slot follow it.' },
   { id: 'scale_source', name: 'Scale Source', group: 'Shared Scale', min: 0, max: 1, default: 0, step: 1, unit: '', options: ['Sliders', 'File'],
@@ -571,6 +580,12 @@ export const TUNING_HOLDER_PARAMS = /** @type {(ParamDef & {file?: {dir:string, 
     id: `scale_degree_${i + 1}`, name: `Degree ${i + 1}`, group: 'Degrees', min: 0, max: 4800, default: (i + 1) * 100, step: 0.001, unit: 'cents',
     description: `Pitch of scale degree ${i + 1} above the reference, in cents (Scala order: degree 0 = 0 cents is implied; degree Scale Size = the period).`,
   })),
+  // ---- read only: written by the JSFX on every change, so MCP tools can check what was loaded
+  { id: 'scale_status', name: 'Scale Status (read only)', group: 'Status', min: 0, max: 3, default: 0, step: 1, unit: '', readonly: true,
+    options: ['Sliders', 'File loaded', 'File not found', 'File format error'],
+    description: 'Read only. Sliders: Scale Source is Sliders. File loaded: the Scale File was read. File not found / File format error: the file could not be opened or is not a valid Scala scale (needs a description line, the note count, then that many pitches); the Degree sliders are used instead.' },
+  { id: 'scale_loaded_notes', name: 'Scale Notes In Use (read only)', group: 'Status', min: 0, max: 255, default: 12, step: 1, unit: 'notes', readonly: true,
+    description: 'Read only. Notes per period of the scale this slot publishes (from the file, or Scale Size when the sliders are used).' },
 ]);
 
 // ---------------------------------------------------------------------------

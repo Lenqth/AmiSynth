@@ -16,6 +16,7 @@
 //   preslider <index> <value>             a slider of the pre JSFX
 //   preslider_at <frame> <index> <value>  change it at the start of the block holding <frame>
 //                                         (use multiples of the 128-frame block)
+//   printslider <index>       after rendering, print "slider<index> <value>" to stdout
 // Output: interleaved float32 (raw), one channel per out_pin (2 for the synth, 10 for the drums).
 #include "ysfx.h"
 #include <cstdio>
@@ -52,6 +53,7 @@ int main(int argc, char **argv) {
     std::vector<std::pair<int, double>> preSliders;
     struct TimedSlider { uint64_t frame; int idx; double value; };
     std::vector<TimedSlider> preTimed;
+    std::vector<int> printSliders;
     if (argc > 5) {
         FILE *f = std::fopen(argv[5], "r");
         if (!f) { std::perror("script"); return 2; }
@@ -90,6 +92,9 @@ int main(int argc, char **argv) {
             } else if (!std::strcmp(kind, "preslider_at")) {
                 unsigned long long fr; int idx; double v;
                 if (std::sscanf(line, "%*s %llu %d %lf", &fr, &idx, &v) == 3) preTimed.push_back({fr, idx, v});
+            } else if (!std::strcmp(kind, "printslider")) {
+                int idx;
+                if (std::sscanf(line, "%*s %d", &idx) == 1) printSliders.push_back(idx);
             } else if (!std::strcmp(kind, "tempo")) {
                 std::sscanf(line, "%*s %lf %d", &tempo, &playing);
             } else if (!std::strcmp(kind, "midi")) {
@@ -193,6 +198,7 @@ int main(int argc, char **argv) {
     FILE *o = std::fopen(outPath, "wb");
     std::fwrite(out.data(), sizeof(float), out.size(), o);
     std::fclose(o);
+    for (int idx : printSliders) std::printf("slider%d %.17g\n", idx, ysfx_slider_get_value(fx, (uint32_t)(idx - 1)));
     ysfx_free(fx);
     if (pre) ysfx_free(pre);
     return 0;

@@ -401,6 +401,12 @@ export function adsr_gate_on(o) {
   o.stage = 1;
 }
 
+/** Legato: an envelope in its release goes back to decay / sustain (no new attack). */
+export function adsr_resume(o) {
+  if (o.stage === 3) o.stage = 2;
+  else if (o.stage === 0) o.stage = 1;
+}
+
 export function adsr_gate_off(o) {
   if (o.stage !== 0) o.stage = 3;
 }

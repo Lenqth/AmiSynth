@@ -14,7 +14,7 @@ const hasLua = spawnSync('lua', ['-v']).status === 0;
 test('REAPER installation dry-run is read-only; installed layout preserves dependencies and custom scripts', () => {
   const resource = mkdtempSync(join(tmpdir(), 'amisynth-install-'));
   const plan = install(resource, true);
-  assert.equal(plan.length, 18);
+  assert.equal(plan.length, 19);
   assert.deepEqual(readdirSync(resource), []);
   mkdirSync(join(resource, 'Scripts', 'AmiSynth'), { recursive: true });
   const custom = join(resource, 'Scripts', 'AmiSynth', 'Apply My Patch.lua');
@@ -41,7 +41,8 @@ test('all installed Lua scripts have discovery metadata describing executable ac
 
 test('MCP sound actions are installed beside toolkit.lua and document the request key they actually read', () => {
   const plan = installPlan(mkdtempSync(join(tmpdir(), 'amisynth-sound-')));
-  for (const [file, key, mutates] of [['AmiSynth - Apply sound.lua', 'apply_sound', true], ['AmiSynth - Read sound.lua', 'read_sound', false]]) {
+  for (const [file, key, mutates] of [['AmiSynth - Apply sound.lua', 'apply_sound', true], ['AmiSynth - Read sound.lua', 'read_sound', false],
+    ['AmiSynth - Run.lua', 'run', true], ['AmiSynth Drums - Create routed tracks.lua', 'create_drum_tracks', true]]) {
     const entry = plan.find((p) => p.destination.endsWith(join('Scripts', 'AmiSynth', 'reaper', file)));
     assert.ok(entry, `${file} is not installed`);
     const text = readFileSync(entry.source, 'utf8');
@@ -49,10 +50,10 @@ test('MCP sound actions are installed beside toolkit.lua and document the reques
     assert.match(text, new RegExp(`ExtState AmiSynthMCP/${key}`));
     assert.match(text, new RegExp(`Scripts/AmiSynth/${key}\\.json`));
     assert.match(text, /reaper_mcp_script_result\/last_result/);
-    assert.match(text.split('\n')[1], mutates ? /Modifies the project/ : /No project changes/);
+    assert.match(mutates ? text.split('\n').slice(0, 2).join('\n') : text.split('\n')[1], mutates ? /[Mm]odif(y|ies) the (active )?project/ : /No project changes/);
   }
   const guide = readFileSync(new URL('../jsfx/reaper/README.md', import.meta.url), 'utf8');
-  for (const word of ['AmiSynth - Apply sound.lua', 'AmiSynth - Read sound.lua', 'apply_sound', 'read_sound', '"base"']) assert.ok(guide.includes(word), word);
+  for (const word of ['AmiSynth - Apply sound.lua', 'AmiSynth - Read sound.lua', 'AmiSynth - Run.lua', 'apply_sound', 'read_sound', '"base"', '```amisynth run']) assert.ok(guide.includes(word), word);
   assert.match(readFileSync(new URL('../jsfx/generated/catalog.lua', import.meta.url), 'utf8').split('\n')[1], /Apply sound/);
 });
 
