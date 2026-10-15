@@ -2592,7 +2592,7 @@
           "name": "Mod 1 Source",
           "group": "Mod Matrix",
           "min": 0,
-          "max": 8,
+          "max": 9,
           "default": 0,
           "step": 1,
           "unit": "",
@@ -2605,9 +2605,10 @@
             "Key Track",
             "Mod Wheel",
             "Pressure",
-            "Random (per note)"
+            "Random (per note)",
+            "Sidechain"
           ],
-          "description": "Mod matrix slot 1: what modulates. LFO 1 / LFO 2 / Random (a new value per note) swing -1..1; Mod Env, Velocity, Mod Wheel (CC1) and Pressure (channel pressure or polyphonic aftertouch) go 0..1; Key Track is the octaves above (+) / below (-) middle C. Off = slot unused.",
+          "description": "Mod matrix slot 1: what modulates. LFO 1 / LFO 2 / Random (a new value per note) swing -1..1; Mod Env, Velocity, Mod Wheel (CC1) and Pressure (channel pressure or polyphonic aftertouch) and Sidechain (level of the JSFX sidechain input, pins 3/4; global) go 0..1; Key Track is the octaves above (+) / below (-) middle C. Off = slot unused.",
           "slider": 116,
           "paramIndex": 115,
           "valueDomain": "real",
@@ -2647,6 +2648,10 @@
             {
               "value": 8,
               "label": "Random (per note)"
+            },
+            {
+              "value": 9,
+              "label": "Sidechain"
             }
           ]
         },
@@ -2747,7 +2752,7 @@
           "name": "Mod 2 Source",
           "group": "Mod Matrix",
           "min": 0,
-          "max": 8,
+          "max": 9,
           "default": 0,
           "step": 1,
           "unit": "",
@@ -2760,9 +2765,10 @@
             "Key Track",
             "Mod Wheel",
             "Pressure",
-            "Random (per note)"
+            "Random (per note)",
+            "Sidechain"
           ],
-          "description": "Mod matrix slot 2: what modulates. LFO 1 / LFO 2 / Random (a new value per note) swing -1..1; Mod Env, Velocity, Mod Wheel (CC1) and Pressure (channel pressure or polyphonic aftertouch) go 0..1; Key Track is the octaves above (+) / below (-) middle C. Off = slot unused.",
+          "description": "Mod matrix slot 2: what modulates. LFO 1 / LFO 2 / Random (a new value per note) swing -1..1; Mod Env, Velocity, Mod Wheel (CC1) and Pressure (channel pressure or polyphonic aftertouch) and Sidechain (level of the JSFX sidechain input, pins 3/4; global) go 0..1; Key Track is the octaves above (+) / below (-) middle C. Off = slot unused.",
           "slider": 119,
           "paramIndex": 118,
           "valueDomain": "real",
@@ -2802,6 +2808,10 @@
             {
               "value": 8,
               "label": "Random (per note)"
+            },
+            {
+              "value": 9,
+              "label": "Sidechain"
             }
           ]
         },
@@ -2902,7 +2912,7 @@
           "name": "Mod 3 Source",
           "group": "Mod Matrix",
           "min": 0,
-          "max": 8,
+          "max": 9,
           "default": 0,
           "step": 1,
           "unit": "",
@@ -2915,9 +2925,10 @@
             "Key Track",
             "Mod Wheel",
             "Pressure",
-            "Random (per note)"
+            "Random (per note)",
+            "Sidechain"
           ],
-          "description": "Mod matrix slot 3: what modulates. LFO 1 / LFO 2 / Random (a new value per note) swing -1..1; Mod Env, Velocity, Mod Wheel (CC1) and Pressure (channel pressure or polyphonic aftertouch) go 0..1; Key Track is the octaves above (+) / below (-) middle C. Off = slot unused.",
+          "description": "Mod matrix slot 3: what modulates. LFO 1 / LFO 2 / Random (a new value per note) swing -1..1; Mod Env, Velocity, Mod Wheel (CC1) and Pressure (channel pressure or polyphonic aftertouch) and Sidechain (level of the JSFX sidechain input, pins 3/4; global) go 0..1; Key Track is the octaves above (+) / below (-) middle C. Off = slot unused.",
           "slider": 122,
           "paramIndex": 121,
           "valueDomain": "real",
@@ -2957,6 +2968,10 @@
             {
               "value": 8,
               "label": "Random (per note)"
+            },
+            {
+              "value": 9,
+              "label": "Sidechain"
             }
           ]
         },
@@ -3057,7 +3072,7 @@
           "name": "Mod 4 Source",
           "group": "Mod Matrix",
           "min": 0,
-          "max": 8,
+          "max": 9,
           "default": 0,
           "step": 1,
           "unit": "",
@@ -3070,9 +3085,10 @@
             "Key Track",
             "Mod Wheel",
             "Pressure",
-            "Random (per note)"
+            "Random (per note)",
+            "Sidechain"
           ],
-          "description": "Mod matrix slot 4: what modulates. LFO 1 / LFO 2 / Random (a new value per note) swing -1..1; Mod Env, Velocity, Mod Wheel (CC1) and Pressure (channel pressure or polyphonic aftertouch) go 0..1; Key Track is the octaves above (+) / below (-) middle C. Off = slot unused.",
+          "description": "Mod matrix slot 4: what modulates. LFO 1 / LFO 2 / Random (a new value per note) swing -1..1; Mod Env, Velocity, Mod Wheel (CC1) and Pressure (channel pressure or polyphonic aftertouch) and Sidechain (level of the JSFX sidechain input, pins 3/4; global) go 0..1; Key Track is the octaves above (+) / below (-) middle C. Off = slot unused.",
           "slider": 125,
           "paramIndex": 124,
           "valueDomain": "real",
@@ -3112,6 +3128,10 @@
             {
               "value": 8,
               "label": "Random (per note)"
+            },
+            {
+              "value": 9,
+              "label": "Sidechain"
             }
           ]
         },
@@ -3205,6 +3225,64 @@
           "description": "Mod matrix slot 4: how far the destination moves at source value 1, in the destination's unit: Pitch / Osc2 Pitch in cents, Filter Cutoff / LFO Rate in octaves, FM Index in rad, Amp in dB, Resonance / Pulse Width / Noise Level added to the knob value (0..1), Pan -1 (left) .. +1 (right). Negative values invert.",
           "slider": 127,
           "paramIndex": 126,
+          "valueDomain": "real"
+        },
+        {
+          "id": "sc_duck_db",
+          "name": "Sidechain Duck",
+          "group": "Sidechain",
+          "min": 0,
+          "max": 48,
+          "default": 0,
+          "step": 0.1,
+          "unit": "dB",
+          "description": "How far the output (after the effects) is turned down when the sidechain input (pins 3/4, e.g. a kick sent to track channels 3/4) is at full level; less when it is quieter. 0 = off.",
+          "slider": 128,
+          "paramIndex": 127,
+          "valueDomain": "real"
+        },
+        {
+          "id": "sc_input_gain_db",
+          "name": "Sidechain Input Gain",
+          "group": "Sidechain",
+          "min": -24,
+          "max": 24,
+          "default": 0,
+          "step": 0.1,
+          "unit": "dB",
+          "description": "Gain on the sidechain input before the envelope follower. The follower reads the louder of its two channels and stops at 1 (0 dBFS after this gain), so raise it for a quiet trigger.",
+          "slider": 129,
+          "paramIndex": 128,
+          "valueDomain": "real"
+        },
+        {
+          "id": "sc_attack_ms",
+          "name": "Sidechain Attack",
+          "group": "Sidechain",
+          "min": 0.1,
+          "max": 100,
+          "default": 1,
+          "step": 0.1,
+          "unit": "ms",
+          "scale": "log",
+          "description": "How fast the follower rises when the sidechain gets louder (time constant).",
+          "slider": 130,
+          "paramIndex": 129,
+          "valueDomain": "real"
+        },
+        {
+          "id": "sc_release_ms",
+          "name": "Sidechain Release",
+          "group": "Sidechain",
+          "min": 10,
+          "max": 2000,
+          "default": 150,
+          "step": 1,
+          "unit": "ms",
+          "scale": "log",
+          "description": "How fast the follower falls back after the sidechain gets quieter (time constant): the length of the pump.",
+          "slider": 131,
+          "paramIndex": 130,
           "valueDomain": "real"
         }
       ],
@@ -3334,7 +3412,11 @@
             "mod3_amount": 0,
             "mod4_source": 0,
             "mod4_destination": 0,
-            "mod4_amount": 0
+            "mod4_amount": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -3462,7 +3544,11 @@
             "mod3_amount": 0,
             "mod4_source": 0,
             "mod4_destination": 0,
-            "mod4_amount": 0
+            "mod4_amount": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -3590,7 +3676,11 @@
             "mod3_amount": 0,
             "mod4_source": 0,
             "mod4_destination": 0,
-            "mod4_amount": 0
+            "mod4_amount": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -3718,7 +3808,11 @@
             "mod3_amount": 0,
             "mod4_source": 0,
             "mod4_destination": 0,
-            "mod4_amount": 0
+            "mod4_amount": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -3846,7 +3940,11 @@
             "mod3_amount": 0,
             "mod4_source": 0,
             "mod4_destination": 0,
-            "mod4_amount": 0
+            "mod4_amount": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -3974,7 +4072,11 @@
             "mod3_amount": 0,
             "mod4_source": 0,
             "mod4_destination": 0,
-            "mod4_amount": 0
+            "mod4_amount": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -4102,7 +4204,11 @@
             "mod3_amount": 0,
             "mod4_source": 0,
             "mod4_destination": 0,
-            "mod4_amount": 0
+            "mod4_amount": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -4230,7 +4336,11 @@
             "mod3_amount": 0,
             "mod4_source": 0,
             "mod4_destination": 0,
-            "mod4_amount": 0
+            "mod4_amount": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -4358,7 +4468,11 @@
             "mod3_amount": 0,
             "mod4_source": 0,
             "mod4_destination": 0,
-            "mod4_amount": 0
+            "mod4_amount": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -4486,7 +4600,11 @@
             "mod3_amount": 0,
             "mod4_source": 0,
             "mod4_destination": 0,
-            "mod4_amount": 0
+            "mod4_amount": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -4614,7 +4732,11 @@
             "mod3_amount": 0,
             "mod4_source": 0,
             "mod4_destination": 0,
-            "mod4_amount": 0
+            "mod4_amount": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -4742,7 +4864,11 @@
             "mod3_amount": 0,
             "mod4_source": 0,
             "mod4_destination": 0,
-            "mod4_amount": 0
+            "mod4_amount": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -4870,7 +4996,11 @@
             "mod3_amount": 0,
             "mod4_source": 0,
             "mod4_destination": 0,
-            "mod4_amount": 0
+            "mod4_amount": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -4998,7 +5128,11 @@
             "mod3_amount": 0,
             "mod4_source": 0,
             "mod4_destination": 0,
-            "mod4_amount": 0
+            "mod4_amount": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -5126,7 +5260,11 @@
             "mod3_amount": 0,
             "mod4_source": 0,
             "mod4_destination": 0,
-            "mod4_amount": 0
+            "mod4_amount": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -5254,7 +5392,11 @@
             "mod3_amount": 0,
             "mod4_source": 0,
             "mod4_destination": 0,
-            "mod4_amount": 0
+            "mod4_amount": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -5382,7 +5524,11 @@
             "mod3_amount": 0,
             "mod4_source": 0,
             "mod4_destination": 0,
-            "mod4_amount": 0
+            "mod4_amount": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -5510,7 +5656,11 @@
             "mod3_amount": 0,
             "mod4_source": 0,
             "mod4_destination": 0,
-            "mod4_amount": 0
+            "mod4_amount": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -5638,7 +5788,11 @@
             "mod3_amount": 0,
             "mod4_source": 0,
             "mod4_destination": 0,
-            "mod4_amount": 0
+            "mod4_amount": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -5766,7 +5920,11 @@
             "mod3_amount": 0,
             "mod4_source": 0,
             "mod4_destination": 0,
-            "mod4_amount": 0
+            "mod4_amount": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -5894,7 +6052,11 @@
             "mod3_amount": 0,
             "mod4_source": 0,
             "mod4_destination": 0,
-            "mod4_amount": 0
+            "mod4_amount": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -6022,7 +6184,11 @@
             "mod3_amount": 0,
             "mod4_source": 0,
             "mod4_destination": 0,
-            "mod4_amount": 0
+            "mod4_amount": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -6150,7 +6316,11 @@
             "mod3_amount": 0,
             "mod4_source": 0,
             "mod4_destination": 0,
-            "mod4_amount": 0
+            "mod4_amount": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -6278,7 +6448,11 @@
             "mod3_amount": 0,
             "mod4_source": 0,
             "mod4_destination": 0,
-            "mod4_amount": 0
+            "mod4_amount": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -6406,7 +6580,11 @@
             "mod3_amount": 0,
             "mod4_source": 0,
             "mod4_destination": 0,
-            "mod4_amount": 0
+            "mod4_amount": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -6534,7 +6712,11 @@
             "mod3_amount": 0,
             "mod4_source": 0,
             "mod4_destination": 0,
-            "mod4_amount": 0
+            "mod4_amount": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -6662,7 +6844,11 @@
             "mod3_amount": 0,
             "mod4_source": 0,
             "mod4_destination": 0,
-            "mod4_amount": 0
+            "mod4_amount": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -6790,7 +6976,11 @@
             "mod3_amount": 0,
             "mod4_source": 0,
             "mod4_destination": 0,
-            "mod4_amount": 0
+            "mod4_amount": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -6918,7 +7108,11 @@
             "mod3_amount": 0,
             "mod4_source": 0,
             "mod4_destination": 0,
-            "mod4_amount": 0
+            "mod4_amount": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -7046,7 +7240,11 @@
             "mod3_amount": 0,
             "mod4_source": 0,
             "mod4_destination": 0,
-            "mod4_amount": 0
+            "mod4_amount": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -7174,7 +7372,11 @@
             "mod3_amount": 0,
             "mod4_source": 0,
             "mod4_destination": 0,
-            "mod4_amount": 0
+            "mod4_amount": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -7302,7 +7504,11 @@
             "mod3_amount": 0,
             "mod4_source": 0,
             "mod4_destination": 0,
-            "mod4_amount": 0
+            "mod4_amount": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -7430,7 +7636,11 @@
             "mod3_amount": 0,
             "mod4_source": 0,
             "mod4_destination": 0,
-            "mod4_amount": 0
+            "mod4_amount": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -7558,7 +7768,11 @@
             "mod3_amount": 0,
             "mod4_source": 0,
             "mod4_destination": 0,
-            "mod4_amount": 0
+            "mod4_amount": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -7686,7 +7900,11 @@
             "mod3_amount": 0,
             "mod4_source": 0,
             "mod4_destination": 0,
-            "mod4_amount": 0
+            "mod4_amount": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -7814,7 +8032,11 @@
             "mod3_amount": 0,
             "mod4_source": 0,
             "mod4_destination": 0,
-            "mod4_amount": 0
+            "mod4_amount": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -7942,7 +8164,11 @@
             "mod3_amount": 0,
             "mod4_source": 0,
             "mod4_destination": 0,
-            "mod4_amount": 0
+            "mod4_amount": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -8070,7 +8296,11 @@
             "mod3_amount": 0,
             "mod4_source": 0,
             "mod4_destination": 0,
-            "mod4_amount": 0
+            "mod4_amount": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -8198,7 +8428,11 @@
             "mod3_amount": 0,
             "mod4_source": 0,
             "mod4_destination": 0,
-            "mod4_amount": 0
+            "mod4_amount": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -8326,7 +8560,11 @@
             "mod3_amount": 0,
             "mod4_source": 0,
             "mod4_destination": 0,
-            "mod4_amount": 0
+            "mod4_amount": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -8454,7 +8692,11 @@
             "mod3_amount": 0,
             "mod4_source": 0,
             "mod4_destination": 0,
-            "mod4_amount": 0
+            "mod4_amount": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -8582,7 +8824,11 @@
             "mod3_amount": 0,
             "mod4_source": 0,
             "mod4_destination": 0,
-            "mod4_amount": 0
+            "mod4_amount": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -8710,7 +8956,11 @@
             "mod3_amount": 0,
             "mod4_source": 0,
             "mod4_destination": 0,
-            "mod4_amount": 0
+            "mod4_amount": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -8838,7 +9088,11 @@
             "mod3_amount": 0.6,
             "mod4_source": 8,
             "mod4_destination": 5,
-            "mod4_amount": 8
+            "mod4_amount": 8,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -8966,7 +9220,11 @@
             "mod3_amount": 1200,
             "mod4_source": 0,
             "mod4_destination": 0,
-            "mod4_amount": 0
+            "mod4_amount": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -9094,7 +9352,11 @@
             "mod3_amount": 0,
             "mod4_source": 0,
             "mod4_destination": 0,
-            "mod4_amount": 0
+            "mod4_amount": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -9222,7 +9484,11 @@
             "mod3_amount": 150,
             "mod4_source": 0,
             "mod4_destination": 0,
-            "mod4_amount": 0
+            "mod4_amount": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -9350,7 +9616,11 @@
             "mod3_amount": 0,
             "mod4_source": 0,
             "mod4_destination": 0,
-            "mod4_amount": 0
+            "mod4_amount": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -9478,7 +9748,11 @@
             "mod3_amount": 0,
             "mod4_source": 0,
             "mod4_destination": 0,
-            "mod4_amount": 0
+            "mod4_amount": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -9606,7 +9880,11 @@
             "mod3_amount": 0,
             "mod4_source": 0,
             "mod4_destination": 0,
-            "mod4_amount": 0
+            "mod4_amount": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -9734,7 +10012,11 @@
             "mod3_amount": 0,
             "mod4_source": 0,
             "mod4_destination": 0,
-            "mod4_amount": 0
+            "mod4_amount": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -9862,7 +10144,11 @@
             "mod3_amount": 0,
             "mod4_source": 0,
             "mod4_destination": 0,
-            "mod4_amount": 0
+            "mod4_amount": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -9990,7 +10276,11 @@
             "mod3_amount": 0,
             "mod4_source": 0,
             "mod4_destination": 0,
-            "mod4_amount": 0
+            "mod4_amount": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -10118,7 +10408,11 @@
             "mod3_amount": 0,
             "mod4_source": 0,
             "mod4_destination": 0,
-            "mod4_amount": 0
+            "mod4_amount": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -10246,7 +10540,11 @@
             "mod3_amount": 0,
             "mod4_source": 0,
             "mod4_destination": 0,
-            "mod4_amount": 0
+            "mod4_amount": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -10374,7 +10672,11 @@
             "mod3_amount": 0,
             "mod4_source": 0,
             "mod4_destination": 0,
-            "mod4_amount": 0
+            "mod4_amount": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -10502,7 +10804,11 @@
             "mod3_amount": 0,
             "mod4_source": 0,
             "mod4_destination": 0,
-            "mod4_amount": 0
+            "mod4_amount": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -10630,7 +10936,11 @@
             "mod3_amount": 0,
             "mod4_source": 0,
             "mod4_destination": 0,
-            "mod4_amount": 0
+            "mod4_amount": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -10758,7 +11068,11 @@
             "mod3_amount": 0,
             "mod4_source": 0,
             "mod4_destination": 0,
-            "mod4_amount": 0
+            "mod4_amount": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -10886,7 +11200,11 @@
             "mod3_amount": 0,
             "mod4_source": 0,
             "mod4_destination": 0,
-            "mod4_amount": 0
+            "mod4_amount": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -11014,7 +11332,11 @@
             "mod3_amount": 0,
             "mod4_source": 0,
             "mod4_destination": 0,
-            "mod4_amount": 0
+            "mod4_amount": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -11142,7 +11464,11 @@
             "mod3_amount": 0,
             "mod4_source": 0,
             "mod4_destination": 0,
-            "mod4_amount": 0
+            "mod4_amount": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -11270,7 +11596,11 @@
             "mod3_amount": 0,
             "mod4_source": 0,
             "mod4_destination": 0,
-            "mod4_amount": 0
+            "mod4_amount": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -11398,7 +11728,11 @@
             "mod3_amount": 0,
             "mod4_source": 0,
             "mod4_destination": 0,
-            "mod4_amount": 0
+            "mod4_amount": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -11526,7 +11860,11 @@
             "mod3_amount": 0,
             "mod4_source": 0,
             "mod4_destination": 0,
-            "mod4_amount": 0
+            "mod4_amount": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -11654,7 +11992,11 @@
             "mod3_amount": 0,
             "mod4_source": 0,
             "mod4_destination": 0,
-            "mod4_amount": 0
+            "mod4_amount": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -11782,7 +12124,11 @@
             "mod3_amount": 0,
             "mod4_source": 0,
             "mod4_destination": 0,
-            "mod4_amount": 0
+            "mod4_amount": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -11910,7 +12256,11 @@
             "mod3_amount": 0,
             "mod4_source": 0,
             "mod4_destination": 0,
-            "mod4_amount": 0
+            "mod4_amount": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -12038,7 +12388,11 @@
             "mod3_amount": 0,
             "mod4_source": 0,
             "mod4_destination": 0,
-            "mod4_amount": 0
+            "mod4_amount": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -12166,7 +12520,11 @@
             "mod3_amount": 0,
             "mod4_source": 0,
             "mod4_destination": 0,
-            "mod4_amount": 0
+            "mod4_amount": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -12294,7 +12652,11 @@
             "mod3_amount": 0,
             "mod4_source": 0,
             "mod4_destination": 0,
-            "mod4_amount": 0
+            "mod4_amount": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -12422,7 +12784,11 @@
             "mod3_amount": 0,
             "mod4_source": 0,
             "mod4_destination": 0,
-            "mod4_amount": 0
+            "mod4_amount": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -12550,7 +12916,11 @@
             "mod3_amount": 0,
             "mod4_source": 0,
             "mod4_destination": 0,
-            "mod4_amount": 0
+            "mod4_amount": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -12678,7 +13048,11 @@
             "mod3_amount": 0,
             "mod4_source": 0,
             "mod4_destination": 0,
-            "mod4_amount": 0
+            "mod4_amount": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -12806,7 +13180,11 @@
             "mod3_amount": 0,
             "mod4_source": 0,
             "mod4_destination": 0,
-            "mod4_amount": 0
+            "mod4_amount": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -12934,7 +13312,11 @@
             "mod3_amount": 0,
             "mod4_source": 0,
             "mod4_destination": 0,
-            "mod4_amount": 0
+            "mod4_amount": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -13062,7 +13444,11 @@
             "mod3_amount": 0,
             "mod4_source": 0,
             "mod4_destination": 0,
-            "mod4_amount": 0
+            "mod4_amount": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         }
       ],
@@ -14564,6 +14950,64 @@
           "slider": 80,
           "paramIndex": 79,
           "valueDomain": "real"
+        },
+        {
+          "id": "sc_duck_db",
+          "name": "Sidechain Duck",
+          "group": "Sidechain",
+          "min": 0,
+          "max": 48,
+          "default": 0,
+          "step": 0.1,
+          "unit": "dB",
+          "description": "How far the output (after the effects) is turned down when the sidechain input (pins 3/4, e.g. a kick sent to track channels 3/4) is at full level; less when it is quieter. 0 = off.",
+          "slider": 81,
+          "paramIndex": 80,
+          "valueDomain": "real"
+        },
+        {
+          "id": "sc_input_gain_db",
+          "name": "Sidechain Input Gain",
+          "group": "Sidechain",
+          "min": -24,
+          "max": 24,
+          "default": 0,
+          "step": 0.1,
+          "unit": "dB",
+          "description": "Gain on the sidechain input before the envelope follower. The follower reads the louder of its two channels and stops at 1 (0 dBFS after this gain), so raise it for a quiet trigger.",
+          "slider": 82,
+          "paramIndex": 81,
+          "valueDomain": "real"
+        },
+        {
+          "id": "sc_attack_ms",
+          "name": "Sidechain Attack",
+          "group": "Sidechain",
+          "min": 0.1,
+          "max": 100,
+          "default": 1,
+          "step": 0.1,
+          "unit": "ms",
+          "scale": "log",
+          "description": "How fast the follower rises when the sidechain gets louder (time constant).",
+          "slider": 83,
+          "paramIndex": 82,
+          "valueDomain": "real"
+        },
+        {
+          "id": "sc_release_ms",
+          "name": "Sidechain Release",
+          "group": "Sidechain",
+          "min": 10,
+          "max": 2000,
+          "default": 150,
+          "step": 1,
+          "unit": "ms",
+          "scale": "log",
+          "description": "How fast the follower falls back after the sidechain gets quieter (time constant): the length of the pump.",
+          "slider": 84,
+          "paramIndex": 83,
+          "valueDomain": "real"
         }
       ],
       "presets": [
@@ -14645,7 +15089,11 @@
             "rotary_mode": 0,
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
-            "string_sawari": 0
+            "string_sawari": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -14726,7 +15174,11 @@
             "rotary_mode": 0,
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
-            "string_sawari": 0
+            "string_sawari": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -14807,7 +15259,11 @@
             "rotary_mode": 0,
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
-            "string_sawari": 0
+            "string_sawari": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -14888,7 +15344,11 @@
             "rotary_mode": 0,
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
-            "string_sawari": 0
+            "string_sawari": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -14969,7 +15429,11 @@
             "rotary_mode": 0,
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
-            "string_sawari": 0.65
+            "string_sawari": 0.65,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -15050,7 +15514,11 @@
             "rotary_mode": 0,
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
-            "string_sawari": 0.35
+            "string_sawari": 0.35,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -15131,7 +15599,11 @@
             "rotary_mode": 0,
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
-            "string_sawari": 0
+            "string_sawari": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -15212,7 +15684,11 @@
             "rotary_mode": 0,
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
-            "string_sawari": 0
+            "string_sawari": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -15293,7 +15769,11 @@
             "rotary_mode": 0,
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
-            "string_sawari": 0
+            "string_sawari": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -15374,7 +15854,11 @@
             "rotary_mode": 0,
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
-            "string_sawari": 0
+            "string_sawari": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -15455,7 +15939,11 @@
             "rotary_mode": 0,
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
-            "string_sawari": 0
+            "string_sawari": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -15536,7 +16024,11 @@
             "rotary_mode": 0,
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
-            "string_sawari": 0
+            "string_sawari": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -15617,7 +16109,11 @@
             "rotary_mode": 0,
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
-            "string_sawari": 0
+            "string_sawari": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -15698,7 +16194,11 @@
             "rotary_mode": 0,
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
-            "string_sawari": 0
+            "string_sawari": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -15779,7 +16279,11 @@
             "rotary_mode": 0,
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
-            "string_sawari": 0
+            "string_sawari": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -15860,7 +16364,11 @@
             "rotary_mode": 0,
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
-            "string_sawari": 0
+            "string_sawari": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -15941,7 +16449,11 @@
             "rotary_mode": 0,
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
-            "string_sawari": 0
+            "string_sawari": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -16022,7 +16534,11 @@
             "rotary_mode": 0,
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
-            "string_sawari": 0
+            "string_sawari": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -16103,7 +16619,11 @@
             "rotary_mode": 0,
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
-            "string_sawari": 0
+            "string_sawari": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -16184,7 +16704,11 @@
             "rotary_mode": 0,
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
-            "string_sawari": 0
+            "string_sawari": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -16265,7 +16789,11 @@
             "rotary_mode": 0,
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
-            "string_sawari": 0
+            "string_sawari": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -16346,7 +16874,11 @@
             "rotary_mode": 0,
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
-            "string_sawari": 0
+            "string_sawari": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -16427,7 +16959,11 @@
             "rotary_mode": 0,
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
-            "string_sawari": 0
+            "string_sawari": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -16508,7 +17044,11 @@
             "rotary_mode": 0,
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
-            "string_sawari": 0
+            "string_sawari": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -16589,7 +17129,11 @@
             "rotary_mode": 0,
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
-            "string_sawari": 0
+            "string_sawari": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -16670,7 +17214,11 @@
             "rotary_mode": 0,
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
-            "string_sawari": 0
+            "string_sawari": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -16751,7 +17299,11 @@
             "rotary_mode": 0,
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
-            "string_sawari": 0
+            "string_sawari": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -16832,7 +17384,11 @@
             "rotary_mode": 0,
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
-            "string_sawari": 0
+            "string_sawari": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -16913,7 +17469,11 @@
             "rotary_mode": 0,
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
-            "string_sawari": 0
+            "string_sawari": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -16994,7 +17554,11 @@
             "rotary_mode": 0,
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
-            "string_sawari": 0
+            "string_sawari": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -17075,7 +17639,11 @@
             "rotary_mode": 0,
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
-            "string_sawari": 0
+            "string_sawari": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -17156,7 +17724,11 @@
             "rotary_mode": 0,
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
-            "string_sawari": 0
+            "string_sawari": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -17237,7 +17809,11 @@
             "rotary_mode": 0,
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
-            "string_sawari": 0
+            "string_sawari": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -17318,7 +17894,11 @@
             "rotary_mode": 0,
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
-            "string_sawari": 0
+            "string_sawari": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -17399,7 +17979,11 @@
             "rotary_mode": 0,
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
-            "string_sawari": 0
+            "string_sawari": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -17480,7 +18064,11 @@
             "rotary_mode": 0,
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
-            "string_sawari": 0
+            "string_sawari": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -17561,7 +18149,11 @@
             "rotary_mode": 0,
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
-            "string_sawari": 0
+            "string_sawari": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -17642,7 +18234,11 @@
             "rotary_mode": 0,
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
-            "string_sawari": 0
+            "string_sawari": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -17723,7 +18319,11 @@
             "rotary_mode": 0,
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
-            "string_sawari": 0
+            "string_sawari": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -17804,7 +18404,11 @@
             "rotary_mode": 0,
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
-            "string_sawari": 0
+            "string_sawari": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -17885,7 +18489,11 @@
             "rotary_mode": 0,
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
-            "string_sawari": 0
+            "string_sawari": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -17966,7 +18574,11 @@
             "rotary_mode": 0,
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
-            "string_sawari": 0
+            "string_sawari": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -18047,7 +18659,11 @@
             "rotary_mode": 0,
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
-            "string_sawari": 0
+            "string_sawari": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -18128,7 +18744,11 @@
             "rotary_mode": 0,
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
-            "string_sawari": 0
+            "string_sawari": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -18209,7 +18829,11 @@
             "rotary_mode": 0,
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
-            "string_sawari": 0
+            "string_sawari": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -18290,7 +18914,11 @@
             "rotary_mode": 0,
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
-            "string_sawari": 0
+            "string_sawari": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -18371,7 +18999,11 @@
             "rotary_mode": 0,
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
-            "string_sawari": 0
+            "string_sawari": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -18452,7 +19084,11 @@
             "rotary_mode": 0,
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
-            "string_sawari": 0
+            "string_sawari": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -18533,7 +19169,11 @@
             "rotary_mode": 0,
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
-            "string_sawari": 0
+            "string_sawari": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -18614,7 +19254,11 @@
             "rotary_mode": 0,
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
-            "string_sawari": 0
+            "string_sawari": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -18695,7 +19339,11 @@
             "rotary_mode": 0,
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
-            "string_sawari": 0
+            "string_sawari": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -18776,7 +19424,11 @@
             "rotary_mode": 0,
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
-            "string_sawari": 0
+            "string_sawari": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -18857,7 +19509,11 @@
             "rotary_mode": 0,
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
-            "string_sawari": 0
+            "string_sawari": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -18938,7 +19594,11 @@
             "rotary_mode": 0,
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
-            "string_sawari": 0
+            "string_sawari": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -19019,7 +19679,11 @@
             "rotary_mode": 0,
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
-            "string_sawari": 0
+            "string_sawari": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -19100,7 +19764,11 @@
             "rotary_mode": 0,
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
-            "string_sawari": 0
+            "string_sawari": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -19181,7 +19849,11 @@
             "rotary_mode": 0,
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
-            "string_sawari": 0
+            "string_sawari": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -19262,7 +19934,11 @@
             "rotary_mode": 0,
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
-            "string_sawari": 0
+            "string_sawari": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -19343,7 +20019,11 @@
             "rotary_mode": 0,
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
-            "string_sawari": 0
+            "string_sawari": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -19424,7 +20104,11 @@
             "rotary_mode": 0,
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
-            "string_sawari": 0
+            "string_sawari": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -19505,7 +20189,11 @@
             "rotary_mode": 0,
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
-            "string_sawari": 0
+            "string_sawari": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -19586,7 +20274,11 @@
             "rotary_mode": 0,
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
-            "string_sawari": 0
+            "string_sawari": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -19667,7 +20359,11 @@
             "rotary_mode": 0,
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
-            "string_sawari": 0
+            "string_sawari": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -19748,7 +20444,11 @@
             "rotary_mode": 0,
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
-            "string_sawari": 0
+            "string_sawari": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -19829,7 +20529,11 @@
             "rotary_mode": 0,
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
-            "string_sawari": 0
+            "string_sawari": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -19910,7 +20614,11 @@
             "rotary_mode": 0,
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
-            "string_sawari": 0
+            "string_sawari": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -19991,7 +20699,11 @@
             "rotary_mode": 0,
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
-            "string_sawari": 0
+            "string_sawari": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -20072,7 +20784,11 @@
             "rotary_mode": 0,
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
-            "string_sawari": 0
+            "string_sawari": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -20153,7 +20869,11 @@
             "rotary_mode": 0,
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
-            "string_sawari": 0
+            "string_sawari": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -20234,7 +20954,11 @@
             "rotary_mode": 0,
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
-            "string_sawari": 0
+            "string_sawari": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -20315,7 +21039,11 @@
             "rotary_mode": 0,
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
-            "string_sawari": 0
+            "string_sawari": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -20396,7 +21124,11 @@
             "rotary_mode": 0,
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
-            "string_sawari": 0
+            "string_sawari": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -20477,7 +21209,11 @@
             "rotary_mode": 0,
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
-            "string_sawari": 0
+            "string_sawari": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -20558,7 +21294,11 @@
             "rotary_mode": 0,
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
-            "string_sawari": 0
+            "string_sawari": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -20639,7 +21379,11 @@
             "rotary_mode": 0,
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
-            "string_sawari": 0
+            "string_sawari": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -20720,7 +21464,11 @@
             "rotary_mode": 0,
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
-            "string_sawari": 0
+            "string_sawari": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -20801,7 +21549,11 @@
             "rotary_mode": 0,
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
-            "string_sawari": 0
+            "string_sawari": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -20882,7 +21634,11 @@
             "rotary_mode": 0,
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
-            "string_sawari": 0
+            "string_sawari": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -20963,7 +21719,11 @@
             "rotary_mode": 0,
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
-            "string_sawari": 0
+            "string_sawari": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -21044,7 +21804,11 @@
             "rotary_mode": 0,
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
-            "string_sawari": 0
+            "string_sawari": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -21125,7 +21889,11 @@
             "rotary_mode": 0,
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
-            "string_sawari": 0
+            "string_sawari": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -21206,7 +21974,11 @@
             "rotary_mode": 0,
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
-            "string_sawari": 0
+            "string_sawari": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -21287,7 +22059,11 @@
             "rotary_mode": 1,
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
-            "string_sawari": 0
+            "string_sawari": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -21368,7 +22144,11 @@
             "rotary_mode": 1,
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
-            "string_sawari": 0
+            "string_sawari": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -21449,7 +22229,11 @@
             "rotary_mode": 2,
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
-            "string_sawari": 0
+            "string_sawari": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -21530,7 +22314,11 @@
             "rotary_mode": 2,
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
-            "string_sawari": 0
+            "string_sawari": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -21611,7 +22399,11 @@
             "rotary_mode": 1,
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
-            "string_sawari": 0
+            "string_sawari": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -21692,7 +22484,11 @@
             "rotary_mode": 0,
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
-            "string_sawari": 0
+            "string_sawari": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -21773,7 +22569,11 @@
             "rotary_mode": 0,
             "rotary_mix": 1,
             "free_reed_detune_cents": 12,
-            "string_sawari": 0
+            "string_sawari": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -21854,7 +22654,11 @@
             "rotary_mode": 0,
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
-            "string_sawari": 0
+            "string_sawari": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -21935,7 +22739,11 @@
             "rotary_mode": 0,
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
-            "string_sawari": 0
+            "string_sawari": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -22016,7 +22824,11 @@
             "rotary_mode": 0,
             "rotary_mix": 1,
             "free_reed_detune_cents": 4,
-            "string_sawari": 0
+            "string_sawari": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         }
       ],

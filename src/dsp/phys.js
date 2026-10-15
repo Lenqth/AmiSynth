@@ -61,7 +61,7 @@ import {
   lp1_phase_delay, noise_seed, noise_white,
   onepole_hp, onepole_init, onepole_lp, onepole_set, pan_gains, reson_init, reson_process, reson_reset,
   reson_set, reson_set_decay, soft_clip, svf_init, svf_process, svf_reset, svf_set, t60_coef, tuning_init,
-  tuning_note_to_hz, tuning_set_edo, tuning_set_table, TWO_PI,
+  tuning_note_to_hz, tuning_set_edo, tuning_set_table, TWO_PI, sidechain_duck_gain, sidechain_init, sidechain_process, sidechain_set,
 } from './lib.js';
 
 export const PHYS_MAX_VOICES = 8;
@@ -275,6 +275,11 @@ export function phys_init(s, sr) {
   s.horn_hz = 0.8;
   s.drum_hz = 0.65;
   s.p = {};
+  // sidechain input (the host writes sc_in_l / sc_in_r before each phys_render; JSFX pins 3/4)
+  s.sc = {};
+  sidechain_init(s.sc);
+  s.sc_in_l = 0;
+  s.sc_in_r = 0;
   s.out_l = 0;
   s.out_r = 0;
 }
@@ -294,6 +299,7 @@ export function phys_update(s, p) {
   s.press_bright = p.phys_pressure_brightness || 0;
   s.flut_a = 1 - Math.exp((-TWO_PI * 5) / s.sr);
   room_update(s, p.phys_room_decay_ms);
+  sidechain_set(s.sc, p.sc_input_gain_db, p.sc_attack_ms, p.sc_release_ms, p.sc_duck_db, s.sr);
   amp_update(s, p);
   s.hiss_a = 1 - Math.exp((-TWO_PI * 1000) / s.sr);
   s.reed_k = 1 / (2 * Math.sin((Math.PI * 1000) / s.sr));
@@ -1538,7 +1544,8 @@ export function phys_render(s) {
     l += p.phys_room_mix * s.room_l;
     r += p.phys_room_mix * s.room_r;
   }
-  const g = s.gain * 0.5;
+  let g = s.gain * 0.5;
+  if (s.sc.duck_db > 0) g *= sidechain_duck_gain(s.sc, sidechain_process(s.sc, s.sc_in_l, s.sc_in_r));
   s.out_l = soft_clip(onepole_hp(s.dc, l) * g);
   s.out_r = soft_clip(onepole_hp(s.dc_r, r) * g);
 }

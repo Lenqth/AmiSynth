@@ -13,7 +13,7 @@ import { PHYS_PRESETS } from '../src/presets/phys.js';
 const SR = 48000;
 
 /** Render `frames` samples with MIDI events [[frame, status, d1, d2], ...]; returns interleaved stereo. */
-function play(kind, params, events, frames) {
+function play(kind, params, events, frames, sidechain = null) {
   const core = kind === 'synth'
     ? { init: synth_init, update: synth_update, render: synth_render, midi: synth_midi, defs: SYNTH_PARAMS }
     : { init: phys_init, update: phys_update, render: phys_render, midi: phys_midi, defs: PHYS_PARAMS };
@@ -27,12 +27,28 @@ function play(kind, params, events, frames) {
       const [, a, b, c] = events[e++];
       core.midi(s, a, b, c);
     }
+    if (sidechain) {
+      s.sc_in_l = sidechain[2 * i];
+      s.sc_in_r = sidechain[2 * i + 1];
+    }
     core.render(s);
     assert.ok(Number.isFinite(s.out_l) && Number.isFinite(s.out_r), `${kind}: non-finite output`);
     out[2 * i] = s.out_l;
     out[2 * i + 1] = s.out_r;
   }
   return { out, s };
+}
+
+/** Kick-like sidechain signal: a decaying 55 Hz burst every `period` frames (interleaved stereo). */
+function kicks(frames, period = 12000) {
+  const out = new Float32Array(frames * 2);
+  for (let i = 0; i < frames; i++) {
+    const t = (i % period) / SR;
+    const y = Math.sin(2 * Math.PI * 55 * t) * Math.exp(-t * 30) * 0.9;
+    out[2 * i] = y;
+    out[2 * i + 1] = y;
+  }
+  return out;
 }
 
 const diffRms = (a, b) => Math.sqrt(a.reduce((acc, v, i) => acc + (v - b[i]) ** 2, 0) / a.length);
@@ -101,9 +117,10 @@ test('unused modulation renders bit-identically (half-set slots, LFO 2 / mod env
 
 test('every mod source and every destination changes the sound', () => {
   const base = { osc1_waveform: 1, osc2_waveform: 1, noise_level: 0.05, mod_env_attack_ms: 50, mod_env_sustain: 0.2, lfo2_rate_hz: 7, lfo_rate_hz: 4 };
-  const ref = play('synth', base, PHRASE, FRAMES).out;
+  const sc = kicks(FRAMES, 4000);
+  const ref = play('synth', base, PHRASE, FRAMES, sc).out;
   for (let si = 1; si < MOD_SOURCES.length; si++) {
-    const out = play('synth', { ...base, ...slots([[si, dst('Filter Cutoff'), 2]]) }, PHRASE, FRAMES).out;
+    const out = play('synth', { ...base, ...slots([[si, dst('Filter Cutoff'), 2]]) }, PHRASE, FRAMES, sc).out;
     assert.ok(diffRms(out, ref) > 1e-3, `source ${MOD_SOURCES[si]}`);
   }
   // the LFO rate destinations act on the LFO feeding another slot
@@ -242,4 +259,53 @@ test('LFO rate modulation is limited to the destination range (+/- 6 oct in tota
   synth_update(s, { ...s.p, mod1_amount: -4800, mod2_amount: -3 });
   synth_render(s);
   assert.ok(Math.abs(s.lfo.inc - 5 / 64 / SR) < 1e-12, `inc ${s.lfo.inc}`);
+});
+
+// ---- sidechain input (JSFX pins 3/4)
+
+/** RMS of frames [a, b) of interleaved stereo */
+const rmsAt = (x, a, b) => Math.sqrt(x.slice(2 * a, 2 * b).reduce((acc, v) => acc + v * v, 0) / (2 * (b - a)));
+
+test('sidechain duck turns the output down on each kick and back up after the release', () => {
+  const frames = 48000;
+  const sc = kicks(frames);
+  const hold = [[0, 0x90, 60, 100], [0, 0x90, 67, 100]];
+  for (const kind of ['synth', 'phys']) {
+    const sound = kind === 'synth' ? { amp_sustain: 1, master_volume_db: -12 } : { phys_model: 7, phys_volume_db: -12 }; // organ: steady
+    const dry = play(kind, sound, hold, frames).out;
+    const duck = play(kind, { ...sound, sc_duck_db: 24, sc_release_ms: 80 }, hold, frames, sc).out;
+    // right after a kick: ~-24 dB; just before the next one the follower has let go
+    const hit = rmsAt(duck, 24000 + 200, 24000 + 1200) / rmsAt(dry, 24000 + 200, 24000 + 1200);
+    const gap = rmsAt(duck, 35000, 36000) / rmsAt(dry, 35000, 36000);
+    assert.ok(hit < 0.15, `${kind}: ducked by ${(20 * Math.log10(hit)).toFixed(1)} dB on the kick`);
+    assert.ok(gap > 0.8, `${kind}: recovered to ${(20 * Math.log10(gap)).toFixed(1)} dB before the next kick`);
+  }
+});
+
+test('sidechain does nothing while duck is 0 and no mod slot uses it', () => {
+  const frames = 12000;
+  for (const kind of ['synth', 'phys']) {
+    const a = play(kind, {}, PHRASE, frames).out;
+    const b = play(kind, { sc_input_gain_db: 12 }, PHRASE, frames, kicks(frames, 3000)).out;
+    assert.ok(identical(a, b), kind);
+  }
+});
+
+test('sidechain mod source follows the input level (0..1, input gain, capped at 1)', () => {
+  const frames = 6000;
+  const sc = new Float32Array(frames * 2).fill(0.25);
+  const at = (params) => {
+    const s = {};
+    synth_init(s, SR);
+    synth_update(s, { ...defaultValues(SYNTH_PARAMS), ...slots([[src('Sidechain'), dst('Pitch'), 100]]), ...params });
+    for (let i = 0; i < frames; i++) {
+      s.sc_in_l = sc[2 * i];
+      s.sc_in_r = -sc[2 * i + 1]; // the louder channel, rectified
+      synth_render(s);
+    }
+    return s.sc.env;
+  };
+  assert.ok(Math.abs(at({}) - 0.25) < 1e-3);
+  assert.ok(Math.abs(at({ sc_input_gain_db: 20 * Math.log10(2) }) - 0.5) < 1e-3);
+  assert.ok(at({ sc_input_gain_db: 24 }) > 1); // the follower itself is not capped; its output is
 });

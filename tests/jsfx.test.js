@@ -463,3 +463,28 @@ test('JSFX AmiSynth Tuning reads a Scala file chosen by name, and an empty slot 
     renderJsfx(BIN, INSTRUMENTS.synth, scenario('synth', { tuning_source: 2, tuning_slot: 5, tuning_divisions: 19 }), PERFORMANCE, SR, frames, { pre }));
   assert.ok(empty.snrDb > MIN_SNR_DB, `empty slot fallback: SNR ${empty.snrDb.toFixed(1)} dB`);
 });
+
+// ---- sidechain input: jsfx_render feeds the "input" file to pins 3/4
+
+/** decaying 55 Hz bursts (a kick) every 0.25 s, plus a quieter off-beat hat-like tick on the right */
+function sidechainSignal(frames) {
+  const out = new Float32Array(frames * 2);
+  for (let i = 0; i < frames; i++) {
+    const t = (i % 12000) / SR;
+    const u = ((i + 6000) % 12000) / SR;
+    out[2 * i] = Math.sin(2 * Math.PI * 55 * t) * Math.exp(-t * 25) * 0.9;
+    out[2 * i + 1] = out[2 * i] + Math.sin(2 * Math.PI * 4000 * u) * Math.exp(-u * 300) * 0.3;
+  }
+  return out;
+}
+
+test('JSFX synth and physical model match JS with the sidechain ducking and as a mod source', { skip: !HAVE && 'jsfx_render not built' }, () => {
+  const seconds = 0.8;
+  const host = { tempo: 120, playing: 0, sidechain: sidechainSignal(Math.round(SR * seconds)) };
+  const sc = { sc_duck_db: 18, sc_input_gain_db: 3, sc_attack_ms: 2, sc_release_ms: 120 };
+  checkHost('synth', scenario('synth', { ...sc, fx_reverb: 1 }), PERFORMANCE, seconds, 'synth/duck', host);
+  // the sidechain alone as a mod source: cutoff, pitch and the LFO 1 rate (global)
+  checkHost('synth', scenario('synth', { sc_attack_ms: 0.5, sc_release_ms: 300, lfo_pitch_cents: 20, ...slots([[9, 2, -3], [9, 1, -40], [9, 9, 2]]) }),
+    PERFORMANCE, seconds, 'synth/sidechain mod', host);
+  for (const model of [0, 3, 7]) checkHost('phys', scenario('phys', { ...sc, phys_model: model }), PERFORMANCE, seconds, `phys/duck model ${model}`, host);
+});

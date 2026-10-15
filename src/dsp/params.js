@@ -52,9 +52,10 @@ export const MOD_SLOTS = 4;
 
 /**
  * Mod matrix sources (value = index). Ranges: LFO 1 / LFO 2 / Random -1..1; Mod Env, Velocity,
- * Mod Wheel, Pressure 0..1; Key Track = octaves from middle C (261.63 Hz, any tuning).
+ * Mod Wheel, Pressure, Sidechain 0..1; Key Track = octaves from middle C (261.63 Hz, any tuning).
+ * Sidechain is the level of the JSFX's sidechain input (pins 3/4), see SIDECHAIN_PARAMS.
  */
-export const MOD_SOURCES = ['Off', 'LFO 1', 'LFO 2', 'Mod Env', 'Velocity', 'Key Track', 'Mod Wheel', 'Pressure', 'Random (per note)'];
+export const MOD_SOURCES = ['Off', 'LFO 1', 'LFO 2', 'Mod Env', 'Velocity', 'Key Track', 'Mod Wheel', 'Pressure', 'Random (per note)', 'Sidechain'];
 
 /**
  * Mod matrix destinations (value = index) and the unit of the slot amount for each: the amount is
@@ -107,6 +108,22 @@ const TUNING_SLOT = /** @type {ParamDef} */ ({
   id: 'tuning_slot', name: 'Tuning Slot', group: 'Tuning', min: 1, max: TUNING_SLOTS, default: 1, step: 1, unit: '',
   description: 'Which AmiSynth Tuning instance to follow when Tuning Source is Shared (its Slot number), so one song can use several scales.',
 });
+
+/**
+ * Sidechain input (JSFX input pins 3/4 = track channels 3/4; the web version has no input, so it
+ * stays silent there). An envelope follower turns its level into 0..1, which ducks the output
+ * (Sidechain Duck) and, on the Synth, is the mod matrix source "Sidechain".
+ */
+export const SIDECHAIN_PARAMS = /** @type {ParamDef[]} */ ([
+  { id: 'sc_duck_db', name: 'Sidechain Duck', group: 'Sidechain', min: 0, max: 48, default: 0, step: 0.1, unit: 'dB',
+    description: 'How far the output (after the effects) is turned down when the sidechain input (pins 3/4, e.g. a kick sent to track channels 3/4) is at full level; less when it is quieter. 0 = off.' },
+  { id: 'sc_input_gain_db', name: 'Sidechain Input Gain', group: 'Sidechain', min: -24, max: 24, default: 0, step: 0.1, unit: 'dB',
+    description: 'Gain on the sidechain input before the envelope follower. The follower reads the louder of its two channels and stops at 1 (0 dBFS after this gain), so raise it for a quiet trigger.' },
+  { id: 'sc_attack_ms', name: 'Sidechain Attack', group: 'Sidechain', min: 0.1, max: 100, default: 1, step: 0.1, unit: 'ms', scale: 'log',
+    description: 'How fast the follower rises when the sidechain gets louder (time constant).' },
+  { id: 'sc_release_ms', name: 'Sidechain Release', group: 'Sidechain', min: 10, max: 2000, default: 150, step: 1, unit: 'ms', scale: 'log',
+    description: 'How fast the follower falls back after the sidechain gets quieter (time constant): the length of the pump.' },
+]);
 
 export const SYNTH_PARAMS = /** @type {ParamDef[]} */ ([
   ...TUNING_PARAMS,
@@ -327,13 +344,14 @@ export const SYNTH_PARAMS = /** @type {ParamDef[]} */ ([
   ...Array.from({ length: MOD_SLOTS }, (_, i) => [
     { id: `mod${i + 1}_source`, name: `Mod ${i + 1} Source`, group: 'Mod Matrix', min: 0, max: MOD_SOURCES.length - 1, default: 0, step: 1, unit: '',
       options: MOD_SOURCES,
-      description: `Mod matrix slot ${i + 1}: what modulates. LFO 1 / LFO 2 / Random (a new value per note) swing -1..1; Mod Env, Velocity, Mod Wheel (CC1) and Pressure (channel pressure or polyphonic aftertouch) go 0..1; Key Track is the octaves above (+) / below (-) middle C. Off = slot unused.` },
+      description: `Mod matrix slot ${i + 1}: what modulates. LFO 1 / LFO 2 / Random (a new value per note) swing -1..1; Mod Env, Velocity, Mod Wheel (CC1) and Pressure (channel pressure or polyphonic aftertouch) and Sidechain (level of the JSFX sidechain input, pins 3/4; global) go 0..1; Key Track is the octaves above (+) / below (-) middle C. Off = slot unused.` },
     { id: `mod${i + 1}_destination`, name: `Mod ${i + 1} Destination`, group: 'Mod Matrix', min: 0, max: MOD_DESTINATIONS.length - 1, default: 0, step: 1, unit: '',
       options: MOD_DESTINATIONS.map((d) => d.name),
       description: `Mod matrix slot ${i + 1}: what is modulated (per note, except LFO 1 / LFO 2 Rate which are global and only follow LFO 1, LFO 2, Mod Wheel and channel pressure). Off = slot unused.` },
     { id: `mod${i + 1}_amount`, name: `Mod ${i + 1} Amount`, group: 'Mod Matrix', min: -4800, max: 4800, default: 0, step: 0.001, unit: '',
       description: `Mod matrix slot ${i + 1}: how far the destination moves at source value 1, in the destination's unit: Pitch / Osc2 Pitch in cents, Filter Cutoff / LFO Rate in octaves, FM Index in rad, Amp in dB, Resonance / Pulse Width / Noise Level added to the knob value (0..1), Pan -1 (left) .. +1 (right). Negative values invert.` },
   ]).flat(),
+  ...SIDECHAIN_PARAMS,
 ]);
 
 // ---------------------------------------------------------------------------
@@ -513,6 +531,7 @@ export const PHYS_PARAMS = /** @type {ParamDef[]} */ ([
     description: 'Free reed only: two more reeds this many cents above and below the note beat against it (accordion musette / tremolo). 0 = a single reed.' },
   { id: 'string_sawari', name: 'String Sawari', group: 'String', min: 0, max: 1, default: 0, step: 0.001, unit: '',
     description: 'Sitar / tanpura bridge (jawari): the string grazes a flat curved bridge on every swing, which keeps folding energy into the high partials - the sustained buzz. Higher = the string lies on the bridge for more of each cycle. 0 = an ordinary bridge.' },
+  ...SIDECHAIN_PARAMS,
 ]);
 
 // ---------------------------------------------------------------------------

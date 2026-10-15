@@ -377,6 +377,22 @@ function smoother_set(ms) instance(c) ( c = tau_coef(ms); );
 function smoother_process(target) instance(z c) ( z = target + c * (z - target); z; );
 
 // ---------------------------------------------------------------------------
+// Sidechain envelope follower (input pins 3/4; port of sidechain_* in src/dsp/lib.js)
+
+function sidechain_set(gain_db, attack_ms, release_ms, duck) instance(gain att rel duck_db) (
+  gain = pow(10, gain_db / 20);
+  att = tau_coef(attack_ms);
+  rel = tau_coef(release_ms);
+  duck_db = duck;
+);
+function sidechain_process(l, r) instance(env gain att rel) local(x) (
+  x = max(abs(l), abs(r)) * gain;
+  env = x + (x > env ? att : rel) * (env - x);
+  min(env, 1);
+);
+function sidechain_duck_gain(e) instance(duck_db) ( duck_db > 0 ? pow(10, (-duck_db * e) / 20) : 1; );
+
+// ---------------------------------------------------------------------------
 // ADSR (stage 0 idle, 1 attack, 2 decay/sustain, 3 release)
 
 function adsr_set(attack_ms, decay_ms, sus, release_ms) instance(attack_inc decay_coef release_coef sustain) (

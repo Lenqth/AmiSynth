@@ -26,7 +26,7 @@
   - **モジュレーション**: 2 つ目の LFO (LFO 1 と同じ波形・テンポ同期)、ノートごとのモジュレーション・エンベロープ (ADSR)、
     4 スロットのモジュレーション・マトリクス。ソース (LFO 1 / LFO 2 / Mod Env / ベロシティ / キートラック / Mod Wheel /
     プレッシャー / ノートごとのランダム) → 行き先 (ピッチ / カットオフ / レゾナンス / パルス幅 / Osc2 ピッチ / FM 量 / 音量 /
-    パン / LFO 1・2 の速さ / ノイズ量) × 量。量は行き先の単位 (cents・oct・dB など) で指定。既定は全スロット Off
+    パン / LFO 1・2 の速さ / ノイズ量) × 量。JSFX 版ではソースに Sidechain (入力ピン 3/4 の音量) も使える。量は行き先の単位 (cents・oct・dB など) で指定。既定は全スロット Off
   - **アフタータッチ**: チャンネルプレッシャー / ポリフォニック・アフタータッチをマトリクスのソース「Pressure」として使える
   - **アルペジエーター**: Up / Down / Up-Down / Random / As Played / Chord (和音の刻み)、1/4〜1/32 (付点・3 連)、
     オクターブ幅、ゲート、スウィング、16 ステップのリズムゲート。ホストのテンポと拍位置に同期
@@ -85,6 +85,7 @@
   等音配列では PC キーボードの段 (Z 段〜数字段) がそのまま格子 / 六角形の段になる
 - **JSFX 版 (REAPER)**: `jsfx/` に Synth / Physical / Drums と、共通の音階を持つ Tuning。Web 版とサンプル単位で同じ音 (ysfx で自動比較)。
   スクリプトの配置・Actionsへの登録・MCPからの呼び出し → [ReaScript / MCPガイド](jsfx/reaper/README.md)。`npm run install:reaper -- --resource "REAPERのリソースパス" --dry-run` で配置先を確認できます。MCP からは `AmiSynth - Read sound.lua` / `AmiSynth - Apply sound.lua` で、Web 版の JSON コピーと同じ差分形式のまま音色を読み書きできます(1 回の Undo、範囲外は丸めて報告)。
+  Synth / Physical はサイドチェイン入力 (ピン 3/4) を持ち、キックなどの音量で出力を下げられる (本物のポンピング) → [jsfx/README.md](jsfx/README.md#サイドチェイン-synth--physical)。
   内蔵プリセットは REAPER のプリセットライブラリ (`jsfx/*.jsfx.rpl`) としても同梱していて、FX ウィンドウのプリセット欄からそのまま選べます (チューニングは変わりません)。
   CC・ベンド・ペダル・チャンネル・未対応メッセージの一覧 → [MIDI対応表](docs/MIDI.md)
   AmiSynth Companion で用途別プリセット選択・保存、4マクロ、機能別の詳細編集。出力ピーク／RMSとボイス状況の表示、任意のレベル補正、ドラム4バス配線アクション、MCP向け実値／正規化値カタログも付属。

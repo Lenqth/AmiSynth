@@ -46,7 +46,7 @@
         <label class="enum" title={`${slot.src.name}\n${slot.src.description}\n[${slot.src.id}]`}>
           <span class="muted">Source</span>
           <select value={values[slot.src.id]} onchange={(e) => onchange(slot.src.id, Number(e.currentTarget.value))}>
-            {#each MOD_SOURCES as opt, i (opt)}<option value={i}>{opt}</option>{/each}
+            {#each MOD_SOURCES as opt, i (opt)}<option value={i}>{opt === 'Sidechain' ? 'Sidechain (REAPER only)' : opt}</option>{/each}
           </select>
         </label>
         <span class="arrow" aria-hidden="true">→</span>

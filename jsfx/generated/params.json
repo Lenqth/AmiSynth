@@ -1524,7 +1524,7 @@
       "name": "Mod 1 Source",
       "group": "Mod Matrix",
       "min": 0,
-      "max": 8,
+      "max": 9,
       "default": 0,
       "step": 1,
       "unit": "",
@@ -1537,9 +1537,10 @@
         "Key Track",
         "Mod Wheel",
         "Pressure",
-        "Random (per note)"
+        "Random (per note)",
+        "Sidechain"
       ],
-      "description": "Mod matrix slot 1: what modulates. LFO 1 / LFO 2 / Random (a new value per note) swing -1..1; Mod Env, Velocity, Mod Wheel (CC1) and Pressure (channel pressure or polyphonic aftertouch) go 0..1; Key Track is the octaves above (+) / below (-) middle C. Off = slot unused."
+      "description": "Mod matrix slot 1: what modulates. LFO 1 / LFO 2 / Random (a new value per note) swing -1..1; Mod Env, Velocity, Mod Wheel (CC1) and Pressure (channel pressure or polyphonic aftertouch) and Sidechain (level of the JSFX sidechain input, pins 3/4; global) go 0..1; Key Track is the octaves above (+) / below (-) middle C. Off = slot unused."
     },
     {
       "id": "mod1_destination",
@@ -1582,7 +1583,7 @@
       "name": "Mod 2 Source",
       "group": "Mod Matrix",
       "min": 0,
-      "max": 8,
+      "max": 9,
       "default": 0,
       "step": 1,
       "unit": "",
@@ -1595,9 +1596,10 @@
         "Key Track",
         "Mod Wheel",
         "Pressure",
-        "Random (per note)"
+        "Random (per note)",
+        "Sidechain"
       ],
-      "description": "Mod matrix slot 2: what modulates. LFO 1 / LFO 2 / Random (a new value per note) swing -1..1; Mod Env, Velocity, Mod Wheel (CC1) and Pressure (channel pressure or polyphonic aftertouch) go 0..1; Key Track is the octaves above (+) / below (-) middle C. Off = slot unused."
+      "description": "Mod matrix slot 2: what modulates. LFO 1 / LFO 2 / Random (a new value per note) swing -1..1; Mod Env, Velocity, Mod Wheel (CC1) and Pressure (channel pressure or polyphonic aftertouch) and Sidechain (level of the JSFX sidechain input, pins 3/4; global) go 0..1; Key Track is the octaves above (+) / below (-) middle C. Off = slot unused."
     },
     {
       "id": "mod2_destination",
@@ -1640,7 +1642,7 @@
       "name": "Mod 3 Source",
       "group": "Mod Matrix",
       "min": 0,
-      "max": 8,
+      "max": 9,
       "default": 0,
       "step": 1,
       "unit": "",
@@ -1653,9 +1655,10 @@
         "Key Track",
         "Mod Wheel",
         "Pressure",
-        "Random (per note)"
+        "Random (per note)",
+        "Sidechain"
       ],
-      "description": "Mod matrix slot 3: what modulates. LFO 1 / LFO 2 / Random (a new value per note) swing -1..1; Mod Env, Velocity, Mod Wheel (CC1) and Pressure (channel pressure or polyphonic aftertouch) go 0..1; Key Track is the octaves above (+) / below (-) middle C. Off = slot unused."
+      "description": "Mod matrix slot 3: what modulates. LFO 1 / LFO 2 / Random (a new value per note) swing -1..1; Mod Env, Velocity, Mod Wheel (CC1) and Pressure (channel pressure or polyphonic aftertouch) and Sidechain (level of the JSFX sidechain input, pins 3/4; global) go 0..1; Key Track is the octaves above (+) / below (-) middle C. Off = slot unused."
     },
     {
       "id": "mod3_destination",
@@ -1698,7 +1701,7 @@
       "name": "Mod 4 Source",
       "group": "Mod Matrix",
       "min": 0,
-      "max": 8,
+      "max": 9,
       "default": 0,
       "step": 1,
       "unit": "",
@@ -1711,9 +1714,10 @@
         "Key Track",
         "Mod Wheel",
         "Pressure",
-        "Random (per note)"
+        "Random (per note)",
+        "Sidechain"
       ],
-      "description": "Mod matrix slot 4: what modulates. LFO 1 / LFO 2 / Random (a new value per note) swing -1..1; Mod Env, Velocity, Mod Wheel (CC1) and Pressure (channel pressure or polyphonic aftertouch) go 0..1; Key Track is the octaves above (+) / below (-) middle C. Off = slot unused."
+      "description": "Mod matrix slot 4: what modulates. LFO 1 / LFO 2 / Random (a new value per note) swing -1..1; Mod Env, Velocity, Mod Wheel (CC1) and Pressure (channel pressure or polyphonic aftertouch) and Sidechain (level of the JSFX sidechain input, pins 3/4; global) go 0..1; Key Track is the octaves above (+) / below (-) middle C. Off = slot unused."
     },
     {
       "id": "mod4_destination",
@@ -1750,6 +1754,52 @@
       "step": 0.001,
       "unit": "",
       "description": "Mod matrix slot 4: how far the destination moves at source value 1, in the destination's unit: Pitch / Osc2 Pitch in cents, Filter Cutoff / LFO Rate in octaves, FM Index in rad, Amp in dB, Resonance / Pulse Width / Noise Level added to the knob value (0..1), Pan -1 (left) .. +1 (right). Negative values invert."
+    },
+    {
+      "id": "sc_duck_db",
+      "name": "Sidechain Duck",
+      "group": "Sidechain",
+      "min": 0,
+      "max": 48,
+      "default": 0,
+      "step": 0.1,
+      "unit": "dB",
+      "description": "How far the output (after the effects) is turned down when the sidechain input (pins 3/4, e.g. a kick sent to track channels 3/4) is at full level; less when it is quieter. 0 = off."
+    },
+    {
+      "id": "sc_input_gain_db",
+      "name": "Sidechain Input Gain",
+      "group": "Sidechain",
+      "min": -24,
+      "max": 24,
+      "default": 0,
+      "step": 0.1,
+      "unit": "dB",
+      "description": "Gain on the sidechain input before the envelope follower. The follower reads the louder of its two channels and stops at 1 (0 dBFS after this gain), so raise it for a quiet trigger."
+    },
+    {
+      "id": "sc_attack_ms",
+      "name": "Sidechain Attack",
+      "group": "Sidechain",
+      "min": 0.1,
+      "max": 100,
+      "default": 1,
+      "step": 0.1,
+      "unit": "ms",
+      "scale": "log",
+      "description": "How fast the follower rises when the sidechain gets louder (time constant)."
+    },
+    {
+      "id": "sc_release_ms",
+      "name": "Sidechain Release",
+      "group": "Sidechain",
+      "min": 10,
+      "max": 2000,
+      "default": 150,
+      "step": 1,
+      "unit": "ms",
+      "scale": "log",
+      "description": "How fast the follower falls back after the sidechain gets quieter (time constant): the length of the pump."
     }
   ],
   "phys": [
@@ -2709,6 +2759,52 @@
       "step": 0.001,
       "unit": "",
       "description": "Sitar / tanpura bridge (jawari): the string grazes a flat curved bridge on every swing, which keeps folding energy into the high partials - the sustained buzz. Higher = the string lies on the bridge for more of each cycle. 0 = an ordinary bridge."
+    },
+    {
+      "id": "sc_duck_db",
+      "name": "Sidechain Duck",
+      "group": "Sidechain",
+      "min": 0,
+      "max": 48,
+      "default": 0,
+      "step": 0.1,
+      "unit": "dB",
+      "description": "How far the output (after the effects) is turned down when the sidechain input (pins 3/4, e.g. a kick sent to track channels 3/4) is at full level; less when it is quieter. 0 = off."
+    },
+    {
+      "id": "sc_input_gain_db",
+      "name": "Sidechain Input Gain",
+      "group": "Sidechain",
+      "min": -24,
+      "max": 24,
+      "default": 0,
+      "step": 0.1,
+      "unit": "dB",
+      "description": "Gain on the sidechain input before the envelope follower. The follower reads the louder of its two channels and stops at 1 (0 dBFS after this gain), so raise it for a quiet trigger."
+    },
+    {
+      "id": "sc_attack_ms",
+      "name": "Sidechain Attack",
+      "group": "Sidechain",
+      "min": 0.1,
+      "max": 100,
+      "default": 1,
+      "step": 0.1,
+      "unit": "ms",
+      "scale": "log",
+      "description": "How fast the follower rises when the sidechain gets louder (time constant)."
+    },
+    {
+      "id": "sc_release_ms",
+      "name": "Sidechain Release",
+      "group": "Sidechain",
+      "min": 10,
+      "max": 2000,
+      "default": 150,
+      "step": 1,
+      "unit": "ms",
+      "scale": "log",
+      "description": "How fast the follower falls back after the sidechain gets quieter (time constant): the length of the pump."
     }
   ],
   "drums": [
