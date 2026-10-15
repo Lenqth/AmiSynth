@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, writeFileSync, unlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { makeTuning } from '../src/lib/tuning.js';
@@ -55,6 +55,17 @@ test('catalog audit detects a stale installed preset file without modifying it',
   const automation = join(resource, 'Scripts/AmiSynth/generated/automation.json');
   writeFileSync(automation, readFileSync(automation, 'utf8').replaceAll('\r\n', '\n').replaceAll('\n', '\r\n'));
   assert.deepEqual(checkCatalogs(resource).failures, []);
-  writeFileSync(join(resource, 'Scripts/AmiSynth/generated/presets.json'), '{}');
-  assert.throws(() => checkCatalogs(resource));
+  for (const name of ['presets.json', 'automation.json']) {
+    const path = join(resource, 'Scripts/AmiSynth/generated', name);
+    for (const contents of ['{}', '{invalid JSON', '{"synth":[null],"phys":[],"drums":[]}', 'null']) {
+      install(resource);
+      writeFileSync(path, contents);
+      const result = checkCatalogs(resource);
+      assert.ok(result.failures.some(f => f.includes(`${name} is unreadable or incomplete`)));
+      assert.equal(readFileSync(path, 'utf8'), contents);
+    }
+    install(resource);
+    unlinkSync(path);
+    assert.ok(checkCatalogs(resource).failures.some(f => f.includes(`${name} is unreadable or incomplete`)));
+  }
 });

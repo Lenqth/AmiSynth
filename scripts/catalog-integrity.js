@@ -30,10 +30,21 @@ export function checkCatalogs(resource = null) {
     catch { failures.push('Installed manifest missing'); }
   }
   const dir = resource ? resolve(resource, 'Scripts/AmiSynth/generated') : resolve(root, 'jsfx/generated');
-  const full = JSON.parse(readFileSync(resolve(dir, 'presets.json'), 'utf8'));
-  const automation = JSON.parse(readFileSync(resolve(dir, 'automation.json'), 'utf8'));
-  if (JSON.stringify(automation) !== JSON.stringify(createCatalog())) failures.push('Automation catalog differs from current parameter/preset sources');
+  const kinds = ['synth', 'phys', 'drums'];
+  const presetList = value => Array.isArray(value) && value.every(p => p && typeof p.name === 'string');
+  const load = (name, valid) => {
+    try {
+      const value = JSON.parse(readFileSync(resolve(dir, name), 'utf8'));
+      if (valid(value)) return value;
+    } catch { /* Missing files, invalid JSON and incomplete structures are audit failures. */ }
+    failures.push(`${resource ? 'Installed' : 'Generated'} ${name} is unreadable or incomplete: ${resolve(dir, name)}`);
+    return null;
+  };
+  const full = load('presets.json', value => value && kinds.every(k => presetList(value[k])));
+  const automation = load('automation.json', value => value?.instruments && kinds.every(k => presetList(value.instruments[k]?.presets)));
+  if (automation && JSON.stringify(automation) !== JSON.stringify(createCatalog())) failures.push('Automation catalog differs from current parameter/preset sources');
   for (const kind of ['synth', 'phys', 'drums']) {
+    if (!full || !automation) break;
     const names = automation.instruments[kind].presets.map(p => p.name);
     if (JSON.stringify(names) !== JSON.stringify(full[kind].map(p => p.name)) || JSON.stringify(names) !== JSON.stringify(manifest.presets[kind])) failures.push(`Preset list differs: ${kind}`);
   }
