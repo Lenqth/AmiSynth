@@ -29,7 +29,7 @@ import {
   noise_seed, noise_white, random_unit, osc_init, osc_process, osc_reset, reverb_clear, reverb_init, reverb_process, reverb_set,
   osc_set_freq, osc_sync_to, smoother_init, smoother_process, smoother_set, soft_clip, svf_copy_coefs,
   svf_init, svf_output, svf_process, svf_reset, svf_set, tau_coef, TWO_PI, tuning_init, tuning_note_to_hz,
-  tuning_set_edo, tuning_set_table,
+  tuning_set_edo, tuning_set_table, sidechain_duck_gain, sidechain_init, sidechain_process, sidechain_set,
 } from './lib.js';
 import { ARP_RATE_BEATS, DELAY_MAX_SECONDS, DELAY_SYNC_BEATS, LFO_SYNC_BEATS, MOD_DESTINATIONS, MOD_SLOTS, MOD_SOURCES } from './params.js';
 import { wt_build, wt_process, WT_BANKS } from './wavetable.js';
@@ -60,6 +60,7 @@ const SRC_KEY = 5;
 const SRC_WHEEL = 6;
 const SRC_PRESS = 7;
 const SRC_RAND = 8;
+const SRC_SC = 9;
 const DST_PITCH = 1;
 const DST_CUTOFF = 2;
 const DST_RES = 3;
@@ -285,6 +286,12 @@ export function synth_init(s, sr) {
   s.pressure = 0;
   s.press_g = 0;
   s.press_a = 1 - tau_coef(10, sr);
+  // sidechain input (the host writes sc_in_l / sc_in_r before each synth_render; JSFX pins 3/4)
+  s.sc = {};
+  sidechain_init(s.sc);
+  s.sc_on = 0;
+  s.sc_in_l = 0;
+  s.sc_in_r = 0;
   // mod matrix: the active slots packed (src / dst / amount), sources and destinations in use,
   // per-sample sums of the global sources and the per-voice totals
   s.mm_n = 0;
@@ -387,6 +394,8 @@ export function synth_update(s, p) {
     }
   }
   s.mm_n = mm;
+  sidechain_set(s.sc, p.sc_input_gain_db, p.sc_attack_ms, p.sc_release_ms, p.sc_duck_db, s.sr);
+  s.sc_on = p.sc_duck_db > 0 || s.mm_use[SRC_SC] ? 1 : 0;
   s.glide_coef = p.glide_ms > 0 ? tau_coef(p.glide_ms / 3, s.sr) : 0; // ~95% there after glide_ms
   s.glide_legato = p.glide_mode >= 0.5 ? 1 : 0;
   s.drive_gain = 1 + 8 * p.filter_drive;
@@ -940,6 +949,7 @@ export function synth_render(s) {
 
   if (s.off_gap < 1e9) s.off_gap++;
   if (s.arp_mode > 0) arp_tick(s);
+  const sc = s.sc_on ? sidechain_process(s.sc, s.sc_in_l, s.sc_in_r) : 0;
 
   // ---- global modulation (once per sample)
   let lfo;
@@ -966,6 +976,7 @@ export function synth_render(s) {
       else if (src === SRC_LFO2) mg[dst] += lfo2 * s.mm_amt[j];
       else if (src === SRC_WHEEL) mg[dst] += s.modwheel * s.mm_amt[j];
       else if (src === SRC_PRESS && dst >= DST_LFO1_RATE && dst <= DST_LFO2_RATE) mg[dst] += s.press_g * s.mm_amt[j];
+      else if (src === SRC_SC) mg[dst] += sc * s.mm_amt[j];
     }
     // The summed rate offset is limited to +/- LFO_RATE_MOD_OCT (the destination's range): the amount
     // slider takes -4800..4800 for every destination, and 2^4800 would make the phase Infinity / NaN
@@ -1183,6 +1194,12 @@ export function synth_render(s) {
     const m = p.fx_reverb_mix;
     l = l * (1 - m) + v.l * m;
     r = r * (1 - m) + v.r * m;
+  }
+
+  if (s.sc_on) {
+    const d = sidechain_duck_gain(s.sc, sc);
+    l *= d;
+    r *= d;
   }
 
   s.out_l = soft_clip(l);

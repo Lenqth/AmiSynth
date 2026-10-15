@@ -334,7 +334,8 @@
   }
 
   // the mod matrix slots get their own panel (amount knob sized to the chosen destination)
-  const synthGroups = [...new Set(SYNTH_PARAMS.map((d) => d.group))].filter((g) => g !== 'Tuning' && g !== 'Mod Matrix');
+  // Sidechain: JSFX only (input pins 3/4); the web version has no audio input
+  const synthGroups = [...new Set(SYNTH_PARAMS.map((d) => d.group))].filter((g) => g !== 'Tuning' && g !== 'Mod Matrix' && g !== 'Sidechain');
 
   // Start the on-screen keyboard on a period boundary (degree 0) whenever the scale size changes.
   let lastSize = 0;

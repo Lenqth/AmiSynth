@@ -345,6 +345,37 @@ export function smoother_process(o, target) {
 }
 
 // ----------------------------------------------------------------------------
+// Sidechain envelope follower (JSFX input pins 3/4): the louder of the two channels times the
+// input gain, a one-pole attack / release, read as 0..1 (capped). duck = how many dB the output
+// drops at 1.
+
+export function sidechain_init(o) {
+  o.env = 0;
+  o.gain = 1;
+  o.att = 0;
+  o.rel = 0;
+  o.duck_db = 0;
+}
+
+export function sidechain_set(o, gain_db, attack_ms, release_ms, duck_db, sr) {
+  o.gain = Math.pow(10, gain_db / 20);
+  o.att = tau_coef(attack_ms, sr);
+  o.rel = tau_coef(release_ms, sr);
+  o.duck_db = duck_db;
+}
+
+export function sidechain_process(o, l, r) {
+  const x = Math.max(Math.abs(l), Math.abs(r)) * o.gain;
+  o.env = x + (x > o.env ? o.att : o.rel) * (o.env - x);
+  return Math.min(o.env, 1);
+}
+
+/** Output gain for follower value e (1 when ducking is off). */
+export function sidechain_duck_gain(o, e) {
+  return o.duck_db > 0 ? Math.pow(10, (-o.duck_db * e) / 20) : 1;
+}
+
+// ----------------------------------------------------------------------------
 // ADSR envelope
 // stage: 0 idle, 1 attack, 2 decay/sustain, 3 release
 // Attack is linear, decay & release are exponential (time = to -60 dB).

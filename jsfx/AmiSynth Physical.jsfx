@@ -98,12 +98,20 @@ slider84:string_sympathetic_mix=0<0,1,0.001>Sympathetic Mix
 slider85:string_sympathetic_decay_ms=3500<200,10000,1>Sympathetic Decay [ms]
 slider86:string_sympathetic_root=60<0,104,1>Sympathetic Root [note]
 slider87:amp_auto_level=0<0,1,1{Off,On}>Amp Auto Level
+slider88:sc_duck_db=0<0,48,0.1>Sidechain Duck [dB]
+slider89:sc_input_gain_db=0<-24,24,0.1>Sidechain Input Gain [dB]
+slider90:sc_attack_ms=1<0.1,100,0.1>Sidechain Attack [ms]
+slider91:sc_release_ms=150<10,2000,1>Sidechain Release [ms]
 // </generated sliders>
 
 import amisynth_lib.jsfx-inc
 import amisynth_meter.jsfx-inc
 
-in_pin:none
+// pins 1/2 are not used (an instrument); 3/4 = sidechain (track channels 3/4)
+in_pin:Input L (unused)
+in_pin:Input R (unused)
+in_pin:Sidechain L
+in_pin:Sidechain R
 out_pin:Left
 out_pin:Right
 
@@ -1513,6 +1521,7 @@ fr_bias = 0.25 + 0.3 * wind_embouchure;
 fr_det = pow(2, free_reed_detune_cents / 1200);
 fr_n = free_reed_detune_cents > 0 ? 3 : 1;
 saw_c = 0.8 - 0.55 * string_sawari;
+sc.sidechain_set(sc_input_gain_db, sc_attack_ms, sc_release_ms, sc_duck_db);
 saw_env_c = exp(-1 / (0.03 * srate));
 saw_dc_a = 1 - exp((-2 * $pi * 5) / srate);
 saw_m_a = 1 - exp(-1 / (0.02 * srate));
@@ -1615,6 +1624,7 @@ phys_room_mix > 0 ? (
 );
 
 g = out_gain * 0.5;
+sc.duck_db > 0 ? g *= sc.sidechain_duck_gain(sc.sidechain_process(spl2, spl3));
 spl0 = soft_clip(dc.onepole_hp(mix_l) * g);
 spl1 = soft_clip(dc_r.onepole_hp(mix_r) * g);
 meter.meter_tick(spl0, spl1);

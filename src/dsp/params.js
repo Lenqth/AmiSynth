@@ -53,9 +53,10 @@ export const MOD_SLOTS = 4;
 
 /**
  * Mod matrix sources (value = index). Ranges: LFO 1 / LFO 2 / Random -1..1; Mod Env, Velocity,
- * Mod Wheel, Pressure 0..1; Key Track = octaves from middle C (261.63 Hz, any tuning).
+ * Mod Wheel, Pressure, Sidechain 0..1; Key Track = octaves from middle C (261.63 Hz, any tuning).
+ * Sidechain is the level of the JSFX's sidechain input (pins 3/4), see SIDECHAIN_PARAMS.
  */
-export const MOD_SOURCES = ['Off', 'LFO 1', 'LFO 2', 'Mod Env', 'Velocity', 'Key Track', 'Mod Wheel', 'Pressure', 'Random (per note)'];
+export const MOD_SOURCES = ['Off', 'LFO 1', 'LFO 2', 'Mod Env', 'Velocity', 'Key Track', 'Mod Wheel', 'Pressure', 'Random (per note)', 'Sidechain'];
 
 /**
  * Mod matrix destinations (value = index) and the unit of the slot amount for each: the amount is
@@ -108,6 +109,22 @@ const TUNING_SLOT = /** @type {ParamDef} */ ({
   id: 'tuning_slot', name: 'Tuning Slot', group: 'Tuning', min: 1, max: TUNING_SLOTS, default: 1, step: 1, unit: '',
   description: 'Which AmiSynth Tuning instance to follow when Tuning Source is Shared (its Slot number), so one song can use several scales.',
 });
+
+/**
+ * Sidechain input (JSFX input pins 3/4 = track channels 3/4; the web version has no input, so it
+ * stays silent there). An envelope follower turns its level into 0..1, which ducks the output
+ * (Sidechain Duck) and, on the Synth, is the mod matrix source "Sidechain".
+ */
+export const SIDECHAIN_PARAMS = /** @type {ParamDef[]} */ ([
+  { id: 'sc_duck_db', name: 'Sidechain Duck', group: 'Sidechain', min: 0, max: 48, default: 0, step: 0.1, unit: 'dB',
+    description: 'How far the output (after the effects) is turned down when the sidechain input (pins 3/4, e.g. a kick sent to track channels 3/4) is at full level; less when it is quieter. 0 = off.' },
+  { id: 'sc_input_gain_db', name: 'Sidechain Input Gain', group: 'Sidechain', min: -24, max: 24, default: 0, step: 0.1, unit: 'dB',
+    description: 'Gain on the sidechain input before the envelope follower. The follower reads the louder of its two channels and stops at 1 (0 dBFS after this gain), so raise it for a quiet trigger.' },
+  { id: 'sc_attack_ms', name: 'Sidechain Attack', group: 'Sidechain', min: 0.1, max: 100, default: 1, step: 0.1, unit: 'ms', scale: 'log',
+    description: 'How fast the follower rises when the sidechain gets louder (time constant).' },
+  { id: 'sc_release_ms', name: 'Sidechain Release', group: 'Sidechain', min: 10, max: 2000, default: 150, step: 1, unit: 'ms', scale: 'log',
+    description: 'How fast the follower falls back after the sidechain gets quieter (time constant): the length of the pump.' },
+]);
 
 export const SYNTH_PARAMS = /** @type {ParamDef[]} */ ([
   ...TUNING_PARAMS,
@@ -328,7 +345,7 @@ export const SYNTH_PARAMS = /** @type {ParamDef[]} */ ([
   ...Array.from({ length: MOD_SLOTS }, (_, i) => [
     { id: `mod${i + 1}_source`, name: `Mod ${i + 1} Source`, group: 'Mod Matrix', min: 0, max: MOD_SOURCES.length - 1, default: 0, step: 1, unit: '',
       options: MOD_SOURCES,
-      description: `Mod matrix slot ${i + 1}: what modulates. LFO 1 / LFO 2 / Random (a new value per note) swing -1..1; Mod Env, Velocity, Mod Wheel (CC1) and Pressure (channel pressure or polyphonic aftertouch) go 0..1; Key Track is the octaves above (+) / below (-) middle C. Off = slot unused.` },
+      description: `Mod matrix slot ${i + 1}: what modulates. LFO 1 / LFO 2 / Random (a new value per note) swing -1..1; Mod Env, Velocity, Mod Wheel (CC1) and Pressure (channel pressure or polyphonic aftertouch) and Sidechain (level of the JSFX sidechain input, pins 3/4; global) go 0..1; Key Track is the octaves above (+) / below (-) middle C. Off = slot unused.` },
     { id: `mod${i + 1}_destination`, name: `Mod ${i + 1} Destination`, group: 'Mod Matrix', min: 0, max: MOD_DESTINATIONS.length - 1, default: 0, step: 1, unit: '',
       options: MOD_DESTINATIONS.map((d) => d.name),
       description: `Mod matrix slot ${i + 1}: what is modulated (per note, except LFO 1 / LFO 2 Rate which are global and only follow LFO 1, LFO 2, Mod Wheel and channel pressure). Off = slot unused.` },
@@ -340,6 +357,7 @@ export const SYNTH_PARAMS = /** @type {ParamDef[]} */ ([
     description: 'When the arpeggio goes back to its first note. First Key: only when a key is pressed with none held. New Chord: also when a key is pressed more than 50 ms after the previous key press (a chord changed while the old one is still held starts from its first note on the next step; notes of one chord may arrive up to 50 ms apart). Every Bar: also at every bar line (host time signature; the web version is 4/4). Free Run: never - the position follows the host step count, as if the arpeggio had been running since the start of the song.' },
   { id: 'legato_window_ms', name: 'Legato Window', group: 'Voice', min: 0, max: 100, default: 0, step: 0.1, unit: 'ms',
     description: 'Mono / Legato and Glide Mode "Legato only": a note that starts within this time after the previous note was released still counts as overlapping (Legato does not restart the envelopes, legato glide glides). For MIDI whose notes touch end to start or leave a small gap. 0 = notes must really overlap.' },
+  ...SIDECHAIN_PARAMS,
 ]);
 
 // ---------------------------------------------------------------------------
@@ -533,6 +551,7 @@ export const PHYS_PARAMS = /** @type {ParamDef[]} */ ([
     description: 'Lowest MIDI key of the 24 consecutive sympathetic scale degrees. Follows the instrument tuning, including custom/shared scales; does not follow pitch bend. Choose the range for the piece.' },
   { id: 'amp_auto_level', name: 'Amp Auto Level', group: 'Amp', min: 0, max: 1, default: 0, step: 1, unit: '', options: ['Off', 'On'],
     description: 'On: the amp keeps about the loudness of the instrument without the amp, whatever the Amp type and Amp Gain (more gain = more distortion, not louder); Amp Level then trims from there. Off: the louder the gain, the louder the output (set Amp Level by ear).' },
+  ...SIDECHAIN_PARAMS,
 ]);
 
 // ---------------------------------------------------------------------------

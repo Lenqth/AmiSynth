@@ -86,3 +86,7 @@ slider84:string_sympathetic_mix=0<0,1,0.001>Sympathetic Mix
 slider85:string_sympathetic_decay_ms=3500<200,10000,1>Sympathetic Decay [ms]
 slider86:string_sympathetic_root=60<0,104,1>Sympathetic Root [note]
 slider87:amp_auto_level=0<0,1,1{Off,On}>Amp Auto Level
+slider88:sc_duck_db=0<0,48,0.1>Sidechain Duck [dB]
+slider89:sc_input_gain_db=0<-24,24,0.1>Sidechain Input Gain [dB]
+slider90:sc_attack_ms=1<0.1,100,0.1>Sidechain Attack [ms]
+slider91:sc_release_ms=150<10,2000,1>Sidechain Release [ms]

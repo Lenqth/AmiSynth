@@ -54,6 +54,7 @@ const BLOCK = 128; // jsfx_render's block size: the host transport is read once 
  * host.onBlock(s, frame): called at the start of every 128-frame block (JS side of host.pre).
  * host.pre: { sliders: {id: value}, timed: [[frame, id, value]] } = an AmiSynth Tuning instance
  * run before the instrument in the JSFX render (see jsfx_render's "pre").
+ * host.sidechain: interleaved stereo samples fed to the sidechain input (JSFX pins 3/4).
  */
 export function renderJs(inst, params, events, sr, frames, host = { tempo: 120, playing: 0 }) {
   const s = {};
@@ -73,6 +74,10 @@ export function renderJs(inst, params, events, sr, frames, host = { tempo: 120, 
       const [, a, b, c] = events[e++];
       inst.midi(s, a, b, c);
     }
+    if (host.sidechain) {
+      s.sc_in_l = host.sidechain[2 * i] ?? 0;
+      s.sc_in_r = host.sidechain[2 * i + 1] ?? 0;
+    }
     inst.render(s);
     if (inst.out) inst.out(s, out, i * ch);
     else {
@@ -85,12 +90,14 @@ export function renderJs(inst, params, events, sr, frames, host = { tempo: 120, 
 
 export function renderJsfx(renderBin, inst, params, events, sr, frames, host = { tempo: 120, playing: 0 }) {
   const dir = mkdtempSync(join(tmpdir(), 'amijsfx-'));
+  if (host.sidechain) writeFileSync(join(dir, 'sidechain.f32'), Buffer.from(Float32Array.from(host.sidechain).buffer));
   const script = [
     // ysfx knows 64 sliders; beyond that (REAPER allows 256) the ids are plain variables
     ...inst.defs.map((d, i) => (i < 64 ? `slider ${i + 1} ${params[d.id]}` : `var ${d.id} ${params[d.id]}`)),
     `tempo ${host.tempo ?? 120} ${host.playing ? 1 : 0}`,
     ...(host.scale ? [`dataroot ${host.scale.dataRoot}`] : []),
     ...(host.pre ? preScript(host.pre) : []),
+    ...(host.sidechain ? [`input ${join(dir, 'sidechain.f32')}`] : []),
     ...events.map(([f, a, b, c]) => `midi ${f} ${a} ${b} ${c}`),
   ].join('\n');
   writeFileSync(join(dir, 'script.txt'), script);

@@ -2612,7 +2612,7 @@
           "name": "Mod 1 Source",
           "group": "Mod Matrix",
           "min": 0,
-          "max": 8,
+          "max": 9,
           "default": 0,
           "step": 1,
           "unit": "",
@@ -2625,9 +2625,10 @@
             "Key Track",
             "Mod Wheel",
             "Pressure",
-            "Random (per note)"
+            "Random (per note)",
+            "Sidechain"
           ],
-          "description": "Mod matrix slot 1: what modulates. LFO 1 / LFO 2 / Random (a new value per note) swing -1..1; Mod Env, Velocity, Mod Wheel (CC1) and Pressure (channel pressure or polyphonic aftertouch) go 0..1; Key Track is the octaves above (+) / below (-) middle C. Off = slot unused.",
+          "description": "Mod matrix slot 1: what modulates. LFO 1 / LFO 2 / Random (a new value per note) swing -1..1; Mod Env, Velocity, Mod Wheel (CC1) and Pressure (channel pressure or polyphonic aftertouch) and Sidechain (level of the JSFX sidechain input, pins 3/4; global) go 0..1; Key Track is the octaves above (+) / below (-) middle C. Off = slot unused.",
           "slider": 116,
           "paramIndex": 115,
           "valueDomain": "real",
@@ -2667,6 +2668,10 @@
             {
               "value": 8,
               "label": "Random (per note)"
+            },
+            {
+              "value": 9,
+              "label": "Sidechain"
             }
           ]
         },
@@ -2767,7 +2772,7 @@
           "name": "Mod 2 Source",
           "group": "Mod Matrix",
           "min": 0,
-          "max": 8,
+          "max": 9,
           "default": 0,
           "step": 1,
           "unit": "",
@@ -2780,9 +2785,10 @@
             "Key Track",
             "Mod Wheel",
             "Pressure",
-            "Random (per note)"
+            "Random (per note)",
+            "Sidechain"
           ],
-          "description": "Mod matrix slot 2: what modulates. LFO 1 / LFO 2 / Random (a new value per note) swing -1..1; Mod Env, Velocity, Mod Wheel (CC1) and Pressure (channel pressure or polyphonic aftertouch) go 0..1; Key Track is the octaves above (+) / below (-) middle C. Off = slot unused.",
+          "description": "Mod matrix slot 2: what modulates. LFO 1 / LFO 2 / Random (a new value per note) swing -1..1; Mod Env, Velocity, Mod Wheel (CC1) and Pressure (channel pressure or polyphonic aftertouch) and Sidechain (level of the JSFX sidechain input, pins 3/4; global) go 0..1; Key Track is the octaves above (+) / below (-) middle C. Off = slot unused.",
           "slider": 119,
           "paramIndex": 118,
           "valueDomain": "real",
@@ -2822,6 +2828,10 @@
             {
               "value": 8,
               "label": "Random (per note)"
+            },
+            {
+              "value": 9,
+              "label": "Sidechain"
             }
           ]
         },
@@ -2922,7 +2932,7 @@
           "name": "Mod 3 Source",
           "group": "Mod Matrix",
           "min": 0,
-          "max": 8,
+          "max": 9,
           "default": 0,
           "step": 1,
           "unit": "",
@@ -2935,9 +2945,10 @@
             "Key Track",
             "Mod Wheel",
             "Pressure",
-            "Random (per note)"
+            "Random (per note)",
+            "Sidechain"
           ],
-          "description": "Mod matrix slot 3: what modulates. LFO 1 / LFO 2 / Random (a new value per note) swing -1..1; Mod Env, Velocity, Mod Wheel (CC1) and Pressure (channel pressure or polyphonic aftertouch) go 0..1; Key Track is the octaves above (+) / below (-) middle C. Off = slot unused.",
+          "description": "Mod matrix slot 3: what modulates. LFO 1 / LFO 2 / Random (a new value per note) swing -1..1; Mod Env, Velocity, Mod Wheel (CC1) and Pressure (channel pressure or polyphonic aftertouch) and Sidechain (level of the JSFX sidechain input, pins 3/4; global) go 0..1; Key Track is the octaves above (+) / below (-) middle C. Off = slot unused.",
           "slider": 122,
           "paramIndex": 121,
           "valueDomain": "real",
@@ -2977,6 +2988,10 @@
             {
               "value": 8,
               "label": "Random (per note)"
+            },
+            {
+              "value": 9,
+              "label": "Sidechain"
             }
           ]
         },
@@ -3077,7 +3092,7 @@
           "name": "Mod 4 Source",
           "group": "Mod Matrix",
           "min": 0,
-          "max": 8,
+          "max": 9,
           "default": 0,
           "step": 1,
           "unit": "",
@@ -3090,9 +3105,10 @@
             "Key Track",
             "Mod Wheel",
             "Pressure",
-            "Random (per note)"
+            "Random (per note)",
+            "Sidechain"
           ],
-          "description": "Mod matrix slot 4: what modulates. LFO 1 / LFO 2 / Random (a new value per note) swing -1..1; Mod Env, Velocity, Mod Wheel (CC1) and Pressure (channel pressure or polyphonic aftertouch) go 0..1; Key Track is the octaves above (+) / below (-) middle C. Off = slot unused.",
+          "description": "Mod matrix slot 4: what modulates. LFO 1 / LFO 2 / Random (a new value per note) swing -1..1; Mod Env, Velocity, Mod Wheel (CC1) and Pressure (channel pressure or polyphonic aftertouch) and Sidechain (level of the JSFX sidechain input, pins 3/4; global) go 0..1; Key Track is the octaves above (+) / below (-) middle C. Off = slot unused.",
           "slider": 125,
           "paramIndex": 124,
           "valueDomain": "real",
@@ -3132,6 +3148,10 @@
             {
               "value": 8,
               "label": "Random (per note)"
+            },
+            {
+              "value": 9,
+              "label": "Sidechain"
             }
           ]
         },
@@ -3278,6 +3298,64 @@
           "slider": 129,
           "paramIndex": 128,
           "valueDomain": "real"
+        },
+        {
+          "id": "sc_duck_db",
+          "name": "Sidechain Duck",
+          "group": "Sidechain",
+          "min": 0,
+          "max": 48,
+          "default": 0,
+          "step": 0.1,
+          "unit": "dB",
+          "description": "How far the output (after the effects) is turned down when the sidechain input (pins 3/4, e.g. a kick sent to track channels 3/4) is at full level; less when it is quieter. 0 = off.",
+          "slider": 130,
+          "paramIndex": 129,
+          "valueDomain": "real"
+        },
+        {
+          "id": "sc_input_gain_db",
+          "name": "Sidechain Input Gain",
+          "group": "Sidechain",
+          "min": -24,
+          "max": 24,
+          "default": 0,
+          "step": 0.1,
+          "unit": "dB",
+          "description": "Gain on the sidechain input before the envelope follower. The follower reads the louder of its two channels and stops at 1 (0 dBFS after this gain), so raise it for a quiet trigger.",
+          "slider": 131,
+          "paramIndex": 130,
+          "valueDomain": "real"
+        },
+        {
+          "id": "sc_attack_ms",
+          "name": "Sidechain Attack",
+          "group": "Sidechain",
+          "min": 0.1,
+          "max": 100,
+          "default": 1,
+          "step": 0.1,
+          "unit": "ms",
+          "scale": "log",
+          "description": "How fast the follower rises when the sidechain gets louder (time constant).",
+          "slider": 132,
+          "paramIndex": 131,
+          "valueDomain": "real"
+        },
+        {
+          "id": "sc_release_ms",
+          "name": "Sidechain Release",
+          "group": "Sidechain",
+          "min": 10,
+          "max": 2000,
+          "default": 150,
+          "step": 1,
+          "unit": "ms",
+          "scale": "log",
+          "description": "How fast the follower falls back after the sidechain gets quieter (time constant): the length of the pump.",
+          "slider": 133,
+          "paramIndex": 132,
+          "valueDomain": "real"
         }
       ],
       "presets": [
@@ -3408,7 +3486,11 @@
             "mod4_destination": 0,
             "mod4_amount": 0,
             "arp_retrigger": 0,
-            "legato_window_ms": 0
+            "legato_window_ms": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -3538,7 +3620,11 @@
             "mod4_destination": 0,
             "mod4_amount": 0,
             "arp_retrigger": 0,
-            "legato_window_ms": 0
+            "legato_window_ms": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -3668,7 +3754,11 @@
             "mod4_destination": 0,
             "mod4_amount": 0,
             "arp_retrigger": 0,
-            "legato_window_ms": 0
+            "legato_window_ms": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -3798,7 +3888,11 @@
             "mod4_destination": 0,
             "mod4_amount": 0,
             "arp_retrigger": 0,
-            "legato_window_ms": 0
+            "legato_window_ms": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -3928,7 +4022,11 @@
             "mod4_destination": 0,
             "mod4_amount": 0,
             "arp_retrigger": 0,
-            "legato_window_ms": 0
+            "legato_window_ms": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -4058,7 +4156,11 @@
             "mod4_destination": 0,
             "mod4_amount": 0,
             "arp_retrigger": 0,
-            "legato_window_ms": 0
+            "legato_window_ms": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -4188,7 +4290,11 @@
             "mod4_destination": 0,
             "mod4_amount": 0,
             "arp_retrigger": 0,
-            "legato_window_ms": 0
+            "legato_window_ms": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -4318,7 +4424,11 @@
             "mod4_destination": 0,
             "mod4_amount": 0,
             "arp_retrigger": 0,
-            "legato_window_ms": 0
+            "legato_window_ms": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -4448,7 +4558,11 @@
             "mod4_destination": 0,
             "mod4_amount": 0,
             "arp_retrigger": 0,
-            "legato_window_ms": 0
+            "legato_window_ms": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -4578,7 +4692,11 @@
             "mod4_destination": 0,
             "mod4_amount": 0,
             "arp_retrigger": 0,
-            "legato_window_ms": 0
+            "legato_window_ms": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -4708,7 +4826,11 @@
             "mod4_destination": 0,
             "mod4_amount": 0,
             "arp_retrigger": 0,
-            "legato_window_ms": 0
+            "legato_window_ms": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -4838,7 +4960,11 @@
             "mod4_destination": 0,
             "mod4_amount": 0,
             "arp_retrigger": 0,
-            "legato_window_ms": 0
+            "legato_window_ms": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -4968,7 +5094,11 @@
             "mod4_destination": 0,
             "mod4_amount": 0,
             "arp_retrigger": 0,
-            "legato_window_ms": 0
+            "legato_window_ms": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -5098,7 +5228,11 @@
             "mod4_destination": 0,
             "mod4_amount": 0,
             "arp_retrigger": 0,
-            "legato_window_ms": 0
+            "legato_window_ms": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -5228,7 +5362,11 @@
             "mod4_destination": 0,
             "mod4_amount": 0,
             "arp_retrigger": 0,
-            "legato_window_ms": 0
+            "legato_window_ms": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -5358,7 +5496,11 @@
             "mod4_destination": 0,
             "mod4_amount": 0,
             "arp_retrigger": 0,
-            "legato_window_ms": 0
+            "legato_window_ms": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -5488,7 +5630,11 @@
             "mod4_destination": 0,
             "mod4_amount": 0,
             "arp_retrigger": 0,
-            "legato_window_ms": 0
+            "legato_window_ms": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -5618,7 +5764,11 @@
             "mod4_destination": 0,
             "mod4_amount": 0,
             "arp_retrigger": 0,
-            "legato_window_ms": 0
+            "legato_window_ms": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -5748,7 +5898,11 @@
             "mod4_destination": 0,
             "mod4_amount": 0,
             "arp_retrigger": 0,
-            "legato_window_ms": 0
+            "legato_window_ms": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -5878,7 +6032,11 @@
             "mod4_destination": 0,
             "mod4_amount": 0,
             "arp_retrigger": 0,
-            "legato_window_ms": 0
+            "legato_window_ms": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -6008,7 +6166,11 @@
             "mod4_destination": 0,
             "mod4_amount": 0,
             "arp_retrigger": 0,
-            "legato_window_ms": 0
+            "legato_window_ms": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -6138,7 +6300,11 @@
             "mod4_destination": 0,
             "mod4_amount": 0,
             "arp_retrigger": 0,
-            "legato_window_ms": 0
+            "legato_window_ms": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -6268,7 +6434,11 @@
             "mod4_destination": 0,
             "mod4_amount": 0,
             "arp_retrigger": 0,
-            "legato_window_ms": 0
+            "legato_window_ms": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -6398,7 +6568,11 @@
             "mod4_destination": 0,
             "mod4_amount": 0,
             "arp_retrigger": 0,
-            "legato_window_ms": 0
+            "legato_window_ms": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -6528,7 +6702,11 @@
             "mod4_destination": 0,
             "mod4_amount": 0,
             "arp_retrigger": 0,
-            "legato_window_ms": 0
+            "legato_window_ms": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -6658,7 +6836,11 @@
             "mod4_destination": 0,
             "mod4_amount": 0,
             "arp_retrigger": 0,
-            "legato_window_ms": 0
+            "legato_window_ms": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -6788,7 +6970,11 @@
             "mod4_destination": 0,
             "mod4_amount": 0,
             "arp_retrigger": 0,
-            "legato_window_ms": 0
+            "legato_window_ms": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -6918,7 +7104,11 @@
             "mod4_destination": 0,
             "mod4_amount": 0,
             "arp_retrigger": 0,
-            "legato_window_ms": 0
+            "legato_window_ms": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -7048,7 +7238,11 @@
             "mod4_destination": 0,
             "mod4_amount": 0,
             "arp_retrigger": 0,
-            "legato_window_ms": 0
+            "legato_window_ms": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -7178,7 +7372,11 @@
             "mod4_destination": 0,
             "mod4_amount": 0,
             "arp_retrigger": 0,
-            "legato_window_ms": 0
+            "legato_window_ms": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -7308,7 +7506,11 @@
             "mod4_destination": 0,
             "mod4_amount": 0,
             "arp_retrigger": 0,
-            "legato_window_ms": 0
+            "legato_window_ms": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -7438,7 +7640,11 @@
             "mod4_destination": 0,
             "mod4_amount": 0,
             "arp_retrigger": 0,
-            "legato_window_ms": 0
+            "legato_window_ms": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -7568,7 +7774,11 @@
             "mod4_destination": 0,
             "mod4_amount": 0,
             "arp_retrigger": 0,
-            "legato_window_ms": 0
+            "legato_window_ms": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -7698,7 +7908,11 @@
             "mod4_destination": 0,
             "mod4_amount": 0,
             "arp_retrigger": 0,
-            "legato_window_ms": 0
+            "legato_window_ms": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -7828,7 +8042,11 @@
             "mod4_destination": 0,
             "mod4_amount": 0,
             "arp_retrigger": 0,
-            "legato_window_ms": 0
+            "legato_window_ms": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -7958,7 +8176,11 @@
             "mod4_destination": 0,
             "mod4_amount": 0,
             "arp_retrigger": 0,
-            "legato_window_ms": 0
+            "legato_window_ms": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -8088,7 +8310,11 @@
             "mod4_destination": 0,
             "mod4_amount": 0,
             "arp_retrigger": 0,
-            "legato_window_ms": 0
+            "legato_window_ms": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -8218,7 +8444,11 @@
             "mod4_destination": 0,
             "mod4_amount": 0,
             "arp_retrigger": 0,
-            "legato_window_ms": 0
+            "legato_window_ms": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -8348,7 +8578,11 @@
             "mod4_destination": 0,
             "mod4_amount": 0,
             "arp_retrigger": 0,
-            "legato_window_ms": 0
+            "legato_window_ms": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -8478,7 +8712,11 @@
             "mod4_destination": 0,
             "mod4_amount": 0,
             "arp_retrigger": 0,
-            "legato_window_ms": 0
+            "legato_window_ms": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -8608,7 +8846,11 @@
             "mod4_destination": 0,
             "mod4_amount": 0,
             "arp_retrigger": 0,
-            "legato_window_ms": 0
+            "legato_window_ms": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -8738,7 +8980,11 @@
             "mod4_destination": 0,
             "mod4_amount": 0,
             "arp_retrigger": 0,
-            "legato_window_ms": 0
+            "legato_window_ms": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -8868,7 +9114,11 @@
             "mod4_destination": 0,
             "mod4_amount": 0,
             "arp_retrigger": 0,
-            "legato_window_ms": 0
+            "legato_window_ms": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -8998,7 +9248,11 @@
             "mod4_destination": 5,
             "mod4_amount": 8,
             "arp_retrigger": 0,
-            "legato_window_ms": 0
+            "legato_window_ms": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -9128,7 +9382,11 @@
             "mod4_destination": 0,
             "mod4_amount": 0,
             "arp_retrigger": 0,
-            "legato_window_ms": 0
+            "legato_window_ms": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -9258,7 +9516,11 @@
             "mod4_destination": 0,
             "mod4_amount": 0,
             "arp_retrigger": 0,
-            "legato_window_ms": 0
+            "legato_window_ms": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -9388,7 +9650,11 @@
             "mod4_destination": 0,
             "mod4_amount": 0,
             "arp_retrigger": 0,
-            "legato_window_ms": 0
+            "legato_window_ms": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -9518,7 +9784,11 @@
             "mod4_destination": 0,
             "mod4_amount": 0,
             "arp_retrigger": 0,
-            "legato_window_ms": 0
+            "legato_window_ms": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -9648,7 +9918,11 @@
             "mod4_destination": 0,
             "mod4_amount": 0,
             "arp_retrigger": 0,
-            "legato_window_ms": 0
+            "legato_window_ms": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -9778,7 +10052,11 @@
             "mod4_destination": 0,
             "mod4_amount": 0,
             "arp_retrigger": 0,
-            "legato_window_ms": 0
+            "legato_window_ms": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -9908,7 +10186,11 @@
             "mod4_destination": 0,
             "mod4_amount": 0,
             "arp_retrigger": 0,
-            "legato_window_ms": 0
+            "legato_window_ms": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -10038,7 +10320,11 @@
             "mod4_destination": 0,
             "mod4_amount": 0,
             "arp_retrigger": 0,
-            "legato_window_ms": 0
+            "legato_window_ms": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -10168,7 +10454,11 @@
             "mod4_destination": 0,
             "mod4_amount": 0,
             "arp_retrigger": 0,
-            "legato_window_ms": 0
+            "legato_window_ms": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -10298,7 +10588,11 @@
             "mod4_destination": 0,
             "mod4_amount": 0,
             "arp_retrigger": 0,
-            "legato_window_ms": 0
+            "legato_window_ms": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -10428,7 +10722,11 @@
             "mod4_destination": 0,
             "mod4_amount": 0,
             "arp_retrigger": 0,
-            "legato_window_ms": 0
+            "legato_window_ms": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -10558,7 +10856,11 @@
             "mod4_destination": 0,
             "mod4_amount": 0,
             "arp_retrigger": 0,
-            "legato_window_ms": 0
+            "legato_window_ms": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -10688,7 +10990,11 @@
             "mod4_destination": 0,
             "mod4_amount": 0,
             "arp_retrigger": 0,
-            "legato_window_ms": 0
+            "legato_window_ms": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -10818,7 +11124,11 @@
             "mod4_destination": 0,
             "mod4_amount": 0,
             "arp_retrigger": 0,
-            "legato_window_ms": 0
+            "legato_window_ms": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -10948,7 +11258,11 @@
             "mod4_destination": 0,
             "mod4_amount": 0,
             "arp_retrigger": 0,
-            "legato_window_ms": 0
+            "legato_window_ms": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -11078,7 +11392,11 @@
             "mod4_destination": 0,
             "mod4_amount": 0,
             "arp_retrigger": 0,
-            "legato_window_ms": 0
+            "legato_window_ms": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -11208,7 +11526,11 @@
             "mod4_destination": 0,
             "mod4_amount": 0,
             "arp_retrigger": 0,
-            "legato_window_ms": 0
+            "legato_window_ms": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -11338,7 +11660,11 @@
             "mod4_destination": 0,
             "mod4_amount": 0,
             "arp_retrigger": 0,
-            "legato_window_ms": 0
+            "legato_window_ms": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -11468,7 +11794,11 @@
             "mod4_destination": 0,
             "mod4_amount": 0,
             "arp_retrigger": 0,
-            "legato_window_ms": 0
+            "legato_window_ms": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -11598,7 +11928,11 @@
             "mod4_destination": 0,
             "mod4_amount": 0,
             "arp_retrigger": 0,
-            "legato_window_ms": 0
+            "legato_window_ms": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -11728,7 +12062,11 @@
             "mod4_destination": 0,
             "mod4_amount": 0,
             "arp_retrigger": 0,
-            "legato_window_ms": 0
+            "legato_window_ms": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -11858,7 +12196,11 @@
             "mod4_destination": 0,
             "mod4_amount": 0,
             "arp_retrigger": 0,
-            "legato_window_ms": 0
+            "legato_window_ms": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -11988,7 +12330,11 @@
             "mod4_destination": 0,
             "mod4_amount": 0,
             "arp_retrigger": 0,
-            "legato_window_ms": 0
+            "legato_window_ms": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -12118,7 +12464,11 @@
             "mod4_destination": 0,
             "mod4_amount": 0,
             "arp_retrigger": 0,
-            "legato_window_ms": 0
+            "legato_window_ms": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -12248,7 +12598,11 @@
             "mod4_destination": 0,
             "mod4_amount": 0,
             "arp_retrigger": 0,
-            "legato_window_ms": 0
+            "legato_window_ms": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -12378,7 +12732,11 @@
             "mod4_destination": 0,
             "mod4_amount": 0,
             "arp_retrigger": 0,
-            "legato_window_ms": 0
+            "legato_window_ms": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -12508,7 +12866,11 @@
             "mod4_destination": 0,
             "mod4_amount": 0,
             "arp_retrigger": 0,
-            "legato_window_ms": 0
+            "legato_window_ms": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -12638,7 +13000,11 @@
             "mod4_destination": 0,
             "mod4_amount": 0,
             "arp_retrigger": 0,
-            "legato_window_ms": 0
+            "legato_window_ms": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -12768,7 +13134,11 @@
             "mod4_destination": 0,
             "mod4_amount": 0,
             "arp_retrigger": 0,
-            "legato_window_ms": 0
+            "legato_window_ms": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -12898,7 +13268,11 @@
             "mod4_destination": 0,
             "mod4_amount": 0,
             "arp_retrigger": 0,
-            "legato_window_ms": 0
+            "legato_window_ms": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -13028,7 +13402,11 @@
             "mod4_destination": 0,
             "mod4_amount": 0,
             "arp_retrigger": 0,
-            "legato_window_ms": 0
+            "legato_window_ms": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -13158,7 +13536,11 @@
             "mod4_destination": 0,
             "mod4_amount": 0,
             "arp_retrigger": 0,
-            "legato_window_ms": 0
+            "legato_window_ms": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -13288,7 +13670,11 @@
             "mod4_destination": 0,
             "mod4_amount": 0,
             "arp_retrigger": 0,
-            "legato_window_ms": 0
+            "legato_window_ms": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         }
       ],
@@ -14902,6 +15288,64 @@
               "label": "On"
             }
           ]
+        },
+        {
+          "id": "sc_duck_db",
+          "name": "Sidechain Duck",
+          "group": "Sidechain",
+          "min": 0,
+          "max": 48,
+          "default": 0,
+          "step": 0.1,
+          "unit": "dB",
+          "description": "How far the output (after the effects) is turned down when the sidechain input (pins 3/4, e.g. a kick sent to track channels 3/4) is at full level; less when it is quieter. 0 = off.",
+          "slider": 88,
+          "paramIndex": 87,
+          "valueDomain": "real"
+        },
+        {
+          "id": "sc_input_gain_db",
+          "name": "Sidechain Input Gain",
+          "group": "Sidechain",
+          "min": -24,
+          "max": 24,
+          "default": 0,
+          "step": 0.1,
+          "unit": "dB",
+          "description": "Gain on the sidechain input before the envelope follower. The follower reads the louder of its two channels and stops at 1 (0 dBFS after this gain), so raise it for a quiet trigger.",
+          "slider": 89,
+          "paramIndex": 88,
+          "valueDomain": "real"
+        },
+        {
+          "id": "sc_attack_ms",
+          "name": "Sidechain Attack",
+          "group": "Sidechain",
+          "min": 0.1,
+          "max": 100,
+          "default": 1,
+          "step": 0.1,
+          "unit": "ms",
+          "scale": "log",
+          "description": "How fast the follower rises when the sidechain gets louder (time constant).",
+          "slider": 90,
+          "paramIndex": 89,
+          "valueDomain": "real"
+        },
+        {
+          "id": "sc_release_ms",
+          "name": "Sidechain Release",
+          "group": "Sidechain",
+          "min": 10,
+          "max": 2000,
+          "default": 150,
+          "step": 1,
+          "unit": "ms",
+          "scale": "log",
+          "description": "How fast the follower falls back after the sidechain gets quieter (time constant): the length of the pump.",
+          "slider": 91,
+          "paramIndex": 90,
+          "valueDomain": "real"
         }
       ],
       "presets": [
@@ -14990,7 +15434,11 @@
             "string_sympathetic_mix": 0,
             "string_sympathetic_decay_ms": 3500,
             "string_sympathetic_root": 60,
-            "amp_auto_level": 0
+            "amp_auto_level": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -15078,7 +15526,11 @@
             "string_sympathetic_mix": 0,
             "string_sympathetic_decay_ms": 3500,
             "string_sympathetic_root": 60,
-            "amp_auto_level": 0
+            "amp_auto_level": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -15166,7 +15618,11 @@
             "string_sympathetic_mix": 0,
             "string_sympathetic_decay_ms": 3500,
             "string_sympathetic_root": 60,
-            "amp_auto_level": 0
+            "amp_auto_level": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -15254,7 +15710,11 @@
             "string_sympathetic_mix": 0,
             "string_sympathetic_decay_ms": 3500,
             "string_sympathetic_root": 60,
-            "amp_auto_level": 0
+            "amp_auto_level": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -15342,7 +15802,11 @@
             "string_sympathetic_mix": 0.7,
             "string_sympathetic_decay_ms": 4200,
             "string_sympathetic_root": 60,
-            "amp_auto_level": 0
+            "amp_auto_level": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -15430,7 +15894,11 @@
             "string_sympathetic_mix": 0,
             "string_sympathetic_decay_ms": 3500,
             "string_sympathetic_root": 60,
-            "amp_auto_level": 0
+            "amp_auto_level": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -15518,7 +15986,11 @@
             "string_sympathetic_mix": 0,
             "string_sympathetic_decay_ms": 3500,
             "string_sympathetic_root": 60,
-            "amp_auto_level": 0
+            "amp_auto_level": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -15606,7 +16078,11 @@
             "string_sympathetic_mix": 0,
             "string_sympathetic_decay_ms": 3500,
             "string_sympathetic_root": 60,
-            "amp_auto_level": 0
+            "amp_auto_level": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -15694,7 +16170,11 @@
             "string_sympathetic_mix": 0,
             "string_sympathetic_decay_ms": 3500,
             "string_sympathetic_root": 60,
-            "amp_auto_level": 0
+            "amp_auto_level": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -15782,7 +16262,11 @@
             "string_sympathetic_mix": 0,
             "string_sympathetic_decay_ms": 3500,
             "string_sympathetic_root": 60,
-            "amp_auto_level": 0
+            "amp_auto_level": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -15870,7 +16354,11 @@
             "string_sympathetic_mix": 0,
             "string_sympathetic_decay_ms": 3500,
             "string_sympathetic_root": 60,
-            "amp_auto_level": 0
+            "amp_auto_level": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -15958,7 +16446,11 @@
             "string_sympathetic_mix": 0,
             "string_sympathetic_decay_ms": 3500,
             "string_sympathetic_root": 60,
-            "amp_auto_level": 0
+            "amp_auto_level": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -16046,7 +16538,11 @@
             "string_sympathetic_mix": 0,
             "string_sympathetic_decay_ms": 3500,
             "string_sympathetic_root": 60,
-            "amp_auto_level": 0
+            "amp_auto_level": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -16134,7 +16630,11 @@
             "string_sympathetic_mix": 0,
             "string_sympathetic_decay_ms": 3500,
             "string_sympathetic_root": 60,
-            "amp_auto_level": 0
+            "amp_auto_level": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -16222,7 +16722,11 @@
             "string_sympathetic_mix": 0,
             "string_sympathetic_decay_ms": 3500,
             "string_sympathetic_root": 60,
-            "amp_auto_level": 0
+            "amp_auto_level": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -16310,7 +16814,11 @@
             "string_sympathetic_mix": 0,
             "string_sympathetic_decay_ms": 3500,
             "string_sympathetic_root": 60,
-            "amp_auto_level": 0
+            "amp_auto_level": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -16398,7 +16906,11 @@
             "string_sympathetic_mix": 0,
             "string_sympathetic_decay_ms": 3500,
             "string_sympathetic_root": 60,
-            "amp_auto_level": 0
+            "amp_auto_level": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -16486,7 +16998,11 @@
             "string_sympathetic_mix": 0,
             "string_sympathetic_decay_ms": 3500,
             "string_sympathetic_root": 60,
-            "amp_auto_level": 0
+            "amp_auto_level": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -16574,7 +17090,11 @@
             "string_sympathetic_mix": 0,
             "string_sympathetic_decay_ms": 3500,
             "string_sympathetic_root": 60,
-            "amp_auto_level": 0
+            "amp_auto_level": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -16662,7 +17182,11 @@
             "string_sympathetic_mix": 0,
             "string_sympathetic_decay_ms": 3500,
             "string_sympathetic_root": 60,
-            "amp_auto_level": 0
+            "amp_auto_level": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -16750,7 +17274,11 @@
             "string_sympathetic_mix": 0,
             "string_sympathetic_decay_ms": 3500,
             "string_sympathetic_root": 60,
-            "amp_auto_level": 0
+            "amp_auto_level": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -16838,7 +17366,11 @@
             "string_sympathetic_mix": 0,
             "string_sympathetic_decay_ms": 3500,
             "string_sympathetic_root": 60,
-            "amp_auto_level": 0
+            "amp_auto_level": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -16926,7 +17458,11 @@
             "string_sympathetic_mix": 0,
             "string_sympathetic_decay_ms": 3500,
             "string_sympathetic_root": 60,
-            "amp_auto_level": 0
+            "amp_auto_level": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -17014,7 +17550,11 @@
             "string_sympathetic_mix": 0,
             "string_sympathetic_decay_ms": 3500,
             "string_sympathetic_root": 60,
-            "amp_auto_level": 0
+            "amp_auto_level": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -17102,7 +17642,11 @@
             "string_sympathetic_mix": 0,
             "string_sympathetic_decay_ms": 3500,
             "string_sympathetic_root": 60,
-            "amp_auto_level": 0
+            "amp_auto_level": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -17190,7 +17734,11 @@
             "string_sympathetic_mix": 0,
             "string_sympathetic_decay_ms": 3500,
             "string_sympathetic_root": 60,
-            "amp_auto_level": 0
+            "amp_auto_level": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -17278,7 +17826,11 @@
             "string_sympathetic_mix": 0,
             "string_sympathetic_decay_ms": 3500,
             "string_sympathetic_root": 60,
-            "amp_auto_level": 0
+            "amp_auto_level": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -17366,7 +17918,11 @@
             "string_sympathetic_mix": 0,
             "string_sympathetic_decay_ms": 3500,
             "string_sympathetic_root": 60,
-            "amp_auto_level": 0
+            "amp_auto_level": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -17454,7 +18010,11 @@
             "string_sympathetic_mix": 0,
             "string_sympathetic_decay_ms": 3500,
             "string_sympathetic_root": 60,
-            "amp_auto_level": 0
+            "amp_auto_level": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -17542,7 +18102,11 @@
             "string_sympathetic_mix": 0,
             "string_sympathetic_decay_ms": 3500,
             "string_sympathetic_root": 60,
-            "amp_auto_level": 0
+            "amp_auto_level": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -17630,7 +18194,11 @@
             "string_sympathetic_mix": 0,
             "string_sympathetic_decay_ms": 3500,
             "string_sympathetic_root": 60,
-            "amp_auto_level": 0
+            "amp_auto_level": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -17718,7 +18286,11 @@
             "string_sympathetic_mix": 0,
             "string_sympathetic_decay_ms": 3500,
             "string_sympathetic_root": 60,
-            "amp_auto_level": 0
+            "amp_auto_level": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -17806,7 +18378,11 @@
             "string_sympathetic_mix": 0,
             "string_sympathetic_decay_ms": 3500,
             "string_sympathetic_root": 60,
-            "amp_auto_level": 0
+            "amp_auto_level": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -17894,7 +18470,11 @@
             "string_sympathetic_mix": 0,
             "string_sympathetic_decay_ms": 3500,
             "string_sympathetic_root": 60,
-            "amp_auto_level": 0
+            "amp_auto_level": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -17982,7 +18562,11 @@
             "string_sympathetic_mix": 0,
             "string_sympathetic_decay_ms": 3500,
             "string_sympathetic_root": 60,
-            "amp_auto_level": 0
+            "amp_auto_level": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -18070,7 +18654,11 @@
             "string_sympathetic_mix": 0,
             "string_sympathetic_decay_ms": 3500,
             "string_sympathetic_root": 60,
-            "amp_auto_level": 0
+            "amp_auto_level": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -18158,7 +18746,11 @@
             "string_sympathetic_mix": 0,
             "string_sympathetic_decay_ms": 3500,
             "string_sympathetic_root": 60,
-            "amp_auto_level": 0
+            "amp_auto_level": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -18246,7 +18838,11 @@
             "string_sympathetic_mix": 0,
             "string_sympathetic_decay_ms": 3500,
             "string_sympathetic_root": 60,
-            "amp_auto_level": 0
+            "amp_auto_level": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -18334,7 +18930,11 @@
             "string_sympathetic_mix": 0,
             "string_sympathetic_decay_ms": 3500,
             "string_sympathetic_root": 60,
-            "amp_auto_level": 0
+            "amp_auto_level": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -18422,7 +19022,11 @@
             "string_sympathetic_mix": 0,
             "string_sympathetic_decay_ms": 3500,
             "string_sympathetic_root": 60,
-            "amp_auto_level": 0
+            "amp_auto_level": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -18510,7 +19114,11 @@
             "string_sympathetic_mix": 0,
             "string_sympathetic_decay_ms": 3500,
             "string_sympathetic_root": 60,
-            "amp_auto_level": 0
+            "amp_auto_level": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -18598,7 +19206,11 @@
             "string_sympathetic_mix": 0,
             "string_sympathetic_decay_ms": 3500,
             "string_sympathetic_root": 60,
-            "amp_auto_level": 0
+            "amp_auto_level": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -18686,7 +19298,11 @@
             "string_sympathetic_mix": 0,
             "string_sympathetic_decay_ms": 3500,
             "string_sympathetic_root": 60,
-            "amp_auto_level": 0
+            "amp_auto_level": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -18774,7 +19390,11 @@
             "string_sympathetic_mix": 0,
             "string_sympathetic_decay_ms": 3500,
             "string_sympathetic_root": 60,
-            "amp_auto_level": 0
+            "amp_auto_level": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -18862,7 +19482,11 @@
             "string_sympathetic_mix": 0,
             "string_sympathetic_decay_ms": 3500,
             "string_sympathetic_root": 60,
-            "amp_auto_level": 0
+            "amp_auto_level": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -18950,7 +19574,11 @@
             "string_sympathetic_mix": 0,
             "string_sympathetic_decay_ms": 3500,
             "string_sympathetic_root": 60,
-            "amp_auto_level": 0
+            "amp_auto_level": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -19038,7 +19666,11 @@
             "string_sympathetic_mix": 0,
             "string_sympathetic_decay_ms": 3500,
             "string_sympathetic_root": 60,
-            "amp_auto_level": 0
+            "amp_auto_level": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -19126,7 +19758,11 @@
             "string_sympathetic_mix": 0,
             "string_sympathetic_decay_ms": 3500,
             "string_sympathetic_root": 60,
-            "amp_auto_level": 0
+            "amp_auto_level": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -19214,7 +19850,11 @@
             "string_sympathetic_mix": 0,
             "string_sympathetic_decay_ms": 3500,
             "string_sympathetic_root": 60,
-            "amp_auto_level": 0
+            "amp_auto_level": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -19302,7 +19942,11 @@
             "string_sympathetic_mix": 0,
             "string_sympathetic_decay_ms": 3500,
             "string_sympathetic_root": 60,
-            "amp_auto_level": 0
+            "amp_auto_level": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -19390,7 +20034,11 @@
             "string_sympathetic_mix": 0,
             "string_sympathetic_decay_ms": 3500,
             "string_sympathetic_root": 60,
-            "amp_auto_level": 0
+            "amp_auto_level": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -19478,7 +20126,11 @@
             "string_sympathetic_mix": 0,
             "string_sympathetic_decay_ms": 3500,
             "string_sympathetic_root": 60,
-            "amp_auto_level": 0
+            "amp_auto_level": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -19566,7 +20218,11 @@
             "string_sympathetic_mix": 0,
             "string_sympathetic_decay_ms": 3500,
             "string_sympathetic_root": 60,
-            "amp_auto_level": 0
+            "amp_auto_level": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -19654,7 +20310,11 @@
             "string_sympathetic_mix": 0,
             "string_sympathetic_decay_ms": 3500,
             "string_sympathetic_root": 60,
-            "amp_auto_level": 0
+            "amp_auto_level": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -19742,7 +20402,11 @@
             "string_sympathetic_mix": 0,
             "string_sympathetic_decay_ms": 3500,
             "string_sympathetic_root": 60,
-            "amp_auto_level": 0
+            "amp_auto_level": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -19830,7 +20494,11 @@
             "string_sympathetic_mix": 0,
             "string_sympathetic_decay_ms": 3500,
             "string_sympathetic_root": 60,
-            "amp_auto_level": 0
+            "amp_auto_level": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -19918,7 +20586,11 @@
             "string_sympathetic_mix": 0,
             "string_sympathetic_decay_ms": 3500,
             "string_sympathetic_root": 60,
-            "amp_auto_level": 0
+            "amp_auto_level": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -20006,7 +20678,11 @@
             "string_sympathetic_mix": 0,
             "string_sympathetic_decay_ms": 3500,
             "string_sympathetic_root": 60,
-            "amp_auto_level": 0
+            "amp_auto_level": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -20094,7 +20770,11 @@
             "string_sympathetic_mix": 0,
             "string_sympathetic_decay_ms": 3500,
             "string_sympathetic_root": 60,
-            "amp_auto_level": 0
+            "amp_auto_level": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -20182,7 +20862,11 @@
             "string_sympathetic_mix": 0,
             "string_sympathetic_decay_ms": 3500,
             "string_sympathetic_root": 60,
-            "amp_auto_level": 0
+            "amp_auto_level": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -20270,7 +20954,11 @@
             "string_sympathetic_mix": 0,
             "string_sympathetic_decay_ms": 3500,
             "string_sympathetic_root": 60,
-            "amp_auto_level": 0
+            "amp_auto_level": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -20358,7 +21046,11 @@
             "string_sympathetic_mix": 0,
             "string_sympathetic_decay_ms": 3500,
             "string_sympathetic_root": 60,
-            "amp_auto_level": 0
+            "amp_auto_level": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -20446,7 +21138,11 @@
             "string_sympathetic_mix": 0,
             "string_sympathetic_decay_ms": 3500,
             "string_sympathetic_root": 60,
-            "amp_auto_level": 0
+            "amp_auto_level": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -20534,7 +21230,11 @@
             "string_sympathetic_mix": 0,
             "string_sympathetic_decay_ms": 3500,
             "string_sympathetic_root": 60,
-            "amp_auto_level": 0
+            "amp_auto_level": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -20622,7 +21322,11 @@
             "string_sympathetic_mix": 0,
             "string_sympathetic_decay_ms": 3500,
             "string_sympathetic_root": 60,
-            "amp_auto_level": 0
+            "amp_auto_level": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -20710,7 +21414,11 @@
             "string_sympathetic_mix": 0,
             "string_sympathetic_decay_ms": 3500,
             "string_sympathetic_root": 60,
-            "amp_auto_level": 0
+            "amp_auto_level": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -20798,7 +21506,11 @@
             "string_sympathetic_mix": 0,
             "string_sympathetic_decay_ms": 3500,
             "string_sympathetic_root": 60,
-            "amp_auto_level": 0
+            "amp_auto_level": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -20886,7 +21598,11 @@
             "string_sympathetic_mix": 0,
             "string_sympathetic_decay_ms": 3500,
             "string_sympathetic_root": 60,
-            "amp_auto_level": 0
+            "amp_auto_level": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -20974,7 +21690,11 @@
             "string_sympathetic_mix": 0,
             "string_sympathetic_decay_ms": 3500,
             "string_sympathetic_root": 60,
-            "amp_auto_level": 0
+            "amp_auto_level": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -21062,7 +21782,11 @@
             "string_sympathetic_mix": 0,
             "string_sympathetic_decay_ms": 3500,
             "string_sympathetic_root": 60,
-            "amp_auto_level": 0
+            "amp_auto_level": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -21150,7 +21874,11 @@
             "string_sympathetic_mix": 0,
             "string_sympathetic_decay_ms": 3500,
             "string_sympathetic_root": 60,
-            "amp_auto_level": 0
+            "amp_auto_level": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -21238,7 +21966,11 @@
             "string_sympathetic_mix": 0,
             "string_sympathetic_decay_ms": 3500,
             "string_sympathetic_root": 60,
-            "amp_auto_level": 0
+            "amp_auto_level": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -21326,7 +22058,11 @@
             "string_sympathetic_mix": 0,
             "string_sympathetic_decay_ms": 3500,
             "string_sympathetic_root": 60,
-            "amp_auto_level": 0
+            "amp_auto_level": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -21414,7 +22150,11 @@
             "string_sympathetic_mix": 0,
             "string_sympathetic_decay_ms": 3500,
             "string_sympathetic_root": 60,
-            "amp_auto_level": 0
+            "amp_auto_level": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -21502,7 +22242,11 @@
             "string_sympathetic_mix": 0,
             "string_sympathetic_decay_ms": 3500,
             "string_sympathetic_root": 60,
-            "amp_auto_level": 0
+            "amp_auto_level": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -21590,7 +22334,11 @@
             "string_sympathetic_mix": 0,
             "string_sympathetic_decay_ms": 3500,
             "string_sympathetic_root": 60,
-            "amp_auto_level": 0
+            "amp_auto_level": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -21678,7 +22426,11 @@
             "string_sympathetic_mix": 0,
             "string_sympathetic_decay_ms": 3500,
             "string_sympathetic_root": 60,
-            "amp_auto_level": 0
+            "amp_auto_level": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -21766,7 +22518,11 @@
             "string_sympathetic_mix": 0,
             "string_sympathetic_decay_ms": 3500,
             "string_sympathetic_root": 60,
-            "amp_auto_level": 0
+            "amp_auto_level": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -21854,7 +22610,11 @@
             "string_sympathetic_mix": 0,
             "string_sympathetic_decay_ms": 3500,
             "string_sympathetic_root": 60,
-            "amp_auto_level": 0
+            "amp_auto_level": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -21942,7 +22702,11 @@
             "string_sympathetic_mix": 0,
             "string_sympathetic_decay_ms": 3500,
             "string_sympathetic_root": 60,
-            "amp_auto_level": 0
+            "amp_auto_level": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -22030,7 +22794,11 @@
             "string_sympathetic_mix": 0,
             "string_sympathetic_decay_ms": 3500,
             "string_sympathetic_root": 60,
-            "amp_auto_level": 0
+            "amp_auto_level": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -22118,7 +22886,11 @@
             "string_sympathetic_mix": 0,
             "string_sympathetic_decay_ms": 3500,
             "string_sympathetic_root": 60,
-            "amp_auto_level": 0
+            "amp_auto_level": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -22206,7 +22978,11 @@
             "string_sympathetic_mix": 0,
             "string_sympathetic_decay_ms": 3500,
             "string_sympathetic_root": 60,
-            "amp_auto_level": 0
+            "amp_auto_level": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -22294,7 +23070,11 @@
             "string_sympathetic_mix": 0,
             "string_sympathetic_decay_ms": 3500,
             "string_sympathetic_root": 60,
-            "amp_auto_level": 0
+            "amp_auto_level": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -22382,7 +23162,11 @@
             "string_sympathetic_mix": 0,
             "string_sympathetic_decay_ms": 3500,
             "string_sympathetic_root": 60,
-            "amp_auto_level": 0
+            "amp_auto_level": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -22470,7 +23254,11 @@
             "string_sympathetic_mix": 0,
             "string_sympathetic_decay_ms": 3500,
             "string_sympathetic_root": 60,
-            "amp_auto_level": 0
+            "amp_auto_level": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -22558,7 +23346,11 @@
             "string_sympathetic_mix": 0,
             "string_sympathetic_decay_ms": 3500,
             "string_sympathetic_root": 60,
-            "amp_auto_level": 0
+            "amp_auto_level": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -22646,7 +23438,11 @@
             "string_sympathetic_mix": 0,
             "string_sympathetic_decay_ms": 3500,
             "string_sympathetic_root": 60,
-            "amp_auto_level": 0
+            "amp_auto_level": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -22734,7 +23530,11 @@
             "string_sympathetic_mix": 0,
             "string_sympathetic_decay_ms": 3500,
             "string_sympathetic_root": 60,
-            "amp_auto_level": 0
+            "amp_auto_level": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -22822,7 +23622,11 @@
             "string_sympathetic_mix": 0,
             "string_sympathetic_decay_ms": 3500,
             "string_sympathetic_root": 60,
-            "amp_auto_level": 0
+            "amp_auto_level": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -22910,7 +23714,11 @@
             "string_sympathetic_mix": 0,
             "string_sympathetic_decay_ms": 3500,
             "string_sympathetic_root": 60,
-            "amp_auto_level": 0
+            "amp_auto_level": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         },
         {
@@ -22998,7 +23806,11 @@
             "string_sympathetic_mix": 0,
             "string_sympathetic_decay_ms": 3500,
             "string_sympathetic_root": 60,
-            "amp_auto_level": 0
+            "amp_auto_level": 0,
+            "sc_duck_db": 0,
+            "sc_input_gain_db": 0,
+            "sc_attack_ms": 1,
+            "sc_release_ms": 150
           }
         }
       ],

@@ -49,6 +49,7 @@ int main(int argc, char **argv) {
     int playing = 0;
     std::string dataRoot;
     std::string prePath;
+    std::vector<float> sidechain; // interleaved stereo f32, fed to input pins 3/4
     std::vector<std::pair<int, double>> preSliders;
     struct TimedSlider { uint64_t frame; int idx; double value; };
     std::vector<TimedSlider> preTimed;
@@ -71,6 +72,16 @@ int main(int argc, char **argv) {
                 if (std::sscanf(line, "%*s %1023[^\r\n]", dir) == 1) {
                     dataRoot = dir;
                     if (!dataRoot.empty() && dataRoot.back() != '/' && dataRoot.back() != '\\') dataRoot += '/';
+                }
+            } else if (!std::strcmp(kind, "input")) {
+                char file[1024];
+                if (std::sscanf(line, "%*s %1023[^\r\n]", file) == 1) {
+                    FILE *in = std::fopen(file, "rb");
+                    if (!in) { std::perror("input"); return 2; }
+                    float buf[1024];
+                    size_t got;
+                    while ((got = std::fread(buf, sizeof(float), 1024, in)) > 0) sidechain.insert(sidechain.end(), buf, buf + got);
+                    std::fclose(in);
                 }
             } else if (!std::strcmp(kind, "pre")) {
                 char file[1024];
@@ -139,6 +150,11 @@ int main(int argc, char **argv) {
     out.reserve(total * nout);
     std::vector<float> zero(block, 0.0f);
     const float *ins[2] = {zero.data(), zero.data()};
+    // main effect inputs: pins 1/2 silent, pins 3/4 = the "input" file (sidechain), if any
+    const uint32_t nin = ysfx_get_num_inputs(fx);
+    std::vector<std::vector<float>> inBufs(std::max<uint32_t>(nin, 2), std::vector<float>(block, 0.0f));
+    std::vector<const float *> fxIns(inBufs.size());
+    for (size_t c = 0; c < inBufs.size(); c++) fxIns[c] = inBufs[c].data();
     size_t ei = 0;
     for (uint64_t pos = 0; pos < total; pos += block) {
         uint32_t n = (uint32_t)std::min<uint64_t>(block, total - pos);
@@ -169,7 +185,13 @@ int main(int argc, char **argv) {
             ysfx_send_midi(fx, &ev);
             ei++;
         }
-        ysfx_process_float(fx, ins, outs.data(), ysfx_get_num_inputs(fx) ? 2 : 0, nout, n);
+        if (nin >= 4)
+            for (uint32_t i = 0; i < n; i++) {
+                const size_t k = 2 * (size_t)(pos + i);
+                inBufs[2][i] = k + 1 < sidechain.size() ? sidechain[k] : 0.0f;
+                inBufs[3][i] = k + 1 < sidechain.size() ? sidechain[k + 1] : 0.0f;
+            }
+        ysfx_process_float(fx, fxIns.data(), outs.data(), nin, nout, n);
         for (uint32_t i = 0; i < n; i++)
             for (uint32_t c = 0; c < nout; c++) out.push_back(bufs[c][i]);
     }
