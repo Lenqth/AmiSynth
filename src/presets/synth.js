@@ -854,4 +854,12 @@ export const SYNTH_PRESETS = [
       fx_reverb_on: 1, fx_reverb_mix: 0.09, fx_reverb_decay_ms: 400, fx_reverb_size: 0.2,
     },
   },
+  { name: 'Formant Half-time Bass', category: 'Bass',
+    description: 'Vocal Formants: LFO2 scans Osc1 while velocity colors Osc2 independently. Mono bass, MIDI 36-55 / velocity 70-115; try 140 BPM half-time.',
+    params: { master_volume_db: -5.2, osc1_waveform: 4, osc1_wt_bank: 2, osc1_wt_position: 0.5,
+      osc2_waveform: 4, osc2_wt_bank: 2, osc2_wt_position: 0.15, osc2_level: 0.35, osc2_detune_cents: -7,
+      sub_osc_level: 0.35, filter_cutoff_hz: 2200, filter_resonance: 0.12, filter_env_amount_oct: 0,
+      amp_attack_ms: 4, amp_sustain: 1, amp_release_ms: 100, voice_mode: 1,
+      lfo2_waveform: 1, lfo2_sync: 7, mod1_source: 2, mod1_destination: 12, mod1_amount: 0.45,
+      mod2_source: 4, mod2_destination: 13, mod2_amount: 0.7 } },
 ];

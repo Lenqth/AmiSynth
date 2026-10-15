@@ -144,6 +144,8 @@ Discover the wrapper with `script_list`, then execute its returned path with `sc
 
 ## Toolkit API and units
 
+WT位置の独立変調、行き先別Mod Amountの単位・推奨範囲、およびオフライン試奏・測定記録は[制作ワークフロー](../../docs/PRODUCTION_WORKFLOW.md)を参照してください（このリンクはリポジトリ内用です）。`Run`の`get`結果は現在のMod Amount表示情報を`display`に返します。インストール後の機械可読定義は`../generated/automation.json`のAmount定義にある`modulation`を参照できます。
+
 - `ami.bind(track, fx, kind)`: kind is `synth`, `phys`, `drums` or `tuning`; validates the FX identity, parameter order/ranges and stores the FX GUID. A moved/deleted FX requires rebinding.
 - `ami.preset(binding, name)`: choose an exact built-in preset name from `generated/automation.json`; preserves current tuning. To apply a saved user preset, find it in `ami.users(kind)` and pass its `params` to `ami.apply`.
 - `ami.macro(binding, name, amount)`: Synth only; Brightness / Punch / Width / Pump, amount **0..1** (the GUI uses 0..100). Pump replaces LFO waveform/sync with quarter-note Duck; not an audio sidechain detector.

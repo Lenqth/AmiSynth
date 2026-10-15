@@ -17,6 +17,7 @@
 //               that REAPER automation / MCP take the real value (1800 for 1800 Hz, not ln(1800)).
 //   options     enum labels (value = index)
 //   description one-line explanation (for docs / LLM tools)
+//   modulation  optional destinationParameter + per-destination display hints for amount controls
 
 import { WT_BANK_NAMES } from './wavetable.js';
 
@@ -77,6 +78,8 @@ export const MOD_DESTINATIONS = [
   { name: 'LFO 1 Rate', unit: 'oct', range: 6, step: 0.01 },
   { name: 'LFO 2 Rate', unit: 'oct', range: 6, step: 0.01 },
   { name: 'Noise Level', unit: '', range: 1, step: 0.001 },
+  { name: 'Osc1 WT Position', unit: 'position', range: 1, step: 0.001 },
+  { name: 'Osc2 WT Position', unit: 'position', range: 1, step: 0.001 },
 ];
 
 /** Tuning is shared by synth & piano roll. 12-EDO is just the default. */
@@ -350,7 +353,8 @@ export const SYNTH_PARAMS = /** @type {ParamDef[]} */ ([
       options: MOD_DESTINATIONS.map((d) => d.name),
       description: `Mod matrix slot ${i + 1}: what is modulated (per note, except LFO 1 / LFO 2 Rate which are global and only follow LFO 1, LFO 2, Mod Wheel and channel pressure). Off = slot unused.` },
     { id: `mod${i + 1}_amount`, name: `Mod ${i + 1} Amount`, group: 'Mod Matrix', min: -4800, max: 4800, default: 0, step: 0.001, unit: '',
-      description: `Mod matrix slot ${i + 1}: how far the destination moves at source value 1, in the destination's unit: Pitch / Osc2 Pitch in cents, Filter Cutoff / LFO Rate in octaves, FM Index in rad, Amp in dB, Resonance / Pulse Width / Noise Level added to the knob value (0..1), Pan -1 (left) .. +1 (right). Negative values invert.` },
+      modulation: { destinationParameter: `mod${i + 1}_destination`, destinations: MOD_DESTINATIONS },
+      description: `Mod matrix slot ${i + 1}: how far the destination moves at source value 1, in the destination's unit: Pitch / Osc2 Pitch in cents, Filter Cutoff / LFO Rate in octaves, FM Index in rad, Amp in dB, Resonance / Pulse Width / Noise Level added to the knob value (0..1), Pan -1 (left) .. +1 (right). Osc1 / Osc2 WT Position adds a normalized position offset, clamped with the existing WT modulation to 0..1; classic waveforms ignore it. Negative values invert. The modulation metadata supplies suggested display ranges and fine steps, without changing this stored value domain.` },
   ]).flat(),
   // ---- arpeggiator restart / legato window (appended so the older slider numbers stay)
   { id: 'arp_retrigger', name: 'Arp Retrigger', group: 'Arpeggiator', min: 0, max: 3, default: 0, step: 1, unit: '', options: ARP_RETRIGGER_NAMES,

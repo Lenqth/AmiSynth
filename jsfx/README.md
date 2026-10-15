@@ -10,6 +10,7 @@
 | `AmiSynth Drums.jsfx` | 合成ドラム 13 パーツ(GM 配置)。パーツ別出力つき(10 ch)。スライダー 78 本 |
 | `AmiSynth Tuning.jsfx` | 共通の音階を持つユーティリティ(音は出さず、オーディオと MIDI はそのまま通す)。Synth / Physical が Slot を指定して従う。スライダー 38 本 |
 | `amisynth_lib.jsfx-inc` | 共通 DSP。上のすべてが `import` します |
+| `amisynth_modulation.jsfx-inc` | Synthの行き先別Mod Amount表示。`npm run gen:jsfx`で生成 |
 | `AmiSynth Synth.jsfx.rpl` など 3 つ | 内蔵プリセットの REAPER 用ライブラリ(下記「プリセット」)。`npm run gen:jsfx` で生成 |
 
 ## インストール
@@ -17,7 +18,7 @@
 音源と補助スクリプトを一緒に配置する場合は、[ReaScript / MCPガイド](reaper/README.md) の `npm run install:reaper` を使えます。REAPERのリソースパスを明示して実行し、まず `--dry-run` で確認してください。既存の同名AmiSynthファイルは更新されます。Actionsへの登録は配置後に行います。
 
 1. REAPER のメニューで **Options → Show REAPER resource path** を開きます。
-2. `Effects/AmiSynth/` フォルダを作り、上の 5 ファイルと `amisynth_meter.jsfx-inc`、3 つの `.rpl` をすべてコピーします。
+2. `Effects/AmiSynth/` フォルダを作り、4つの音源／Tuning、`amisynth_lib.jsfx-inc`、`amisynth_meter.jsfx-inc`、`amisynth_modulation.jsfx-inc`、3つの`.rpl`をコピーします。
 3. トラックの FX に「JS: AmiSynth Synth」などを追加し、MIDI を入力します。
    - Web 版のピアノロールにある「MIDI 書き出し」で作った `.mid` をそのまま使えます(メロディ ch1、ドラム ch10。ソングモードでは曲全体)。
    - 1 トラック目のメロディは、Synth か Physical のトラックに置いてください。

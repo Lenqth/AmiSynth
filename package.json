@@ -13,6 +13,7 @@
     "gen:jsfx": "node scripts/gen-jsfx-sliders.js",
     "install:reaper": "node scripts/install-reaper.js",
     "audition:timbre": "node scripts/timbre-audition.js",
+    "audition:preset": "node scripts/preset-audition.js",
     "deploy": "npm run build && wrangler deploy",
     "jsfx:tools": "bash scripts/build-jsfx-render.sh",
     "jsfx:compare": "node scripts/jsfx-compare.js"

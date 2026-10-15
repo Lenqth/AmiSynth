@@ -1,5 +1,7 @@
 # AmiSynth
 
+作曲中の独立WT変調、Mod Amountの単位、プリセットの試奏と測定記録 → [制作ワークフロー](docs/PRODUCTION_WORKFLOW.md)。`npm run audition:preset -- synth --preset "Formant Half-time Bass" --out .cache/audition`で固定MIDI・WAV・測定値を保存できます。
+
 ブラウザで動く自作シンセ & ドラムマシンのデモ。DSP はすべて AudioWorklet 内の
 「サンプル単位の素直なループ」で書かれていて、REAPER の JSFX (EEL2) へほぼ機械的に
 移植できる形にしてあります。名前の由来は *LLM-friendly な synth*。

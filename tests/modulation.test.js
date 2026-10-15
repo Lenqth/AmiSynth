@@ -68,6 +68,24 @@ function slots(list) {
 const src = (name) => MOD_SOURCES.indexOf(name);
 const dst = (name) => MOD_DESTINATIONS.findIndex((d) => d.name === name);
 
+test('WT matrix positions independently select frames per oscillator and bypass classic waves', () => {
+  const notes = [[0, 0x90, 60, 127]];
+  for (const osc of [1, 2]) {
+    const sound = { osc1_waveform: 4, osc2_waveform: 4, osc1_wt_bank: 2, osc2_wt_bank: 2,
+      osc1_wt_position: 0.1, osc2_wt_position: 0.1, osc1_level: osc === 1 ? 1 : 0, osc2_level: osc === 2 ? 1 : 0 };
+    const target = dst(`Osc${osc} WT Position`), other = dst(`Osc${3 - osc} WT Position`);
+    const mod = play('synth', { ...sound, ...slots([[src('Velocity'), target, 0.6]]) }, notes, 8000).out;
+    const direct = play('synth', { ...sound, [`osc${osc}_wt_position`]: 0.7 }, notes, 8000).out;
+    assert.ok(diffRms(mod, direct) < 1e-12, 'position offset uses the same clamped frame lookup');
+    const dry = play('synth', sound, notes, 8000).out;
+    const untouched = play('synth', { ...sound, ...slots([[src('LFO 2'), other, 1]]) }, notes, 8000).out;
+    assert.ok(identical(dry, untouched), 'the other oscillator is not modulated');
+  }
+  const classic = { osc1_waveform: 0, osc2_waveform: 1 };
+  assert.ok(identical(play('synth', classic, notes, 8000).out,
+    play('synth', { ...classic, ...slots([[src('Velocity'), 12, 4800], [src('Velocity'), 13, -4800]]) }, notes, 8000).out));
+});
+
 // a chord, pressure swells, aftertouch on one key, mod wheel, release
 const PHRASE = [
   [0, 0x90, 57, 100], [200, 0x90, 64, 70], [400, 0x90, 69, 40],
@@ -126,11 +144,13 @@ test('every mod source and every destination changes the sound', () => {
   // the LFO rate destinations act on the LFO feeding another slot
   for (let di = 1; di < MOD_DESTINATIONS.length; di++) {
     const name = MOD_DESTINATIONS[di].name;
+    const sound = name.includes('WT Position') ? { ...base, osc1_waveform: 4, osc2_waveform: 4,
+      osc1_wt_bank: 2, osc2_wt_bank: 2, osc1_wt_position: 0.5, osc2_wt_position: 0.5 } : base;
     const list = name === 'LFO 1 Rate' ? [[src('LFO 1'), dst('Pitch'), 100], [src('Mod Wheel'), di, 2]]
       : name === 'LFO 2 Rate' ? [[src('LFO 2'), dst('Pitch'), 100], [src('Mod Wheel'), di, 2]]
         : [[src('LFO 1'), di, MOD_DESTINATIONS[di].range / 2]];
-    const before = name.endsWith('Rate') ? play('synth', { ...base, ...slots([list[0]]) }, PHRASE, FRAMES).out : ref;
-    const out = play('synth', { ...base, ...slots(list) }, PHRASE, FRAMES).out;
+    const before = name.endsWith('Rate') ? play('synth', { ...sound, ...slots([list[0]]) }, PHRASE, FRAMES).out : play('synth', sound, PHRASE, FRAMES).out;
+    const out = play('synth', { ...sound, ...slots(list) }, PHRASE, FRAMES).out;
     assert.ok(diffRms(out, before) > 1e-3, `destination ${name}`);
   }
 });

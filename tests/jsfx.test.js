@@ -24,6 +24,19 @@ const METER_BIN = process.env.JSFX_METER_CHECK || join(import.meta.dirname, '..'
 const SR = 48000;
 const MIN_SNR_DB = 100; // float32 output gives ~150 dB when the port is exact
 
+test('JSFX independent WT positions match JS with LFO2 and per-note sources', { skip: !HAVE && 'jsfx_render not built' }, () => {
+  for (const sr of [48000, 44100]) {
+    const p = scenario('synth', { osc1_waveform: 4, osc2_waveform: 4, osc1_wt_bank: 2, osc2_wt_bank: 3,
+      osc1_wt_position: 0.5, osc2_wt_position: 0.2, wt_position_amp_env: 0.1,
+      mod1_source: 2, mod1_destination: 12, mod1_amount: 0.45,
+      mod2_source: 4, mod2_destination: 13, mod2_amount: 0.6,
+      mod3_source: 7, mod3_destination: 12, mod3_amount: 0.3,
+      mod4_source: 3, mod4_destination: 13, mod4_amount: -0.8 });
+    const ev = [[0, 0x90, 48, 40], [2000, 0x90, 64, 120], [4000, 0xd0, 100, 0], [8000, 0xa0, 64, 110], [16000, 0x80, 48, 0]];
+    check('synth', p, ev, 0.6, 'independent WT positions', sr);
+  }
+});
+
 test('JSFX meters compile and draw, measure output, match only on request and ignore silence',
   { skip: !existsSync(METER_BIN) && 'jsfx_meter_check not built (needs ysfx graphics)' }, () => {
     for (const kind of ['synth', 'phys', 'drums']) {

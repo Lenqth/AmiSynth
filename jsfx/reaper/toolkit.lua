@@ -42,6 +42,17 @@ function M.read(binding)
   return values
 end
 
+-- Display hints only: keep the stored/validated -4800..4800 amount domain unchanged.
+function M.parameter_display(d, values)
+  if not d.modulation then return d end
+  local dest = math.floor((values[d.modulation.destinationParameter] or 0) + 0.5)
+  local hint = d.modulation.destinations[dest + 1] or d.modulation.destinations[1]
+  local out = {}; for k, v in pairs(d) do out[k] = v end
+  out.unit, out.suggested_min, out.suggested_max, out.fine_step = hint.unit, -hint.range, hint.range, hint.step
+  out.name = d.name .. ' (' .. hint.name .. ')'
+  return out
+end
+
 function M.apply(binding, params, title)
   M.check(binding)
   local inst, by_id, writes = M.instrument(binding.kind), {}, {}
@@ -678,7 +689,16 @@ M.ACTIONS = {
   get = { about = 'Every parameter value (tuning included; instrument may be Tuning): {track, instrument, fx}', run = function(req)
     local binding, track = bind_request(req)
     local values = M.read(binding)
-    return { ok = true, track = M.track_name(track), instrument = binding.kind, fx = binding.fx, values = values, labels = with_labels(binding.kind, values) }
+    local display = {}
+    for _, d in ipairs(M.instrument(binding.kind).parameters) do
+      if d.modulation then
+        local hint = M.parameter_display(d, values)
+        display[d.id] = { name = hint.name, unit = hint.unit, suggested_min = hint.suggested_min,
+          suggested_max = hint.suggested_max, fine_step = hint.fine_step }
+      end
+    end
+    return { ok = true, track = M.track_name(track), instrument = binding.kind, fx = binding.fx, values = values,
+      labels = with_labels(binding.kind, values), display = display }
   end },
   set = { about = 'Write parameters in real units (enum labels accepted; tuning and Tuning JSFX sliders allowed; read-only and file sliders rejected): {track, instrument, fx, params}', run = function(req)
     assert(type(req.params) == 'table' and next(req.params), '"params" must be a non-empty object of id: real value')
