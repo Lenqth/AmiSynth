@@ -24,7 +24,7 @@
 // at "pitch" (key + transpose), so changing the transpose while notes sound never leaves one hanging.
 
 import {
-  adsr_gate_off, adsr_gate_on, adsr_init, adsr_process, adsr_set, chorus_clear, chorus_init, chorus_process,
+  adsr_gate_off, adsr_gate_on, adsr_init, adsr_process, adsr_resume, adsr_set, chorus_clear, chorus_init, chorus_process,
   CHORUS_BASE_MS, clamp, db_to_gain, echo_clear, echo_init, echo_process, lfo_init, lfo_process, lfo_process_at, lfo_wave, pan_gains,
   noise_seed, noise_white, random_unit, osc_init, osc_process, osc_reset, reverb_clear, reverb_init, reverb_process, reverb_set,
   osc_set_freq, osc_sync_to, smoother_init, smoother_process, smoother_set, soft_clip, svf_copy_coefs,
@@ -44,6 +44,12 @@ const ARP_DOWN = 2;
 const ARP_UPDOWN = 3;
 const ARP_RANDOM = 4;
 const ARP_CHORD = 6; // 5 = as played
+// Arp Retrigger
+const ARP_RETRIG_CHORD = 1;
+const ARP_RETRIG_BAR = 2;
+const ARP_RETRIG_FREE = 3;
+/** New Chord: a key pressed this long after the previous key press starts a new chord */
+const ARP_CHORD_MS = 50;
 
 // mod matrix sources / destinations (indices into MOD_SOURCES / MOD_DESTINATIONS in params.js)
 const SRC_LFO1 = 1;
@@ -228,8 +234,13 @@ export function synth_init(s, sr) {
     snd: new Array(MAX_HELD).fill(0), snd_n: 0,
     ord_key: new Array(MAX_HELD).fill(0), ord_vel: new Array(MAX_HELD).fill(0),
     new_key: new Array(MAX_HELD).fill(0), new_vel: new Array(MAX_HELD).fill(0),
-    last: 0, off_pos: 0, idx: 0,
+    last: 0, off_pos: 0, idx: 0, bar: 0, since_key: 1e9,
   };
+  s.arp_retrig = 0;
+  s.bar_beats = 4; // beats (quarter notes) per bar, from the host time signature
+  // legato window: samples since the last note-off (a new note within the window counts as legato)
+  s.off_gap = 1e9;
+  s.legato_window = 0;
   s.arp_pattern = new Array(16).fill(1);
   s.arp_mode = 0;
   s.cc_cutoff_value = 64; // last value of the cutoff CC (64 = centre, no change)
@@ -302,6 +313,7 @@ export function synth_update(s, p) {
   s.cc_mult = Math.pow(2, clamp((s.cc_cutoff_value - 64) / 63, -1, 1) * p.cc_cutoff_depth_oct);
   s.mono = p.voice_mode >= 0.5 ? 1 : 0;
   s.legato = p.voice_mode >= 1.5 ? 1 : 0;
+  s.legato_window = Math.max(0, p.legato_window_ms) * 0.001 * s.sr;
   // wavetable oscillators: build the selected banks (once; the tables do not depend on the sample rate)
   s.wt1 = p.osc1_waveform >= 3.5 ? 1 : 0;
   s.wt2 = p.osc2_waveform >= 3.5 ? 1 : 0;
@@ -339,6 +351,7 @@ export function synth_update(s, p) {
   s.arp_gate = clamp(p.arp_gate, 0.05, 1);
   s.arp_swing = clamp((2 * p.arp_swing_percent) / 100 - 1, 0, 0.5); // delay of every 2nd step, in steps
   s.arp_steps = clamp(Math.round(p.arp_steps), 1, 16);
+  s.arp_retrig = clamp(Math.round(p.arp_retrigger), 0, ARP_RETRIG_FREE);
   for (let i = 0; i < 16; i++) s.arp_pattern[i] = p[`arp_step_${i + 1}`] >= 0.5 ? 1 : 0;
 
   // Effects. Switching one on clears its memory, so no stale tail from earlier comes back.
@@ -389,8 +402,10 @@ export function synth_set_scale(s, cents_list, count) {
  * Host transport (JSFX: tempo / play_state / beat_position at the start of @block).
  * bpm > 0 sets the tempo; while playing, the beat position is resynced to the host's.
  * When stopped the beat keeps counting at the last tempo, so the arpeggiator and a synced LFO still run.
+ * barBeats: quarter notes per bar (time signature num * 4 / denom; the web version is always 4).
  */
-export function synth_transport(s, bpm, playing, beat) {
+export function synth_transport(s, bpm, playing, beat, barBeats = 4) {
+  if (barBeats > 0) s.bar_beats = barBeats;
   if (bpm > 0) {
     s.tempo = bpm;
     s.beat_inc = bpm / 60 / s.sr;
@@ -460,7 +475,7 @@ function voice_reset(s, v) {
 
 function poly_note_on(s, key, pitch, velocity) {
   const n = voice_limit(s);
-  const held = s.glide_legato ? any_gate(s) : 1;
+  const held = s.glide_legato ? any_gate(s) || s.off_gap < s.legato_window : 1;
   // Retrigger a voice already playing this key, otherwise allocate.
   let idx = -1;
   for (let i = 0; i < n; i++) if (s.voices[i].active && s.voices[i].note === key) idx = i;
@@ -532,6 +547,11 @@ function mono_play(s, key, pitch, velocity, retrig, overlap) {
     adsr_gate_on(v.filt_env);
     adsr_gate_on(v.mod_env);
     v.rnd = mod_random(s);
+  } else {
+    // legato: a note inside the Legato Window takes the envelopes back from their release
+    adsr_resume(v.amp_env);
+    adsr_resume(v.filt_env);
+    adsr_resume(v.mod_env);
   }
 }
 
@@ -564,7 +584,7 @@ function mono_note_on(s, key, pitch, velocity) {
   s.stack_vel[s.stack_n] = velocity;
   s.stack_n++;
   const v = s.voices[0];
-  const overlap = v.active && v.gate ? 1 : 0;
+  const overlap = v.active && (v.gate || s.off_gap < s.legato_window) ? 1 : 0;
   mono_play(s, key, pitch, velocity, s.legato && overlap ? 0 : 1, overlap);
 }
 
@@ -584,6 +604,7 @@ function engine_on(s, key, pitch, velocity) {
 }
 
 function engine_off(s, key) {
+  s.off_gap = 0;
   if (s.mono) mono_note_off(s, key);
   // releases voice 0 when no other key is held, and any voice left from a mode change
   poly_note_off(s, key);
@@ -604,12 +625,17 @@ function arp_key_on(s, key, velocity) {
   if (a.n >= MAX_HELD) return;
   if (a.n === 0) {
     // first key: start from the bottom of the pattern and play the current step at once (a key
-    // pressed in the last 10 % of a step waits for the next one instead)
+    // pressed in the last 10 % of a step waits for the next one instead). Free Run keeps its
+    // place, which follows the step count.
     const pos = s.beat / s.arp_step_beats;
     const k = Math.floor(pos + 0.000001);
     a.idx = 0;
     a.last = pos - k > 0.9 ? k : k - 1;
+  } else if (s.arp_retrig === ARP_RETRIG_CHORD && a.since_key > ARP_CHORD_MS * 0.001 * s.sr) {
+    // New Chord: a chord changed while keys are held starts from the bottom on the next step
+    a.idx = 0;
   }
+  a.since_key = 0;
   a.key[a.n] = key;
   a.vel[a.n] = velocity;
   a.n++;
@@ -660,6 +686,7 @@ function arp_fire(s) {
       a.ord_vel[j] = a.vel[i];
     }
     const len = n * s.arp_octaves;
+    if (s.arp_retrig === ARP_RETRIG_FREE) a.idx = Math.max(0, a.last); // the step number since the song start
     let i;
     if (s.arp_mode === ARP_DOWN) i = len - 1 - (a.idx % len);
     else if (s.arp_mode === ARP_UPDOWN) {
@@ -699,11 +726,16 @@ function arp_tick(s) {
   const pos = s.beat / s.arp_step_beats;
   const k = Math.floor(pos + 0.000001);
   let fired = 0;
+  if (a.since_key < 1e9) a.since_key++;
   if (a.n > 0 && k !== a.last) {
     const odd = k - 2 * Math.floor(k / 2);
     const start = k + odd * s.arp_swing;
     if (pos >= start - 0.000001) {
       a.last = k;
+      // Every Bar: the first step that starts in a new bar goes back to the first note
+      const bar = Math.floor((k * s.arp_step_beats) / s.bar_beats + 0.000001);
+      if (s.arp_retrig === ARP_RETRIG_BAR && bar !== a.bar) a.idx = 0;
+      a.bar = bar;
       const step = k - s.arp_steps * Math.floor(k / s.arp_steps);
       if (s.arp_pattern[step]) {
         fired = 1;
@@ -803,6 +835,7 @@ export function synth_render(s) {
   const p = s.p;
   const sr = s.sr;
 
+  if (s.off_gap < 1e9) s.off_gap++;
   if (s.arp_mode > 0) arp_tick(s);
 
   // ---- global modulation (once per sample)

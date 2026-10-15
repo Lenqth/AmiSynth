@@ -1,5 +1,5 @@
 -- @description AmiSynth toolkit: Lua function library for presets/macros/real-unit parameter writes; dofile dependency, not an executable action.
--- @about Direct script_run only returns a Lua module and makes no project change or MCP result. Use local ami=dofile(path); ami.bind(track, zero_based_fx, synth|phys|drums|tuning) validates track, FX name, slider names/ranges. ami.preset(binding,name), ami.macro(binding,name,amount_0_to_1), ami.apply(binding,id_to_real_value), ami.read(binding), ami.save(binding,name), plus ami.apply_sound(request)/ami.read_sound(request) behind the AmiSynth - Apply sound / Read sound actions, are available; writes verify readback, rollback on failure and support Undo. Preserve ../generated/catalog.lua; never treat Hz/ms/dB as normalized 0-1. Use a dedicated wrapper to choose the target and publish reaper_mcp_script_result/last_result.
+-- @about Direct script_run only returns a Lua module and makes no project change or MCP result. Use local ami=dofile(path); ami.bind(track, zero_based_fx, synth|phys|drums|tuning) validates track, FX name, slider names/ranges. ami.preset(binding,name), ami.macro(binding,name,amount_0_to_1), ami.apply(binding,id_to_real_value), ami.read(binding), ami.save(binding,name), plus ami.apply_sound(request)/ami.read_sound(request) behind the AmiSynth - Apply sound / Read sound actions, ami.create_drum_tracks(request) and ami.run_request(request) (the action table behind AmiSynth - Run.lua) are available; writes verify readback, rollback on failure and support Undo. Preserve ../generated/catalog.lua; never treat Hz/ms/dB as normalized 0-1. Use a dedicated wrapper to choose the target and publish reaper_mcp_script_result/last_result.
 -- Shared by the UI and callable from a ReaScript/MCP Lua runner.
 -- All writes use real units and verify the host's layout/range and readback.
 local dir = debug.getinfo(1, 'S').source:sub(2):match('^(.*[/\\])')
@@ -49,6 +49,7 @@ function M.apply(binding, params, title)
   for id, value in pairs(params) do
     local d = assert(by_id[id], 'Unknown parameter: ' .. id)
     assert(not d.file, 'File indices are local to the Data folder; use the native file selector')
+    assert(not d.readonly, 'Read-only status parameter: ' .. id)
     assert(type(value) == 'number' and value == value and value >= d.min and value <= d.max, 'Out of range: ' .. id)
     assert(d.step < 1 or value == math.floor(value), 'Expected integer: ' .. id)
     writes[#writes + 1] = { def = d, value = value, old = reaper.TrackFX_GetParam(binding.track, binding.fx, d.paramIndex) }
@@ -267,7 +268,7 @@ function M.sound_kind(name)
   return aliases[key] or error('Unknown instrument: ' .. tostring(name) .. ' (use Synth, Physical or Drums)', 0)
 end
 
-local function editable(d) return not d.file and not d.id:match('^tuning_') end
+local function editable(d) return not d.file and not d.readonly and not d.id:match('^tuning_') end
 
 -- Validate a diff without touching REAPER. Clamps like the web paste; enum labels are accepted.
 -- Returns clean {id = value}, clamped and rejected lists (each item has a reason).
@@ -495,16 +496,51 @@ function M.read_sound(req)
     tuning = tuning, meter = M.track_meter(track) }
 end
 
--- Request lookup: ExtState AmiSynthMCP/<key> (consumed), else Scripts/AmiSynth/<key>.json.
+-- A request written in the project notes: a block that starts with a line "```amisynth <key>"
+-- (or "<<<amisynth <key>") and ends with a line "```" (or ">>>"). Notes are never changed.
+function M.notes_request(notes, key)
+  if type(notes) ~= 'string' then return nil end
+  local lines, body = {}, nil
+  for line in (notes .. '\n'):gmatch('([^\n]*)\n') do
+    line = line:gsub('\r$', '')
+    if body then
+      if line:match('^%s*```%s*$') or line:match('^%s*>>>%s*$') then return table.concat(body, '\n') end
+      body[#body + 1] = line
+    elseif line:match('^%s*```%s*amisynth%s+' .. key:gsub('%p', '%%%0') .. '%s*$')
+      or line:match('^%s*<<<%s*amisynth%s+' .. key:gsub('%p', '%%%0') .. '%s*$') then
+      body = {}
+    end
+  end
+  return nil
+end
+
+-- Request lookup, first found wins:
+--   1. ExtState AmiSynthMCP/<key> (consumed)
+--   2. project ExtState AmiSynthMCP/<key> (saved with the project; consumed)
+--   3. a ```amisynth <key> block in the project notes (left in place)
+--   4. Scripts/AmiSynth/<key>.json (left in place)
 function M.request(key, script_dir)
   local text, source = reaper.GetExtState(M.REQUEST_SECTION, key), 'ExtState ' .. M.REQUEST_SECTION .. '/' .. key
   if text ~= nil and text ~= '' then
     reaper.DeleteExtState(M.REQUEST_SECTION, key, false)
   else
     text = nil
-    local path = (script_dir or dir) .. '../' .. key .. '.json'
-    local file = io.open(path, 'r')
-    if file then text = file:read('*a'); file:close(); source = path end
+    if reaper.GetProjExtState then
+      local _, value = reaper.GetProjExtState(0, M.REQUEST_SECTION, key)
+      if value ~= nil and value ~= '' then
+        text, source = value, 'project ExtState ' .. M.REQUEST_SECTION .. '/' .. key
+        reaper.SetProjExtState(0, M.REQUEST_SECTION, key, '')
+      end
+    end
+    if text == nil and reaper.GetSetProjectNotes then
+      text = M.notes_request(reaper.GetSetProjectNotes(0, false, ''), key)
+      if text then source = 'project notes (amisynth ' .. key .. ')' end
+    end
+    if text == nil then
+      local path = (script_dir or dir) .. '../' .. key .. '.json'
+      local file = io.open(path, 'r')
+      if file then text = file:read('*a'); file:close(); source = path end
+    end
   end
   if text == nil or not text:match('%S') then return nil, 'none' end
   local ok, value = pcall(M.json_decode, text)
@@ -520,7 +556,213 @@ function M.publish(ok, value)
   return text
 end
 
--- Shared body of the two MCP actions.
+-- ---- Drums: one 10-channel instrument track + four stereo audio buses ----------------------
+
+M.DRUM_TRACKS = {
+  { name = 'AmiSynth Drums - MIDI', role = 'instrument' },
+  { name = 'Kick', role = 'kick', channels = '3/4' },
+  { name = 'Snare - Clap - Rim', role = 'snare', channels = '5/6' },
+  { name = 'Hats - Cymbals', role = 'hats', channels = '7/8' },
+  { name = 'Toms - Percussion', role = 'perc', channels = '9/10' },
+}
+
+-- Creates the five tracks after the last one (existing tracks are untouched), one Undo step.
+-- Returns where they are: track numbers are 1-based as in the REAPER track list, index 0-based.
+function M.create_drum_tracks(req)
+  req = req or {}
+  assert(type(req) == 'table', 'Request must be a JSON object')
+  local created = {}
+  local summary
+  reaper.Undo_BeginBlock2(0)
+  local ok, err = pcall(function()
+    local at = reaper.CountTracks(0)
+    for i, t in ipairs(M.DRUM_TRACKS) do
+      reaper.InsertTrackAtIndex(at + i - 1, true)
+      local track = reaper.GetTrack(0, at + i - 1)
+      created[#created + 1] = track
+      reaper.GetSetMediaTrackInfo_String(track, 'P_NAME', t.name, true)
+    end
+    local source = created[1]
+    reaper.SetMediaTrackInfo_Value(source, 'I_NCHAN', 10)
+    local fx = reaper.TrackFX_AddByName(source, 'JS: AmiSynth/AmiSynth Drums.jsfx', false, -1)
+    assert(fx >= 0, 'Install the JSFX in Effects/AmiSynth first')
+    -- Explicit identity mapping: output pins 1..10 go to track channels 1..10.
+    for pin = 0, 9 do assert(reaper.TrackFX_SetPinMappings(source, fx, 1, pin, 1 << pin, 0), 'Pin mapping failed') end
+    local binding = M.bind(source, fx, 'drums')
+    M.apply(binding, { kick_bus_in_main = 0, snare_bus_in_main = 0, hats_bus_in_main = 0, perc_bus_in_main = 0 }, false)
+    reaper.SetMediaTrackInfo_Value(source, 'B_MAINSEND', 0)
+    for i = 1, 4 do
+      local send = reaper.CreateTrackSend(source, created[i + 1])
+      assert(send >= 0, 'Could not create audio bus')
+      reaper.SetTrackSendInfo_Value(source, 0, send, 'I_SRCCHAN', i * 2)
+      reaper.SetTrackSendInfo_Value(source, 0, send, 'I_DSTCHAN', 0)
+      reaper.SetTrackSendInfo_Value(source, 0, send, 'I_MIDIFLAGS', 31) -- no MIDI on audio buses
+      reaper.SetTrackSendInfo_Value(source, 0, send, 'I_SENDMODE', 0) -- post fader
+      reaper.SetTrackSendInfo_Value(source, 0, send, 'D_VOL', 1)
+    end
+    -- Only the freshly created instrument becomes selected.
+    if req.select ~= false then reaper.SetOnlyTrackSelected(source) end
+    local tracks = M.array()
+    for i, t in ipairs(M.DRUM_TRACKS) do
+      tracks[i] = { number = at + i, index = at + i - 1, name = t.name, role = t.role,
+        source_channels = t.channels, guid = reaper.GetTrackGUID and reaper.GetTrackGUID(created[i]) or nil }
+    end
+    summary = { ok = true, tracks = tracks, instrument = { track = at + 1, index = at, fx = fx, name = M.DRUM_TRACKS[1].name },
+      selected = req.select ~= false,
+      note = 'The instrument track sends its outputs 3-10 to the four bus tracks (post fader, no MIDI); its own main output is off. Put MIDI on the instrument track.' }
+  end)
+  if not ok then
+    for i = #created, 1, -1 do reaper.DeleteTrack(created[i]) end
+  end
+  reaper.TrackList_AdjustWindows(false)
+  reaper.UpdateArrange()
+  reaper.Undo_EndBlock2(0, 'AmiSynth Drums: create four routed audio buses', -1)
+  if not ok then error(err, 0) end
+  return summary
+end
+
+-- ---- Generic MCP entry point (AmiSynth - Run.lua): {"action": "...", ...} ---------------
+
+-- synth / phys / drums (as M.sound_kind) or tuning
+local function any_kind(name)
+  if name ~= nil and tostring(name):lower():gsub('^amisynth%-', '') == 'tuning' then return 'tuning' end
+  return M.sound_kind(name)
+end
+
+-- Bind an AmiSynth FX on a request's track (never inserts one).
+local function bind_request(req)
+  local track = M.find_track(req.track)
+  local kind = any_kind(req.instrument or req.type)
+  if kind == 'tuning' then
+    for fx = 0, reaper.TrackFX_GetCount(track) - 1 do
+      local _, name = reaper.TrackFX_GetFXName(track, fx, '')
+      if name:find('AmiSynth Tuning', 1, true) and (req.fx == nil or req.fx == fx) then return M.bind(track, fx, 'tuning'), track end
+    end
+    error('No AmiSynth Tuning on the track' .. (req.fx and (' at FX ' .. req.fx) or ''), 0)
+  end
+  local fx, k = M.locate(track, kind, req.fx, false)
+  return M.bind(track, fx, k), track
+end
+
+local function with_labels(kind, values)
+  local labels = {}
+  for _, d in ipairs(M.instrument(kind).parameters) do
+    if d.options and values[d.id] then labels[d.id] = d.options[math.floor(values[d.id] + 0.5) + 1] end
+  end
+  return labels
+end
+
+M.ACTIONS = {
+  help = { about = 'List the actions and their request fields', run = function()
+    local out = {}
+    for name, a in pairs(M.ACTIONS) do out[name] = a.about end
+    return { ok = true, actions = out }
+  end },
+  list = { about = 'Tracks with AmiSynth FX: [{number, name, fx:[{fx, kind, name}]}]; no fields', run = function()
+    local tracks = M.array()
+    for i = 0, reaper.CountTracks(0) - 1 do
+      local track = reaper.GetTrack(0, i)
+      local fx = M.array()
+      for j = 0, reaper.TrackFX_GetCount(track) - 1 do
+        local _, name = reaper.TrackFX_GetFXName(track, j, '')
+        for kind, title in pairs(M.TITLES) do
+          if name:find('AmiSynth ' .. title, 1, true) then fx[#fx + 1] = { fx = j, kind = kind, name = name } end
+        end
+      end
+      if #fx > 0 then tracks[#tracks + 1] = { number = i + 1, index = i, name = M.track_name(track), fx = fx } end
+    end
+    return { ok = true, tracks = tracks }
+  end },
+  read_sound = { about = 'Same as AmiSynth - Read sound.lua: {track, instrument, fx}', run = function(req) return M.read_sound(req) end },
+  apply_sound = { about = 'Same as AmiSynth - Apply sound.lua: {track, instrument, base, params, fx, insert, dry_run}', run = function(req) return M.apply_sound(req) end },
+  get = { about = 'Every parameter value (tuning included; instrument may be Tuning): {track, instrument, fx}', run = function(req)
+    local binding, track = bind_request(req)
+    local values = M.read(binding)
+    return { ok = true, track = M.track_name(track), instrument = binding.kind, fx = binding.fx, values = values, labels = with_labels(binding.kind, values) }
+  end },
+  set = { about = 'Write parameters in real units (enum labels accepted; tuning and Tuning JSFX sliders allowed; read-only and file sliders rejected): {track, instrument, fx, params}', run = function(req)
+    assert(type(req.params) == 'table' and next(req.params), '"params" must be a non-empty object of id: real value')
+    local binding, track = bind_request(req)
+    local by_id, params = {}, {}
+    for _, d in ipairs(M.instrument(binding.kind).parameters) do by_id[d.id] = d end
+    for id, v in pairs(req.params) do
+      local d = by_id[id]
+      if d and d.options and type(v) == 'string' then
+        for i, label in ipairs(d.options) do if label:lower() == v:lower() then v = i - 1; break end end
+        assert(type(v) == 'number', id .. ': expected one of ' .. table.concat(d.options, ', '))
+      end
+      params[id] = v
+    end
+    local values = M.apply(binding, params, 'AmiSynth MCP: set (' .. M.track_name(track) .. ')')
+    local written = {}
+    for id in pairs(params) do written[id] = values[id] end
+    return { ok = true, track = M.track_name(track), instrument = binding.kind, fx = binding.fx, written = written }
+  end },
+  presets = { about = 'Built-in and user preset names: {instrument}', run = function(req)
+    local kind = M.sound_kind(req.instrument or req.type or 'synth')
+    local builtin, user = M.array(), M.array()
+    for _, p in ipairs(M.instrument(kind).presets) do builtin[#builtin + 1] = { name = p.name, category = p.category } end
+    for _, p in ipairs(M.users(kind)) do user[#user + 1] = p.name end
+    return { ok = true, instrument = kind, builtin = builtin, user = user }
+  end },
+  preset = { about = 'Load a built-in or user preset (tuning kept): {track, instrument, fx, name}', run = function(req)
+    assert(type(req.name) == 'string', '"name" must be a preset name')
+    local binding, track = bind_request(req)
+    local values
+    for _, p in ipairs(M.instrument(binding.kind).presets) do
+      if p.name == req.name then values = M.preset(binding, req.name) end
+    end
+    if not values then
+      for _, p in ipairs(M.users(binding.kind)) do
+        if p.name == req.name then values = M.apply(binding, p.params, 'AmiSynth preset: ' .. p.name) end
+      end
+    end
+    assert(values, 'Unknown preset: ' .. req.name)
+    return { ok = true, track = M.track_name(track), instrument = binding.kind, fx = binding.fx, preset = req.name,
+      sound = { type = 'amisynth-' .. binding.kind .. '-preset', params = M.diff(binding.kind, values) } }
+  end },
+  macro = { about = 'Synth macro Brightness / Punch / Width / Pump, amount 0..1: {track, fx, name, amount}', run = function(req)
+    local binding, track = bind_request({ track = req.track, fx = req.fx, instrument = req.instrument or 'synth' })
+    local values = M.macro(binding, req.name, req.amount)
+    return { ok = true, track = M.track_name(track), fx = binding.fx, macro = req.name, amount = req.amount,
+      sound = { type = 'amisynth-' .. binding.kind .. '-preset', params = M.diff(binding.kind, values) } }
+  end },
+  save_preset = { about = 'Save the current sound as a user preset (REAPER ExtState, tuning excluded): {track, instrument, fx, name}', run = function(req)
+    assert(type(req.name) == 'string', '"name" must be a preset name')
+    local binding, track = bind_request(req)
+    M.save(binding, req.name)
+    return { ok = true, track = M.track_name(track), instrument = binding.kind, saved = req.name }
+  end },
+  create_drum_tracks = { about = 'Same as AmiSynth Drums - Create routed tracks.lua: {select}', run = function(req) return M.create_drum_tracks(req) end },
+}
+
+-- One action, or {"actions": [ ... ]} run in order (stops at the first error; earlier ones stay done).
+function M.run_request(req)
+  assert(type(req) == 'table', 'Request must be a JSON object')
+  if req.actions ~= nil then
+    assert(type(req.actions) == 'table' and #req.actions > 0, '"actions" must be a non-empty array of requests')
+    local results = M.array()
+    for i, a in ipairs(req.actions) do
+      local ok, r = pcall(M.run_request, a)
+      if not ok then
+        error('action ' .. i .. ' (' .. tostring(type(a) == 'table' and a.action) .. ') failed: ' .. tostring(r):gsub('^[^\n]-%.lua:%d+: ', '')
+          .. (i > 1 and ('; actions 1-' .. (i - 1) .. ' were done') or ''), 0)
+      end
+      results[i] = r
+    end
+    return { ok = true, results = results }
+  end
+  local names = {}
+  for name in pairs(M.ACTIONS) do names[#names + 1] = name end
+  table.sort(names)
+  local action = M.ACTIONS[req.action]
+  assert(action, 'Unknown action: ' .. tostring(req.action) .. ' (one of ' .. table.concat(names, ', ') .. ')')
+  local result = action.run(req)
+  result.action = req.action
+  return result
+end
+
+-- Shared body of the MCP actions.
 function M.run_action(key, fn, script_dir, required)
   local ok, result = pcall(function()
     local req, source = M.request(key, script_dir)

@@ -37,3 +37,5 @@ slider35:scale_degree_29=2900<0,4800,0.001>Degree 29 [cents]
 slider36:scale_degree_30=3000<0,4800,0.001>Degree 30 [cents]
 slider37:scale_degree_31=3100<0,4800,0.001>Degree 31 [cents]
 slider38:scale_degree_32=3200<0,4800,0.001>Degree 32 [cents]
+slider39:scale_status=0<0,3,1{Sliders,File loaded,File not found,File format error}>Scale Status (read only)
+slider40:scale_loaded_notes=12<0,255,1>Scale Notes In Use (read only) [notes]

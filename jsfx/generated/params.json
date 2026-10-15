@@ -1750,6 +1750,34 @@
       "step": 0.001,
       "unit": "",
       "description": "Mod matrix slot 4: how far the destination moves at source value 1, in the destination's unit: Pitch / Osc2 Pitch in cents, Filter Cutoff / LFO Rate in octaves, FM Index in rad, Amp in dB, Resonance / Pulse Width / Noise Level added to the knob value (0..1), Pan -1 (left) .. +1 (right). Negative values invert."
+    },
+    {
+      "id": "arp_retrigger",
+      "name": "Arp Retrigger",
+      "group": "Arpeggiator",
+      "min": 0,
+      "max": 3,
+      "default": 0,
+      "step": 1,
+      "unit": "",
+      "options": [
+        "First Key",
+        "New Chord",
+        "Every Bar",
+        "Free Run"
+      ],
+      "description": "When the arpeggio goes back to its first note. First Key: only when a key is pressed with none held. New Chord: also when a key is pressed more than 50 ms after the previous key press (a chord changed while the old one is still held starts from its first note on the next step; notes of one chord may arrive up to 50 ms apart). Every Bar: also at every bar line (host time signature; the web version is 4/4). Free Run: never - the position follows the host step count, as if the arpeggio had been running since the start of the song."
+    },
+    {
+      "id": "legato_window_ms",
+      "name": "Legato Window",
+      "group": "Voice",
+      "min": 0,
+      "max": 100,
+      "default": 0,
+      "step": 0.1,
+      "unit": "ms",
+      "description": "Mono / Legato and Glide Mode \"Legato only\": a note that starts within this time after the previous note was released still counts as overlapping (Legato does not restart the envelopes, legato glide glides). For MIDI whose notes touch end to start or leave a small gap. 0 = notes must really overlap."
     }
   ],
   "phys": [
@@ -2475,9 +2503,9 @@
       "options": [
         "Off",
         "Auto (strings / piano / modal)",
-        "On (all models)"
+        "All models (CC64)"
       ],
-      "description": "MIDI CC64 delays note-off damping until pedal release. Auto supports plucked strings, piano and modal materials except Drum Membrane; bowed, wind, brass and mesh ignore it. On sustains all models. Natural decay still continues."
+      "description": "Which models follow the MIDI sustain pedal (CC64): while it is down, note-off damping waits for the pedal release. Off: the pedal is ignored. Auto: plucked strings, piano and modal materials except Drum Membrane; bowed, wind, brass and mesh ignore it. All models (CC64): every model follows the pedal (this does not hold the pedal down by itself). Natural decay still continues."
     },
     {
       "id": "phys_pressure_excitation",
@@ -2709,6 +2737,21 @@
       "step": 0.001,
       "unit": "",
       "description": "Sitar / tanpura bridge (jawari): the string grazes a flat curved bridge on every swing, which keeps folding energy into the high partials - the sustained buzz. Higher = the string lies on the bridge for more of each cycle. 0 = an ordinary bridge."
+    },
+    {
+      "id": "amp_auto_level",
+      "name": "Amp Auto Level",
+      "group": "Amp",
+      "min": 0,
+      "max": 1,
+      "default": 0,
+      "step": 1,
+      "unit": "",
+      "options": [
+        "Off",
+        "On"
+      ],
+      "description": "On: the amp keeps about the loudness of the instrument without the amp, whatever the Amp type and Amp Gain (more gain = more distortion, not louder); Amp Level then trims from there. Off: the louder the gain, the louder the output (set Amp Level by ear)."
     }
   ],
   "drums": [
@@ -4610,6 +4653,36 @@
       "step": 0.001,
       "unit": "cents",
       "description": "Pitch of scale degree 32 above the reference, in cents (Scala order: degree 0 = 0 cents is implied; degree Scale Size = the period)."
+    },
+    {
+      "id": "scale_status",
+      "name": "Scale Status (read only)",
+      "group": "Status",
+      "min": 0,
+      "max": 3,
+      "default": 0,
+      "step": 1,
+      "unit": "",
+      "readonly": true,
+      "options": [
+        "Sliders",
+        "File loaded",
+        "File not found",
+        "File format error"
+      ],
+      "description": "Read only. Sliders: Scale Source is Sliders. File loaded: the Scale File was read. File not found / File format error: the file could not be opened or is not a valid Scala scale (needs a description line, the note count, then that many pitches); the Degree sliders are used instead."
+    },
+    {
+      "id": "scale_loaded_notes",
+      "name": "Scale Notes In Use (read only)",
+      "group": "Status",
+      "min": 0,
+      "max": 255,
+      "default": 12,
+      "step": 1,
+      "unit": "notes",
+      "readonly": true,
+      "description": "Read only. Notes per period of the scale this slot publishes (from the file, or Scale Size when the sliders are used)."
     }
   ]
 }

@@ -13,7 +13,9 @@ import { resolvePreset } from '../src/lib/presets.js';
 import { SYNTH_PRESETS } from '../src/presets/synth.js';
 import { PHYS_PRESETS } from '../src/presets/phys.js';
 import { DRUM_PRESETS } from '../src/presets/drums.js';
-import { DRUM_PARTS } from '../src/dsp/params.js';
+import { DRUM_PARTS, TUNING_HOLDER_PARAMS } from '../src/dsp/params.js';
+
+const holderSlider = (id) => TUNING_HOLDER_PARAMS.findIndex((d) => d.id === id) + 1;
 import { parseScale } from '../src/lib/tuning.js';
 
 const BIN = process.env.JSFX_RENDER || join(import.meta.dirname, '..', '.cache', process.platform === 'win32' ? 'jsfx_render.exe' : 'jsfx_render');
@@ -235,6 +237,42 @@ test('JSFX synth matches JS: arpeggiator in every mode, synced to the host tempo
   checkHost('synth', chord, ARP_PLAY, 0.75, 'synth/arp chord stabs 19-EDO', { tempo: 155, playing: 1 });
 });
 
+// chord held over a bar line, an overlapping chord change, a gap, notes of one chord 10 ms apart
+const ARP_RETRIG_PLAY = [
+  [0, 0x90, 60, 100], [0, 0x90, 64, 90], [0, 0x90, 67, 80],
+  [40000, 0x90, 62, 100], [40000, 0x90, 65, 90], [40000, 0x90, 69, 80],
+  [41000, 0x80, 60, 0], [41000, 0x80, 64, 0], [41000, 0x80, 67, 0],
+  [80000, 0x80, 62, 0], [80000, 0x80, 65, 0], [80000, 0x80, 69, 0],
+  [86000, 0x90, 57, 110], [86480, 0x90, 60, 100], [86960, 0x90, 64, 100],
+  [110000, 0x80, 57, 0], [110000, 0x80, 60, 0], [110000, 0x80, 64, 0],
+];
+
+test('JSFX synth matches JS: arp retrigger (new chord / every bar / free run) and the legato window', { skip: !HAVE && 'jsfx_render not built' }, () => {
+  const pluck = { amp_attack_ms: 1, amp_decay_ms: 200, amp_sustain: 0.3, amp_release_ms: 60 };
+  for (let retrig = 1; retrig <= 3; retrig++) {
+    for (const mode of [1, 3]) {
+      const p = scenario('synth', { ...pluck, arp_mode: mode, arp_octaves: 2, arp_rate: 4, arp_retrigger: retrig });
+      checkHost('synth', p, ARP_RETRIG_PLAY, 2.4, `synth/arp retrigger ${retrig} mode ${mode}`, { tempo: 155, playing: 1 });
+    }
+  }
+  // legato notes that leave small gaps (2 ms, 6 ms, 30 ms) with a 10 ms window
+  const gaps = [
+    [0, 0x90, 60, 100], [9000, 0x80, 60, 0], [9096, 0x90, 63, 100], [18000, 0x80, 63, 0],
+    [18288, 0x90, 67, 100], [27000, 0x80, 67, 0], [28440, 0x90, 70, 100], [36000, 0x80, 70, 0],
+  ];
+  for (const [label, over] of [
+    ['legato', { voice_mode: 2, glide_ms: 60, glide_mode: 1 }],
+    ['mono', { voice_mode: 1, glide_ms: 60, glide_mode: 1 }],
+    ['poly glide', { glide_ms: 60, glide_mode: 1 }],
+  ]) {
+    const p = scenario('synth', { amp_attack_ms: 30, amp_sustain: 0.8, amp_release_ms: 200, legato_window_ms: 10, ...over });
+    checkHost('synth', p, gaps, 0.9, `synth/legato window ${label}`, { tempo: 120, playing: 1 });
+  }
+  // the arpeggiator with gate 1 and a window slurs in Legato mode
+  const slur = scenario('synth', { ...pluck, arp_mode: 1, arp_rate: 4, arp_gate: 0.95, voice_mode: 2, legato_window_ms: 20 });
+  checkHost('synth', slur, ARP_PLAY, 0.75, 'synth/arp gate 0.95 + legato window', { tempo: 140, playing: 1 });
+});
+
 test('JSFX synth matches JS: mono / legato, transpose, 9-voice unison, synced LFO', { skip: !HAVE && 'jsfx_render not built' }, () => {
   const lines = [
     ['mono', { voice_mode: 1, glide_ms: 60 }],
@@ -380,6 +418,27 @@ test('JSFX reads the shared Scala scale file (Data/AmiSynth/tuning.txt) like the
   assert.ok(r.snrDb > MIN_SNR_DB, `fallback differs (SNR ${r.snrDb.toFixed(1)} dB)`);
 });
 
+test('AmiSynth Tuning shows the scale file status and note count in its read-only sliders', { skip: !HAVE && 'jsfx_render not built' }, () => {
+  const status = (contents, sliders) => {
+    const dir = mkdtempSync(join(tmpdir(), 'amistatus-'));
+    const dataRoot = join(dir, 'Data');
+    mkdirSync(join(dataRoot, 'AmiSynth'), { recursive: true });
+    if (contents !== null) writeFileSync(join(dataRoot, 'AmiSynth', 'tuning.txt'), contents);
+    const script = [...Object.entries(sliders).map(([id, v]) => `slider ${holderSlider(id)} ${v}`), `dataroot ${dataRoot}`,
+      `printslider ${holderSlider('scale_status')}`, `printslider ${holderSlider('scale_loaded_notes')}`].join('\n');
+    writeFileSync(join(dir, 'script.txt'), script);
+    const out = execFileSync(BIN, [join(import.meta.dirname, '..', 'jsfx', 'AmiSynth Tuning.jsfx'), String(SR), '0.01', join(dir, 'out.f32'), join(dir, 'script.txt')],
+      { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+    const [st, notes] = out.trim().split('\n').map((l) => Number(l.split(' ')[1]));
+    return [TUNING_HOLDER_PARAMS[holderSlider('scale_status') - 1].options[st], notes];
+  };
+  assert.deepEqual(status(SCALA_7, { scale_source: 1 }), ['File loaded', 7]);
+  assert.deepEqual(status(SCALA_7, { scale_source: 0, scale_size: 5 }), ['Sliders', 5]);
+  assert.deepEqual(status(null, { scale_source: 1, scale_size: 12 }), ['File not found', 12]);
+  assert.deepEqual(status('! broken\nno count here\n', { scale_source: 1, scale_size: 9 }), ['File format error', 9]);
+  assert.deepEqual(status('!\nshort\n 3\n 100.0\n 200.0\n', { scale_source: 1, scale_size: 9 }), ['File format error', 9], 'fewer pitches than the count');
+});
+
 test('JSFX synth matches JS: chip / S&H noise, noise filter, cutoff CC', { skip: !HAVE && 'jsfx_render not built' }, () => {
   const sweep = [...PERFORMANCE, [3000, 0xb0, 74, 0], [8000, 0xb0, 74, 127], [15000, 0xb0, 74, 90], [21000, 0xb0, 71, 10]]
     .sort((a, b) => a[0] - b[0]);
@@ -408,6 +467,7 @@ test('JSFX physical model matches JS through every guitar amp type', { skip: !HA
       const p = scenario('phys', { phys_model: 0, amp_type: t, amp_gain: gain, amp_tone: tone, amp_level_db: -6, phys_room_mix: 0.2 });
       check('phys', p, chords, 0.7, `phys/amp ${t} gain ${gain}`);
       check('phys', p, chords, 0.4, `phys/amp ${t} gain ${gain} @44.1k`, 44100);
+      check('phys', { ...p, amp_auto_level: 1 }, chords, 0.4, `phys/amp ${t} gain ${gain} auto level`);
     }
   }
 });

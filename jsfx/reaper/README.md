@@ -20,7 +20,8 @@ The installer updates only bundled AmiSynth JSFX, Lua scripts, catalog files and
 | `AmiSynth - Read sound.lua` | Read the current sound of a track's Synth/Physical/Drums as a JSON diff; optional request | None | `ok: {type, name, params, tuning, ...}` or `error: ...` |
 | `AmiSynth - Apply sound.lua` | Apply a JSON diff (real units) to a track; inserts the JSFX if missing; request required | Changes parameters (may add one FX); one Undo step | `ok: {applied, clamped, rejected, changed, sound, meter}` or `error: ...` |
 | `AmiSynth Companion.lua` | Interactive GUI; select a track containing an installed AmiSynth JSFX | User edits presets, macros or parameters; Undo available | No completion result; background GUI stays open |
-| `AmiSynth Drums - Create routed tracks.lua` | Create an instrument and four buses; install JSFX first | Adds 5 tracks and routes outputs; Undo available | No completion result; query tracks/routing afterwards |
+| `AmiSynth - Run.lua` | Generic entry point with arguments: list, get/set any parameter (Tuning JSFX included), presets, macros, drum tracks, batches; request required | Depends on the action; each editing action is one Undo step | `ok: {action, ...}` or `error: ...` |
+| `AmiSynth Drums - Create routed tracks.lua` | Create an instrument and four buses; install JSFX first | Adds 5 tracks and routes outputs; one Undo step | `ok: {tracks:[{number, index, name, role, ...}], instrument}` or `error: ...` |
 | `toolkit.lua` | Function library, loaded by `dofile`; requires sibling `../generated/catalog.lua` | Only when a caller invokes editing functions | None by itself; wrapper must publish a result |
 | `../generated/catalog.lua` | Generated data library; also visible in script discovery | None; returns a Lua table | None; not an action |
 
@@ -33,7 +34,9 @@ Start with `AmiSynth - MCP guide.lua`. To design a sound, use **Read sound → e
 `script_run` takes no arguments, so both actions read a JSON **request** placed beforehand:
 
 1. ExtState section `AmiSynthMCP`, key `apply_sound` (or `read_sound`), non-persistent. It is **deleted when read**, so a request is used once. Use this when your MCP server can set ExtState (or run one line of Lua: `reaper.SetExtState('AmiSynthMCP', 'apply_sound', json, false)`).
-2. Otherwise the file `Scripts/AmiSynth/apply_sound.json` (or `read_sound.json`), next to the `reaper/` directory. Files are **not** deleted; the result's `request_source` says which one was used, so overwrite or remove a stale file yourself.
+2. Otherwise the project ExtState (`SetProjExtState(0, 'AmiSynthMCP', 'apply_sound', json)`, saved with the project). Also **deleted when read**.
+3. Otherwise a block in the **project notes** (File → Project settings → Notes) that starts with a line `` ```amisynth apply_sound `` and ends with a line `` ``` `` (`<<<amisynth apply_sound` … `>>>` also works). Notes are **not** changed, so the block runs again on the next call; remove or edit it yourself.
+4. Otherwise the file `Scripts/AmiSynth/apply_sound.json` (or `read_sound.json`), next to the `reaper/` directory. Files are **not** deleted; the result's `request_source` says which one was used, so overwrite or remove a stale file yourself.
 
 Both publish one line to `reaper_mcp_script_result/last_result`: `ok: <JSON>` or `error: <message>`. On `error:` nothing was changed.
 
@@ -87,6 +90,38 @@ All writes (plus an inserted JSFX) form **one Undo step** named `AmiSynth MCP: a
 
 Typical LLM loop: Read sound → change a few values → Apply sound with `"base": "current"` (or the full edited diff with `"base": "default"`) → ask the user to listen.
 
+## Generic entry point (AmiSynth - Run.lua)
+
+`AmiSynth - Run.lua` runs one toolkit action from a JSON request with the key `run` (same four channels as above: ExtState `AmiSynthMCP/run`, project ExtState, a `` ```amisynth run `` block in the project notes, `Scripts/AmiSynth/run.json`). It answers `ok: {action, ..., request_source}` or `error: message`. `track` is `"selected"` (default) or a track name, `instrument` is `Synth` / `Physical` / `Drums` / `Tuning` (optional when the track has only one), `fx` a zero-based index. It never inserts an FX (Apply sound does).
+
+| `action` | Fields | Result |
+| --- | --- | --- |
+| `help` | – | `actions`: name → short description |
+| `list` | – | `tracks`: `[{number (1-based), index (0-based), name, fx: [{fx, kind, name}]}]`, only tracks with AmiSynth FX |
+| `read_sound` / `apply_sound` | as Read sound / Apply sound | as Read sound / Apply sound |
+| `get` | `track`, `instrument`, `fx` | `values` (every parameter, tuning included) and `labels` (enum labels) |
+| `set` | `track`, `instrument`, `fx`, `params` (id → real value or enum label) | `written`; one Undo step. Tuning parameters and the AmiSynth Tuning sliders are allowed; read-only status sliders and file choosers are rejected, out-of-range values are an error (no clamping) |
+| `presets` | `instrument` | `builtin` `[{name, category}]`, `user` names |
+| `preset` | `track`, `instrument`, `fx`, `name` (built-in or user) | the resulting `sound` diff; tuning is kept |
+| `macro` | `track`, `fx`, `name` (Brightness / Punch / Width / Pump), `amount` 0..1 | the resulting `sound` diff |
+| `save_preset` | `track`, `instrument`, `fx`, `name` | `saved` |
+| `create_drum_tracks` | `select` (default true) | as AmiSynth Drums - Create routed tracks.lua |
+
+Several actions in order: `{"actions": [{"action": "set", ...}, {"action": "read_sound", ...}]}` returns `results` (one per action). It stops at the first error and says which action failed; the earlier actions stay done (each has its own Undo step).
+
+Example in the project notes, then `script_run` of `AmiSynth - Run.lua`:
+
+````
+```amisynth run
+{"actions": [
+  {"action": "set", "track": "Scale", "instrument": "Tuning", "params": {"scale_source": "File"}},
+  {"action": "get", "track": "Scale", "instrument": "Tuning"}
+]}
+```
+````
+
+The `get` result's `labels.scale_status` says whether the scale file was loaded (`File loaded`, `File not found`, `File format error`, or `Sliders`), and `values.scale_loaded_notes` how many notes the scale has. The JSFX writes them when its sliders change; if a `get` right after a `set` still shows the old status, run `get` again.
+
 ## Headless wrapper example
 
 Save the following as `Scripts/AmiSynth/Apply Sub Bass.lua` (outside `reaper/`, so installer updates never overwrite it). This is an **example to customize**, not a bundled action. State the intended track/FX and requested change in its header. The selected track's first FX must be AmiSynth Synth, and FX indices are zero-based.
@@ -105,7 +140,7 @@ reaper.SetExtState('reaper_mcp_script_result', 'last_result',
   ok and result or ('error: ' .. tostring(result)), false)
 ```
 
-Discover the wrapper with `script_list`, then execute its returned path with `script_run`. `result_found=true` only says a result was delivered: inspect the text for `ok:` or `error:`. Do not run project-changing actions without the user's authorization. No arbitrary arguments are accepted by `script_run`; customize the wrapper beforehand, or pass a request to Read sound / Apply sound as described above.
+Discover the wrapper with `script_list`, then execute its returned path with `script_run`. `result_found=true` only says a result was delivered: inspect the text for `ok:` or `error:`. Do not run project-changing actions without the user's authorization. No arbitrary arguments are accepted by `script_run`; customize the wrapper beforehand, or pass a request to Read sound / Apply sound / Run as described above.
 
 ## Toolkit API and units
 
@@ -116,4 +151,4 @@ Discover the wrapper with `script_list`, then execute its returned path with `sc
 - `ami.read(binding)`: returns actual values keyed by parameter id, including current tuning.
 - `ami.save(binding, name)` / `ami.users(kind)`: persistent REAPER user presets; tuning is excluded. Saving the same user name overwrites it; built-in names and menu control characters are rejected.
 
-`generated/automation.json` documents units, ranges, enum values, groups, presets, macros, one-based slider numbers and zero-based API indices. `TrackFX_SetParamNormalized` is a different API; the toolkit takes real values. MIDI CC values remain 0..127, with CC64 >=64 down / <=63 up. Physical Sustain Pedal supports Off / Auto / On; Auto applies to strings, piano and modal materials except Drum Membrane.
+`generated/automation.json` documents units, ranges, enum values, groups, presets, macros, one-based slider numbers and zero-based API indices. `TrackFX_SetParamNormalized` is a different API; the toolkit takes real values. MIDI CC values remain 0..127, with CC64 >=64 down / <=63 up. Physical Sustain Pedal supports Off / Auto / All models (CC64) (formerly labelled "On (all models)"; every mode only acts while CC64 is down); Auto applies to strings, piano and modal materials except Drum Membrane.

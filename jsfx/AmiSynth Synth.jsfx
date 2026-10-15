@@ -137,6 +137,8 @@ slider124:mod3_amount=0<-4800,4800,0.001>Mod 3 Amount
 slider125:mod4_source=0<0,8,1{Off,LFO 1,LFO 2,Mod Env,Velocity,Key Track,Mod Wheel,Pressure,Random (per note)}>Mod 4 Source
 slider126:mod4_destination=0<0,11,1{Off,Pitch,Filter Cutoff,Filter Resonance,Pulse Width,Osc2 Pitch,FM Index,Amp,Pan,LFO 1 Rate,LFO 2 Rate,Noise Level}>Mod 4 Destination
 slider127:mod4_amount=0<-4800,4800,0.001>Mod 4 Amount
+slider128:arp_retrigger=0<0,3,1{First Key,New Chord,Every Bar,Free Run}>Arp Retrigger
+slider129:legato_window_ms=0<0,100,0.1>Legato Window [ms]
 // </generated sliders>
 
 import amisynth_lib.jsfx-inc
@@ -183,7 +185,13 @@ arp_snd_n = 0;
 arp_last = 0;
 arp_off_pos = 0;
 arp_idx = 0;
+arp_bar = 0;
+arp_since_key = 1000000000;
 arp_cur_mode = 0;
+bar_beats = 4; // quarter notes per bar (host time signature)
+// legato window: samples since the last note-off (a new note within the window counts as legato)
+off_gap = 1000000000;
+legato_window = 0;
 
 // note values in beats (same tables as LFO_SYNC_BEATS / ARP_RATE_BEATS in params.js)
 lfo_sync_tab = mem_alloc(17);
@@ -643,6 +651,11 @@ function voice_op(op, a, b, c, d) instance(idx velocity base_hz glide_oct rnd po
     base_hz;
   ) : op === 9 ? (
     poly_at = a;
+  ) : op === 10 ? (
+    // legato: a note inside the Legato Window takes the envelopes back from their release
+    this.aenv.adsr_resume();
+    this.fenv.adsr_resume();
+    this.menv.adsr_resume();
   );
 );
 
@@ -846,7 +859,7 @@ function any_gate() local(i, r) (
 
 function poly_note_on(key, pitch, vel) local(n, held, i, idx, hz) (
   n = voice_limit();
-  held = glide_legato ? any_gate() : 1;
+  held = glide_legato ? any_gate() || off_gap < legato_window : 1;
   idx = -1;
   i = 0;
   loop(n, v_active[i] && v_note[i] === key ? idx = i; i += 1;);
@@ -894,7 +907,7 @@ function mono_play(key, pitch, vel, retrig, overlap) local(hz, g) (
   v_pitch[0] = pitch;
   age_counter += 1;
   v_age[0] = age_counter;
-  retrig ? v0.voice_op(6, vel, 0, 0, 0);
+  retrig ? v0.voice_op(6, vel, 0, 0, 0) : v0.voice_op(10, 0, 0, 0, 0);
 );
 
 function stack_remove(key) local(i, j) (
@@ -928,7 +941,7 @@ function mono_note_on(key, pitch, vel) local(i, overlap) (
   stack_pitch[stack_n] = pitch;
   stack_vel[stack_n] = vel;
   stack_n += 1;
-  overlap = v_active[0] && v_gate[0] ? 1 : 0;
+  overlap = v_active[0] && (v_gate[0] || off_gap < legato_window) ? 1 : 0;
   mono_play(key, pitch, vel, voice_legato && overlap ? 0 : 1, overlap);
 );
 
@@ -946,6 +959,7 @@ function engine_on(key, pitch, vel) (
 );
 
 function engine_off(key) (
+  off_gap = 0;
   voice_mono ? mono_note_off(key);
   // releases voice 0 when no other key is held, and any voice left from a mode change
   poly_note_off(key);
@@ -960,12 +974,17 @@ function arp_key_on(key, vel) local(i, found, pos, k) (
   !found && arp_n < MAX_HELD ? (
     arp_n === 0 ? (
       // first key: start from the bottom and play the current step at once (a key pressed in
-      // the last 10 % of a step waits for the next one instead)
+      // the last 10 % of a step waits for the next one instead). Free Run keeps its place,
+      // which follows the step count.
       pos = beat / arp_step_beats;
       k = floor(pos + 0.000001);
       arp_idx = 0;
       arp_last = pos - k > 0.9 ? k : k - 1;
+    ) : arp_retrig_i === 1 && arp_since_key > 0.05 * srate ? (
+      // New Chord: a chord changed while keys are held starts from the bottom on the next step
+      arp_idx = 0;
     );
+    arp_since_key = 0;
     arp_key[arp_n] = key;
     arp_vel[arp_n] = vel;
     arp_n += 1;
@@ -1016,6 +1035,7 @@ function arp_fire() local(n, m, i, j, len, cycle, oct, k) (
       i += 1;
     );
     len = n * arp_oct_n;
+    arp_retrig_i === 3 ? arp_idx = max(0, arp_last); // Free Run: the step number since the song start
     arp_mode_i === 2 ? (
       i = len - 1 - (arp_idx % len);
     ) : arp_mode_i === 3 ? (
@@ -1057,15 +1077,20 @@ function arp_fire() local(n, m, i, j, len, cycle, oct, k) (
 );
 
 /** once per sample, before the voices render */
-function arp_tick() local(pos, k, fired, odd, start, step) (
+function arp_tick() local(pos, k, fired, odd, start, step, bar) (
   pos = beat / arp_step_beats;
   k = floor(pos + 0.000001);
   fired = 0;
+  arp_since_key < 1000000000 ? arp_since_key += 1;
   arp_n > 0 && k !== arp_last ? (
     odd = k - 2 * floor(k / 2);
     start = k + odd * arp_swing;
     pos >= start - 0.000001 ? (
       arp_last = k;
+      // Every Bar: the first step that starts in a new bar goes back to the first note
+      bar = floor((k * arp_step_beats) / bar_beats + 0.000001);
+      arp_retrig_i === 2 && bar !== arp_bar ? arp_idx = 0;
+      arp_bar = bar;
       step = k - arp_steps_n * floor(k / arp_steps_n);
       arp_pat[step] ? (
         fired = 1;
@@ -1156,6 +1181,7 @@ fm_cycles = fm_index / (2 * $pi);
 transpose_n = floor(transpose_semitones + 0.5);
 voice_mono = voice_mode >= 0.5 ? 1 : 0;
 voice_legato = voice_mode >= 1.5 ? 1 : 0;
+legato_window = max(0, legato_window_ms) * 0.001 * srate;
 // wavetable oscillators: build the selected banks (once; the tables do not depend on srate)
 wt_osc1 = osc1_waveform >= 3.5 ? 1 : 0;
 wt_osc2 = osc2_waveform >= 3.5 ? 1 : 0;
@@ -1198,6 +1224,7 @@ arp_oct_n = clamp(floor(arp_octaves + 0.5), 1, 4);
 arp_gate_v = clamp(arp_gate, 0.05, 1);
 arp_swing = clamp((2 * arp_swing_percent) / 100 - 1, 0, 0.5);
 arp_steps_n = clamp(floor(arp_steps + 0.5), 1, 16);
+arp_retrig_i = clamp(floor(arp_retrigger + 0.5), 0, 3);
 arp_pat[0] = arp_step_1 >= 0.5; arp_pat[1] = arp_step_2 >= 0.5; arp_pat[2] = arp_step_3 >= 0.5; arp_pat[3] = arp_step_4 >= 0.5;
 arp_pat[4] = arp_step_5 >= 0.5; arp_pat[5] = arp_step_6 >= 0.5; arp_pat[6] = arp_step_7 >= 0.5; arp_pat[7] = arp_step_8 >= 0.5;
 arp_pat[8] = arp_step_9 >= 0.5; arp_pat[9] = arp_step_10 >= 0.5; arp_pat[10] = arp_step_11 >= 0.5; arp_pat[11] = arp_step_12 >= 0.5;
@@ -1249,11 +1276,13 @@ tempo > 0 ? (
   delay_retime(); // a synced delay follows tempo changes (gliding)
 );
 play_state & 1 ? beat = beat_position;
+bar_beats = ts_num > 0 && ts_denom > 0 ? (ts_num * 4) / ts_denom : 4;
 
 @sample
 while (midi_pop()) ( handle_midi(midi_m1, midi_m2, midi_m3); );
 midi_tick();
 
+off_gap < 1000000000 ? off_gap += 1;
 arp_mode_i > 0 ? arp_tick();
 
 // global modulation (once per sample)
