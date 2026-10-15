@@ -204,6 +204,7 @@ function voice_create() {
     fr_ph2: 0, fr_ph3: 0, fr_inc2: 0, fr_inc3: 0,
     // sawari: envelope of the loop, DC of the bridge contact, mean |in| / |out| and the gain correction
     saw_env: 0, saw_dc: 0, saw_mx: 0, saw_my: 0, saw_g: 1, saw_on: 0,
+    bachi_t: 0, bachi_len: 1,
   };
   delay_init(v.line, MAX_DELAY);
   delay_init(v.line2, MAX_DELAY);
@@ -233,6 +234,8 @@ export function phys_init(s, sr) {
   for (let i = 0; i < PHYS_MAX_VOICES; i++) s.voices.push(voice_create());
   s.tuning = {};
   tuning_init(s.tuning);
+  s.sympathetic = Array.from({ length: 24 }, () => { const o = {}; reson_init(o); return o; });
+  s.sympathetic_key = '';
   s.custom_scale = 0;
   s.age_counter = 0;
   s.sustain_pedal = 0;
@@ -307,6 +310,7 @@ export function phys_update(s, p) {
   s.fr_det = Math.pow(2, (p.free_reed_detune_cents ?? 0) / 1200);
   s.fr_n = (p.free_reed_detune_cents ?? 0) > 0 ? 3 : 1;
   s.saw = p.string_sawari ?? 0;
+  sympathetic_update(s);
   s.saw_c = 0.8 - 0.55 * s.saw;
   s.saw_env_c = Math.exp(-1 / (0.03 * s.sr));
   s.saw_dc_a = 1 - Math.exp((-TWO_PI * 5) / s.sr);
@@ -827,6 +831,13 @@ export function phys_note_on(s, note, velocity) {
       if (p.string_excitation < 0.5) {
         lp += a * (noise_white() - lp);
         x = lp * norm * 0.5;
+        if (p.string_plectrum > 0) {
+          // Displacement released by a plectrum; the existing pick comb still colors it.
+          const q = i / n;
+          const pos = clamp(p.string_pick_position, 0.02, 0.98);
+          const displacement = q < pos ? q / pos : (1 - q) / (1 - pos);
+          x += 0.65 * p.string_plectrum * (displacement - 0.5 - x);
+        }
       } else {
         // hammer: raised-cosine pulse, narrower when brighter
         const width = Math.max(2, n * (0.5 - 0.45 * bright));
@@ -846,6 +857,14 @@ export function phys_note_on(s, note, velocity) {
     v.saw_my = 0;
     v.saw_g = 1;
     v.saw_on = 1;
+    v.bachi_t = 0;
+    const hard = clamp(p.string_plectrum_hardness * (0.6 + 0.4 * vel), 0, 1);
+    v.bachi_len = Math.max(2, Math.round(sr * (0.0012 - 0.001 * hard)));
+    for (let k = 0; k < 3; k++) {
+      reson_reset(v.modes[k]);
+      // Short, bright skin contact: avoid the long low mode that sounds like a wood block.
+      reson_set(v.modes[k], [950, 2300, 4800][k], [30, 18, 10][k], [0.12, 0.7, 0.5][k], sr);
+    }
     // high notes lose more energy per second (more round trips); compensate gently
     v.read_gain = 1.2 * v.vel * clamp(Math.pow(v.hz / 220, 0.3), 0.7, 2);
   } else if (model === MODEL_MODAL) {
@@ -1206,7 +1225,32 @@ function render_string(s, v, vib) {
     fb = y * v.loop_gain * v.saw_g;
   }
   delay_write(v.line, fb);
-  return fb * v.read_gain;
+  const direct = fb * v.read_gain;
+  let contact = 0;
+  if (v.bachi_t < v.bachi_len) {
+    // Bipolar contact/release removes the low-frequency push of the old positive pulse.
+    contact = s.p.string_plectrum * v.vel * Math.sin(TWO_PI * v.bachi_t / v.bachi_len) / (0.5 * v.bachi_len);
+    v.bachi_t++;
+  }
+  if (!(s.p.string_body_mix > 0)) return direct;
+  let body = 0;
+  for (let k = 0; k < 3; k++) body += reson_process(v.modes[k], 0.002 * direct + contact);
+  return direct + 2 * s.p.string_body_mix * body;
+}
+
+// A shared, driven resonator bank: fixed instrument strings, not a chorus per voice.
+function sympathetic_update(s) {
+  const p = s.p;
+  const frequencies = s.sympathetic.map((_, k) => tuning_note_to_hz(s.tuning, (p.string_sympathetic_root ?? 60) + k));
+  const enabled = Math.round(p.phys_model) === MODEL_STRING && p.string_sympathetic_mix > 0;
+  const key = `${enabled}:${p.string_sympathetic_decay_ms}:${frequencies.join(',')}`;
+  if (key === s.sympathetic_key) return;
+  s.sympathetic_key = key;
+  for (let k = 0; k < 24; k++) {
+    const o = s.sympathetic[k]; reson_reset(o);
+    const decay = (p.string_sympathetic_decay_ms ?? 3500) * (1 - 0.012 * k);
+    reson_set(o, frequencies[k], decay, 2 * (1 - t60_coef(decay, s.sr)), s.sr);
+  }
 }
 
 function render_modal(v) {
@@ -1301,7 +1345,10 @@ function render_wind(s, v, vib, kind, noise_amt) {
   const hiss = (nz - v.hiss_lp) * env * noise_amt * 0.05;
   if (kind === WIND_FREE_REED) {
     // the tongue swings at its own pitch; air passes while it is clear of the slot
-    bp += bp * noise_amt * 0.25 * nz;
+    // Radiation differentiates the flow and normalises by the fundamental. White pressure
+    // noise would therefore grow as sr / hz, drowning low reeds. Bellows fluctuate slowly;
+    // the separately added hiss below still provides the audible broadband breath component.
+    bp += bp * noise_amt * 0.25 * v.flut;
     v.org_ph += v.org_inc * vib;
     if (v.org_ph >= 1) v.org_ph -= 1;
     const x = bp * Math.sin(TWO_PI * v.org_ph);
@@ -1529,6 +1576,15 @@ export function phys_render(s) {
     const dry = 1 - 0.7 * p.piano_soundboard;
     l = l * dry + p.piano_soundboard * s.sb_l;
     r = r * dry + p.piano_soundboard * s.sb_r;
+  }
+  if (model === MODEL_STRING && p.string_sympathetic_mix > 0) {
+    for (let k = 0; k < 24; k++) {
+      // The previous 0.3 gain buried the slow-building resonances beneath the direct string.
+      const y = reson_process(s.sympathetic[k], bridge) * p.string_sympathetic_mix * 2.4;
+      const pan = k % 2 ? 0.85 : 0.15;
+      l += y * pan;
+      r += y * (1 - pan);
+    }
   }
   if (s.amp_type > 0) {
     l = amp_process(s, s.amp_l, l);
