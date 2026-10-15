@@ -126,16 +126,16 @@ slider113:mod_env_decay_ms=300<1,10000,1>Mod Env Decay [ms]
 slider114:mod_env_sustain=0<0,1,0.001>Mod Env Sustain
 slider115:mod_env_release_ms=300<1,10000,1>Mod Env Release [ms]
 slider116:mod1_source=0<0,9,1{Off,LFO 1,LFO 2,Mod Env,Velocity,Key Track,Mod Wheel,Pressure,Random (per note),Sidechain}>Mod 1 Source
-slider117:mod1_destination=0<0,11,1{Off,Pitch,Filter Cutoff,Filter Resonance,Pulse Width,Osc2 Pitch,FM Index,Amp,Pan,LFO 1 Rate,LFO 2 Rate,Noise Level}>Mod 1 Destination
+slider117:mod1_destination=0<0,13,1{Off,Pitch,Filter Cutoff,Filter Resonance,Pulse Width,Osc2 Pitch,FM Index,Amp,Pan,LFO 1 Rate,LFO 2 Rate,Noise Level,Osc1 WT Position,Osc2 WT Position}>Mod 1 Destination
 slider118:mod1_amount=0<-4800,4800,0.001>Mod 1 Amount
 slider119:mod2_source=0<0,9,1{Off,LFO 1,LFO 2,Mod Env,Velocity,Key Track,Mod Wheel,Pressure,Random (per note),Sidechain}>Mod 2 Source
-slider120:mod2_destination=0<0,11,1{Off,Pitch,Filter Cutoff,Filter Resonance,Pulse Width,Osc2 Pitch,FM Index,Amp,Pan,LFO 1 Rate,LFO 2 Rate,Noise Level}>Mod 2 Destination
+slider120:mod2_destination=0<0,13,1{Off,Pitch,Filter Cutoff,Filter Resonance,Pulse Width,Osc2 Pitch,FM Index,Amp,Pan,LFO 1 Rate,LFO 2 Rate,Noise Level,Osc1 WT Position,Osc2 WT Position}>Mod 2 Destination
 slider121:mod2_amount=0<-4800,4800,0.001>Mod 2 Amount
 slider122:mod3_source=0<0,9,1{Off,LFO 1,LFO 2,Mod Env,Velocity,Key Track,Mod Wheel,Pressure,Random (per note),Sidechain}>Mod 3 Source
-slider123:mod3_destination=0<0,11,1{Off,Pitch,Filter Cutoff,Filter Resonance,Pulse Width,Osc2 Pitch,FM Index,Amp,Pan,LFO 1 Rate,LFO 2 Rate,Noise Level}>Mod 3 Destination
+slider123:mod3_destination=0<0,13,1{Off,Pitch,Filter Cutoff,Filter Resonance,Pulse Width,Osc2 Pitch,FM Index,Amp,Pan,LFO 1 Rate,LFO 2 Rate,Noise Level,Osc1 WT Position,Osc2 WT Position}>Mod 3 Destination
 slider124:mod3_amount=0<-4800,4800,0.001>Mod 3 Amount
 slider125:mod4_source=0<0,9,1{Off,LFO 1,LFO 2,Mod Env,Velocity,Key Track,Mod Wheel,Pressure,Random (per note),Sidechain}>Mod 4 Source
-slider126:mod4_destination=0<0,11,1{Off,Pitch,Filter Cutoff,Filter Resonance,Pulse Width,Osc2 Pitch,FM Index,Amp,Pan,LFO 1 Rate,LFO 2 Rate,Noise Level}>Mod 4 Destination
+slider126:mod4_destination=0<0,13,1{Off,Pitch,Filter Cutoff,Filter Resonance,Pulse Width,Osc2 Pitch,FM Index,Amp,Pan,LFO 1 Rate,LFO 2 Rate,Noise Level,Osc1 WT Position,Osc2 WT Position}>Mod 4 Destination
 slider127:mod4_amount=0<-4800,4800,0.001>Mod 4 Amount
 slider128:arp_retrigger=0<0,3,1{First Key,New Chord,Every Bar,Free Run}>Arp Retrigger
 slider129:legato_window_ms=0<0,100,0.1>Legato Window [ms]
@@ -146,6 +146,7 @@ slider133:sc_release_ms=150<10,2000,1>Sidechain Release [ms]
 // </generated sliders>
 
 import amisynth_lib.jsfx-inc
+import amisynth_modulation.jsfx-inc
 import amisynth_meter.jsfx-inc
 
 // pins 1/2 are not used (an instrument); 3/4 = sidechain (track channels 3/4)
@@ -262,7 +263,7 @@ function delay_retime() local(n) (
 // 5 osc2 pitch, 6 FM index, 7 amp, 8 pan, 9 LFO1 rate, 10 LFO2 rate, 11 noise level
 MOD_SLOTS = 4;
 N_SRC = 10;
-N_DST = 12;
+N_DST = 14;
 mm_src = mem_alloc(MOD_SLOTS); // the active slots, packed
 mm_dst = mem_alloc(MOD_SLOTS);
 mm_amt = mem_alloc(MOD_SLOTS);
@@ -828,8 +829,8 @@ function voice_render() instance(idx velocity base_hz glide_oct rnd poly_at pres
     g_wpos2 = 0;
     wt_osc1 || wt_osc2 ? (
       pmod = g_wt_lfo + fenv * wt_position_filter_env + aenv * wt_position_amp_env;
-      g_wpos1 = clamp(osc1_wt_position + pmod, 0, 1);
-      g_wpos2 = clamp(osc2_wt_position + pmod, 0, 1);
+      g_wpos1 = clamp(osc1_wt_position + pmod + (mm_n > 0 ? mm_v[12] : 0), 0, 1);
+      g_wpos2 = clamp(osc2_wt_position + pmod + (mm_n > 0 ? mm_v[13] : 0), 0, 1);
     );
 
     // oscillators x unison (xl / xr are globals summed by ucopy_mix)
@@ -1488,8 +1489,12 @@ spl1 = soft_clip(fx_r);
 meter.meter_tick(spl0, spl1);
 beat += beat_inc;
 
-@gfx 520 210
+@gfx 520 285
 meter.meter_draw();
+mod_amount_draw(1, mod1_destination, mod1_amount);
+mod_amount_draw(2, mod2_destination, mod2_amount);
+mod_amount_draw(3, mod3_destination, mod3_amount);
+mod_amount_draw(4, mod4_destination, mod4_amount);
 meter.match_request ? (
   master_volume_db = clamp(master_volume_db + meter.correction, -60, 6);
   master_gain = db_to_gain(master_volume_db);

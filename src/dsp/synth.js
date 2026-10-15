@@ -74,6 +74,8 @@ const DST_LFO1_RATE = 9;
 const LFO_RATE_MOD_OCT = MOD_DESTINATIONS[DST_LFO1_RATE].range;
 const DST_LFO2_RATE = 10;
 const DST_NOISE = 11;
+const DST_WT1 = 12;
+const DST_WT2 = 13;
 const N_SRC = MOD_SOURCES.length;
 const N_DST = MOD_DESTINATIONS.length;
 
@@ -1065,8 +1067,8 @@ export function synth_render(s) {
     let pos2 = 0;
     if (wt1 || wt2) {
       const pmod = wt_lfo + fenv * p.wt_position_filter_env + aenv * p.wt_position_amp_env;
-      pos1 = clamp(p.osc1_wt_position + pmod, 0, 1);
-      pos2 = clamp(p.osc2_wt_position + pmod, 0, 1);
+      pos1 = clamp(p.osc1_wt_position + pmod + (mm > 0 ? mv[DST_WT1] : 0), 0, 1);
+      pos2 = clamp(p.osc2_wt_position + pmod + (mm > 0 ? mv[DST_WT2] : 0), 0, 1);
     }
 
     // ---- oscillators (x unison)

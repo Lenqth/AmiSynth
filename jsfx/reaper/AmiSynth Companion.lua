@@ -90,6 +90,7 @@ local function loop()
   for row = 1, rows do
     local d = defs[row + scroll]
     if d then
+      d = api.parameter_display(d, values)
       local value = values[d.id]
       local label = d.options and d.options[math.floor(value) + 1] or string.format('%.6g %s', value, d.unit)
       button(12, 95 + (row - 1) * 30, gfx.w - 24, d.name .. '  =  ' .. tostring(label), clicked, function()
@@ -99,7 +100,9 @@ local function loop()
           local items = {}; for i, name in ipairs(d.options) do items[#items + 1] = { name = name, value = i - 1 } end
           local p = menu(items); if p then run(function() api.apply(binding, { [d.id] = p.value }) end) end
         else
-          local accepted, text = reaper.GetUserInputs(d.name .. ' (' .. d.min .. '..' .. d.max .. ' ' .. d.unit .. ')', 1, d.id, tostring(value))
+          local bounds = d.suggested_min and ('suggested ' .. d.suggested_min .. '..' .. d.suggested_max .. '; fine step ' .. d.fine_step)
+            or (d.min .. '..' .. d.max)
+          local accepted, text = reaper.GetUserInputs(d.name .. ' (' .. bounds .. ' ' .. d.unit .. ')', 1, d.id, tostring(value))
           if accepted then run(function() api.apply(binding, { [d.id] = assert(tonumber(text), 'Expected a number') }) end) end
         end
       end)

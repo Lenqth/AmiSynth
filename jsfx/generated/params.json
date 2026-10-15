@@ -1551,7 +1551,7 @@
       "name": "Mod 1 Destination",
       "group": "Mod Matrix",
       "min": 0,
-      "max": 11,
+      "max": 13,
       "default": 0,
       "step": 1,
       "unit": "",
@@ -1567,7 +1567,9 @@
         "Pan",
         "LFO 1 Rate",
         "LFO 2 Rate",
-        "Noise Level"
+        "Noise Level",
+        "Osc1 WT Position",
+        "Osc2 WT Position"
       ],
       "description": "Mod matrix slot 1: what is modulated (per note, except LFO 1 / LFO 2 Rate which are global and only follow LFO 1, LFO 2, Mod Wheel and channel pressure). Off = slot unused."
     },
@@ -1580,7 +1582,96 @@
       "default": 0,
       "step": 0.001,
       "unit": "",
-      "description": "Mod matrix slot 1: how far the destination moves at source value 1, in the destination's unit: Pitch / Osc2 Pitch in cents, Filter Cutoff / LFO Rate in octaves, FM Index in rad, Amp in dB, Resonance / Pulse Width / Noise Level added to the knob value (0..1), Pan -1 (left) .. +1 (right). Negative values invert."
+      "modulation": {
+        "destinationParameter": "mod1_destination",
+        "destinations": [
+          {
+            "name": "Off",
+            "unit": "",
+            "range": 1,
+            "step": 0.001
+          },
+          {
+            "name": "Pitch",
+            "unit": "cents",
+            "range": 2400,
+            "step": 0.1
+          },
+          {
+            "name": "Filter Cutoff",
+            "unit": "oct",
+            "range": 8,
+            "step": 0.01
+          },
+          {
+            "name": "Filter Resonance",
+            "unit": "",
+            "range": 1,
+            "step": 0.001
+          },
+          {
+            "name": "Pulse Width",
+            "unit": "",
+            "range": 0.45,
+            "step": 0.001
+          },
+          {
+            "name": "Osc2 Pitch",
+            "unit": "cents",
+            "range": 4800,
+            "step": 1
+          },
+          {
+            "name": "FM Index",
+            "unit": "rad",
+            "range": 10,
+            "step": 0.01
+          },
+          {
+            "name": "Amp",
+            "unit": "dB",
+            "range": 48,
+            "step": 0.1
+          },
+          {
+            "name": "Pan",
+            "unit": "",
+            "range": 1,
+            "step": 0.001
+          },
+          {
+            "name": "LFO 1 Rate",
+            "unit": "oct",
+            "range": 6,
+            "step": 0.01
+          },
+          {
+            "name": "LFO 2 Rate",
+            "unit": "oct",
+            "range": 6,
+            "step": 0.01
+          },
+          {
+            "name": "Noise Level",
+            "unit": "",
+            "range": 1,
+            "step": 0.001
+          },
+          {
+            "name": "Osc1 WT Position",
+            "unit": "position",
+            "range": 1,
+            "step": 0.001
+          },
+          {
+            "name": "Osc2 WT Position",
+            "unit": "position",
+            "range": 1,
+            "step": 0.001
+          }
+        ]
+      },
+      "description": "Mod matrix slot 1: how far the destination moves at source value 1, in the destination's unit: Pitch / Osc2 Pitch in cents, Filter Cutoff / LFO Rate in octaves, FM Index in rad, Amp in dB, Resonance / Pulse Width / Noise Level added to the knob value (0..1), Pan -1 (left) .. +1 (right). Osc1 / Osc2 WT Position adds a normalized position offset, clamped with the existing WT modulation to 0..1; classic waveforms ignore it. Negative values invert. The modulation metadata supplies suggested display ranges and fine steps, without changing this stored value domain."
     },
     {
       "id": "mod2_source",
@@ -1610,7 +1701,7 @@
       "name": "Mod 2 Destination",
       "group": "Mod Matrix",
       "min": 0,
-      "max": 11,
+      "max": 13,
       "default": 0,
       "step": 1,
       "unit": "",
@@ -1626,7 +1717,9 @@
         "Pan",
         "LFO 1 Rate",
         "LFO 2 Rate",
-        "Noise Level"
+        "Noise Level",
+        "Osc1 WT Position",
+        "Osc2 WT Position"
       ],
       "description": "Mod matrix slot 2: what is modulated (per note, except LFO 1 / LFO 2 Rate which are global and only follow LFO 1, LFO 2, Mod Wheel and channel pressure). Off = slot unused."
     },
@@ -1639,7 +1732,96 @@
       "default": 0,
       "step": 0.001,
       "unit": "",
-      "description": "Mod matrix slot 2: how far the destination moves at source value 1, in the destination's unit: Pitch / Osc2 Pitch in cents, Filter Cutoff / LFO Rate in octaves, FM Index in rad, Amp in dB, Resonance / Pulse Width / Noise Level added to the knob value (0..1), Pan -1 (left) .. +1 (right). Negative values invert."
+      "modulation": {
+        "destinationParameter": "mod2_destination",
+        "destinations": [
+          {
+            "name": "Off",
+            "unit": "",
+            "range": 1,
+            "step": 0.001
+          },
+          {
+            "name": "Pitch",
+            "unit": "cents",
+            "range": 2400,
+            "step": 0.1
+          },
+          {
+            "name": "Filter Cutoff",
+            "unit": "oct",
+            "range": 8,
+            "step": 0.01
+          },
+          {
+            "name": "Filter Resonance",
+            "unit": "",
+            "range": 1,
+            "step": 0.001
+          },
+          {
+            "name": "Pulse Width",
+            "unit": "",
+            "range": 0.45,
+            "step": 0.001
+          },
+          {
+            "name": "Osc2 Pitch",
+            "unit": "cents",
+            "range": 4800,
+            "step": 1
+          },
+          {
+            "name": "FM Index",
+            "unit": "rad",
+            "range": 10,
+            "step": 0.01
+          },
+          {
+            "name": "Amp",
+            "unit": "dB",
+            "range": 48,
+            "step": 0.1
+          },
+          {
+            "name": "Pan",
+            "unit": "",
+            "range": 1,
+            "step": 0.001
+          },
+          {
+            "name": "LFO 1 Rate",
+            "unit": "oct",
+            "range": 6,
+            "step": 0.01
+          },
+          {
+            "name": "LFO 2 Rate",
+            "unit": "oct",
+            "range": 6,
+            "step": 0.01
+          },
+          {
+            "name": "Noise Level",
+            "unit": "",
+            "range": 1,
+            "step": 0.001
+          },
+          {
+            "name": "Osc1 WT Position",
+            "unit": "position",
+            "range": 1,
+            "step": 0.001
+          },
+          {
+            "name": "Osc2 WT Position",
+            "unit": "position",
+            "range": 1,
+            "step": 0.001
+          }
+        ]
+      },
+      "description": "Mod matrix slot 2: how far the destination moves at source value 1, in the destination's unit: Pitch / Osc2 Pitch in cents, Filter Cutoff / LFO Rate in octaves, FM Index in rad, Amp in dB, Resonance / Pulse Width / Noise Level added to the knob value (0..1), Pan -1 (left) .. +1 (right). Osc1 / Osc2 WT Position adds a normalized position offset, clamped with the existing WT modulation to 0..1; classic waveforms ignore it. Negative values invert. The modulation metadata supplies suggested display ranges and fine steps, without changing this stored value domain."
     },
     {
       "id": "mod3_source",
@@ -1669,7 +1851,7 @@
       "name": "Mod 3 Destination",
       "group": "Mod Matrix",
       "min": 0,
-      "max": 11,
+      "max": 13,
       "default": 0,
       "step": 1,
       "unit": "",
@@ -1685,7 +1867,9 @@
         "Pan",
         "LFO 1 Rate",
         "LFO 2 Rate",
-        "Noise Level"
+        "Noise Level",
+        "Osc1 WT Position",
+        "Osc2 WT Position"
       ],
       "description": "Mod matrix slot 3: what is modulated (per note, except LFO 1 / LFO 2 Rate which are global and only follow LFO 1, LFO 2, Mod Wheel and channel pressure). Off = slot unused."
     },
@@ -1698,7 +1882,96 @@
       "default": 0,
       "step": 0.001,
       "unit": "",
-      "description": "Mod matrix slot 3: how far the destination moves at source value 1, in the destination's unit: Pitch / Osc2 Pitch in cents, Filter Cutoff / LFO Rate in octaves, FM Index in rad, Amp in dB, Resonance / Pulse Width / Noise Level added to the knob value (0..1), Pan -1 (left) .. +1 (right). Negative values invert."
+      "modulation": {
+        "destinationParameter": "mod3_destination",
+        "destinations": [
+          {
+            "name": "Off",
+            "unit": "",
+            "range": 1,
+            "step": 0.001
+          },
+          {
+            "name": "Pitch",
+            "unit": "cents",
+            "range": 2400,
+            "step": 0.1
+          },
+          {
+            "name": "Filter Cutoff",
+            "unit": "oct",
+            "range": 8,
+            "step": 0.01
+          },
+          {
+            "name": "Filter Resonance",
+            "unit": "",
+            "range": 1,
+            "step": 0.001
+          },
+          {
+            "name": "Pulse Width",
+            "unit": "",
+            "range": 0.45,
+            "step": 0.001
+          },
+          {
+            "name": "Osc2 Pitch",
+            "unit": "cents",
+            "range": 4800,
+            "step": 1
+          },
+          {
+            "name": "FM Index",
+            "unit": "rad",
+            "range": 10,
+            "step": 0.01
+          },
+          {
+            "name": "Amp",
+            "unit": "dB",
+            "range": 48,
+            "step": 0.1
+          },
+          {
+            "name": "Pan",
+            "unit": "",
+            "range": 1,
+            "step": 0.001
+          },
+          {
+            "name": "LFO 1 Rate",
+            "unit": "oct",
+            "range": 6,
+            "step": 0.01
+          },
+          {
+            "name": "LFO 2 Rate",
+            "unit": "oct",
+            "range": 6,
+            "step": 0.01
+          },
+          {
+            "name": "Noise Level",
+            "unit": "",
+            "range": 1,
+            "step": 0.001
+          },
+          {
+            "name": "Osc1 WT Position",
+            "unit": "position",
+            "range": 1,
+            "step": 0.001
+          },
+          {
+            "name": "Osc2 WT Position",
+            "unit": "position",
+            "range": 1,
+            "step": 0.001
+          }
+        ]
+      },
+      "description": "Mod matrix slot 3: how far the destination moves at source value 1, in the destination's unit: Pitch / Osc2 Pitch in cents, Filter Cutoff / LFO Rate in octaves, FM Index in rad, Amp in dB, Resonance / Pulse Width / Noise Level added to the knob value (0..1), Pan -1 (left) .. +1 (right). Osc1 / Osc2 WT Position adds a normalized position offset, clamped with the existing WT modulation to 0..1; classic waveforms ignore it. Negative values invert. The modulation metadata supplies suggested display ranges and fine steps, without changing this stored value domain."
     },
     {
       "id": "mod4_source",
@@ -1728,7 +2001,7 @@
       "name": "Mod 4 Destination",
       "group": "Mod Matrix",
       "min": 0,
-      "max": 11,
+      "max": 13,
       "default": 0,
       "step": 1,
       "unit": "",
@@ -1744,7 +2017,9 @@
         "Pan",
         "LFO 1 Rate",
         "LFO 2 Rate",
-        "Noise Level"
+        "Noise Level",
+        "Osc1 WT Position",
+        "Osc2 WT Position"
       ],
       "description": "Mod matrix slot 4: what is modulated (per note, except LFO 1 / LFO 2 Rate which are global and only follow LFO 1, LFO 2, Mod Wheel and channel pressure). Off = slot unused."
     },
@@ -1757,7 +2032,96 @@
       "default": 0,
       "step": 0.001,
       "unit": "",
-      "description": "Mod matrix slot 4: how far the destination moves at source value 1, in the destination's unit: Pitch / Osc2 Pitch in cents, Filter Cutoff / LFO Rate in octaves, FM Index in rad, Amp in dB, Resonance / Pulse Width / Noise Level added to the knob value (0..1), Pan -1 (left) .. +1 (right). Negative values invert."
+      "modulation": {
+        "destinationParameter": "mod4_destination",
+        "destinations": [
+          {
+            "name": "Off",
+            "unit": "",
+            "range": 1,
+            "step": 0.001
+          },
+          {
+            "name": "Pitch",
+            "unit": "cents",
+            "range": 2400,
+            "step": 0.1
+          },
+          {
+            "name": "Filter Cutoff",
+            "unit": "oct",
+            "range": 8,
+            "step": 0.01
+          },
+          {
+            "name": "Filter Resonance",
+            "unit": "",
+            "range": 1,
+            "step": 0.001
+          },
+          {
+            "name": "Pulse Width",
+            "unit": "",
+            "range": 0.45,
+            "step": 0.001
+          },
+          {
+            "name": "Osc2 Pitch",
+            "unit": "cents",
+            "range": 4800,
+            "step": 1
+          },
+          {
+            "name": "FM Index",
+            "unit": "rad",
+            "range": 10,
+            "step": 0.01
+          },
+          {
+            "name": "Amp",
+            "unit": "dB",
+            "range": 48,
+            "step": 0.1
+          },
+          {
+            "name": "Pan",
+            "unit": "",
+            "range": 1,
+            "step": 0.001
+          },
+          {
+            "name": "LFO 1 Rate",
+            "unit": "oct",
+            "range": 6,
+            "step": 0.01
+          },
+          {
+            "name": "LFO 2 Rate",
+            "unit": "oct",
+            "range": 6,
+            "step": 0.01
+          },
+          {
+            "name": "Noise Level",
+            "unit": "",
+            "range": 1,
+            "step": 0.001
+          },
+          {
+            "name": "Osc1 WT Position",
+            "unit": "position",
+            "range": 1,
+            "step": 0.001
+          },
+          {
+            "name": "Osc2 WT Position",
+            "unit": "position",
+            "range": 1,
+            "step": 0.001
+          }
+        ]
+      },
+      "description": "Mod matrix slot 4: how far the destination moves at source value 1, in the destination's unit: Pitch / Osc2 Pitch in cents, Filter Cutoff / LFO Rate in octaves, FM Index in rad, Amp in dB, Resonance / Pulse Width / Noise Level added to the knob value (0..1), Pan -1 (left) .. +1 (right). Osc1 / Osc2 WT Position adds a normalized position offset, clamped with the existing WT modulation to 0..1; classic waveforms ignore it. Negative values invert. The modulation metadata supplies suggested display ranges and fine steps, without changing this stored value domain."
     },
     {
       "id": "arp_retrigger",

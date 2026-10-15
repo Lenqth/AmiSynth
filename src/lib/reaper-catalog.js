@@ -4,6 +4,7 @@ import { SYNTH_PRESETS } from '../presets/synth.js';
 import { PHYS_PRESETS } from '../presets/phys.js';
 import { DRUM_PRESETS } from '../presets/drums.js';
 import { resolvePreset } from './presets.js';
+import { PLAYING_GUIDES } from '../presets/playing-guides.js';
 
 export const MACROS = [
   { name: 'Brightness', description: 'Cutoff and filter envelope depth.', targets: [
@@ -40,6 +41,7 @@ export function createCatalog() {
         ...(d.options ? { enumValues: d.options.map((label, value) => ({ value, label })) } : {}),
       })),
       presets: presets.map((p) => ({ name: p.name, category: p.category, description: p.description,
+        ...(PLAYING_GUIDES[p.name]?.kind === kind ? { playingGuide: PLAYING_GUIDES[p.name] } : {}),
         // Tuning must survive preset changes, even in REAPER.
         params: Object.fromEntries(Object.entries(resolvePreset(defs, p)).filter(([id]) => !id.startsWith('tuning_'))),
       })),
