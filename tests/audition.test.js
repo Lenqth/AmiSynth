@@ -41,6 +41,7 @@ test('audition counts actual voice replacement and handles silence without NaN J
   assert.equal(silent.levelSuggestion.correctionDb, null);
   assert.ok(!JSON.stringify(silent).includes('NaN'));
   assert.throws(() => audition('synth', { mod1_destination: 14 }), /expected/);
+  assert.throws(() => audition('synth', { tuning_source: 2 }), /external file\/shared scales/);
   assert.throws(() => audition('synth', {}, { ...request, events: [[-1, 0x90, 60, 100]] }), /Invalid MIDI/);
 });
 

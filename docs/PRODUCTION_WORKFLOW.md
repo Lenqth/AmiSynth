@@ -96,3 +96,5 @@ npm run audition:preset -- synth --preset "Formant Half-time Bass" --request .ca
 ### 測定の範囲
 
 このコマンドはNode.jsでAmiSynthのJS参照DSPを実行します。MCPを使う制作セッションでも、シェルを利用できる環境から呼び出せます。実際のREAPERトラック、インストール済みJSFX、フェーダー、外部FX、サイドチェイン音声を測定するものではありません。Apply soundの`audition`や瞬間的トラックメーターの契約は変更しません。True Peak、CPU性能、聴感上の自然さを評価した値でもありません。実機へ適用した後は、パラメータのreadbackと必要な試聴を続けてください。
+
+音律はEDOスライダー（`tuning_source=0`）のみ対応します。ファイル／共有Scala音律は読み込めないため、誤って別の音律を測定しないよう明示的に拒否します。

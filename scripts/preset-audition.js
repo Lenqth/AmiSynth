@@ -33,6 +33,7 @@ export function audition(kind, patch = {}, request = auditionPhrase()) {
   if (!['synth', 'phys', 'drums'].includes(kind)) throw new Error('kind must be synth, phys or drums');
   validatePatch(catalog.instruments[kind], patch);
   const core = INSTRUMENTS[kind], params = { ...defaultValues(core.defs), ...patch };
+  if ((params.tuning_source ?? 0) !== 0) throw new Error('Offline auditions require EDO sliders (tuning_source=0); external file/shared scales are not loaded');
   const { sampleRate: sr, seconds, bpm, events } = request;
   if (![44100, 48000].includes(sr) || !Number.isFinite(seconds) || seconds <= 0 || seconds > 30 ||
       !Number.isFinite(bpm) || bpm < 20 || bpm > 400) throw new Error('Use 44100/48000 Hz, 0-30 seconds and 20-400 BPM');
