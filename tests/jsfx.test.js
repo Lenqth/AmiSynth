@@ -159,6 +159,8 @@ test('JSFX physical model matches JS with stress settings (vibrato, voice steali
     ['free reed', { phys_model: 3, wind_type: 4, breath_noise: 0.4, phys_vibrato_cents: 15 }],
     ['musette', { phys_model: 3, wind_type: 4, free_reed_detune_cents: 18, wind_embouchure: 1, tuning_divisions: 19 }],
     ['sitar sawari', { phys_model: 0, string_sawari: 1, string_damping: 0.1, string_decay_ms: 8000, phys_vibrato_cents: 20 }],
+    ['bachi body', { phys_model: 0, string_plectrum: 1, string_plectrum_hardness: 1, string_body_mix: 1, string_sawari: 0.4 }],
+    ['sympathetic bank', { phys_model: 0, string_sympathetic_mix: 1, string_sympathetic_decay_ms: 10000, string_sympathetic_root: 48, tuning_divisions: 19 }],
     ['circular mesh', { phys_model: 4, mesh_shape: 0, mesh_size: 16, mesh_high_damping: 1, mesh_hardness: 1 }],
     ['square mesh', { phys_model: 4, mesh_shape: 1, mesh_size: 7, mesh_strike_x: 0.9, mesh_strike_y: 0.1 }],
     ['stiff+vibrato', { phys_model: 5, piano_inharmonicity: 1, piano_unison_detune_cents: 10, phys_vibrato_cents: 25 }],
@@ -177,6 +179,27 @@ test('JSFX physical model matches JS with stress settings (vibrato, voice steali
 test('JSFX rotary speaker follows the mod wheel like JS', { skip: !HAVE && 'jsfx_render not built' }, () => {
   const ev = [[0, 0x90, 60, 100], [0, 0x90, 67, 100], [6000, 0xb0, 1, 127], [20000, 0xb0, 1, 0], [26000, 0x90, 72, 90]];
   check('phys', scenario('phys', { phys_model: 7, rotary_mode: 1, organ_drawbar_2: 8 }), ev, 0.7, 'phys/organ mod wheel');
+});
+
+test('JSFX procedural sound FX and low free reeds match JS, including retriggers and rate settings', { skip: !HAVE && 'jsfx_render not built' }, () => {
+  const ev = [[0, 0x90, 28, 100], [3000, 0x90, 64, 80], [8000, 0x90, 28, 110],
+    [14000, 0x80, 28, 0], [16000, 0x80, 64, 0], [21000, 0x90, 96, 100]];
+  for (const type of [4, 5, 6, 7]) for (const rate of [-1, 0, 1]) {
+    const params = scenario('synth', { noise_type: type, noise_level: 1, noise_clock_oct: rate,
+      osc1_level: 0, osc2_level: 0, filter_env_amount_oct: 0, filter_key_tracking: 0, filter_cutoff_hz: 8000 });
+    check('synth', params, ev, .7, `sound FX ${type} rate ${rate}`);
+    check('synth', params, ev, .7, `sound FX ${type} rate ${rate} @44.1k`, 44100);
+  }
+  for (const detune of [0, 12]) for (const noise of [0, .3, 1]) {
+    const params = scenario('phys', { phys_model: 3, wind_type: 4, breath_noise: noise,
+      free_reed_detune_cents: detune, breath_pressure: .6 });
+    check('phys', params, ev, .7, `low free reed detune ${detune} noise ${noise}`);
+    check('phys', params, ev, .7, `low free reed detune ${detune} noise ${noise} @44.1k`, 44100);
+  }
+  const muted = [[0, 0xb0, 1, 127], [0, 0x90, 60, 100], [48000, 0xb0, 1, 0], [57600, 0x90, 60, 100]];
+  const shot = scenario('synth', { noise_type: 6, noise_level: 1, osc1_level: 0, osc2_level: 0,
+    filter_env_amount_oct: 0, amp_sustain: 1, mod1_source: 6, mod1_destination: 11, mod1_amount: -1 });
+  check('synth', shot, muted, 1.5, 'shot muted via mod wheel: clock continues');
 });
 
 test('JSFX piano matches JS up to the top of the MIDI range', { skip: !HAVE && 'jsfx_render not built' }, () => {

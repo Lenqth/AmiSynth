@@ -91,6 +91,12 @@ slider77:rotary_mode=0<0,2,1{Off,Slow (chorale),Fast (tremolo)}>Rotary Speaker
 slider78:rotary_mix=1<0,1,0.001>Rotary Mix
 slider79:free_reed_detune_cents=0<0,50,0.1>Free Reed Musette [cents]
 slider80:string_sawari=0<0,1,0.001>String Sawari
+slider81:string_plectrum=0<0,1,0.001>String Plectrum
+slider82:string_plectrum_hardness=0.7<0,1,0.001>Plectrum Hardness
+slider83:string_body_mix=0<0,1,0.001>String Body Mix
+slider84:string_sympathetic_mix=0<0,1,0.001>Sympathetic Mix
+slider85:string_sympathetic_decay_ms=3500<200,10000,1>Sympathetic Decay [ms]
+slider86:string_sympathetic_root=60<0,104,1>Sympathetic Root [note]
 // </generated sliders>
 
 import amisynth_lib.jsfx-inc
@@ -291,6 +297,32 @@ v_age = mem_alloc(MAX_VOICES);
 age_counter = 0;
 bend_ratio = 1;
 pressure = 0; // channel pressure 0..1
+sym_modes = mem_alloc(24 * 6);
+sym_hz = mem_alloc(24);
+sym_enabled = -1;
+sym_decay = -1;
+function sympathetic_update() local(k, hz, decay, enabled, changed) (
+  enabled = model === MODEL_STRING && string_sympathetic_mix > 0;
+  changed = enabled !== sym_enabled || string_sympathetic_decay_ms !== sym_decay;
+  k = 0;
+  loop(24,
+    hz = tuning_note_to_hz(string_sympathetic_root + k);
+    hz !== sym_hz[k] ? changed = 1;
+    sym_hz[k] = hz;
+    k += 1;
+  );
+  changed ? (
+    k = 0;
+    loop(24,
+      decay = string_sympathetic_decay_ms * (1 - 0.012 * k);
+      rmem_reset(sym_modes + k * 6);
+      rmem_set(sym_modes + k * 6, sym_hz[k], decay, 2 * (1 - t60_coef(decay)));
+      k += 1;
+    );
+  );
+  sym_enabled = enabled;
+  sym_decay = string_sympathetic_decay_ms;
+);
 dc.onepole_set(20);
 dc_r.onepole_set(20);
 level_coef = t60_coef(300);
@@ -578,9 +610,9 @@ function hammer_force(out, hz, v0, hardness, beta) local(m, Z, K, dt, lag, max_n
 function voice_op(op, a, b) instance(idx vel hz0 level frames lp_z lp_z2 loop_gain loop_gain2 damp_b delay_len delay_len2 read_gain
   exc_t exc_len exc modes mhz mt60 maxv slope mesh_u mesh_up mesh_un mesh_sig mesh_omega jet_boost flut hiss_lp
   vel_raw lip_y1 lip_y2 dc_x dc_y bell_z refl_z rad_x rad_x2 steep steep_w boost boost_c poly_at press org_perc org_clk org_ph fr_ph2 fr_ph3
-  saw_env saw_dc saw_mx saw_my saw_g saw_on)
+  saw_env saw_dc saw_mx saw_my saw_g saw_on bachi_t bachi_len)
   local(others, v, n, bright, aa, pick, norm, lp, i, j, c, x, width, ia, ib, hard, g_rel, k, R, amp, sx, sy, d, len, decay, sb_a, sb_env,
-    v0, scale, total, hp_a, hp_z, hp_z2, hp_z3, hp_z4, w0, re, im, mag, around, m, top, want, blen, burst, release_ms, mesh_ms) (
+    v0, scale, total, hp_a, hp_z, hp_z2, hp_z3, hp_z4, w0, re, im, mag, around, m, top, want, blen, burst, release_ms, mesh_ms, pos_w) (
   op === 0 ? (
     idx = a;
     this.line.delay_init(MAX_DELAY);
@@ -620,6 +652,12 @@ function voice_op(op, a, b) instance(idx vel hz0 level frames lp_z lp_z2 loop_ga
         string_excitation < 0.5 ? (
           lp += aa * (noise_white() - lp);
           x = lp * norm * 0.5;
+          string_plectrum > 0 ? (
+            g_rel = i / n;
+            pos_w = clamp(string_pick_position, 0.02, 0.98);
+            amp = g_rel < pos_w ? g_rel / pos_w : (1 - g_rel) / (1 - pos_w);
+            x += 0.65 * string_plectrum * (amp - 0.5 - x);
+          );
         ) : (
           width = max(2, n * (0.5 - 0.45 * bright));
           x = i < width ? 0.5 - 0.5 * cos((2 * $pi * i) / width) : 0;
@@ -641,6 +679,13 @@ function voice_op(op, a, b) instance(idx vel hz0 level frames lp_z lp_z2 loop_ga
       saw_my = 0;
       saw_g = 1;
       saw_on = 1;
+      bachi_t = 0;
+      hard = clamp(string_plectrum_hardness * (0.6 + 0.4 * v), 0, 1);
+      bachi_len = max(2, floor(srate * (0.0012 - 0.001 * hard) + 0.5));
+      rmem_reset(modes); rmem_reset(modes + 6); rmem_reset(modes + 12);
+      rmem_set(modes, 950, 30, 0.12);
+      rmem_set(modes + 6, 2300, 18, 0.7);
+      rmem_set(modes + 12, 4800, 10, 0.5);
       read_gain = 1.2 * vel * clamp(pow(hz0 / 220, 0.3), 0.7, 2);
     ) : model === MODEL_MODAL ? (
       k = 0;
@@ -900,8 +945,8 @@ function voice_op(op, a, b) instance(idx vel hz0 level frames lp_z lp_z2 loop_ga
 
 // --- per-model renderers (return the voice's mono output) ---
 
-function render_string() instance(lp_z damp_b loop_gain delay_len read_gain saw_env saw_dc saw_mx saw_my saw_g saw_on)
-  local(x, fb, a, b, y) (
+function render_string() instance(lp_z damp_b loop_gain delay_len read_gain saw_env saw_dc saw_mx saw_my saw_g saw_on bachi_t bachi_len vel modes)
+  local(x, fb, a, b, y, direct, contact, body, k) (
   // read the oldest sample, damp it, feed it back
   x = this.line.delay_read(delay_len / vib);
   lp_z = (1 - damp_b) * x + damp_b * lp_z;
@@ -925,7 +970,18 @@ function render_string() instance(lp_z damp_b loop_gain delay_len read_gain saw_
     fb = y * loop_gain * saw_g;
   );
   this.line.delay_write(fb);
-  fb * read_gain;
+  direct = fb * read_gain;
+  contact = 0;
+  bachi_t < bachi_len ? (
+      contact = string_plectrum * vel * sin(2 * $pi * bachi_t / bachi_len) / (0.5 * bachi_len);
+      bachi_t += 1;
+  );
+  string_body_mix > 0 ? (
+    body = 0; k = 0;
+    loop(3, body += rmem_process(modes + k * 6, 0.002 * direct + contact); k += 1;);
+    direct += 2 * string_body_mix * body;
+  );
+  direct;
 );
 
 function render_modal() instance(vel exc_t exc_len modes) local(exc, y, k) (
@@ -1017,7 +1073,9 @@ function render_wind() instance(vel maxv slope lp_z damp_b delay_len delay_len2 
   kind = wind_kind();
   kind === WIND_FREE_REED ? (
     // the tongue swings at its own pitch; air passes while it is clear of the slot
-    bp += bp * breath_noise * 0.25 * nz;
+    // Slow bellows fluctuation, not white pressure noise amplified by sr / hz in radiation.
+    // The separately added hiss still supplies the broadband breath component.
+    bp += bp * breath_noise * 0.25 * flut;
     org_ph += org_inc * vib;
     org_ph >= 1 ? org_ph -= 1;
     x = bp * sin(2 * $pi * org_ph);
@@ -1430,6 +1488,7 @@ tuning_apply();
 out_gain = db_to_gain(phys_volume_db);
 string_damp_b = 0.05 + 0.9 * string_damping; // one-pole coefficient in the loop
 model = floor(phys_model + 0.5);
+sympathetic_update();
 vib_inc = phys_vibrato_rate_hz / srate;
 flut_a = 1 - exp((-2 * $pi * 5) / srate);
 hiss_a = 1 - exp((-2 * $pi * 1000) / srate);
@@ -1484,7 +1543,7 @@ mesh_n_new !== mesh_n || mesh_shape_new !== mesh_shape_cur ? mesh_setup(mesh_n_n
 @block
 midi_queue_read();
 // a shared scale (AmiSynth Tuning) changed: new notes use it
-tuning_shared_changed() ? tuning_apply();
+tuning_shared_changed() ? (tuning_apply(); sympathetic_update(););
 
 @sample
 while (midi_pop()) ( handle_midi(midi_m1, midi_m2, midi_m3); );
@@ -1514,6 +1573,16 @@ model === MODEL_STIFF && piano_soundboard > 0 ? (
   mix_r = mix_r * sb_dry + piano_soundboard * sb_r;
 );
 
+model === MODEL_STRING && string_sympathetic_mix > 0 ? (
+  sym_k = 0;
+  loop(24,
+    sym_y = rmem_process(sym_modes + sym_k * 6, bridge) * string_sympathetic_mix * 2.4;
+    sym_pan = sym_k % 2 ? 0.85 : 0.15;
+    mix_l += sym_y * sym_pan;
+    mix_r += sym_y * (1 - sym_pan);
+    sym_k += 1;
+  );
+);
 amp_t > 0 ? (
   mix_l = amp_l.amp_process(mix_l);
   mix_r = amp_r.amp_process(mix_r);

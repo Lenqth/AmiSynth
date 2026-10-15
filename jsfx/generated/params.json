@@ -1006,7 +1006,7 @@
       "name": "Noise Type",
       "group": "Noise",
       "min": 0,
-      "max": 3,
+      "max": 7,
       "default": 0,
       "step": 1,
       "unit": "",
@@ -1014,9 +1014,13 @@
         "White",
         "Chip Long (LFSR)",
         "Chip Short (metallic)",
-        "Sample & Hold"
+        "Sample & Hold",
+        "Rotor",
+        "Crowd Claps",
+        "Shot",
+        "Rain"
       ],
-      "description": "White: hiss. Chip Long / Short: 8-bit console style shift-register noise, clocked from the note pitch (Short repeats every 93 steps: a pitched, metallic tone). Sample & Hold: random steps at the clock rate."
+      "description": "White: hiss. Chip Long / Short and Sample & Hold are clocked from the note pitch. Rotor: periodic blade thumps with air wash. Crowd Claps: eighteen independently timed short high-passed hand impacts. Shot: a very brief broadband crack with a short early reflection, restarted on note-on. Rain: continuous filtered rain wash with irregular short droplets of varying strength and resonance. The four sound FX sources ignore note pitch and are mixed at Noise Level before the main filter and amp envelope."
     },
     {
       "id": "noise_clock_oct",
@@ -1027,7 +1031,7 @@
       "default": 0,
       "step": 0.01,
       "unit": "oct",
-      "description": "Clock of the chip / S&H noise relative to the note (higher = brighter). At 0, Chip Short sounds at the note pitch."
+      "description": "Chip / S&H clock relative to the note (higher = brighter); at 0, Chip Short sounds at the note pitch. For Rotor / Crowd Claps / Rain this scales the blade / clap / droplet rate; for Shot it scales playback speed. These FX rates do not follow note pitch."
     },
     {
       "id": "noise_filter_mode",
@@ -2709,6 +2713,72 @@
       "step": 0.001,
       "unit": "",
       "description": "Sitar / tanpura bridge (jawari): the string grazes a flat curved bridge on every swing, which keeps folding energy into the high partials - the sustained buzz. Higher = the string lies on the bridge for more of each cycle. 0 = an ordinary bridge."
+    },
+    {
+      "id": "string_plectrum",
+      "name": "String Plectrum",
+      "group": "String",
+      "min": 0,
+      "max": 1,
+      "default": 0,
+      "step": 0.001,
+      "unit": "",
+      "description": "String only: blends a displaced-string release into the pluck and adds a short bachi contact pulse. 0 preserves the original excitation. Use Body Mix to hear the skin contact."
+    },
+    {
+      "id": "string_plectrum_hardness",
+      "name": "Plectrum Hardness",
+      "group": "String",
+      "min": 0,
+      "max": 1,
+      "default": 0.7,
+      "step": 0.001,
+      "unit": "",
+      "description": "Shortens the bachi contact pulse; higher velocity also hardens the contact. Used with String Plectrum."
+    },
+    {
+      "id": "string_body_mix",
+      "name": "String Body Mix",
+      "group": "String",
+      "min": 0,
+      "max": 1,
+      "default": 0,
+      "step": 0.001,
+      "unit": "",
+      "description": "String only: short skin/body resonances driven by both the bridge and bachi contact. Fixed approximate body frequencies, independent of the played pitch."
+    },
+    {
+      "id": "string_sympathetic_mix",
+      "name": "Sympathetic Mix",
+      "group": "String",
+      "min": 0,
+      "max": 1,
+      "default": 0,
+      "step": 0.001,
+      "unit": "",
+      "description": "String only: shared bank of 24 tuned resonators excited by all played strings. Adds a stereo pitched after-ring, including after note release. 0 bypasses and clears the bank."
+    },
+    {
+      "id": "string_sympathetic_decay_ms",
+      "name": "Sympathetic Decay",
+      "group": "String",
+      "min": 200,
+      "max": 10000,
+      "default": 3500,
+      "step": 1,
+      "unit": "ms",
+      "description": "Approximate T60 of the sympathetic resonators. Longer decay builds up more slowly; resonance gain is normalized."
+    },
+    {
+      "id": "string_sympathetic_root",
+      "name": "Sympathetic Root",
+      "group": "String",
+      "min": 0,
+      "max": 104,
+      "default": 60,
+      "step": 1,
+      "unit": "note",
+      "description": "Lowest MIDI key of the 24 consecutive sympathetic scale degrees. Follows the instrument tuning, including custom/shared scales; does not follow pitch bend. Choose the range for the piece."
     }
   ],
   "drums": [
