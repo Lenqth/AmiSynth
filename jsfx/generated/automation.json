@@ -3226,6 +3226,58 @@
           "slider": 127,
           "paramIndex": 126,
           "valueDomain": "real"
+        },
+        {
+          "id": "arp_retrigger",
+          "name": "Arp Retrigger",
+          "group": "Arpeggiator",
+          "min": 0,
+          "max": 3,
+          "default": 0,
+          "step": 1,
+          "unit": "",
+          "options": [
+            "First Key",
+            "New Chord",
+            "Every Bar",
+            "Free Run"
+          ],
+          "description": "When the arpeggio goes back to its first note. First Key: only when a key is pressed with none held. New Chord: also when a key is pressed more than 50 ms after the previous key press (a chord changed while the old one is still held starts from its first note on the next step; notes of one chord may arrive up to 50 ms apart). Every Bar: also at every bar line (host time signature; the web version is 4/4). Free Run: never - the position follows the host step count, as if the arpeggio had been running since the start of the song.",
+          "slider": 128,
+          "paramIndex": 127,
+          "valueDomain": "real",
+          "enumValues": [
+            {
+              "value": 0,
+              "label": "First Key"
+            },
+            {
+              "value": 1,
+              "label": "New Chord"
+            },
+            {
+              "value": 2,
+              "label": "Every Bar"
+            },
+            {
+              "value": 3,
+              "label": "Free Run"
+            }
+          ]
+        },
+        {
+          "id": "legato_window_ms",
+          "name": "Legato Window",
+          "group": "Voice",
+          "min": 0,
+          "max": 100,
+          "default": 0,
+          "step": 0.1,
+          "unit": "ms",
+          "description": "Mono / Legato and Glide Mode \"Legato only\": a note that starts within this time after the previous note was released still counts as overlapping (Legato does not restart the envelopes, legato glide glides). For MIDI whose notes touch end to start or leave a small gap. 0 = notes must really overlap.",
+          "slider": 129,
+          "paramIndex": 128,
+          "valueDomain": "real"
         }
       ],
       "presets": [
@@ -3354,7 +3406,9 @@
             "mod3_amount": 0,
             "mod4_source": 0,
             "mod4_destination": 0,
-            "mod4_amount": 0
+            "mod4_amount": 0,
+            "arp_retrigger": 0,
+            "legato_window_ms": 0
           }
         },
         {
@@ -3482,7 +3536,9 @@
             "mod3_amount": 0,
             "mod4_source": 0,
             "mod4_destination": 0,
-            "mod4_amount": 0
+            "mod4_amount": 0,
+            "arp_retrigger": 0,
+            "legato_window_ms": 0
           }
         },
         {
@@ -3610,7 +3666,9 @@
             "mod3_amount": 0,
             "mod4_source": 0,
             "mod4_destination": 0,
-            "mod4_amount": 0
+            "mod4_amount": 0,
+            "arp_retrigger": 0,
+            "legato_window_ms": 0
           }
         },
         {
@@ -3738,7 +3796,9 @@
             "mod3_amount": 0,
             "mod4_source": 0,
             "mod4_destination": 0,
-            "mod4_amount": 0
+            "mod4_amount": 0,
+            "arp_retrigger": 0,
+            "legato_window_ms": 0
           }
         },
         {
@@ -3866,7 +3926,9 @@
             "mod3_amount": 0,
             "mod4_source": 0,
             "mod4_destination": 0,
-            "mod4_amount": 0
+            "mod4_amount": 0,
+            "arp_retrigger": 0,
+            "legato_window_ms": 0
           }
         },
         {
@@ -3994,7 +4056,9 @@
             "mod3_amount": 0,
             "mod4_source": 0,
             "mod4_destination": 0,
-            "mod4_amount": 0
+            "mod4_amount": 0,
+            "arp_retrigger": 0,
+            "legato_window_ms": 0
           }
         },
         {
@@ -4122,7 +4186,9 @@
             "mod3_amount": 0,
             "mod4_source": 0,
             "mod4_destination": 0,
-            "mod4_amount": 0
+            "mod4_amount": 0,
+            "arp_retrigger": 0,
+            "legato_window_ms": 0
           }
         },
         {
@@ -4250,7 +4316,9 @@
             "mod3_amount": 0,
             "mod4_source": 0,
             "mod4_destination": 0,
-            "mod4_amount": 0
+            "mod4_amount": 0,
+            "arp_retrigger": 0,
+            "legato_window_ms": 0
           }
         },
         {
@@ -4378,7 +4446,9 @@
             "mod3_amount": 0,
             "mod4_source": 0,
             "mod4_destination": 0,
-            "mod4_amount": 0
+            "mod4_amount": 0,
+            "arp_retrigger": 0,
+            "legato_window_ms": 0
           }
         },
         {
@@ -4506,7 +4576,9 @@
             "mod3_amount": 0,
             "mod4_source": 0,
             "mod4_destination": 0,
-            "mod4_amount": 0
+            "mod4_amount": 0,
+            "arp_retrigger": 0,
+            "legato_window_ms": 0
           }
         },
         {
@@ -4634,7 +4706,9 @@
             "mod3_amount": 0,
             "mod4_source": 0,
             "mod4_destination": 0,
-            "mod4_amount": 0
+            "mod4_amount": 0,
+            "arp_retrigger": 0,
+            "legato_window_ms": 0
           }
         },
         {
@@ -4762,7 +4836,9 @@
             "mod3_amount": 0,
             "mod4_source": 0,
             "mod4_destination": 0,
-            "mod4_amount": 0
+            "mod4_amount": 0,
+            "arp_retrigger": 0,
+            "legato_window_ms": 0
           }
         },
         {
@@ -4890,7 +4966,9 @@
             "mod3_amount": 0,
             "mod4_source": 0,
             "mod4_destination": 0,
-            "mod4_amount": 0
+            "mod4_amount": 0,
+            "arp_retrigger": 0,
+            "legato_window_ms": 0
           }
         },
         {
@@ -5018,7 +5096,9 @@
             "mod3_amount": 0,
             "mod4_source": 0,
             "mod4_destination": 0,
-            "mod4_amount": 0
+            "mod4_amount": 0,
+            "arp_retrigger": 0,
+            "legato_window_ms": 0
           }
         },
         {
@@ -5146,7 +5226,9 @@
             "mod3_amount": 0,
             "mod4_source": 0,
             "mod4_destination": 0,
-            "mod4_amount": 0
+            "mod4_amount": 0,
+            "arp_retrigger": 0,
+            "legato_window_ms": 0
           }
         },
         {
@@ -5274,7 +5356,9 @@
             "mod3_amount": 0,
             "mod4_source": 0,
             "mod4_destination": 0,
-            "mod4_amount": 0
+            "mod4_amount": 0,
+            "arp_retrigger": 0,
+            "legato_window_ms": 0
           }
         },
         {
@@ -5402,7 +5486,9 @@
             "mod3_amount": 0,
             "mod4_source": 0,
             "mod4_destination": 0,
-            "mod4_amount": 0
+            "mod4_amount": 0,
+            "arp_retrigger": 0,
+            "legato_window_ms": 0
           }
         },
         {
@@ -5530,7 +5616,9 @@
             "mod3_amount": 0,
             "mod4_source": 0,
             "mod4_destination": 0,
-            "mod4_amount": 0
+            "mod4_amount": 0,
+            "arp_retrigger": 0,
+            "legato_window_ms": 0
           }
         },
         {
@@ -5658,7 +5746,9 @@
             "mod3_amount": 0,
             "mod4_source": 0,
             "mod4_destination": 0,
-            "mod4_amount": 0
+            "mod4_amount": 0,
+            "arp_retrigger": 0,
+            "legato_window_ms": 0
           }
         },
         {
@@ -5786,7 +5876,9 @@
             "mod3_amount": 0,
             "mod4_source": 0,
             "mod4_destination": 0,
-            "mod4_amount": 0
+            "mod4_amount": 0,
+            "arp_retrigger": 0,
+            "legato_window_ms": 0
           }
         },
         {
@@ -5914,7 +6006,9 @@
             "mod3_amount": 0,
             "mod4_source": 0,
             "mod4_destination": 0,
-            "mod4_amount": 0
+            "mod4_amount": 0,
+            "arp_retrigger": 0,
+            "legato_window_ms": 0
           }
         },
         {
@@ -6042,7 +6136,9 @@
             "mod3_amount": 0,
             "mod4_source": 0,
             "mod4_destination": 0,
-            "mod4_amount": 0
+            "mod4_amount": 0,
+            "arp_retrigger": 0,
+            "legato_window_ms": 0
           }
         },
         {
@@ -6170,7 +6266,9 @@
             "mod3_amount": 0,
             "mod4_source": 0,
             "mod4_destination": 0,
-            "mod4_amount": 0
+            "mod4_amount": 0,
+            "arp_retrigger": 0,
+            "legato_window_ms": 0
           }
         },
         {
@@ -6298,7 +6396,9 @@
             "mod3_amount": 0,
             "mod4_source": 0,
             "mod4_destination": 0,
-            "mod4_amount": 0
+            "mod4_amount": 0,
+            "arp_retrigger": 0,
+            "legato_window_ms": 0
           }
         },
         {
@@ -6426,7 +6526,9 @@
             "mod3_amount": 0,
             "mod4_source": 0,
             "mod4_destination": 0,
-            "mod4_amount": 0
+            "mod4_amount": 0,
+            "arp_retrigger": 0,
+            "legato_window_ms": 0
           }
         },
         {
@@ -6554,7 +6656,9 @@
             "mod3_amount": 0,
             "mod4_source": 0,
             "mod4_destination": 0,
-            "mod4_amount": 0
+            "mod4_amount": 0,
+            "arp_retrigger": 0,
+            "legato_window_ms": 0
           }
         },
         {
@@ -6682,7 +6786,9 @@
             "mod3_amount": 0,
             "mod4_source": 0,
             "mod4_destination": 0,
-            "mod4_amount": 0
+            "mod4_amount": 0,
+            "arp_retrigger": 0,
+            "legato_window_ms": 0
           }
         },
         {
@@ -6810,7 +6916,9 @@
             "mod3_amount": 0,
             "mod4_source": 0,
             "mod4_destination": 0,
-            "mod4_amount": 0
+            "mod4_amount": 0,
+            "arp_retrigger": 0,
+            "legato_window_ms": 0
           }
         },
         {
@@ -6938,7 +7046,9 @@
             "mod3_amount": 0,
             "mod4_source": 0,
             "mod4_destination": 0,
-            "mod4_amount": 0
+            "mod4_amount": 0,
+            "arp_retrigger": 0,
+            "legato_window_ms": 0
           }
         },
         {
@@ -7066,7 +7176,9 @@
             "mod3_amount": 0,
             "mod4_source": 0,
             "mod4_destination": 0,
-            "mod4_amount": 0
+            "mod4_amount": 0,
+            "arp_retrigger": 0,
+            "legato_window_ms": 0
           }
         },
         {
@@ -7194,7 +7306,9 @@
             "mod3_amount": 0,
             "mod4_source": 0,
             "mod4_destination": 0,
-            "mod4_amount": 0
+            "mod4_amount": 0,
+            "arp_retrigger": 0,
+            "legato_window_ms": 0
           }
         },
         {
@@ -7322,7 +7436,9 @@
             "mod3_amount": 0,
             "mod4_source": 0,
             "mod4_destination": 0,
-            "mod4_amount": 0
+            "mod4_amount": 0,
+            "arp_retrigger": 0,
+            "legato_window_ms": 0
           }
         },
         {
@@ -7450,7 +7566,9 @@
             "mod3_amount": 0,
             "mod4_source": 0,
             "mod4_destination": 0,
-            "mod4_amount": 0
+            "mod4_amount": 0,
+            "arp_retrigger": 0,
+            "legato_window_ms": 0
           }
         },
         {
@@ -7578,7 +7696,9 @@
             "mod3_amount": 0,
             "mod4_source": 0,
             "mod4_destination": 0,
-            "mod4_amount": 0
+            "mod4_amount": 0,
+            "arp_retrigger": 0,
+            "legato_window_ms": 0
           }
         },
         {
@@ -7706,7 +7826,9 @@
             "mod3_amount": 0,
             "mod4_source": 0,
             "mod4_destination": 0,
-            "mod4_amount": 0
+            "mod4_amount": 0,
+            "arp_retrigger": 0,
+            "legato_window_ms": 0
           }
         },
         {
@@ -7834,7 +7956,9 @@
             "mod3_amount": 0,
             "mod4_source": 0,
             "mod4_destination": 0,
-            "mod4_amount": 0
+            "mod4_amount": 0,
+            "arp_retrigger": 0,
+            "legato_window_ms": 0
           }
         },
         {
@@ -7962,7 +8086,9 @@
             "mod3_amount": 0,
             "mod4_source": 0,
             "mod4_destination": 0,
-            "mod4_amount": 0
+            "mod4_amount": 0,
+            "arp_retrigger": 0,
+            "legato_window_ms": 0
           }
         },
         {
@@ -8090,7 +8216,9 @@
             "mod3_amount": 0,
             "mod4_source": 0,
             "mod4_destination": 0,
-            "mod4_amount": 0
+            "mod4_amount": 0,
+            "arp_retrigger": 0,
+            "legato_window_ms": 0
           }
         },
         {
@@ -8218,7 +8346,9 @@
             "mod3_amount": 0,
             "mod4_source": 0,
             "mod4_destination": 0,
-            "mod4_amount": 0
+            "mod4_amount": 0,
+            "arp_retrigger": 0,
+            "legato_window_ms": 0
           }
         },
         {
@@ -8346,7 +8476,9 @@
             "mod3_amount": 0,
             "mod4_source": 0,
             "mod4_destination": 0,
-            "mod4_amount": 0
+            "mod4_amount": 0,
+            "arp_retrigger": 0,
+            "legato_window_ms": 0
           }
         },
         {
@@ -8474,7 +8606,9 @@
             "mod3_amount": 0,
             "mod4_source": 0,
             "mod4_destination": 0,
-            "mod4_amount": 0
+            "mod4_amount": 0,
+            "arp_retrigger": 0,
+            "legato_window_ms": 0
           }
         },
         {
@@ -8602,7 +8736,9 @@
             "mod3_amount": 0,
             "mod4_source": 0,
             "mod4_destination": 0,
-            "mod4_amount": 0
+            "mod4_amount": 0,
+            "arp_retrigger": 0,
+            "legato_window_ms": 0
           }
         },
         {
@@ -8730,7 +8866,9 @@
             "mod3_amount": 0,
             "mod4_source": 0,
             "mod4_destination": 0,
-            "mod4_amount": 0
+            "mod4_amount": 0,
+            "arp_retrigger": 0,
+            "legato_window_ms": 0
           }
         },
         {
@@ -8858,7 +8996,9 @@
             "mod3_amount": 0.6,
             "mod4_source": 8,
             "mod4_destination": 5,
-            "mod4_amount": 8
+            "mod4_amount": 8,
+            "arp_retrigger": 0,
+            "legato_window_ms": 0
           }
         },
         {
@@ -8986,7 +9126,9 @@
             "mod3_amount": 1200,
             "mod4_source": 0,
             "mod4_destination": 0,
-            "mod4_amount": 0
+            "mod4_amount": 0,
+            "arp_retrigger": 0,
+            "legato_window_ms": 0
           }
         },
         {
@@ -9114,7 +9256,9 @@
             "mod3_amount": 0,
             "mod4_source": 0,
             "mod4_destination": 0,
-            "mod4_amount": 0
+            "mod4_amount": 0,
+            "arp_retrigger": 0,
+            "legato_window_ms": 0
           }
         },
         {
@@ -9242,7 +9386,9 @@
             "mod3_amount": 150,
             "mod4_source": 0,
             "mod4_destination": 0,
-            "mod4_amount": 0
+            "mod4_amount": 0,
+            "arp_retrigger": 0,
+            "legato_window_ms": 0
           }
         },
         {
@@ -9370,7 +9516,9 @@
             "mod3_amount": 0,
             "mod4_source": 0,
             "mod4_destination": 0,
-            "mod4_amount": 0
+            "mod4_amount": 0,
+            "arp_retrigger": 0,
+            "legato_window_ms": 0
           }
         },
         {
@@ -9498,7 +9646,9 @@
             "mod3_amount": 0,
             "mod4_source": 0,
             "mod4_destination": 0,
-            "mod4_amount": 0
+            "mod4_amount": 0,
+            "arp_retrigger": 0,
+            "legato_window_ms": 0
           }
         },
         {
@@ -9626,7 +9776,9 @@
             "mod3_amount": 0,
             "mod4_source": 0,
             "mod4_destination": 0,
-            "mod4_amount": 0
+            "mod4_amount": 0,
+            "arp_retrigger": 0,
+            "legato_window_ms": 0
           }
         },
         {
@@ -9754,7 +9906,9 @@
             "mod3_amount": 0,
             "mod4_source": 0,
             "mod4_destination": 0,
-            "mod4_amount": 0
+            "mod4_amount": 0,
+            "arp_retrigger": 0,
+            "legato_window_ms": 0
           }
         },
         {
@@ -9882,7 +10036,9 @@
             "mod3_amount": 0,
             "mod4_source": 0,
             "mod4_destination": 0,
-            "mod4_amount": 0
+            "mod4_amount": 0,
+            "arp_retrigger": 0,
+            "legato_window_ms": 0
           }
         },
         {
@@ -10010,7 +10166,9 @@
             "mod3_amount": 0,
             "mod4_source": 0,
             "mod4_destination": 0,
-            "mod4_amount": 0
+            "mod4_amount": 0,
+            "arp_retrigger": 0,
+            "legato_window_ms": 0
           }
         },
         {
@@ -10138,7 +10296,9 @@
             "mod3_amount": 0,
             "mod4_source": 0,
             "mod4_destination": 0,
-            "mod4_amount": 0
+            "mod4_amount": 0,
+            "arp_retrigger": 0,
+            "legato_window_ms": 0
           }
         },
         {
@@ -10266,7 +10426,9 @@
             "mod3_amount": 0,
             "mod4_source": 0,
             "mod4_destination": 0,
-            "mod4_amount": 0
+            "mod4_amount": 0,
+            "arp_retrigger": 0,
+            "legato_window_ms": 0
           }
         },
         {
@@ -10394,7 +10556,9 @@
             "mod3_amount": 0,
             "mod4_source": 0,
             "mod4_destination": 0,
-            "mod4_amount": 0
+            "mod4_amount": 0,
+            "arp_retrigger": 0,
+            "legato_window_ms": 0
           }
         },
         {
@@ -10522,7 +10686,9 @@
             "mod3_amount": 0,
             "mod4_source": 0,
             "mod4_destination": 0,
-            "mod4_amount": 0
+            "mod4_amount": 0,
+            "arp_retrigger": 0,
+            "legato_window_ms": 0
           }
         },
         {
@@ -10650,7 +10816,9 @@
             "mod3_amount": 0,
             "mod4_source": 0,
             "mod4_destination": 0,
-            "mod4_amount": 0
+            "mod4_amount": 0,
+            "arp_retrigger": 0,
+            "legato_window_ms": 0
           }
         },
         {
@@ -10778,7 +10946,9 @@
             "mod3_amount": 0,
             "mod4_source": 0,
             "mod4_destination": 0,
-            "mod4_amount": 0
+            "mod4_amount": 0,
+            "arp_retrigger": 0,
+            "legato_window_ms": 0
           }
         },
         {
@@ -10906,7 +11076,9 @@
             "mod3_amount": 0,
             "mod4_source": 0,
             "mod4_destination": 0,
-            "mod4_amount": 0
+            "mod4_amount": 0,
+            "arp_retrigger": 0,
+            "legato_window_ms": 0
           }
         },
         {
@@ -11034,7 +11206,9 @@
             "mod3_amount": 0,
             "mod4_source": 0,
             "mod4_destination": 0,
-            "mod4_amount": 0
+            "mod4_amount": 0,
+            "arp_retrigger": 0,
+            "legato_window_ms": 0
           }
         },
         {
@@ -11162,7 +11336,9 @@
             "mod3_amount": 0,
             "mod4_source": 0,
             "mod4_destination": 0,
-            "mod4_amount": 0
+            "mod4_amount": 0,
+            "arp_retrigger": 0,
+            "legato_window_ms": 0
           }
         },
         {
@@ -11290,7 +11466,9 @@
             "mod3_amount": 0,
             "mod4_source": 0,
             "mod4_destination": 0,
-            "mod4_amount": 0
+            "mod4_amount": 0,
+            "arp_retrigger": 0,
+            "legato_window_ms": 0
           }
         },
         {
@@ -11418,7 +11596,9 @@
             "mod3_amount": 0,
             "mod4_source": 0,
             "mod4_destination": 0,
-            "mod4_amount": 0
+            "mod4_amount": 0,
+            "arp_retrigger": 0,
+            "legato_window_ms": 0
           }
         },
         {
@@ -11546,7 +11726,9 @@
             "mod3_amount": 0,
             "mod4_source": 0,
             "mod4_destination": 0,
-            "mod4_amount": 0
+            "mod4_amount": 0,
+            "arp_retrigger": 0,
+            "legato_window_ms": 0
           }
         },
         {
@@ -11674,7 +11856,9 @@
             "mod3_amount": 0,
             "mod4_source": 0,
             "mod4_destination": 0,
-            "mod4_amount": 0
+            "mod4_amount": 0,
+            "arp_retrigger": 0,
+            "legato_window_ms": 0
           }
         },
         {
@@ -11802,7 +11986,9 @@
             "mod3_amount": 0,
             "mod4_source": 0,
             "mod4_destination": 0,
-            "mod4_amount": 0
+            "mod4_amount": 0,
+            "arp_retrigger": 0,
+            "legato_window_ms": 0
           }
         },
         {
@@ -11930,7 +12116,9 @@
             "mod3_amount": 0,
             "mod4_source": 0,
             "mod4_destination": 0,
-            "mod4_amount": 0
+            "mod4_amount": 0,
+            "arp_retrigger": 0,
+            "legato_window_ms": 0
           }
         },
         {
@@ -12058,7 +12246,9 @@
             "mod3_amount": 0,
             "mod4_source": 0,
             "mod4_destination": 0,
-            "mod4_amount": 0
+            "mod4_amount": 0,
+            "arp_retrigger": 0,
+            "legato_window_ms": 0
           }
         },
         {
@@ -12186,7 +12376,9 @@
             "mod3_amount": 0,
             "mod4_source": 0,
             "mod4_destination": 0,
-            "mod4_amount": 0
+            "mod4_amount": 0,
+            "arp_retrigger": 0,
+            "legato_window_ms": 0
           }
         },
         {
@@ -12314,7 +12506,9 @@
             "mod3_amount": 0,
             "mod4_source": 0,
             "mod4_destination": 0,
-            "mod4_amount": 0
+            "mod4_amount": 0,
+            "arp_retrigger": 0,
+            "legato_window_ms": 0
           }
         },
         {
@@ -12442,7 +12636,9 @@
             "mod3_amount": 0,
             "mod4_source": 0,
             "mod4_destination": 0,
-            "mod4_amount": 0
+            "mod4_amount": 0,
+            "arp_retrigger": 0,
+            "legato_window_ms": 0
           }
         },
         {
@@ -12570,7 +12766,9 @@
             "mod3_amount": 0,
             "mod4_source": 0,
             "mod4_destination": 0,
-            "mod4_amount": 0
+            "mod4_amount": 0,
+            "arp_retrigger": 0,
+            "legato_window_ms": 0
           }
         },
         {
@@ -12698,7 +12896,9 @@
             "mod3_amount": 0,
             "mod4_source": 0,
             "mod4_destination": 0,
-            "mod4_amount": 0
+            "mod4_amount": 0,
+            "arp_retrigger": 0,
+            "legato_window_ms": 0
           }
         },
         {
@@ -12826,7 +13026,9 @@
             "mod3_amount": 0,
             "mod4_source": 0,
             "mod4_destination": 0,
-            "mod4_amount": 0
+            "mod4_amount": 0,
+            "arp_retrigger": 0,
+            "legato_window_ms": 0
           }
         },
         {
@@ -12954,7 +13156,9 @@
             "mod3_amount": 0,
             "mod4_source": 0,
             "mod4_destination": 0,
-            "mod4_amount": 0
+            "mod4_amount": 0,
+            "arp_retrigger": 0,
+            "legato_window_ms": 0
           }
         },
         {
@@ -13082,7 +13286,9 @@
             "mod3_amount": 0,
             "mod4_source": 0,
             "mod4_destination": 0,
-            "mod4_amount": 0
+            "mod4_amount": 0,
+            "arp_retrigger": 0,
+            "legato_window_ms": 0
           }
         }
       ],
@@ -14245,9 +14451,9 @@
           "options": [
             "Off",
             "Auto (strings / piano / modal)",
-            "On (all models)"
+            "All models (CC64)"
           ],
-          "description": "MIDI CC64 delays note-off damping until pedal release. Auto supports plucked strings, piano and modal materials except Drum Membrane; bowed, wind, brass and mesh ignore it. On sustains all models. Natural decay still continues.",
+          "description": "Which models follow the MIDI sustain pedal (CC64): while it is down, note-off damping waits for the pedal release. Off: the pedal is ignored. Auto: plucked strings, piano and modal materials except Drum Membrane; bowed, wind, brass and mesh ignore it. All models (CC64): every model follows the pedal (this does not hold the pedal down by itself). Natural decay still continues.",
           "slider": 60,
           "paramIndex": 59,
           "valueDomain": "real",
@@ -14262,7 +14468,7 @@
             },
             {
               "value": 2,
-              "label": "On (all models)"
+              "label": "All models (CC64)"
             }
           ]
         },
@@ -14668,6 +14874,34 @@
           "slider": 86,
           "paramIndex": 85,
           "valueDomain": "real"
+        },
+        {
+          "id": "amp_auto_level",
+          "name": "Amp Auto Level",
+          "group": "Amp",
+          "min": 0,
+          "max": 1,
+          "default": 0,
+          "step": 1,
+          "unit": "",
+          "options": [
+            "Off",
+            "On"
+          ],
+          "description": "On: the amp keeps about the loudness of the instrument without the amp, whatever the Amp type and Amp Gain (more gain = more distortion, not louder); Amp Level then trims from there. Off: the louder the gain, the louder the output (set Amp Level by ear).",
+          "slider": 87,
+          "paramIndex": 86,
+          "valueDomain": "real",
+          "enumValues": [
+            {
+              "value": 0,
+              "label": "Off"
+            },
+            {
+              "value": 1,
+              "label": "On"
+            }
+          ]
         }
       ],
       "presets": [
@@ -14755,7 +14989,8 @@
             "string_body_mix": 0,
             "string_sympathetic_mix": 0,
             "string_sympathetic_decay_ms": 3500,
-            "string_sympathetic_root": 60
+            "string_sympathetic_root": 60,
+            "amp_auto_level": 0
           }
         },
         {
@@ -14842,7 +15077,8 @@
             "string_body_mix": 0,
             "string_sympathetic_mix": 0,
             "string_sympathetic_decay_ms": 3500,
-            "string_sympathetic_root": 60
+            "string_sympathetic_root": 60,
+            "amp_auto_level": 0
           }
         },
         {
@@ -14929,7 +15165,8 @@
             "string_body_mix": 0,
             "string_sympathetic_mix": 0,
             "string_sympathetic_decay_ms": 3500,
-            "string_sympathetic_root": 60
+            "string_sympathetic_root": 60,
+            "amp_auto_level": 0
           }
         },
         {
@@ -15016,7 +15253,8 @@
             "string_body_mix": 0,
             "string_sympathetic_mix": 0,
             "string_sympathetic_decay_ms": 3500,
-            "string_sympathetic_root": 60
+            "string_sympathetic_root": 60,
+            "amp_auto_level": 0
           }
         },
         {
@@ -15103,7 +15341,8 @@
             "string_body_mix": 0,
             "string_sympathetic_mix": 0.7,
             "string_sympathetic_decay_ms": 4200,
-            "string_sympathetic_root": 60
+            "string_sympathetic_root": 60,
+            "amp_auto_level": 0
           }
         },
         {
@@ -15190,7 +15429,8 @@
             "string_body_mix": 0.45,
             "string_sympathetic_mix": 0,
             "string_sympathetic_decay_ms": 3500,
-            "string_sympathetic_root": 60
+            "string_sympathetic_root": 60,
+            "amp_auto_level": 0
           }
         },
         {
@@ -15277,7 +15517,8 @@
             "string_body_mix": 0,
             "string_sympathetic_mix": 0,
             "string_sympathetic_decay_ms": 3500,
-            "string_sympathetic_root": 60
+            "string_sympathetic_root": 60,
+            "amp_auto_level": 0
           }
         },
         {
@@ -15364,7 +15605,8 @@
             "string_body_mix": 0,
             "string_sympathetic_mix": 0,
             "string_sympathetic_decay_ms": 3500,
-            "string_sympathetic_root": 60
+            "string_sympathetic_root": 60,
+            "amp_auto_level": 0
           }
         },
         {
@@ -15451,7 +15693,8 @@
             "string_body_mix": 0,
             "string_sympathetic_mix": 0,
             "string_sympathetic_decay_ms": 3500,
-            "string_sympathetic_root": 60
+            "string_sympathetic_root": 60,
+            "amp_auto_level": 0
           }
         },
         {
@@ -15538,7 +15781,8 @@
             "string_body_mix": 0,
             "string_sympathetic_mix": 0,
             "string_sympathetic_decay_ms": 3500,
-            "string_sympathetic_root": 60
+            "string_sympathetic_root": 60,
+            "amp_auto_level": 0
           }
         },
         {
@@ -15625,7 +15869,8 @@
             "string_body_mix": 0,
             "string_sympathetic_mix": 0,
             "string_sympathetic_decay_ms": 3500,
-            "string_sympathetic_root": 60
+            "string_sympathetic_root": 60,
+            "amp_auto_level": 0
           }
         },
         {
@@ -15712,7 +15957,8 @@
             "string_body_mix": 0,
             "string_sympathetic_mix": 0,
             "string_sympathetic_decay_ms": 3500,
-            "string_sympathetic_root": 60
+            "string_sympathetic_root": 60,
+            "amp_auto_level": 0
           }
         },
         {
@@ -15799,7 +16045,8 @@
             "string_body_mix": 0,
             "string_sympathetic_mix": 0,
             "string_sympathetic_decay_ms": 3500,
-            "string_sympathetic_root": 60
+            "string_sympathetic_root": 60,
+            "amp_auto_level": 0
           }
         },
         {
@@ -15886,7 +16133,8 @@
             "string_body_mix": 0,
             "string_sympathetic_mix": 0,
             "string_sympathetic_decay_ms": 3500,
-            "string_sympathetic_root": 60
+            "string_sympathetic_root": 60,
+            "amp_auto_level": 0
           }
         },
         {
@@ -15973,7 +16221,8 @@
             "string_body_mix": 0,
             "string_sympathetic_mix": 0,
             "string_sympathetic_decay_ms": 3500,
-            "string_sympathetic_root": 60
+            "string_sympathetic_root": 60,
+            "amp_auto_level": 0
           }
         },
         {
@@ -16060,7 +16309,8 @@
             "string_body_mix": 0,
             "string_sympathetic_mix": 0,
             "string_sympathetic_decay_ms": 3500,
-            "string_sympathetic_root": 60
+            "string_sympathetic_root": 60,
+            "amp_auto_level": 0
           }
         },
         {
@@ -16147,7 +16397,8 @@
             "string_body_mix": 0,
             "string_sympathetic_mix": 0,
             "string_sympathetic_decay_ms": 3500,
-            "string_sympathetic_root": 60
+            "string_sympathetic_root": 60,
+            "amp_auto_level": 0
           }
         },
         {
@@ -16234,7 +16485,8 @@
             "string_body_mix": 0,
             "string_sympathetic_mix": 0,
             "string_sympathetic_decay_ms": 3500,
-            "string_sympathetic_root": 60
+            "string_sympathetic_root": 60,
+            "amp_auto_level": 0
           }
         },
         {
@@ -16321,7 +16573,8 @@
             "string_body_mix": 0,
             "string_sympathetic_mix": 0,
             "string_sympathetic_decay_ms": 3500,
-            "string_sympathetic_root": 60
+            "string_sympathetic_root": 60,
+            "amp_auto_level": 0
           }
         },
         {
@@ -16408,7 +16661,8 @@
             "string_body_mix": 0,
             "string_sympathetic_mix": 0,
             "string_sympathetic_decay_ms": 3500,
-            "string_sympathetic_root": 60
+            "string_sympathetic_root": 60,
+            "amp_auto_level": 0
           }
         },
         {
@@ -16495,7 +16749,8 @@
             "string_body_mix": 0,
             "string_sympathetic_mix": 0,
             "string_sympathetic_decay_ms": 3500,
-            "string_sympathetic_root": 60
+            "string_sympathetic_root": 60,
+            "amp_auto_level": 0
           }
         },
         {
@@ -16582,7 +16837,8 @@
             "string_body_mix": 0,
             "string_sympathetic_mix": 0,
             "string_sympathetic_decay_ms": 3500,
-            "string_sympathetic_root": 60
+            "string_sympathetic_root": 60,
+            "amp_auto_level": 0
           }
         },
         {
@@ -16669,7 +16925,8 @@
             "string_body_mix": 0,
             "string_sympathetic_mix": 0,
             "string_sympathetic_decay_ms": 3500,
-            "string_sympathetic_root": 60
+            "string_sympathetic_root": 60,
+            "amp_auto_level": 0
           }
         },
         {
@@ -16756,7 +17013,8 @@
             "string_body_mix": 0,
             "string_sympathetic_mix": 0,
             "string_sympathetic_decay_ms": 3500,
-            "string_sympathetic_root": 60
+            "string_sympathetic_root": 60,
+            "amp_auto_level": 0
           }
         },
         {
@@ -16843,7 +17101,8 @@
             "string_body_mix": 0,
             "string_sympathetic_mix": 0,
             "string_sympathetic_decay_ms": 3500,
-            "string_sympathetic_root": 60
+            "string_sympathetic_root": 60,
+            "amp_auto_level": 0
           }
         },
         {
@@ -16930,7 +17189,8 @@
             "string_body_mix": 0,
             "string_sympathetic_mix": 0,
             "string_sympathetic_decay_ms": 3500,
-            "string_sympathetic_root": 60
+            "string_sympathetic_root": 60,
+            "amp_auto_level": 0
           }
         },
         {
@@ -17017,7 +17277,8 @@
             "string_body_mix": 0,
             "string_sympathetic_mix": 0,
             "string_sympathetic_decay_ms": 3500,
-            "string_sympathetic_root": 60
+            "string_sympathetic_root": 60,
+            "amp_auto_level": 0
           }
         },
         {
@@ -17104,7 +17365,8 @@
             "string_body_mix": 0,
             "string_sympathetic_mix": 0,
             "string_sympathetic_decay_ms": 3500,
-            "string_sympathetic_root": 60
+            "string_sympathetic_root": 60,
+            "amp_auto_level": 0
           }
         },
         {
@@ -17191,7 +17453,8 @@
             "string_body_mix": 0,
             "string_sympathetic_mix": 0,
             "string_sympathetic_decay_ms": 3500,
-            "string_sympathetic_root": 60
+            "string_sympathetic_root": 60,
+            "amp_auto_level": 0
           }
         },
         {
@@ -17278,7 +17541,8 @@
             "string_body_mix": 0,
             "string_sympathetic_mix": 0,
             "string_sympathetic_decay_ms": 3500,
-            "string_sympathetic_root": 60
+            "string_sympathetic_root": 60,
+            "amp_auto_level": 0
           }
         },
         {
@@ -17365,7 +17629,8 @@
             "string_body_mix": 0,
             "string_sympathetic_mix": 0,
             "string_sympathetic_decay_ms": 3500,
-            "string_sympathetic_root": 60
+            "string_sympathetic_root": 60,
+            "amp_auto_level": 0
           }
         },
         {
@@ -17452,7 +17717,8 @@
             "string_body_mix": 0,
             "string_sympathetic_mix": 0,
             "string_sympathetic_decay_ms": 3500,
-            "string_sympathetic_root": 60
+            "string_sympathetic_root": 60,
+            "amp_auto_level": 0
           }
         },
         {
@@ -17539,7 +17805,8 @@
             "string_body_mix": 0,
             "string_sympathetic_mix": 0,
             "string_sympathetic_decay_ms": 3500,
-            "string_sympathetic_root": 60
+            "string_sympathetic_root": 60,
+            "amp_auto_level": 0
           }
         },
         {
@@ -17626,7 +17893,8 @@
             "string_body_mix": 0,
             "string_sympathetic_mix": 0,
             "string_sympathetic_decay_ms": 3500,
-            "string_sympathetic_root": 60
+            "string_sympathetic_root": 60,
+            "amp_auto_level": 0
           }
         },
         {
@@ -17713,7 +17981,8 @@
             "string_body_mix": 0,
             "string_sympathetic_mix": 0,
             "string_sympathetic_decay_ms": 3500,
-            "string_sympathetic_root": 60
+            "string_sympathetic_root": 60,
+            "amp_auto_level": 0
           }
         },
         {
@@ -17800,7 +18069,8 @@
             "string_body_mix": 0,
             "string_sympathetic_mix": 0,
             "string_sympathetic_decay_ms": 3500,
-            "string_sympathetic_root": 60
+            "string_sympathetic_root": 60,
+            "amp_auto_level": 0
           }
         },
         {
@@ -17887,7 +18157,8 @@
             "string_body_mix": 0,
             "string_sympathetic_mix": 0,
             "string_sympathetic_decay_ms": 3500,
-            "string_sympathetic_root": 60
+            "string_sympathetic_root": 60,
+            "amp_auto_level": 0
           }
         },
         {
@@ -17974,7 +18245,8 @@
             "string_body_mix": 0,
             "string_sympathetic_mix": 0,
             "string_sympathetic_decay_ms": 3500,
-            "string_sympathetic_root": 60
+            "string_sympathetic_root": 60,
+            "amp_auto_level": 0
           }
         },
         {
@@ -18061,7 +18333,8 @@
             "string_body_mix": 0,
             "string_sympathetic_mix": 0,
             "string_sympathetic_decay_ms": 3500,
-            "string_sympathetic_root": 60
+            "string_sympathetic_root": 60,
+            "amp_auto_level": 0
           }
         },
         {
@@ -18148,7 +18421,8 @@
             "string_body_mix": 0,
             "string_sympathetic_mix": 0,
             "string_sympathetic_decay_ms": 3500,
-            "string_sympathetic_root": 60
+            "string_sympathetic_root": 60,
+            "amp_auto_level": 0
           }
         },
         {
@@ -18235,7 +18509,8 @@
             "string_body_mix": 0,
             "string_sympathetic_mix": 0,
             "string_sympathetic_decay_ms": 3500,
-            "string_sympathetic_root": 60
+            "string_sympathetic_root": 60,
+            "amp_auto_level": 0
           }
         },
         {
@@ -18322,7 +18597,8 @@
             "string_body_mix": 0,
             "string_sympathetic_mix": 0,
             "string_sympathetic_decay_ms": 3500,
-            "string_sympathetic_root": 60
+            "string_sympathetic_root": 60,
+            "amp_auto_level": 0
           }
         },
         {
@@ -18409,7 +18685,8 @@
             "string_body_mix": 0,
             "string_sympathetic_mix": 0,
             "string_sympathetic_decay_ms": 3500,
-            "string_sympathetic_root": 60
+            "string_sympathetic_root": 60,
+            "amp_auto_level": 0
           }
         },
         {
@@ -18496,7 +18773,8 @@
             "string_body_mix": 0,
             "string_sympathetic_mix": 0,
             "string_sympathetic_decay_ms": 3500,
-            "string_sympathetic_root": 60
+            "string_sympathetic_root": 60,
+            "amp_auto_level": 0
           }
         },
         {
@@ -18583,7 +18861,8 @@
             "string_body_mix": 0,
             "string_sympathetic_mix": 0,
             "string_sympathetic_decay_ms": 3500,
-            "string_sympathetic_root": 60
+            "string_sympathetic_root": 60,
+            "amp_auto_level": 0
           }
         },
         {
@@ -18670,7 +18949,8 @@
             "string_body_mix": 0,
             "string_sympathetic_mix": 0,
             "string_sympathetic_decay_ms": 3500,
-            "string_sympathetic_root": 60
+            "string_sympathetic_root": 60,
+            "amp_auto_level": 0
           }
         },
         {
@@ -18757,7 +19037,8 @@
             "string_body_mix": 0,
             "string_sympathetic_mix": 0,
             "string_sympathetic_decay_ms": 3500,
-            "string_sympathetic_root": 60
+            "string_sympathetic_root": 60,
+            "amp_auto_level": 0
           }
         },
         {
@@ -18844,7 +19125,8 @@
             "string_body_mix": 0,
             "string_sympathetic_mix": 0,
             "string_sympathetic_decay_ms": 3500,
-            "string_sympathetic_root": 60
+            "string_sympathetic_root": 60,
+            "amp_auto_level": 0
           }
         },
         {
@@ -18931,7 +19213,8 @@
             "string_body_mix": 0,
             "string_sympathetic_mix": 0,
             "string_sympathetic_decay_ms": 3500,
-            "string_sympathetic_root": 60
+            "string_sympathetic_root": 60,
+            "amp_auto_level": 0
           }
         },
         {
@@ -19018,7 +19301,8 @@
             "string_body_mix": 0,
             "string_sympathetic_mix": 0,
             "string_sympathetic_decay_ms": 3500,
-            "string_sympathetic_root": 60
+            "string_sympathetic_root": 60,
+            "amp_auto_level": 0
           }
         },
         {
@@ -19105,7 +19389,8 @@
             "string_body_mix": 0,
             "string_sympathetic_mix": 0,
             "string_sympathetic_decay_ms": 3500,
-            "string_sympathetic_root": 60
+            "string_sympathetic_root": 60,
+            "amp_auto_level": 0
           }
         },
         {
@@ -19192,7 +19477,8 @@
             "string_body_mix": 0,
             "string_sympathetic_mix": 0,
             "string_sympathetic_decay_ms": 3500,
-            "string_sympathetic_root": 60
+            "string_sympathetic_root": 60,
+            "amp_auto_level": 0
           }
         },
         {
@@ -19279,7 +19565,8 @@
             "string_body_mix": 0,
             "string_sympathetic_mix": 0,
             "string_sympathetic_decay_ms": 3500,
-            "string_sympathetic_root": 60
+            "string_sympathetic_root": 60,
+            "amp_auto_level": 0
           }
         },
         {
@@ -19366,7 +19653,8 @@
             "string_body_mix": 0,
             "string_sympathetic_mix": 0,
             "string_sympathetic_decay_ms": 3500,
-            "string_sympathetic_root": 60
+            "string_sympathetic_root": 60,
+            "amp_auto_level": 0
           }
         },
         {
@@ -19453,7 +19741,8 @@
             "string_body_mix": 0,
             "string_sympathetic_mix": 0,
             "string_sympathetic_decay_ms": 3500,
-            "string_sympathetic_root": 60
+            "string_sympathetic_root": 60,
+            "amp_auto_level": 0
           }
         },
         {
@@ -19540,7 +19829,8 @@
             "string_body_mix": 0,
             "string_sympathetic_mix": 0,
             "string_sympathetic_decay_ms": 3500,
-            "string_sympathetic_root": 60
+            "string_sympathetic_root": 60,
+            "amp_auto_level": 0
           }
         },
         {
@@ -19627,7 +19917,8 @@
             "string_body_mix": 0,
             "string_sympathetic_mix": 0,
             "string_sympathetic_decay_ms": 3500,
-            "string_sympathetic_root": 60
+            "string_sympathetic_root": 60,
+            "amp_auto_level": 0
           }
         },
         {
@@ -19714,7 +20005,8 @@
             "string_body_mix": 0,
             "string_sympathetic_mix": 0,
             "string_sympathetic_decay_ms": 3500,
-            "string_sympathetic_root": 60
+            "string_sympathetic_root": 60,
+            "amp_auto_level": 0
           }
         },
         {
@@ -19801,7 +20093,8 @@
             "string_body_mix": 0,
             "string_sympathetic_mix": 0,
             "string_sympathetic_decay_ms": 3500,
-            "string_sympathetic_root": 60
+            "string_sympathetic_root": 60,
+            "amp_auto_level": 0
           }
         },
         {
@@ -19888,7 +20181,8 @@
             "string_body_mix": 0,
             "string_sympathetic_mix": 0,
             "string_sympathetic_decay_ms": 3500,
-            "string_sympathetic_root": 60
+            "string_sympathetic_root": 60,
+            "amp_auto_level": 0
           }
         },
         {
@@ -19975,7 +20269,8 @@
             "string_body_mix": 0,
             "string_sympathetic_mix": 0,
             "string_sympathetic_decay_ms": 3500,
-            "string_sympathetic_root": 60
+            "string_sympathetic_root": 60,
+            "amp_auto_level": 0
           }
         },
         {
@@ -20062,7 +20357,8 @@
             "string_body_mix": 0,
             "string_sympathetic_mix": 0,
             "string_sympathetic_decay_ms": 3500,
-            "string_sympathetic_root": 60
+            "string_sympathetic_root": 60,
+            "amp_auto_level": 0
           }
         },
         {
@@ -20149,7 +20445,8 @@
             "string_body_mix": 0,
             "string_sympathetic_mix": 0,
             "string_sympathetic_decay_ms": 3500,
-            "string_sympathetic_root": 60
+            "string_sympathetic_root": 60,
+            "amp_auto_level": 0
           }
         },
         {
@@ -20236,7 +20533,8 @@
             "string_body_mix": 0,
             "string_sympathetic_mix": 0,
             "string_sympathetic_decay_ms": 3500,
-            "string_sympathetic_root": 60
+            "string_sympathetic_root": 60,
+            "amp_auto_level": 0
           }
         },
         {
@@ -20323,7 +20621,8 @@
             "string_body_mix": 0,
             "string_sympathetic_mix": 0,
             "string_sympathetic_decay_ms": 3500,
-            "string_sympathetic_root": 60
+            "string_sympathetic_root": 60,
+            "amp_auto_level": 0
           }
         },
         {
@@ -20410,7 +20709,8 @@
             "string_body_mix": 0,
             "string_sympathetic_mix": 0,
             "string_sympathetic_decay_ms": 3500,
-            "string_sympathetic_root": 60
+            "string_sympathetic_root": 60,
+            "amp_auto_level": 0
           }
         },
         {
@@ -20497,7 +20797,8 @@
             "string_body_mix": 0,
             "string_sympathetic_mix": 0,
             "string_sympathetic_decay_ms": 3500,
-            "string_sympathetic_root": 60
+            "string_sympathetic_root": 60,
+            "amp_auto_level": 0
           }
         },
         {
@@ -20584,7 +20885,8 @@
             "string_body_mix": 0,
             "string_sympathetic_mix": 0,
             "string_sympathetic_decay_ms": 3500,
-            "string_sympathetic_root": 60
+            "string_sympathetic_root": 60,
+            "amp_auto_level": 0
           }
         },
         {
@@ -20671,7 +20973,8 @@
             "string_body_mix": 0,
             "string_sympathetic_mix": 0,
             "string_sympathetic_decay_ms": 3500,
-            "string_sympathetic_root": 60
+            "string_sympathetic_root": 60,
+            "amp_auto_level": 0
           }
         },
         {
@@ -20758,7 +21061,8 @@
             "string_body_mix": 0,
             "string_sympathetic_mix": 0,
             "string_sympathetic_decay_ms": 3500,
-            "string_sympathetic_root": 60
+            "string_sympathetic_root": 60,
+            "amp_auto_level": 0
           }
         },
         {
@@ -20845,7 +21149,8 @@
             "string_body_mix": 0,
             "string_sympathetic_mix": 0,
             "string_sympathetic_decay_ms": 3500,
-            "string_sympathetic_root": 60
+            "string_sympathetic_root": 60,
+            "amp_auto_level": 0
           }
         },
         {
@@ -20932,7 +21237,8 @@
             "string_body_mix": 0,
             "string_sympathetic_mix": 0,
             "string_sympathetic_decay_ms": 3500,
-            "string_sympathetic_root": 60
+            "string_sympathetic_root": 60,
+            "amp_auto_level": 0
           }
         },
         {
@@ -21019,7 +21325,8 @@
             "string_body_mix": 0,
             "string_sympathetic_mix": 0,
             "string_sympathetic_decay_ms": 3500,
-            "string_sympathetic_root": 60
+            "string_sympathetic_root": 60,
+            "amp_auto_level": 0
           }
         },
         {
@@ -21106,7 +21413,8 @@
             "string_body_mix": 0,
             "string_sympathetic_mix": 0,
             "string_sympathetic_decay_ms": 3500,
-            "string_sympathetic_root": 60
+            "string_sympathetic_root": 60,
+            "amp_auto_level": 0
           }
         },
         {
@@ -21193,7 +21501,8 @@
             "string_body_mix": 0,
             "string_sympathetic_mix": 0,
             "string_sympathetic_decay_ms": 3500,
-            "string_sympathetic_root": 60
+            "string_sympathetic_root": 60,
+            "amp_auto_level": 0
           }
         },
         {
@@ -21280,7 +21589,8 @@
             "string_body_mix": 0,
             "string_sympathetic_mix": 0,
             "string_sympathetic_decay_ms": 3500,
-            "string_sympathetic_root": 60
+            "string_sympathetic_root": 60,
+            "amp_auto_level": 0
           }
         },
         {
@@ -21367,7 +21677,8 @@
             "string_body_mix": 0,
             "string_sympathetic_mix": 0,
             "string_sympathetic_decay_ms": 3500,
-            "string_sympathetic_root": 60
+            "string_sympathetic_root": 60,
+            "amp_auto_level": 0
           }
         },
         {
@@ -21454,7 +21765,8 @@
             "string_body_mix": 0,
             "string_sympathetic_mix": 0,
             "string_sympathetic_decay_ms": 3500,
-            "string_sympathetic_root": 60
+            "string_sympathetic_root": 60,
+            "amp_auto_level": 0
           }
         },
         {
@@ -21541,7 +21853,8 @@
             "string_body_mix": 0,
             "string_sympathetic_mix": 0,
             "string_sympathetic_decay_ms": 3500,
-            "string_sympathetic_root": 60
+            "string_sympathetic_root": 60,
+            "amp_auto_level": 0
           }
         },
         {
@@ -21628,7 +21941,8 @@
             "string_body_mix": 0,
             "string_sympathetic_mix": 0,
             "string_sympathetic_decay_ms": 3500,
-            "string_sympathetic_root": 60
+            "string_sympathetic_root": 60,
+            "amp_auto_level": 0
           }
         },
         {
@@ -21715,7 +22029,8 @@
             "string_body_mix": 0,
             "string_sympathetic_mix": 0,
             "string_sympathetic_decay_ms": 3500,
-            "string_sympathetic_root": 60
+            "string_sympathetic_root": 60,
+            "amp_auto_level": 0
           }
         },
         {
@@ -21802,7 +22117,8 @@
             "string_body_mix": 0,
             "string_sympathetic_mix": 0,
             "string_sympathetic_decay_ms": 3500,
-            "string_sympathetic_root": 60
+            "string_sympathetic_root": 60,
+            "amp_auto_level": 0
           }
         },
         {
@@ -21889,7 +22205,8 @@
             "string_body_mix": 0,
             "string_sympathetic_mix": 0,
             "string_sympathetic_decay_ms": 3500,
-            "string_sympathetic_root": 60
+            "string_sympathetic_root": 60,
+            "amp_auto_level": 0
           }
         },
         {
@@ -21976,7 +22293,8 @@
             "string_body_mix": 0,
             "string_sympathetic_mix": 0,
             "string_sympathetic_decay_ms": 3500,
-            "string_sympathetic_root": 60
+            "string_sympathetic_root": 60,
+            "amp_auto_level": 0
           }
         },
         {
@@ -22063,7 +22381,8 @@
             "string_body_mix": 0,
             "string_sympathetic_mix": 0,
             "string_sympathetic_decay_ms": 3500,
-            "string_sympathetic_root": 60
+            "string_sympathetic_root": 60,
+            "amp_auto_level": 0
           }
         },
         {
@@ -22150,7 +22469,8 @@
             "string_body_mix": 0,
             "string_sympathetic_mix": 0,
             "string_sympathetic_decay_ms": 3500,
-            "string_sympathetic_root": 60
+            "string_sympathetic_root": 60,
+            "amp_auto_level": 0
           }
         },
         {
@@ -22237,7 +22557,8 @@
             "string_body_mix": 0,
             "string_sympathetic_mix": 0,
             "string_sympathetic_decay_ms": 3500,
-            "string_sympathetic_root": 60
+            "string_sympathetic_root": 60,
+            "amp_auto_level": 0
           }
         },
         {
@@ -22324,7 +22645,8 @@
             "string_body_mix": 0,
             "string_sympathetic_mix": 0,
             "string_sympathetic_decay_ms": 3500,
-            "string_sympathetic_root": 60
+            "string_sympathetic_root": 60,
+            "amp_auto_level": 0
           }
         },
         {
@@ -22411,7 +22733,8 @@
             "string_body_mix": 0,
             "string_sympathetic_mix": 0,
             "string_sympathetic_decay_ms": 3500,
-            "string_sympathetic_root": 60
+            "string_sympathetic_root": 60,
+            "amp_auto_level": 0
           }
         },
         {
@@ -22498,7 +22821,8 @@
             "string_body_mix": 0,
             "string_sympathetic_mix": 0,
             "string_sympathetic_decay_ms": 3500,
-            "string_sympathetic_root": 60
+            "string_sympathetic_root": 60,
+            "amp_auto_level": 0
           }
         },
         {
@@ -22585,7 +22909,8 @@
             "string_body_mix": 0,
             "string_sympathetic_mix": 0,
             "string_sympathetic_decay_ms": 3500,
-            "string_sympathetic_root": 60
+            "string_sympathetic_root": 60,
+            "amp_auto_level": 0
           }
         },
         {
@@ -22672,7 +22997,8 @@
             "string_body_mix": 0,
             "string_sympathetic_mix": 0,
             "string_sympathetic_decay_ms": 3500,
-            "string_sympathetic_root": 60
+            "string_sympathetic_root": 60,
+            "amp_auto_level": 0
           }
         }
       ],
@@ -26211,6 +26537,60 @@
           "slider": 38,
           "paramIndex": 37,
           "valueDomain": "real"
+        },
+        {
+          "id": "scale_status",
+          "name": "Scale Status (read only)",
+          "group": "Status",
+          "min": 0,
+          "max": 3,
+          "default": 0,
+          "step": 1,
+          "unit": "",
+          "readonly": true,
+          "options": [
+            "Sliders",
+            "File loaded",
+            "File not found",
+            "File format error"
+          ],
+          "description": "Read only. Sliders: Scale Source is Sliders. File loaded: the Scale File was read. File not found / File format error: the file could not be opened or is not a valid Scala scale (needs a description line, the note count, then that many pitches); the Degree sliders are used instead.",
+          "slider": 39,
+          "paramIndex": 38,
+          "valueDomain": "read-only",
+          "enumValues": [
+            {
+              "value": 0,
+              "label": "Sliders"
+            },
+            {
+              "value": 1,
+              "label": "File loaded"
+            },
+            {
+              "value": 2,
+              "label": "File not found"
+            },
+            {
+              "value": 3,
+              "label": "File format error"
+            }
+          ]
+        },
+        {
+          "id": "scale_loaded_notes",
+          "name": "Scale Notes In Use (read only)",
+          "group": "Status",
+          "min": 0,
+          "max": 255,
+          "default": 12,
+          "step": 1,
+          "unit": "notes",
+          "readonly": true,
+          "description": "Read only. Notes per period of the scale this slot publishes (from the file, or Scale Size when the sliders are used).",
+          "slider": 40,
+          "paramIndex": 39,
+          "valueDomain": "read-only"
         }
       ],
       "presets": [],

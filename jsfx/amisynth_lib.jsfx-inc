@@ -388,6 +388,8 @@ function adsr_set(attack_ms, decay_ms, sus, release_ms) instance(attack_inc deca
 
 function adsr_gate_on() instance(stage) ( stage = 1; );
 function adsr_gate_off() instance(stage) ( stage !== 0 ? stage = 3; );
+/** legato: an envelope in its release goes back to decay / sustain (no new attack) */
+function adsr_resume() instance(stage) ( stage === 3 ? stage = 2 : stage === 0 ? stage = 1; );
 
 function adsr_process() instance(stage value attack_inc decay_coef release_coef sustain) (
   stage === 1 ? (

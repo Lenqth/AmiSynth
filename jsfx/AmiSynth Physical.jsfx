@@ -70,7 +70,7 @@ slider56:amp_gain=0.5<0,1,0.001>Amp Gain
 slider57:amp_tone=0.5<0,1,0.001>Amp Tone
 slider58:amp_level_db=0<-24,12,0.1>Amp Level [dB]
 slider59:tuning_slot=1<1,8,1>Tuning Slot
-slider60:phys_sustain_mode=1<0,2,1{Off,Auto (strings / piano / modal),On (all models)}>Sustain Pedal
+slider60:phys_sustain_mode=1<0,2,1{Off,Auto (strings / piano / modal),All models (CC64)}>Sustain Pedal
 slider61:phys_pressure_excitation=0<0,1,0.001>Pressure to Breath / Bow
 slider62:phys_pressure_vibrato_cents=0<0,100,0.1>Pressure to Vibrato [cents]
 slider63:phys_pressure_brightness=0<0,1,0.001>Pressure to Brightness
@@ -97,6 +97,7 @@ slider83:string_body_mix=0<0,1,0.001>String Body Mix
 slider84:string_sympathetic_mix=0<0,1,0.001>Sympathetic Mix
 slider85:string_sympathetic_decay_ms=3500<200,10000,1>Sympathetic Decay [ms]
 slider86:string_sympathetic_root=60<0,104,1>Sympathetic Root [note]
+slider87:amp_auto_level=0<0,1,1{Off,On}>Amp Auto Level
 // </generated sliders>
 
 import amisynth_lib.jsfx-inc
@@ -279,6 +280,21 @@ function amp_set(pre_hz, cab_hz) (
   this.inter.onepole_set(5000);
   this.cab.svf_set(cab_hz, 1.1);
   this.cab_hp.svf_set(80, 1.4);
+);
+// Amp Auto Level (amp_makeup in phys.js): the gain that brings a reference sine (0.3 peak) back
+// to its own RMS after the clipping stages, so more Amp Gain adds distortion but not loudness
+function amp_makeup() local(i, x, y, sum, sum2, mean) (
+  sum = 0; sum2 = 0; i = 0;
+  loop(64,
+    x = 0.3 * sin((2 * $pi * (i + 0.5)) / 64);
+    y = soft_clip(x * amp_drive + amp_bias) - amp_bias_out;
+    amp_stages > 1 ? y = soft_clip(y * 4);
+    sum += y;
+    sum2 += y * y;
+    i += 1;
+  );
+  mean = sum / 64;
+  0.3 / sqrt(2) / sqrt(max(sum2 / 64 - mean * mean, 0.000000000001));
 );
 function amp_process(x) local(y) (
   y = soft_clip(this.pre.onepole_hp(x) * amp_drive + amp_bias) - amp_bias_out;
@@ -1531,7 +1547,7 @@ amp_t > 0 ? (
   amp_bias = amp_tab[amp_t * 7 + 3];
   amp_bias_out = soft_clip(amp_bias);
   amp_stages = amp_tab[amp_t * 7 + 4];
-  amp_out = db_to_gain(amp_level_db);
+  amp_out = db_to_gain(amp_level_db) * (amp_auto_level >= 0.5 ? amp_makeup() : 1);
   amp_cab_hz = amp_tab[amp_t * 7 + 5] * pow(amp_tab[amp_t * 7 + 6] / amp_tab[amp_t * 7 + 5], amp_tone);
   amp_l.amp_set(amp_tab[amp_t * 7], amp_cab_hz);
   amp_r.amp_set(amp_tab[amp_t * 7], amp_cab_hz);

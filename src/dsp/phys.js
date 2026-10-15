@@ -1620,7 +1620,7 @@ function amp_update(s, p) {
   s.amp_bias = t[3];
   s.amp_bias_out = soft_clip(t[3]);
   s.amp_stages = t[4];
-  s.amp_out = db_to_gain(p.amp_level_db);
+  s.amp_out = db_to_gain(p.amp_level_db) * (p.amp_auto_level >= 0.5 ? amp_makeup(s) : 1);
   const cab = t[5] * Math.pow(t[6] / t[5], p.amp_tone);
   for (const a of [s.amp_l, s.amp_r]) {
     onepole_set(a.pre, t[0], s.sr);
@@ -1628,6 +1628,28 @@ function amp_update(s, p) {
     svf_set(a.cab, cab, 1.1, s.sr);
     svf_set(a.cab_hp, 80, 1.4, s.sr);
   }
+}
+
+/**
+ * Amp Auto Level: the gain that brings a reference sine (AMP_REF_LEVEL peak, a typical instrument
+ * level) back to its own RMS after the clipping stages, so more Amp Gain adds distortion but not
+ * loudness. The filters are left out (they do not change with the gain).
+ */
+const AMP_REF_LEVEL = 0.3;
+const AMP_REF_POINTS = 64;
+function amp_makeup(s) {
+  let sum = 0;
+  let sum2 = 0;
+  for (let i = 0; i < AMP_REF_POINTS; i++) {
+    const x = AMP_REF_LEVEL * Math.sin((TWO_PI * (i + 0.5)) / AMP_REF_POINTS);
+    let y = soft_clip(x * s.amp_drive + s.amp_bias) - s.amp_bias_out;
+    if (s.amp_stages > 1) y = soft_clip(y * 4);
+    sum += y;
+    sum2 += y * y;
+  }
+  const mean = sum / AMP_REF_POINTS;
+  const rms = Math.sqrt(Math.max(sum2 / AMP_REF_POINTS - mean * mean, 1e-12));
+  return AMP_REF_LEVEL / Math.SQRT2 / rms;
 }
 
 function amp_process(s, a, x) {

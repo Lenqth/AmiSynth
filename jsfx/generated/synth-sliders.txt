@@ -126,3 +126,5 @@ slider124:mod3_amount=0<-4800,4800,0.001>Mod 3 Amount
 slider125:mod4_source=0<0,8,1{Off,LFO 1,LFO 2,Mod Env,Velocity,Key Track,Mod Wheel,Pressure,Random (per note)}>Mod 4 Source
 slider126:mod4_destination=0<0,11,1{Off,Pitch,Filter Cutoff,Filter Resonance,Pulse Width,Osc2 Pitch,FM Index,Amp,Pan,LFO 1 Rate,LFO 2 Rate,Noise Level}>Mod 4 Destination
 slider127:mod4_amount=0<-4800,4800,0.001>Mod 4 Amount
+slider128:arp_retrigger=0<0,3,1{First Key,New Chord,Every Bar,Free Run}>Arp Retrigger
+slider129:legato_window_ms=0<0,100,0.1>Legato Window [ms]

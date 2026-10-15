@@ -58,7 +58,7 @@ Pitch Bendの中心は8192 (`[0xE0, 0, 64]`)です。ベンド幅は上記のパ
 
 CC64は64以上で踏み込み、63以下で解除です。ハーフペダルには対応していません。Web版の **Sustain** ボタンもCC64を送り、Synth／Physicalを切り替えると解除します。
 
-Physicalの `phys_sustain_mode` は、**Off** が無効、**Auto** (既定)が撥弦・ピアノ・Drum Membrane以外のモーダル素材、**On** が全モデルです。自然減衰は続き、ペダル解除時にRelease Dampingを適用します。[Physicalの操作説明](../jsfx/README.md#physical-のサステインペダル-cc64)
+Physicalの `phys_sustain_mode` は、**Off** が無効、**Auto** (既定)が撥弦・ピアノ・Drum Membrane以外のモーダル素材、**All models (CC64)** が全モデルです(どれもCC64を踏んだときだけ効きます)。自然減衰は続き、ペダル解除時にRelease Dampingを適用します。[Physicalの操作説明](../jsfx/README.md#physical-のサステインペダル-cc64)
 
 SynthのCC120／123は、音源内部ではペダル・Mod Wheel・ベンド・カットオフCC値・プレッシャーをリセットしません。Arpの保持鍵は消去します。CC64はノートオフの保留であり、Arpへ渡した和音の保持 (Latch)ではありません。
 

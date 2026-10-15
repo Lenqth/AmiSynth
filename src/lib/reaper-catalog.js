@@ -36,7 +36,7 @@ export function createCatalog() {
   ]) {
     instruments[kind] = {
       parameters: defs.map((d, i) => ({ ...d, slider: i + 1, paramIndex: i,
-        valueDomain: d.file ? 'file-index' : 'real',
+        valueDomain: d.file ? 'file-index' : d.readonly ? 'read-only' : 'real',
         ...(d.options ? { enumValues: d.options.map((label, value) => ({ value, label })) } : {}),
       })),
       presets: presets.map((p) => ({ name: p.name, category: p.category, description: p.description,
@@ -57,6 +57,7 @@ export function validatePatch(instrument, params) {
     const d = byId.get(id);
     if (!d) throw new Error(`Unknown parameter: ${id}`);
     if (d.file) throw new Error(`${id}: file indices depend on the REAPER Data directory`);
+    if (d.readonly) throw new Error(`${id}: read-only status parameter`);
     if (!Number.isFinite(value) || value < d.min || value > d.max) throw new Error(`${id}: expected ${d.min}..${d.max} ${d.unit}`);
     if (d.step >= 1 && value !== Math.round(value)) throw new Error(`${id}: expected an integer`);
     return { id, paramIndex: d.paramIndex, slider: d.slider, value,
