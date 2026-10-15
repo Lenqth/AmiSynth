@@ -30,6 +30,7 @@
   import PhysViz from './ui/PhysViz.svelte';
   import Scope from './ui/Scope.svelte';
   import TuningPanel from './ui/TuningPanel.svelte';
+  import { phys_pedal_enabled } from './dsp/phys.js';
   import Wheels from './ui/Wheels.svelte';
 
   const tuning = $derived(makeTuning(app.synth, app.scale));
@@ -668,7 +669,8 @@
       height={fullscreen ? Math.max(50, fsHeight - 34) : 116} />
     <button class:active={app.sustain} aria-pressed={app.sustain}
       title="Sustain pedal (CC64): PhysicalはOutputのSustain Pedal設定に従います"
-      onclick={async () => { await startAudio(); setSustain(!app.sustain); }}>Sustain</button>
+      onclick={async () => { await startAudio(); setSustain(!app.sustain); }}>CC64 {app.sustain ? 'ON' : 'OFF'}</button>
+    {#if app.tab === 'phys'}<span class="muted hint">{phys_pedal_enabled(app.phys) ? 'ペダル適用対象' : 'このモデル／設定ではペダル無効'}</span>{/if}
     </div>
     <div class="kb">
       <Keyboard {tuning} baseNote={app.baseNote} held={app.held} playing={app.seqHeld} {noteOn} {noteOff} scale={app.keyScale}
@@ -745,6 +747,8 @@
   {:else if app.tab === 'phys'}
     {@render playCard()}
     <PresetBar target="phys" defs={PHYS_PARAMS} builtins={PHYS_PRESETS} />
+    <TuningPanel values={app.phys} scale={app.scale} {tuning}
+      onchange={(id, v) => setParam('phys', id, v)} onscale={setScale} />
     <section class="card">
       <div class="viz-head">
         <h3>Physical model</h3>

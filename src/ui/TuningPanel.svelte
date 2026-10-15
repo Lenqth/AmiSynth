@@ -2,6 +2,7 @@
   import { TUNING_PARAMS } from '../dsp/params.js';
   import { parseScale, scaleToHolderParams, scaleToScala, TUNING_PRESETS } from '../lib/tuning.js';
   import Knob from './Knob.svelte';
+  import TuningMap from './TuningMap.svelte';
 
   /**
    * @type {{ values: Record<string, number>, scale: {name:string,cents:number[]} | null, tuning: any,
@@ -73,6 +74,7 @@
 
 <section class="card tuning">
   <h3>Tuning</h3>
+  <TuningMap {tuning} />
   <p class="summary">{summary}</p>
   <div class="row">
     <select onchange={applyPreset} aria-label="Tuning preset">

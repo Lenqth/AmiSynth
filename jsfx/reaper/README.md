@@ -8,9 +8,12 @@ From the repository, copy the required files automatically:
 # Inspect destinations first; replace this example with the actual REAPER resource path.
 npm run install:reaper -- --resource "C:/Users/your-name/AppData/Roaming/REAPER" --dry-run
 npm run install:reaper -- --resource "C:/Users/your-name/AppData/Roaming/REAPER"
+npm run check:catalogs -- --resource "C:/Users/your-name/AppData/Roaming/REAPER"
 ```
 
 The installer updates only bundled AmiSynth JSFX, Lua scripts, catalog files and this guide. It does not register actions, delete other files, touch REAPER projects or copy the production report. It overwrites the named bundled files when updating; keep custom wrappers under a different filename.
+
+`check:catalogs` is read-only. It compares installed bundle hashes and preset names against the current repository generation, including `generated/presets.json` and `manifest.json`. Regenerate with `npm run gen:jsfx` before installing changed sources. A mismatch identifies stale, missing or modified bundle files; it does not prove why an earlier session saw a different preset list. For reproducible bow/breath curves, 24-EDO note mapping and dry/wet CC64 tests, see `docs/PRODUCTION_WORKFLOW.md` in the repository and run `npm run check:performance -- --out .cache/glass-performance` there. Parameter curves live in request JSON, not the exported MIDI file; no REAPER project is changed by these offline commands.
 
 ## Choose the right entry point
 

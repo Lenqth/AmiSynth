@@ -14,6 +14,8 @@
     "install:reaper": "node scripts/install-reaper.js",
     "audition:timbre": "node scripts/timbre-audition.js",
     "audition:preset": "node scripts/preset-audition.js",
+    "check:performance": "node scripts/performance-check.js",
+    "check:catalogs": "node scripts/catalog-integrity.js",
     "deploy": "npm run build && wrangler deploy",
     "jsfx:tools": "bash scripts/build-jsfx-render.sh",
     "jsfx:compare": "node scripts/jsfx-compare.js"

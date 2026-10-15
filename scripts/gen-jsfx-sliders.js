@@ -12,6 +12,7 @@ import { DRUM_PRESETS } from '../src/presets/drums.js';
 import { SYNTH_PRESETS } from '../src/presets/synth.js';
 import { PHYS_PRESETS } from '../src/presets/phys.js';
 import { createCatalog } from '../src/lib/reaper-catalog.js';
+import { writeManifest } from './catalog-integrity.js';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const outDir = join(root, 'jsfx', 'generated');
@@ -137,6 +138,7 @@ function main() {
     const next = withSliders(text, defs);
     if (next !== text) writeFileSync(path, next);
   }
+  writeManifest();
   console.log(`wrote ${SYNTH_PARAMS.length} synth + ${PHYS_PARAMS.length} physical + ${DRUM_PARAMS.length} drum sliders to jsfx/generated/`);
 }
 

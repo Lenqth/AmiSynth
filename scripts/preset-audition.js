@@ -10,13 +10,15 @@ import { INSTRUMENTS } from './jsfx-compare.js';
 import { integratedLoudness } from '../src/lib/loudness.js';
 import { encodeWav } from '../src/lib/audiofile.js';
 import { PLAYING_GUIDES } from '../src/presets/playing-guides.js';
+import { phys_pedal_enabled } from '../src/dsp/phys.js';
 
 const catalog = createCatalog();
 const db = x => x > 0 ? 20 * Math.log10(x) : null;
 function phraseFingerprint(request) {
   const { sampleRate, seconds, bpm, eventUnit } = request;
   const events = request.events.map(e => [...e]).sort((a, b) => a[0] - b[0]);
-  return createHash('sha256').update(JSON.stringify({ sampleRate, seconds, bpm, events, eventUnit })).digest('hex');
+  return createHash('sha256').update(JSON.stringify({ sampleRate, seconds, bpm, events, eventUnit,
+    ...(request.curves ? { curves: request.curves } : {}), ...(request.windows ? { windows: request.windows } : {}) })).digest('hex');
 }
 
 /** All melodic models share the same notes/velocity by default; guides are opt-in. */
@@ -41,18 +43,46 @@ export function audition(kind, patch = {}, request = auditionPhrase()) {
   for (const e of events) if (!Array.isArray(e) || e.length !== 4 || !Number.isFinite(e[0]) || e[0] < 0 || e[0] >= seconds ||
     !Number.isInteger(e[1]) || e[1] < 0x80 || e[1] > 0xef || e.slice(2).some(v => !Number.isInteger(v) || v < 0 || v > 127)) throw new Error('Invalid MIDI event');
   const ordered = events.map(e => [...e]).sort((a, b) => a[0] - b[0]);
+  const curves = request.curves ?? [];
+  const allowed = ['bow_pressure', 'bow_speed', 'breath_pressure', 'breath_noise', 'wind_embouchure', 'brass_pressure', 'phys_vibrato_cents', 'filter_cutoff_hz', 'fm_index', 'osc1_wt_position', 'osc2_wt_position'];
+  if (!Array.isArray(curves) || curves.length > 16 || new Set(curves.map(c => c.id)).size !== curves.length) throw new Error('Invalid or duplicate parameter curves');
+  for (const c of curves) {
+    if (!allowed.includes(c.id) || !['linear', 'step'].includes(c.interpolation) || !Array.isArray(c.points) || !c.points.length || c.points.length > 1000) throw new Error('Unsupported curve');
+    let previous = -1;
+    for (const point of c.points) {
+      if (!Array.isArray(point) || point.length !== 2 || !Number.isFinite(point[0]) || point[0] < 0 || point[0] > seconds || point[0] <= previous) throw new Error('Curve times must be strictly increasing within the audition');
+      validatePatch(catalog.instruments[kind], { [c.id]: point[1] }); previous = point[0];
+    }
+  }
+  const windows = request.windows ?? [];
+  if (!Array.isArray(windows) || windows.length > 32) throw new Error('Too many measurement windows');
+  for (const w of windows) if (typeof w.name !== 'string' || !Number.isFinite(w.start) || !Number.isFinite(w.end) || w.start < 0 || w.end > seconds || Math.round(w.end * sr) <= Math.round(w.start * sr)) throw new Error('Invalid measurement window');
   const schedule = ordered.map(([t, ...bytes]) => [Math.round(t * sr), ...bytes]);
   const phrase = { sampleRate: sr, seconds, bpm, events: ordered, eventUnit: 'seconds' };
+  if (request.curves) phrase.curves = structuredClone(curves);
+  if (request.windows) phrase.windows = structuredClone(windows);
   const phraseHash = phraseFingerprint(phrase);
   const s = {}; core.init(s, sr); core.update(s, params);
+  const runtime = { ...params }, pedalTrace = [];
   const n = Math.round(seconds * sr), left = new Float64Array(n), right = new Float64Array(n);
   let ev = 0, sum = 0, peak = 0, maxActive = 0, maxReleased = 0, steals = 0;
   for (let i = 0; i < n; i++) {
+    if (i % 128 === 0 && curves.length) {
+      const time = i / sr;
+      for (const c of curves) {
+        let index = 0;
+        while (index + 1 < c.points.length && c.points[index + 1][0] <= time) index++;
+        const a = c.points[index], b = c.points[index + 1];
+        runtime[c.id] = time < a[0] ? params[c.id] : !b || c.interpolation === 'step' ? a[1] : a[1] + (b[1] - a[1]) * (time - a[0]) / (b[0] - a[0]);
+      }
+      core.update(s, runtime);
+    }
     if (i % 128 === 0 && core.transport) core.transport(s, bpm, 1, i * bpm / (60 * sr));
     while (ev < schedule.length && schedule[ev][0] <= i) {
       const [, status, a, b] = schedule[ev++];
       const before = s.voices?.map(v => ({ active: v.active, note: v.note, age: v.age }));
       core.midi(s, status, a, b);
+      if (kind === 'phys' && (status & 0xf0) === 0xb0 && [64, 121, 123].includes(a)) pedalTrace.push({ seconds: i / sr, cc: a, value: b, pedalDown: !!s.sustain_pedal, applicable: !!phys_pedal_enabled(runtime) });
       if ((status & 0xf0) === 0x90 && b > 0 && before && !s.mono)
         for (let j = 0; j < before.length; j++) if (before[j].active && s.voices[j].age > before[j].age && before[j].note !== s.voices[j].note) steals++;
     }
@@ -80,6 +110,14 @@ export function audition(kind, patch = {}, request = auditionPhrase()) {
     levelSuggestion: { targetLufs: -18, parameter: volumeId, correctionDb: correction,
       suggestedValue: correction === null ? null : params[volumeId] + correction, applied: false },
     limitations: ['Offline JS DSP, not a measurement of the installed REAPER FX or track fader.', 'Sample peak, not true peak. No sidechain audio input.', 'Gain correction is a capped suggestion; re-render to verify.'] };
+  report.metrics.windows = windows.map(w => {
+    let energy = 0, peak = 0;
+    const start = Math.round(w.start * sr), end = Math.round(w.end * sr);
+    for (let i = start; i < end; i++) { energy += left[i] ** 2 + right[i] ** 2; peak = Math.max(peak, Math.abs(left[i]), Math.abs(right[i])); }
+    return { ...w, rmsDbfs: db(Math.sqrt(energy / (2 * (end - start)))), samplePeakDbfs: db(peak) };
+  });
+  if (kind === 'phys') report.performance = { pedalTrace, finalPedalDown: !!s.sustain_pedal, pedalApplicable: !!phys_pedal_enabled(runtime) };
+  if (curves.length) report.limitations.push('Parameter curves run every 128 samples and are stored in request.json; phrase.mid contains MIDI messages only.');
   return { report, left, right };
 }
 

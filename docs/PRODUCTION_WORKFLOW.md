@@ -98,3 +98,56 @@ npm run audition:preset -- synth --preset "Formant Half-time Bass" --request .ca
 このコマンドはNode.jsでAmiSynthのJS参照DSPを実行します。MCPを使う制作セッションでも、シェルを利用できる環境から呼び出せます。実際のREAPERトラック、インストール済みJSFX、フェーダー、外部FX、サイドチェイン音声を測定するものではありません。Apply soundの`audition`や瞬間的トラックメーターの契約は変更しません。True Peak、CPU性能、聴感上の自然さを評価した値でもありません。実機へ適用した後は、パラメータのreadbackと必要な試聴を続けてください。
 
 音律はEDOスライダー（`tuning_source=0`）のみ対応します。ファイル／共有Scala音律は読み込めないため、誤って別の音律を測定しないよう明示的に拒否します。
+
+## 微分音・演奏カーブ・ペダルの確認
+
+ブラウザのSynth／Physical両方のTuning欄に「鍵盤対応・予測周波数」を追加しました。MIDI番号、基準音からの段階／cents、予測Hzを確認でき、12平均律・A4=440 Hzの番号列を現在の音律へ最も近い鍵に変換してコピーできます。音名は入力キー名で、周波数は音律計算からの予測値です。実音の周波数測定ではありません。変換先が0〜127に収まらない場合はエラーにします。ドラムやCC、MIDIファイルを自動変換しません。
+
+24 EDO・基準69=440 Hzなら `target = 69 + 2 * (source - 69)` です。例えば12平均律の `60 62 64 65 67 69 71 72` は `51 55 59 61 65 69 73 75` になります。他の音律では最近接鍵への丸め誤差も表示します。
+
+次のコマンドで9ケースの短い試奏セットを生成できます。比較HTMLは生成しません。
+
+```powershell
+npm run check:performance -- --out .cache/glass-performance
+```
+
+- Violinの弓圧変化と、同じMIDIの一定値版。
+- Clarinetの息圧変化（途中の息継ぎ）と、同じMIDIの一定値版。
+- Pure Fluteの24 EDO（12平均律の音高を維持する番号列）。
+- HarpのSustain Pedal Auto／Off × Room 0／0.25。CC64 ON→note off→2秒でCC64 OFFを共通に使い、1.4〜1.9秒と2〜4秒の窓RMS／sample peakを記録。
+
+各フォルダーに `sound.json`、`request.json`、`phrase.mid`、`report.json`、`audition.wav`、聴き比べ用の `listening.wav`／`listening.json` ができます。測定値は固定ゲインのDSP出力から計算します。聴き比べ用だけ-20 LUFSを目標に別途ゲインを調整し、sample peak -1 dBFS制限で目標に届かない場合は `peakLimited` を記録します。True Peak制限ではありません。WAVは16-bit PCMのため、測定値と符号化後には量子化差があります。
+
+音律を含む全初期パラメータは `report.json` の `params` に保存します。再測定には `audition:preset -- phys --preset "Pure Flute" --patch .cache/glass-performance/flute-24edo/report.json --request .cache/glass-performance/flute-24edo/request.json --out .cache/flute-repeat` のように両方を指定してください。`sound.json` は従来どおり音律を除く音色差分です。
+
+ドライ条件はRoomとSympathetic Mixを0にします。ボディ共鳴など音源内部の響きは残り、純粋な減衰定数や音のリアルさを測る値ではありません。湿潤条件との比較も、Roomパラメータ以外を揃えて行ってください。
+
+任意の `--request` に、次の追加項目を指定できます。時間は秒、値はパラメータの実単位です。
+
+```json
+{
+  "curves": [{"id":"breath_pressure","interpolation":"linear","points":[[0,0.2],[0.3,0.65],[1.3,0.55],[1.45,0],[1.6,0.6],[3,0]]}],
+  "windows": [{"name":"held","start":1.4,"end":1.9}]
+}
+```
+
+これは上記requestへの追加部分です。音符・sampleRate等も必要です。カーブは128サンプル周期で更新し、最初の点より前は初期パッチ値、最後の点以降は最後の値を保持します。`linear` または `step`、最大16パラメータ・各1000点。時刻の重複／逆順、範囲外、未対応パラメータは拒否します。対応IDは `bow_pressure`、`bow_speed`、`breath_pressure`、`breath_noise`、`wind_embouchure`、`brass_pressure`、`phys_vibrato_cents`、`filter_cutoff_hz`、`fm_index`、`osc1_wt_position`、`osc2_wt_position`（音源に存在するもののみ）。モデルごとに有効なパラメータを選んでください。既存ボイスへの反映方法は各DSPの仕様に従います。
+
+カーブは `request.json` に保存し、`phrase.mid` には含まれません。REAPERでは対応パラメータのオートメーションとして別途入力してください。比較のfingerprintにはカーブと測定窓も含むため、条件の違うレポートの自動差分は拒否します。カーブあり／なしの聴き比べは別条件として評価します。
+
+Physicalのブラウザ表示とJSFXメーター欄にはCC64状態と現在のモデル／Sustain Pedal設定への適用可否を表示します。ブラウザはアプリが保持するCC64状態、JSFXはそのインスタンスが受信した状態です。オフラインレポートの `performance.pedalTrace` は実際の参照DSPへ送ったCC64／Reset Controllers／All Notes Off時の状態です。REAPERの別トラックのペダル状態を読み取る機能ではありません。
+
+## プリセット配布ファイルを照合する
+
+テキストのハッシュは改行CRLFをLFに統一して計算します。Windowsと他の環境でのcheckout差を無視します。
+
+```powershell
+npm run gen:jsfx
+npm run check:catalogs
+npm run install:reaper -- --resource "C:/actual/REAPER/resource"
+npm run check:catalogs -- --resource "C:/actual/REAPER/resource"
+```
+
+生成時に `jsfx/generated/manifest.json` へ配布ファイルのSHA-256、contentId、音源別のプリセット名を記録します。インストーラーは `presets.json` とmanifestも同じ生成物としてコピーします。照合コマンドは読み取り専用で、現在のcheckoutに対する古い／欠けた／変更された配布物と、automation.json／presets.jsonの名前・順序の不一致を検出します。失敗時は終了コード1、JSONの `failures` またはエラーメッセージを返します。更新時は再生成→再インストール→再照合してください。
+
+GLASS TIDEで報告されたフリーリード一覧の表示差について、現在のソース／生成JSON／Lua／RPLでは不足を再現していません。過去の取得元・バージョンは特定できないため原因は未確定です。既存のAccordion／Bandoneon／Harmonica／Reed Organを重複追加する変更は行っていません。
