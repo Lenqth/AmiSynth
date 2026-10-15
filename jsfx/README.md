@@ -15,6 +15,8 @@
 
 ## インストール
 
+JSFX・Lua・配布対象READMEなどを変更した場合も、`npm run gen:jsfx` で `generated/manifest.json` を再生成してから `npm run check:catalogs` を実行してください。並行するPRでmanifestが競合した場合は、まずmainを取り込み、元ファイルの競合を解消してから同じコマンドで再生成します。manifest内のハッシュを手で選択・編集しないでください。
+
 音源と補助スクリプトを一緒に配置する場合は、[ReaScript / MCPガイド](reaper/README.md) の `npm run install:reaper` を使えます。REAPERのリソースパスを明示して実行し、まず `--dry-run` で確認してください。既存の同名AmiSynthファイルは更新されます。Actionsへの登録は配置後に行います。
 
 1. REAPER のメニューで **Options → Show REAPER resource path** を開きます。

@@ -1629,8 +1629,10 @@ spl0 = soft_clip(dc.onepole_hp(mix_l) * g);
 spl1 = soft_clip(dc_r.onepole_hp(mix_r) * g);
 meter.meter_tick(spl0, spl1);
 
-@gfx 520 150
+@gfx 520 185
 meter.meter_draw();
+gfx_x = 12; gfx_y = 154;
+gfx_printf("CC64: %s    Pedal for this model: %s", sustain_pedal ? "ON" : "OFF", sustain_enabled(model, modal_material) ? "enabled" : "disabled");
 meter.match_request ? (
   phys_volume_db = clamp(phys_volume_db + meter.correction, -60, 6);
   out_gain = db_to_gain(phys_volume_db);

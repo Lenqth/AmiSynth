@@ -13,7 +13,7 @@ export function installPlan(resourcePath) {
       'amisynth_lib.jsfx-inc', 'amisynth_meter.jsfx-inc', 'amisynth_modulation.jsfx-inc'].map((name) => [`jsfx/${name}`, `Effects/AmiSynth/${name}`]),
     ...['AmiSynth Companion.lua', 'AmiSynth Drums - Create routed tracks.lua', 'AmiSynth - MCP guide.lua',
       'AmiSynth - Apply sound.lua', 'AmiSynth - Read sound.lua', 'AmiSynth - Run.lua', 'toolkit.lua', 'README.md'].map((name) => [`jsfx/reaper/${name}`, `Scripts/AmiSynth/reaper/${name}`]),
-    ...['catalog.lua', 'automation.json'].map((name) => [`jsfx/generated/${name}`, `Scripts/AmiSynth/generated/${name}`]),
+    ...['catalog.lua', 'automation.json', 'presets.json', 'manifest.json'].map((name) => [`jsfx/generated/${name}`, `Scripts/AmiSynth/generated/${name}`]),
   ];
   return files.map(([src, dest]) => ({ source: join(root, src), destination: join(resource, dest) }));
 }
