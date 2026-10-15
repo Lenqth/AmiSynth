@@ -732,6 +732,9 @@ function voice_op(op, a, b, c, d) instance(idx velocity base_hz glide_oct rnd po
     base_hz;
   ) : op === 9 ? (
     poly_at = a;
+  ) : op === 10 ? (
+    this.sfx.sound_fx_reset(idx, velocity);
+    noise_type_i === 6 ? this.sfx.time = 1000000000;
   );
 );
 
@@ -1254,6 +1257,7 @@ wt_bank1_i = clamp(floor(osc1_wt_bank + 0.5), 0, WT_BANKS - 1);
 wt_bank2_i = clamp(floor(osc2_wt_bank + 0.5), 0, WT_BANKS - 1);
 wt_osc1 ? wt_build(wt_bank1_i);
 wt_osc2 ? wt_build(wt_bank2_i);
+old_noise_type_i = noise_type_i;
 noise_type_i = clamp(floor(noise_type + 0.5), 0, 7);
 noise_clock = noise_type_i < 4 ? noise_clock_tab[noise_type_i] * pow(2, noise_clock_oct) : 0;
 sfx_rate = pow(2, noise_clock_oct);
@@ -1262,6 +1266,10 @@ sfx_a2 = 1 - exp(-2 * $pi * (noise_type_i === 4 ? 2800 : noise_type_i === 5 ? 12
 sfx_clap_decay = exp(-1 / (0.006 * srate));
 sfx_clap_attack = 1 - exp(-1 / (0.00035 * srate));
 sfx_drop_decay = exp(-1 / (0.006 * srate));
+noise_type_i >= 4 && noise_type_i !== old_noise_type_i ? (
+  i = 0;
+  loop(MAX_VOICES, v_active[i] ? vcall(i, 10, 0, 0, 0, 0); i += 1;);
+);
 noise_filter_i = clamp(floor(noise_filter_mode + 0.5), 0, 3);
 cc_cutoff_num = floor(cc_cutoff_number + 0.5);
 cc_mult = pow(2, clamp((cc_cutoff_value - 64) / 63, -1, 1) * cc_cutoff_depth_oct);

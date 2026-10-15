@@ -382,6 +382,7 @@ export function synth_update(s, p) {
   s.drive_makeup = 1 / (1 + 1.5 * p.filter_drive);
   s.fm_cycles = p.fm_index / TWO_PI;
   s.transpose = Math.round(p.transpose_semitones);
+  const oldNoiseType = s.noise_type;
   s.noise_type = clamp(Math.round(p.noise_type), 0, 7);
   s.noise_clock = (NOISE_CLOCK[s.noise_type] ?? 0) * Math.pow(2, p.noise_clock_oct);
   s.sfx_rate = Math.pow(2, p.noise_clock_oct);
@@ -390,6 +391,13 @@ export function synth_update(s, p) {
   s.sfx_clap_decay = Math.exp(-1 / (0.006 * s.sr));
   s.sfx_clap_attack = 1 - Math.exp(-1 / (0.00035 * s.sr));
   s.sfx_drop_decay = Math.exp(-1 / (0.006 * s.sr));
+  if (s.noise_type >= 4 && s.noise_type !== oldNoiseType) {
+    for (const v of s.voices) if (v.active) {
+      sound_fx_reset(s, v);
+      // Switching a patch is not a trigger: Shot only fires on a new note-on.
+      if (s.noise_type === 6) v.sfx.time = 1e9;
+    }
+  }
   s.noise_filter = clamp(Math.round(p.noise_filter_mode), 0, 3);
   s.cc_cutoff_num = Math.round(p.cc_cutoff_number);
   s.cc_mult = Math.pow(2, clamp((s.cc_cutoff_value - 64) / 63, -1, 1) * p.cc_cutoff_depth_oct);

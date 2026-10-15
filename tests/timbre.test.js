@@ -120,6 +120,32 @@ function fx(type, overrides = {}) {
   return s;
 }
 
+test('FX noise: changing type during a held note staggers events and does not retrigger Shot', () => {
+  const s = fx(0, { noise_level: 0 }); synth_note_on(s, 60, 100);
+  samples(s, synth_render, 1);
+  const v = s.voices.find(v => v.active);
+  for (const type of [5, 7, 4, 5, 6, 7]) {
+    synth_update(s, { ...s.p, noise_type: type, noise_level: 1 });
+    if (type === 5 || type === 7) {
+      const timers = type === 5 ? v.sfx.claps.filter((_, i) => i % 2 === 0) : v.sfx.drops.filter((_, i) => i % 4 === 0);
+      assert.ok(timers[0] > 0);
+      assert.equal(new Set(timers).size, timers.length, 'events must start at different times');
+    }
+    if (type === 6) {
+      assert.ok(v.sfx.time > 1e8, 'changing type is not a shot trigger');
+      // The previous filter output may briefly ring, but the shot source itself stays silent.
+      samples(s, synth_render, 0.1);
+      assert.ok(rms(samples(s, synth_render, 0.1)) < 1e-5);
+      synth_note_on(s, 60, 100);
+      assert.equal(v.sfx.time, 0);
+      assert.ok(rms(samples(s, synth_render, 0.05)) > 0.001);
+    } else samples(s, synth_render, 0.1);
+    const state = JSON.stringify(v.sfx);
+    synth_update(s, { ...s.p, noise_level: 0.5 });
+    assert.equal(JSON.stringify(v.sfx), state, 'same type slider edits must preserve source state');
+  }
+});
+
 test('FX noise: rotor has repeated pressure pulses; crowd claps have irregular transients', () => {
   const rotor = fx(4); synth_note_on(rotor, 60, 100);
   const out = samples(rotor, synth_render, 3), early = [], late = [];

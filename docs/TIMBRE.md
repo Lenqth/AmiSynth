@@ -61,6 +61,8 @@ SitarはSympathetic Mix 0.7 / Decay 4200 ms / Root 60を有効にし、Room Mix�
 
 ## 合成によるFX
 
+発音中にNoise TypeをFXへ／FX間で変更した場合も、各ボイスの拍手・雨粒タイマーをずらして初期化します。同じタイプのまま音量などを変更しても状態はリセットしません。Shotはタイプ切り替えでは発火せず、新しいノートオンでだけ発火します。
+
 Synthの既存Noise Typeへ4方式を追加しました。White / Chip Long / Chip Short / Sample & Holdは従来の値0–3のままです。スライダーの追加・並べ替えはありません。
 
 | Noise Type | 値 | 作る音 | Noise Clockの作用 |
