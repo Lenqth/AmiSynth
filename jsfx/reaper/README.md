@@ -17,6 +17,8 @@ The installer updates only bundled AmiSynth JSFX, Lua scripts, catalog files and
 
 ## Choose the right entry point
 
+Physical now includes Guzheng, Pipa, Gayageum, Erhu, Morin Khuur, Khaen, Dutar Santur, Suona, Taepyeongso and Duduk (103 presets total). These are approximate patches on existing models, not measured replicas. Refresh the existing Run `presets` action or inspect `../generated/automation.json`; each new preset has a `playingGuide` with suggested MIDI range, notes, velocity and tempo. Use the exact preset name with `preset` or Apply sound's `base`. No new MCP tool or ReaScript action is added. Regional tuning and ornamentation are not applied automatically. See `docs/ASIAN_INSTRUMENT_PRESETS.md` in the repository for limitations and audition commands.
+
 | Script | Purpose / prerequisites | Project changes | MCP result |
 | --- | --- | --- | --- |
 | `AmiSynth - MCP guide.lua` | Read this guide; no selection required | None | Guide text in `reaper_mcp_script_result/last_result` |

@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "contentId": "bebd3726692209f7beaacfe91e614cab757f78b4a5745ad7646e406900281927",
+  "contentId": "8c3626c33a554bededb19ea6d7dbc49af78ab345af475fa9a02acd2103811aeb",
   "presets": {
     "synth": [
       "Init",
@@ -174,7 +174,18 @@
       "Accordion",
       "Bandoneon",
       "Harmonica",
-      "Reed Organ"
+      "Reed Organ",
+      "Guzheng",
+      "Pipa",
+      "Gayageum",
+      "Erhu",
+      "Morin Khuur",
+      "Khaen",
+      "Dutar",
+      "Santur",
+      "Suona",
+      "Taepyeongso",
+      "Duduk"
     ],
     "drums": [
       "AmiSynth Default",
@@ -197,7 +208,7 @@
     {
       "source": "jsfx/AmiSynth Physical.jsfx",
       "installedPath": "Effects/AmiSynth/AmiSynth Physical.jsfx",
-      "sha256": "267dd7d1e52f65b8615c72d19331a8b63a93ea97553fb0756dbc63647253498b"
+      "sha256": "2841042371493ef9b5f735dec593cade41d8a2d45dfb5131186957902286dd1e"
     },
     {
       "source": "jsfx/AmiSynth Drums.jsfx",
@@ -217,7 +228,7 @@
     {
       "source": "jsfx/AmiSynth Physical.jsfx.rpl",
       "installedPath": "Effects/AmiSynth/AmiSynth Physical.jsfx.rpl",
-      "sha256": "7f2fd6d505f8dd61df1265394a4b8b1c23d80893ce8cef01a0c59cba141bac02"
+      "sha256": "be459b400e34bff7ee49e660958e0f33d517fb09b22588eaccebad61f338c2ff"
     },
     {
       "source": "jsfx/AmiSynth Drums.jsfx.rpl",
@@ -277,22 +288,22 @@
     {
       "source": "jsfx/reaper/README.md",
       "installedPath": "Scripts/AmiSynth/reaper/README.md",
-      "sha256": "80b217b8af2f08d2308a9d14ee22d782996cca9ffd69015b97371dcac4ab74d7"
+      "sha256": "ec3c6ba709cbe6d1eb97c04439de4be9769865f9328cf54ab9826217cae09308"
     },
     {
       "source": "jsfx/generated/catalog.lua",
       "installedPath": "Scripts/AmiSynth/generated/catalog.lua",
-      "sha256": "2c3892d7b238721451dcadc63c9233e436b09c91ef0100f10a7c575b79655524"
+      "sha256": "b0f5c8e2d2931123ccc2e19a38c0dfa1e13150883e7e0806f4ef854548a999a3"
     },
     {
       "source": "jsfx/generated/automation.json",
       "installedPath": "Scripts/AmiSynth/generated/automation.json",
-      "sha256": "c165c7b0b63fda01f7d195071d224a7a1be5135921c66be3735e0f0c421b4deb"
+      "sha256": "a2996c3866174a99546e4552329d065fca5ca82a435c695b8be5d2544a814baf"
     },
     {
       "source": "jsfx/generated/presets.json",
       "installedPath": "Scripts/AmiSynth/generated/presets.json",
-      "sha256": "5cff940453814dbc73c11aa3696f399dcb3fec47ebbf4ec63a94cc1e33b87046"
+      "sha256": "c44c5edfdbdc2b2b24a9272136818aa0f18f0040fe8bad164f9e1ee2ed99ed29"
     }
   ]
 }

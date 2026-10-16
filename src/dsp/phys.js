@@ -929,7 +929,10 @@ export function phys_note_on(s, note, velocity) {
       v.env.value = 0;
       v.flut = 0;
       v.hiss_lp = 0;
-      v.rad_x = 0;
+      // At zero tongue displacement the biased slot can already pass DC flow.
+      // Seed the differentiator at that rest flow, including all musette reeds;
+      // zero would radiate a full-scale impulse before the attack envelope rises.
+      v.rad_x = wind_kind(p) === WIND_FREE_REED ? free_reed_flow(s, 0) * (s.fr_n > 1 ? 1.8 : 1) : 0;
       v.rad_x2 = 0;
       svf_reset(v.body1);
       v.org_ph = 0;
