@@ -112,6 +112,20 @@ node scripts/timbre-audition.js --baseline /path/to/old-checkout --out /path/to/
 
 比較用は全体への一定ゲインでLUFSを揃えます。ベロシティの差や減衰を圧縮せず、sample peakを−1 dBFS以下に収めるため、必要に応じて共通LUFS目標を下げます。特に短いFXでは、LUFS一致だけで知覚上の音量一致とは言えません。MIDIにProgram Changeは含めていないので、REAPERで使う場合は音色を明示的に設定してください。
 
+## 三味線の撥アタックの再調整
+
+ShamisenはString Plectrumを0.45→0.8、Hardnessを0.95→1、Body Mixを0.45→0.65へ変更しました。硬い撥の接触パルスを強め、高域寄りの短い胴／皮の共鳴を加えます。Hardnessが高いほど共鳴の余韻も短くし、低い「ポクッ」という鳴りが主体にならないようにしています。サワリの量・弦のDecay／Damping、出力音量4.5 dBは維持しています。
+
+JS参照DSPの48 kHz、MIDI 48／60／72 × velocity 70／100／120で、最初の10 msと30〜80 msのRMS差は旧版の約4.90〜10.64 dBから約10.61〜14.42 dBへ増えました。各条件では約2.80〜6.06 dBの改善で、単に全体音量を上げた結果ではありません。共通の和音＋単音フレーズの全体音量は約-18.36 LUFSです。これは立ち上がりと余韻の比率の測定で、三味線らしさの聴感判定ではありません。
+
+撥とBody Mixの処理は弦モデルの共通機能です。同じ機能を使うGuzheng／Pipa／Gayageum／Dutarの接触音にも影響します。新しいスライダーや番号変更はありません。PlectrumとBody Mixの両方を0にした従来の弦プリセットの発音経路は維持します。
+
+```powershell
+npm run audition:preset -- phys --preset "Shamisen" --guide --out .cache/shamisen
+```
+
+推奨音域・強弱は `playingGuide` としてMCP用カタログにも含めました。今回の確認用HTMLは生成せず、CloudflareプレビューのPhysical→Shamisenで試奏できます。
+
 ## 自動確認の範囲
 
 - フリーリード: 低音〜高音で息ノイズがリード音を覆わない、ムゼットを含む発音、Breath Noiseの効果が残ること。

@@ -65,6 +65,18 @@ test('bachi: hard contact is shorter, body transient retriggers, extreme registe
     samples(s, phys_render, 0.1);
   }
 });
+test('Shamisen: attack stands above the following string tail across register and velocity', () => {
+  const preset = PHYS_PRESETS.find(p => p.name === 'Shamisen');
+  for (const note of [48, 60, 72]) for (const velocity of [70, 100, 120]) {
+    const s = string(preset.params);
+    phys_note_on(s, note, velocity);
+    const out = samples(s, phys_render, .1);
+    const attack = rms(out.subarray(0, SR * .01));
+    const tail = rms(out.subarray(SR * .03, SR * .08));
+    assert.ok(20 * Math.log10(attack / tail) > 10, `note ${note}, velocity ${velocity}: distinct short attack`);
+  }
+});
+
 test('bachi: body contact is not dominated by low wood-block resonances', () => {
   const render = mix => {
     const s = string({ string_plectrum: 0.45, string_plectrum_hardness: 0.95,

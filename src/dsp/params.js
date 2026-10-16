@@ -544,7 +544,7 @@ export const PHYS_PARAMS = /** @type {ParamDef[]} */ ([
   { id: 'string_plectrum', name: 'String Plectrum', group: 'String', min: 0, max: 1, default: 0, step: 0.001, unit: '',
     description: 'String only: blends a displaced-string release into the pluck and adds a short bachi contact pulse. 0 preserves the original excitation. Use Body Mix to hear the skin contact.' },
   { id: 'string_plectrum_hardness', name: 'Plectrum Hardness', group: 'String', min: 0, max: 1, default: 0.7, step: 0.001, unit: '',
-    description: 'Shortens the bachi contact pulse; higher velocity also hardens the contact. Used with String Plectrum.' },
+    description: 'Shortens and strengthens the bachi contact pulse and shortens the skin/body ring; higher velocity also hardens the contact. Used with String Plectrum.' },
   { id: 'string_body_mix', name: 'String Body Mix', group: 'String', min: 0, max: 1, default: 0, step: 0.001, unit: '',
     description: 'String only: short skin/body resonances driven by both the bridge and bachi contact. Fixed approximate body frequencies, independent of the played pitch.' },
   { id: 'string_sympathetic_mix', name: 'Sympathetic Mix', group: 'String', min: 0, max: 1, default: 0, step: 0.001, unit: '',

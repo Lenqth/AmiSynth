@@ -15749,7 +15749,7 @@
           "default": 0.7,
           "step": 0.001,
           "unit": "",
-          "description": "Shortens the bachi contact pulse; higher velocity also hardens the contact. Used with String Plectrum.",
+          "description": "Shortens and strengthens the bachi contact pulse and shortens the skin/body ring; higher velocity also hardens the contact. Used with String Plectrum.",
           "slider": 82,
           "paramIndex": 81,
           "valueDomain": "real"
@@ -16361,7 +16361,26 @@
         {
           "name": "Shamisen",
           "category": "String",
-          "description": "Bachi-style displaced-string release and short skin/body contact resonances, with a light sawari buzz.",
+          "description": "Strong bachi attack: displaced-string release and short, bright skin contact ahead of the string tail, with a light sawari buzz. Velocity hardens the strike; generic contact/body model, not a measured shamisen.",
+          "playingGuide": {
+            "kind": "phys",
+            "notes": [
+              48,
+              55,
+              60,
+              67
+            ],
+            "velocity": 100,
+            "range": [
+              48,
+              79
+            ],
+            "velocities": [
+              70,
+              120
+            ],
+            "bpm": 110
+          },
           "params": {
             "phys_model": 0,
             "string_excitation": 0,
@@ -16437,9 +16456,9 @@
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
             "string_sawari": 0.35,
-            "string_plectrum": 0.45,
-            "string_plectrum_hardness": 0.95,
-            "string_body_mix": 0.45,
+            "string_plectrum": 0.8,
+            "string_plectrum_hardness": 1,
+            "string_body_mix": 0.65,
             "string_sympathetic_mix": 0,
             "string_sympathetic_decay_ms": 3500,
             "string_sympathetic_root": 60,
