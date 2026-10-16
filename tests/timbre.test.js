@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { defaultValues, PHYS_PARAMS, SYNTH_PARAMS } from '../src/dsp/params.js';
 import { phys_init, phys_note_on, phys_note_off, phys_render, phys_update, phys_set_scale } from '../src/dsp/phys.js';
 import { synth_init, synth_note_on, synth_note_off, synth_render, synth_update } from '../src/dsp/synth.js';
+import { PHYS_PRESETS } from '../src/presets/phys.js';
 
 const SR = 48000;
 function string(overrides = {}) {
@@ -94,6 +95,21 @@ function samples(s, render, seconds) {
   }
   return out;
 }
+
+test('free reed: biased slot starts without an impulse, including musette and reused voices', () => {
+  for (const sr of [44100, 48000]) for (const name of ['Accordion', 'Harmonica', 'Khaen', 'Bandoneon', 'Reed Organ']) for (const note of [28, 36, 48, 72]) {
+    const preset = PHYS_PRESETS.find(p => p.name === name);
+    const s = {}; phys_init(s, sr); phys_update(s, { ...defaultValues(PHYS_PARAMS), ...preset.params, phys_room_mix: 0 });
+    for (let repeat = 0; repeat < 2; repeat++) {
+      phys_note_on(s, note, 100);
+      phys_render(s);
+      assert.ok(Math.abs(s.out_l) < .001 && Math.abs(s.out_r) < .001, `${name} ${note} ${sr}: no startup impulse`);
+      for (let i = 0; i < sr / 5; i++) phys_render(s);
+      phys_note_off(s, note);
+      for (let i = 0; i < sr; i++) phys_render(s);
+    }
+  }
+});
 
 test('free reed: breath noise does not overwhelm low reeds, including musette', () => {
   for (const detune of [0, 12]) for (const note of [28, 36, 48, 60, 72]) {

@@ -767,7 +767,9 @@ function voice_op(op, a, b) instance(idx vel hz0 level frames lp_z lp_z2 loop_ga
         this.env.value = 0;
         flut = 0;
         hiss_lp = 0;
-        rad_x = 0;
+        // Seed radiation with the biased slot's rest flow, including musette reeds.
+        // Starting at zero otherwise produces an impulse before the attack rises.
+        rad_x = wind_kind() === WIND_FREE_REED ? max(0, abs(fr_bias) - FREE_REED_OVERLAP) * (fr_n > 1 ? 1.8 : 1) : 0;
         rad_x2 = 0;
         this.body1.svf_reset();
         org_ph = 0;

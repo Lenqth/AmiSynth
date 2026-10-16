@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "contentId": "7683f43c25d4871f793cea5b732fb3d3ddaa911a0c6c002711cbdbd2d37ca221",
+  "contentId": "8c3626c33a554bededb19ea6d7dbc49af78ab345af475fa9a02acd2103811aeb",
   "presets": {
     "synth": [
       "Init",
@@ -182,7 +182,10 @@
       "Morin Khuur",
       "Khaen",
       "Dutar",
-      "Santur"
+      "Santur",
+      "Suona",
+      "Taepyeongso",
+      "Duduk"
     ],
     "drums": [
       "AmiSynth Default",
@@ -205,7 +208,7 @@
     {
       "source": "jsfx/AmiSynth Physical.jsfx",
       "installedPath": "Effects/AmiSynth/AmiSynth Physical.jsfx",
-      "sha256": "267dd7d1e52f65b8615c72d19331a8b63a93ea97553fb0756dbc63647253498b"
+      "sha256": "2841042371493ef9b5f735dec593cade41d8a2d45dfb5131186957902286dd1e"
     },
     {
       "source": "jsfx/AmiSynth Drums.jsfx",
@@ -225,7 +228,7 @@
     {
       "source": "jsfx/AmiSynth Physical.jsfx.rpl",
       "installedPath": "Effects/AmiSynth/AmiSynth Physical.jsfx.rpl",
-      "sha256": "89ebc12bfe6244d8277adacdefca4c8f3128d7c9756d9749eda72a73ca600d32"
+      "sha256": "be459b400e34bff7ee49e660958e0f33d517fb09b22588eaccebad61f338c2ff"
     },
     {
       "source": "jsfx/AmiSynth Drums.jsfx.rpl",
@@ -285,22 +288,22 @@
     {
       "source": "jsfx/reaper/README.md",
       "installedPath": "Scripts/AmiSynth/reaper/README.md",
-      "sha256": "ed50a996f963d6f91708a2cec595af3f38888f501e0e4b536ccd350ba234472b"
+      "sha256": "ec3c6ba709cbe6d1eb97c04439de4be9769865f9328cf54ab9826217cae09308"
     },
     {
       "source": "jsfx/generated/catalog.lua",
       "installedPath": "Scripts/AmiSynth/generated/catalog.lua",
-      "sha256": "a02f38d85413ad216f49e5fcc940bbc0151159ae9fbfac65236fe1f2f3a19fc4"
+      "sha256": "b0f5c8e2d2931123ccc2e19a38c0dfa1e13150883e7e0806f4ef854548a999a3"
     },
     {
       "source": "jsfx/generated/automation.json",
       "installedPath": "Scripts/AmiSynth/generated/automation.json",
-      "sha256": "0a1c08fc1b385b20926df34af08a4fdd9d0396d48db266e5b48b630fdbf5fc33"
+      "sha256": "a2996c3866174a99546e4552329d065fca5ca82a435c695b8be5d2544a814baf"
     },
     {
       "source": "jsfx/generated/presets.json",
       "installedPath": "Scripts/AmiSynth/generated/presets.json",
-      "sha256": "73a70c9d1f349a4e2bc4e7cdc4c5115a41b3f82d6a662c92dc18f90b7b5beecc"
+      "sha256": "c44c5edfdbdc2b2b24a9272136818aa0f18f0040fe8bad164f9e1ee2ed99ed29"
     }
   ]
 }
