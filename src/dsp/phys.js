@@ -863,7 +863,8 @@ export function phys_note_on(s, note, velocity) {
     for (let k = 0; k < 3; k++) {
       reson_reset(v.modes[k]);
       // Short, bright skin contact: avoid the long low mode that sounds like a wood block.
-      reson_set(v.modes[k], [950, 2300, 4800][k], [30, 18, 10][k], [0.12, 0.7, 0.5][k], sr);
+      // Hard bachi contact should snap rather than leave a small pitched drum tail.
+      reson_set(v.modes[k], [950, 2300, 4800][k], [30, 18, 10][k] * (1 - 0.5 * hard), [0.08, 0.85, 0.65][k], sr);
     }
     // high notes lose more energy per second (more round trips); compensate gently
     v.read_gain = 1.2 * v.vel * clamp(Math.pow(v.hz / 220, 0.3), 0.7, 2);
@@ -1232,7 +1233,7 @@ function render_string(s, v, vib) {
   let contact = 0;
   if (v.bachi_t < v.bachi_len) {
     // Bipolar contact/release removes the low-frequency push of the old positive pulse.
-    contact = s.p.string_plectrum * v.vel * Math.sin(TWO_PI * v.bachi_t / v.bachi_len) / (0.5 * v.bachi_len);
+    contact = s.p.string_plectrum * v.vel * (1 + s.p.string_plectrum_hardness) * Math.sin(TWO_PI * v.bachi_t / v.bachi_len) / (0.5 * v.bachi_len);
     v.bachi_t++;
   }
   if (!(s.p.string_body_mix > 0)) return direct;

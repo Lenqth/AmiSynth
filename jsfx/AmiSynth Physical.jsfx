@@ -707,9 +707,9 @@ function voice_op(op, a, b) instance(idx vel hz0 level frames lp_z lp_z2 loop_ga
       hard = clamp(string_plectrum_hardness * (0.6 + 0.4 * v), 0, 1);
       bachi_len = max(2, floor(srate * (0.0012 - 0.001 * hard) + 0.5));
       rmem_reset(modes); rmem_reset(modes + 6); rmem_reset(modes + 12);
-      rmem_set(modes, 950, 30, 0.12);
-      rmem_set(modes + 6, 2300, 18, 0.7);
-      rmem_set(modes + 12, 4800, 10, 0.5);
+      rmem_set(modes, 950, 30 * (1 - 0.5 * hard), 0.08);
+      rmem_set(modes + 6, 2300, 18 * (1 - 0.5 * hard), 0.85);
+      rmem_set(modes + 12, 4800, 10 * (1 - 0.5 * hard), 0.65);
       read_gain = 1.2 * vel * clamp(pow(hz0 / 220, 0.3), 0.7, 2);
     ) : model === MODEL_MODAL ? (
       k = 0;
@@ -999,7 +999,7 @@ function render_string() instance(lp_z damp_b loop_gain delay_len read_gain saw_
   direct = fb * read_gain;
   contact = 0;
   bachi_t < bachi_len ? (
-      contact = string_plectrum * vel * sin(2 * $pi * bachi_t / bachi_len) / (0.5 * bachi_len);
+      contact = string_plectrum * vel * (1 + string_plectrum_hardness) * sin(2 * $pi * bachi_t / bachi_len) / (0.5 * bachi_len);
       bachi_t += 1;
   );
   string_body_mix > 0 ? (
