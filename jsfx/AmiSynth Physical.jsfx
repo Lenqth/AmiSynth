@@ -102,6 +102,7 @@ slider88:sc_duck_db=0<0,48,0.1>Sidechain Duck [dB]
 slider89:sc_input_gain_db=0<-24,24,0.1>Sidechain Input Gain [dB]
 slider90:sc_attack_ms=1<0.1,100,0.1>Sidechain Attack [ms]
 slider91:sc_release_ms=150<10,2000,1>Sidechain Release [ms]
+slider92:string_contact_gain=1<0,2,0.001>String Contact Gain
 // </generated sliders>
 
 import amisynth_lib.jsfx-inc
@@ -999,7 +1000,7 @@ function render_string() instance(lp_z damp_b loop_gain delay_len read_gain saw_
   direct = fb * read_gain;
   contact = 0;
   bachi_t < bachi_len ? (
-      contact = string_plectrum * vel * (1 + string_plectrum_hardness) * sin(2 * $pi * bachi_t / bachi_len) / (0.5 * bachi_len);
+      contact = string_contact_gain * string_plectrum * vel * (1 + string_plectrum_hardness) * sin(2 * $pi * bachi_t / bachi_len) / (0.5 * bachi_len);
       bachi_t += 1;
   );
   string_body_mix > 0 ? (

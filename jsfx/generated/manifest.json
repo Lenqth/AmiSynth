@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "contentId": "98de682ed0792fc91213e38c8e18408272c352c0d706d7ef02306d6fcae37dae",
+  "contentId": "8ff29c8ab504d98d96fff61881de780dfe472b859f13caa04ba32c0361084c84",
   "presets": {
     "synth": [
       "Init",
@@ -208,7 +208,7 @@
     {
       "source": "jsfx/AmiSynth Physical.jsfx",
       "installedPath": "Effects/AmiSynth/AmiSynth Physical.jsfx",
-      "sha256": "3e3e16194a0bd5a64ab84ad82d77922666ab94995b12543aa16cb542dec67b3a"
+      "sha256": "5f85c2c08245f6355fd5258d20d36f433ecc4fbe80c23d722f4e245813969eed"
     },
     {
       "source": "jsfx/AmiSynth Drums.jsfx",
@@ -228,7 +228,7 @@
     {
       "source": "jsfx/AmiSynth Physical.jsfx.rpl",
       "installedPath": "Effects/AmiSynth/AmiSynth Physical.jsfx.rpl",
-      "sha256": "5cd8da66c5708e41f842593520e78e170c46844f7b8f759973d19c37f5b924e6"
+      "sha256": "97c30e7f67d8fa4a6b5b322f0c8440c1d7d5c477cf8aeb2adf9c51f2b4758ff0"
     },
     {
       "source": "jsfx/AmiSynth Drums.jsfx.rpl",
@@ -293,17 +293,17 @@
     {
       "source": "jsfx/generated/catalog.lua",
       "installedPath": "Scripts/AmiSynth/generated/catalog.lua",
-      "sha256": "19ec4fda9b47337c4faaa009e5690f9731178837abcf251d1da5ffdb355ee325"
+      "sha256": "d5669ade37825ac30784823ff33a0e15aa707511dac092030300280f94feccc3"
     },
     {
       "source": "jsfx/generated/automation.json",
       "installedPath": "Scripts/AmiSynth/generated/automation.json",
-      "sha256": "4d77d4f5b532b68b9b65d71edc6af62f010b92fd37d5f23d399f377e71fa4202"
+      "sha256": "8a4af6a8545ba2c232d7c20a342386cd013f8c0a41f2d15746bc6db648b02033"
     },
     {
       "source": "jsfx/generated/presets.json",
       "installedPath": "Scripts/AmiSynth/generated/presets.json",
-      "sha256": "a31bbbee22e2e735264bfaa1e8af74960dfacec2c507e472df87ed5307828af4"
+      "sha256": "dad6d4c1b6e69c1c5b6cef7e5d143ae5036bc34372836265756f9b3280df9574"
     }
   ]
 }
