@@ -15895,6 +15895,20 @@
           "slider": 91,
           "paramIndex": 90,
           "valueDomain": "real"
+        },
+        {
+          "id": "string_contact_gain",
+          "name": "String Contact Gain",
+          "group": "String",
+          "min": 0,
+          "max": 2,
+          "default": 1,
+          "step": 0.001,
+          "unit": "",
+          "description": "Scales only the bachi contact pulse entering the body, independently of displaced-string excitation and continuous bridge drive. 1 preserves the original contact; 0 removes the strike but keeps the vibrating string and body response.",
+          "slider": 92,
+          "paramIndex": 91,
+          "valueDomain": "real"
         }
       ],
       "presets": [
@@ -15987,7 +16001,8 @@
             "sc_duck_db": 0,
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
-            "sc_release_ms": 150
+            "sc_release_ms": 150,
+            "string_contact_gain": 1
           }
         },
         {
@@ -16079,7 +16094,8 @@
             "sc_duck_db": 0,
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
-            "sc_release_ms": 150
+            "sc_release_ms": 150,
+            "string_contact_gain": 1
           }
         },
         {
@@ -16171,7 +16187,8 @@
             "sc_duck_db": 0,
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
-            "sc_release_ms": 150
+            "sc_release_ms": 150,
+            "string_contact_gain": 1
           }
         },
         {
@@ -16263,20 +16280,21 @@
             "sc_duck_db": 0,
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
-            "sc_release_ms": 150
+            "sc_release_ms": 150,
+            "string_contact_gain": 1
           }
         },
         {
           "name": "Sitar",
           "category": "String",
-          "description": "Jawari buzz with a shared bank of tuned sympathetic resonances; the pitched stereo after-ring follows the selected tuning. Adjust Sympathetic Root for the piece.",
+          "description": "Warmer pluck with moderate jawari buzz and a shared bank of tuned sympathetic resonances; the pitched stereo after-ring follows the selected tuning. Adjust Sympathetic Root for the piece.",
           "params": {
             "phys_model": 0,
             "string_excitation": 0,
             "string_decay_ms": 6000,
             "string_damping": 0.08,
             "string_pick_position": 0.08,
-            "string_brightness": 0.85,
+            "string_brightness": 0.4,
             "modal_material": 0,
             "modal_decay_ms": 1500,
             "modal_high_damping": 0.5,
@@ -16315,7 +16333,7 @@
             "phys_pitch_bend_range_cents": 200,
             "phys_room_mix": 0.08,
             "phys_room_decay_ms": 1300,
-            "phys_volume_db": -3.1,
+            "phys_volume_db": -5.5,
             "brass_pressure": 0.6,
             "brass_lip": 0.5,
             "brass_attack_ms": 30,
@@ -16344,7 +16362,7 @@
             "rotary_mode": 0,
             "rotary_mix": 1,
             "free_reed_detune_cents": 0,
-            "string_sawari": 0.65,
+            "string_sawari": 0.5,
             "string_plectrum": 0,
             "string_plectrum_hardness": 0.7,
             "string_body_mix": 0,
@@ -16355,13 +16373,14 @@
             "sc_duck_db": 0,
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
-            "sc_release_ms": 150
+            "sc_release_ms": 150,
+            "string_contact_gain": 1
           }
         },
         {
           "name": "Shamisen",
           "category": "String",
-          "description": "Strong bachi attack: displaced-string release and short, bright skin contact ahead of the string tail, with a light sawari buzz. Velocity hardens the strike; generic contact/body model, not a measured shamisen.",
+          "description": "Bright bachi attack balanced with a longer string tail and light sawari buzz. Contact Gain adjusts the skin strike independently of string displacement. Velocity hardens the strike; generic contact/body model, not a measured shamisen.",
           "playingGuide": {
             "kind": "phys",
             "notes": [
@@ -16384,9 +16403,9 @@
           "params": {
             "phys_model": 0,
             "string_excitation": 0,
-            "string_decay_ms": 1800,
+            "string_decay_ms": 2400,
             "string_damping": 0.18,
-            "string_pick_position": 0.05,
+            "string_pick_position": 0.08,
             "string_brightness": 1,
             "modal_material": 0,
             "modal_decay_ms": 1500,
@@ -16426,7 +16445,7 @@
             "phys_pitch_bend_range_cents": 200,
             "phys_room_mix": 0,
             "phys_room_decay_ms": 1300,
-            "phys_volume_db": 4.5,
+            "phys_volume_db": 5.2,
             "brass_pressure": 0.6,
             "brass_lip": 0.5,
             "brass_attack_ms": 30,
@@ -16466,7 +16485,8 @@
             "sc_duck_db": 0,
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
-            "sc_release_ms": 150
+            "sc_release_ms": 150,
+            "string_contact_gain": 0.65
           }
         },
         {
@@ -16558,7 +16578,8 @@
             "sc_duck_db": 0,
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
-            "sc_release_ms": 150
+            "sc_release_ms": 150,
+            "string_contact_gain": 1
           }
         },
         {
@@ -16650,7 +16671,8 @@
             "sc_duck_db": 0,
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
-            "sc_release_ms": 150
+            "sc_release_ms": 150,
+            "string_contact_gain": 1
           }
         },
         {
@@ -16742,7 +16764,8 @@
             "sc_duck_db": 0,
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
-            "sc_release_ms": 150
+            "sc_release_ms": 150,
+            "string_contact_gain": 1
           }
         },
         {
@@ -16834,7 +16857,8 @@
             "sc_duck_db": 0,
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
-            "sc_release_ms": 150
+            "sc_release_ms": 150,
+            "string_contact_gain": 1
           }
         },
         {
@@ -16926,7 +16950,8 @@
             "sc_duck_db": 0,
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
-            "sc_release_ms": 150
+            "sc_release_ms": 150,
+            "string_contact_gain": 1
           }
         },
         {
@@ -17018,7 +17043,8 @@
             "sc_duck_db": 0,
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
-            "sc_release_ms": 150
+            "sc_release_ms": 150,
+            "string_contact_gain": 1
           }
         },
         {
@@ -17110,7 +17136,8 @@
             "sc_duck_db": 0,
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
-            "sc_release_ms": 150
+            "sc_release_ms": 150,
+            "string_contact_gain": 1
           }
         },
         {
@@ -17202,7 +17229,8 @@
             "sc_duck_db": 0,
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
-            "sc_release_ms": 150
+            "sc_release_ms": 150,
+            "string_contact_gain": 1
           }
         },
         {
@@ -17294,7 +17322,8 @@
             "sc_duck_db": 0,
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
-            "sc_release_ms": 150
+            "sc_release_ms": 150,
+            "string_contact_gain": 1
           }
         },
         {
@@ -17386,7 +17415,8 @@
             "sc_duck_db": 0,
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
-            "sc_release_ms": 150
+            "sc_release_ms": 150,
+            "string_contact_gain": 1
           }
         },
         {
@@ -17478,7 +17508,8 @@
             "sc_duck_db": 0,
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
-            "sc_release_ms": 150
+            "sc_release_ms": 150,
+            "string_contact_gain": 1
           }
         },
         {
@@ -17570,7 +17601,8 @@
             "sc_duck_db": 0,
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
-            "sc_release_ms": 150
+            "sc_release_ms": 150,
+            "string_contact_gain": 1
           }
         },
         {
@@ -17662,7 +17694,8 @@
             "sc_duck_db": 0,
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
-            "sc_release_ms": 150
+            "sc_release_ms": 150,
+            "string_contact_gain": 1
           }
         },
         {
@@ -17754,7 +17787,8 @@
             "sc_duck_db": 0,
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
-            "sc_release_ms": 150
+            "sc_release_ms": 150,
+            "string_contact_gain": 1
           }
         },
         {
@@ -17846,7 +17880,8 @@
             "sc_duck_db": 0,
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
-            "sc_release_ms": 150
+            "sc_release_ms": 150,
+            "string_contact_gain": 1
           }
         },
         {
@@ -17938,7 +17973,8 @@
             "sc_duck_db": 0,
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
-            "sc_release_ms": 150
+            "sc_release_ms": 150,
+            "string_contact_gain": 1
           }
         },
         {
@@ -18030,7 +18066,8 @@
             "sc_duck_db": 0,
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
-            "sc_release_ms": 150
+            "sc_release_ms": 150,
+            "string_contact_gain": 1
           }
         },
         {
@@ -18122,7 +18159,8 @@
             "sc_duck_db": 0,
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
-            "sc_release_ms": 150
+            "sc_release_ms": 150,
+            "string_contact_gain": 1
           }
         },
         {
@@ -18214,7 +18252,8 @@
             "sc_duck_db": 0,
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
-            "sc_release_ms": 150
+            "sc_release_ms": 150,
+            "string_contact_gain": 1
           }
         },
         {
@@ -18306,7 +18345,8 @@
             "sc_duck_db": 0,
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
-            "sc_release_ms": 150
+            "sc_release_ms": 150,
+            "string_contact_gain": 1
           }
         },
         {
@@ -18398,7 +18438,8 @@
             "sc_duck_db": 0,
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
-            "sc_release_ms": 150
+            "sc_release_ms": 150,
+            "string_contact_gain": 1
           }
         },
         {
@@ -18490,7 +18531,8 @@
             "sc_duck_db": 0,
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
-            "sc_release_ms": 150
+            "sc_release_ms": 150,
+            "string_contact_gain": 1
           }
         },
         {
@@ -18582,7 +18624,8 @@
             "sc_duck_db": 0,
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
-            "sc_release_ms": 150
+            "sc_release_ms": 150,
+            "string_contact_gain": 1
           }
         },
         {
@@ -18674,7 +18717,8 @@
             "sc_duck_db": 0,
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
-            "sc_release_ms": 150
+            "sc_release_ms": 150,
+            "string_contact_gain": 1
           }
         },
         {
@@ -18766,7 +18810,8 @@
             "sc_duck_db": 0,
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
-            "sc_release_ms": 150
+            "sc_release_ms": 150,
+            "string_contact_gain": 1
           }
         },
         {
@@ -18858,7 +18903,8 @@
             "sc_duck_db": 0,
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
-            "sc_release_ms": 150
+            "sc_release_ms": 150,
+            "string_contact_gain": 1
           }
         },
         {
@@ -18950,7 +18996,8 @@
             "sc_duck_db": 0,
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
-            "sc_release_ms": 150
+            "sc_release_ms": 150,
+            "string_contact_gain": 1
           }
         },
         {
@@ -19042,7 +19089,8 @@
             "sc_duck_db": 0,
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
-            "sc_release_ms": 150
+            "sc_release_ms": 150,
+            "string_contact_gain": 1
           }
         },
         {
@@ -19134,7 +19182,8 @@
             "sc_duck_db": 0,
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
-            "sc_release_ms": 150
+            "sc_release_ms": 150,
+            "string_contact_gain": 1
           }
         },
         {
@@ -19226,7 +19275,8 @@
             "sc_duck_db": 0,
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
-            "sc_release_ms": 150
+            "sc_release_ms": 150,
+            "string_contact_gain": 1
           }
         },
         {
@@ -19318,7 +19368,8 @@
             "sc_duck_db": 0,
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
-            "sc_release_ms": 150
+            "sc_release_ms": 150,
+            "string_contact_gain": 1
           }
         },
         {
@@ -19410,7 +19461,8 @@
             "sc_duck_db": 0,
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
-            "sc_release_ms": 150
+            "sc_release_ms": 150,
+            "string_contact_gain": 1
           }
         },
         {
@@ -19502,7 +19554,8 @@
             "sc_duck_db": 0,
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
-            "sc_release_ms": 150
+            "sc_release_ms": 150,
+            "string_contact_gain": 1
           }
         },
         {
@@ -19594,7 +19647,8 @@
             "sc_duck_db": 0,
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
-            "sc_release_ms": 150
+            "sc_release_ms": 150,
+            "string_contact_gain": 1
           }
         },
         {
@@ -19686,7 +19740,8 @@
             "sc_duck_db": 0,
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
-            "sc_release_ms": 150
+            "sc_release_ms": 150,
+            "string_contact_gain": 1
           }
         },
         {
@@ -19778,7 +19833,8 @@
             "sc_duck_db": 0,
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
-            "sc_release_ms": 150
+            "sc_release_ms": 150,
+            "string_contact_gain": 1
           }
         },
         {
@@ -19870,7 +19926,8 @@
             "sc_duck_db": 0,
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
-            "sc_release_ms": 150
+            "sc_release_ms": 150,
+            "string_contact_gain": 1
           }
         },
         {
@@ -19962,7 +20019,8 @@
             "sc_duck_db": 0,
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
-            "sc_release_ms": 150
+            "sc_release_ms": 150,
+            "string_contact_gain": 1
           }
         },
         {
@@ -20054,7 +20112,8 @@
             "sc_duck_db": 0,
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
-            "sc_release_ms": 150
+            "sc_release_ms": 150,
+            "string_contact_gain": 1
           }
         },
         {
@@ -20146,7 +20205,8 @@
             "sc_duck_db": 0,
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
-            "sc_release_ms": 150
+            "sc_release_ms": 150,
+            "string_contact_gain": 1
           }
         },
         {
@@ -20238,7 +20298,8 @@
             "sc_duck_db": 0,
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
-            "sc_release_ms": 150
+            "sc_release_ms": 150,
+            "string_contact_gain": 1
           }
         },
         {
@@ -20330,7 +20391,8 @@
             "sc_duck_db": 0,
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
-            "sc_release_ms": 150
+            "sc_release_ms": 150,
+            "string_contact_gain": 1
           }
         },
         {
@@ -20422,7 +20484,8 @@
             "sc_duck_db": 0,
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
-            "sc_release_ms": 150
+            "sc_release_ms": 150,
+            "string_contact_gain": 1
           }
         },
         {
@@ -20514,7 +20577,8 @@
             "sc_duck_db": 0,
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
-            "sc_release_ms": 150
+            "sc_release_ms": 150,
+            "string_contact_gain": 1
           }
         },
         {
@@ -20606,7 +20670,8 @@
             "sc_duck_db": 0,
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
-            "sc_release_ms": 150
+            "sc_release_ms": 150,
+            "string_contact_gain": 1
           }
         },
         {
@@ -20698,7 +20763,8 @@
             "sc_duck_db": 0,
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
-            "sc_release_ms": 150
+            "sc_release_ms": 150,
+            "string_contact_gain": 1
           }
         },
         {
@@ -20790,7 +20856,8 @@
             "sc_duck_db": 0,
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
-            "sc_release_ms": 150
+            "sc_release_ms": 150,
+            "string_contact_gain": 1
           }
         },
         {
@@ -20882,7 +20949,8 @@
             "sc_duck_db": 0,
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
-            "sc_release_ms": 150
+            "sc_release_ms": 150,
+            "string_contact_gain": 1
           }
         },
         {
@@ -20974,7 +21042,8 @@
             "sc_duck_db": 0,
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
-            "sc_release_ms": 150
+            "sc_release_ms": 150,
+            "string_contact_gain": 1
           }
         },
         {
@@ -21066,7 +21135,8 @@
             "sc_duck_db": 0,
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
-            "sc_release_ms": 150
+            "sc_release_ms": 150,
+            "string_contact_gain": 1
           }
         },
         {
@@ -21158,7 +21228,8 @@
             "sc_duck_db": 0,
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
-            "sc_release_ms": 150
+            "sc_release_ms": 150,
+            "string_contact_gain": 1
           }
         },
         {
@@ -21250,7 +21321,8 @@
             "sc_duck_db": 0,
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
-            "sc_release_ms": 150
+            "sc_release_ms": 150,
+            "string_contact_gain": 1
           }
         },
         {
@@ -21342,7 +21414,8 @@
             "sc_duck_db": 0,
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
-            "sc_release_ms": 150
+            "sc_release_ms": 150,
+            "string_contact_gain": 1
           }
         },
         {
@@ -21434,7 +21507,8 @@
             "sc_duck_db": 0,
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
-            "sc_release_ms": 150
+            "sc_release_ms": 150,
+            "string_contact_gain": 1
           }
         },
         {
@@ -21526,7 +21600,8 @@
             "sc_duck_db": 0,
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
-            "sc_release_ms": 150
+            "sc_release_ms": 150,
+            "string_contact_gain": 1
           }
         },
         {
@@ -21618,7 +21693,8 @@
             "sc_duck_db": 0,
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
-            "sc_release_ms": 150
+            "sc_release_ms": 150,
+            "string_contact_gain": 1
           }
         },
         {
@@ -21710,7 +21786,8 @@
             "sc_duck_db": 0,
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
-            "sc_release_ms": 150
+            "sc_release_ms": 150,
+            "string_contact_gain": 1
           }
         },
         {
@@ -21802,7 +21879,8 @@
             "sc_duck_db": 0,
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
-            "sc_release_ms": 150
+            "sc_release_ms": 150,
+            "string_contact_gain": 1
           }
         },
         {
@@ -21894,7 +21972,8 @@
             "sc_duck_db": 0,
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
-            "sc_release_ms": 150
+            "sc_release_ms": 150,
+            "string_contact_gain": 1
           }
         },
         {
@@ -21986,7 +22065,8 @@
             "sc_duck_db": 0,
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
-            "sc_release_ms": 150
+            "sc_release_ms": 150,
+            "string_contact_gain": 1
           }
         },
         {
@@ -22078,7 +22158,8 @@
             "sc_duck_db": 0,
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
-            "sc_release_ms": 150
+            "sc_release_ms": 150,
+            "string_contact_gain": 1
           }
         },
         {
@@ -22170,7 +22251,8 @@
             "sc_duck_db": 0,
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
-            "sc_release_ms": 150
+            "sc_release_ms": 150,
+            "string_contact_gain": 1
           }
         },
         {
@@ -22262,7 +22344,8 @@
             "sc_duck_db": 0,
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
-            "sc_release_ms": 150
+            "sc_release_ms": 150,
+            "string_contact_gain": 1
           }
         },
         {
@@ -22354,7 +22437,8 @@
             "sc_duck_db": 0,
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
-            "sc_release_ms": 150
+            "sc_release_ms": 150,
+            "string_contact_gain": 1
           }
         },
         {
@@ -22465,7 +22549,8 @@
             "sc_duck_db": 0,
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
-            "sc_release_ms": 150
+            "sc_release_ms": 150,
+            "string_contact_gain": 1
           }
         },
         {
@@ -22557,7 +22642,8 @@
             "sc_duck_db": 0,
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
-            "sc_release_ms": 150
+            "sc_release_ms": 150,
+            "string_contact_gain": 1
           }
         },
         {
@@ -22649,7 +22735,8 @@
             "sc_duck_db": 0,
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
-            "sc_release_ms": 150
+            "sc_release_ms": 150,
+            "string_contact_gain": 1
           }
         },
         {
@@ -22741,7 +22828,8 @@
             "sc_duck_db": 0,
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
-            "sc_release_ms": 150
+            "sc_release_ms": 150,
+            "string_contact_gain": 1
           }
         },
         {
@@ -22833,7 +22921,8 @@
             "sc_duck_db": 0,
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
-            "sc_release_ms": 150
+            "sc_release_ms": 150,
+            "string_contact_gain": 1
           }
         },
         {
@@ -22925,7 +23014,8 @@
             "sc_duck_db": 0,
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
-            "sc_release_ms": 150
+            "sc_release_ms": 150,
+            "string_contact_gain": 1
           }
         },
         {
@@ -23017,7 +23107,8 @@
             "sc_duck_db": 0,
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
-            "sc_release_ms": 150
+            "sc_release_ms": 150,
+            "string_contact_gain": 1
           }
         },
         {
@@ -23109,7 +23200,8 @@
             "sc_duck_db": 0,
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
-            "sc_release_ms": 150
+            "sc_release_ms": 150,
+            "string_contact_gain": 1
           }
         },
         {
@@ -23201,7 +23293,8 @@
             "sc_duck_db": 0,
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
-            "sc_release_ms": 150
+            "sc_release_ms": 150,
+            "string_contact_gain": 1
           }
         },
         {
@@ -23293,7 +23386,8 @@
             "sc_duck_db": 0,
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
-            "sc_release_ms": 150
+            "sc_release_ms": 150,
+            "string_contact_gain": 1
           }
         },
         {
@@ -23385,7 +23479,8 @@
             "sc_duck_db": 0,
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
-            "sc_release_ms": 150
+            "sc_release_ms": 150,
+            "string_contact_gain": 1
           }
         },
         {
@@ -23477,7 +23572,8 @@
             "sc_duck_db": 0,
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
-            "sc_release_ms": 150
+            "sc_release_ms": 150,
+            "string_contact_gain": 1
           }
         },
         {
@@ -23569,7 +23665,8 @@
             "sc_duck_db": 0,
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
-            "sc_release_ms": 150
+            "sc_release_ms": 150,
+            "string_contact_gain": 1
           }
         },
         {
@@ -23680,7 +23777,8 @@
             "sc_duck_db": 0,
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
-            "sc_release_ms": 150
+            "sc_release_ms": 150,
+            "string_contact_gain": 1
           }
         },
         {
@@ -23772,7 +23870,8 @@
             "sc_duck_db": 0,
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
-            "sc_release_ms": 150
+            "sc_release_ms": 150,
+            "string_contact_gain": 1
           }
         },
         {
@@ -23864,7 +23963,8 @@
             "sc_duck_db": 0,
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
-            "sc_release_ms": 150
+            "sc_release_ms": 150,
+            "string_contact_gain": 1
           }
         },
         {
@@ -23956,7 +24056,8 @@
             "sc_duck_db": 0,
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
-            "sc_release_ms": 150
+            "sc_release_ms": 150,
+            "string_contact_gain": 1
           }
         },
         {
@@ -24048,7 +24149,8 @@
             "sc_duck_db": 0,
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
-            "sc_release_ms": 150
+            "sc_release_ms": 150,
+            "string_contact_gain": 1
           }
         },
         {
@@ -24140,7 +24242,8 @@
             "sc_duck_db": 0,
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
-            "sc_release_ms": 150
+            "sc_release_ms": 150,
+            "string_contact_gain": 1
           }
         },
         {
@@ -24232,7 +24335,8 @@
             "sc_duck_db": 0,
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
-            "sc_release_ms": 150
+            "sc_release_ms": 150,
+            "string_contact_gain": 1
           }
         },
         {
@@ -24324,7 +24428,8 @@
             "sc_duck_db": 0,
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
-            "sc_release_ms": 150
+            "sc_release_ms": 150,
+            "string_contact_gain": 1
           }
         },
         {
@@ -24416,7 +24521,8 @@
             "sc_duck_db": 0,
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
-            "sc_release_ms": 150
+            "sc_release_ms": 150,
+            "string_contact_gain": 1
           }
         },
         {
@@ -24527,7 +24633,8 @@
             "sc_duck_db": 0,
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
-            "sc_release_ms": 150
+            "sc_release_ms": 150,
+            "string_contact_gain": 1
           }
         },
         {
@@ -24638,7 +24745,8 @@
             "sc_duck_db": 0,
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
-            "sc_release_ms": 150
+            "sc_release_ms": 150,
+            "string_contact_gain": 1
           }
         },
         {
@@ -24749,7 +24857,8 @@
             "sc_duck_db": 0,
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
-            "sc_release_ms": 150
+            "sc_release_ms": 150,
+            "string_contact_gain": 1
           }
         },
         {
@@ -24860,7 +24969,8 @@
             "sc_duck_db": 0,
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
-            "sc_release_ms": 150
+            "sc_release_ms": 150,
+            "string_contact_gain": 1
           }
         },
         {
@@ -24971,7 +25081,8 @@
             "sc_duck_db": 0,
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
-            "sc_release_ms": 150
+            "sc_release_ms": 150,
+            "string_contact_gain": 1
           }
         },
         {
@@ -25082,7 +25193,8 @@
             "sc_duck_db": 0,
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
-            "sc_release_ms": 150
+            "sc_release_ms": 150,
+            "string_contact_gain": 1
           }
         },
         {
@@ -25193,7 +25305,8 @@
             "sc_duck_db": 0,
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
-            "sc_release_ms": 150
+            "sc_release_ms": 150,
+            "string_contact_gain": 1
           }
         },
         {
@@ -25304,7 +25417,8 @@
             "sc_duck_db": 0,
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
-            "sc_release_ms": 150
+            "sc_release_ms": 150,
+            "string_contact_gain": 1
           }
         },
         {
@@ -25415,7 +25529,8 @@
             "sc_duck_db": 0,
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
-            "sc_release_ms": 150
+            "sc_release_ms": 150,
+            "string_contact_gain": 1
           }
         },
         {
@@ -25526,7 +25641,8 @@
             "sc_duck_db": 0,
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
-            "sc_release_ms": 150
+            "sc_release_ms": 150,
+            "string_contact_gain": 1
           }
         },
         {
@@ -25637,7 +25753,8 @@
             "sc_duck_db": 0,
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
-            "sc_release_ms": 150
+            "sc_release_ms": 150,
+            "string_contact_gain": 1
           }
         }
       ],

@@ -65,15 +65,55 @@ test('bachi: hard contact is shorter, body transient retriggers, extreme registe
     samples(s, phys_render, 0.1);
   }
 });
-test('Shamisen: attack stands above the following string tail across register and velocity', () => {
+test('Shamisen: keeps a distinct attack while giving the string tail more room across register and velocity', () => {
   const preset = PHYS_PRESETS.find(p => p.name === 'Shamisen');
   for (const note of [48, 60, 72]) for (const velocity of [70, 100, 120]) {
     const s = string(preset.params);
     phys_note_on(s, note, velocity);
-    const out = samples(s, phys_render, .1);
+    const out = samples(s, phys_render, .7);
     const attack = rms(out.subarray(0, SR * .01));
     const tail = rms(out.subarray(SR * .03, SR * .08));
-    assert.ok(20 * Math.log10(attack / tail) > 10, `note ${note}, velocity ${velocity}: distinct short attack`);
+    assert.ok(20 * Math.log10(attack / tail) > 3, `note ${note}, velocity ${velocity}: distinct short attack`);
+    const old = string({ ...preset.params, string_contact_gain: 1, string_decay_ms: 1800, string_pick_position: 0.05 });
+    phys_note_on(old, note, velocity);
+    const before = samples(old, phys_render, .7);
+    const balance = a => rms(a.subarray(SR * .3, SR * .6)) / rms(a.subarray(0, SR * .025));
+    assert.ok(20 * Math.log10(balance(out) / balance(before)) > 3, `note ${note}, velocity ${velocity}: stronger relative string tail`);
+  }
+});
+
+test('bachi contact gain leaves string excitation untouched and preserves the legacy default', () => {
+  const render = (gain, body = .65) => {
+    const s = string({ string_plectrum: .8, string_plectrum_hardness: 1, string_body_mix: body, string_contact_gain: gain });
+    phys_note_on(s, 60, 100);
+    const out = samples(s, phys_render, .15);
+    return { out, line: s.voices[s.last_voice].line.buf.slice() };
+  };
+  const legacy = render(undefined), full = render(1), muted = render(0);
+  assert.deepEqual(legacy.out, full.out, 'missing parameter keeps the original contact');
+  assert.deepEqual(muted.line, full.line, 'body contact does not change the vibrating string');
+  assert.deepEqual(render(0, 0).out, render(2, 0).out, 'no contact contribution when body is bypassed');
+  const delta = full.out.map((x, i) => x - muted.out[i]);
+  assert.ok(rms(delta.subarray(0, SR * .02)) > 1e-4, 'contact gain changes the strike');
+  assert.ok(rms(delta.subarray(SR * .08)) < rms(delta.subarray(0, SR * .02)) * .01, 'contact change leaves the late body tail alone');
+});
+
+test('Sitar: softer excitation reduces initial high-frequency energy without losing the held string', () => {
+  const preset = PHYS_PRESETS.find(p => p.name === 'Sitar');
+  for (const note of [48, 60, 72]) for (const velocity of [70, 100, 120]) {
+    const render = patch => {
+      const s = string({ ...preset.params, ...patch, phys_room_mix: 0, string_sympathetic_mix: 0 });
+      phys_note_on(s, note, velocity);
+      return samples(s, phys_render, .7);
+    };
+    const before = render({ string_brightness: .85, string_sawari: .65 }), after = render({});
+    // First-difference energy emphasizes upper partials; relative measure, not an authenticity score.
+    const roughness = a => {
+      const initial = a.subarray(0, SR * .025);
+      return rms(initial.map((x, i) => i ? x - initial[i - 1] : 0)) / rms(initial);
+    };
+    assert.ok(roughness(after) < roughness(before) * .95, `note ${note}, velocity ${velocity}: less initial high-frequency energy`);
+    assert.ok(rms(after.subarray(SR * .5, SR * .6)) > 1e-5, 'held string remains audible in the signal');
   }
 });
 

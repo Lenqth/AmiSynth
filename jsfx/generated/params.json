@@ -3282,6 +3282,17 @@
       "unit": "ms",
       "scale": "log",
       "description": "How fast the follower falls back after the sidechain gets quieter (time constant): the length of the pump."
+    },
+    {
+      "id": "string_contact_gain",
+      "name": "String Contact Gain",
+      "group": "String",
+      "min": 0,
+      "max": 2,
+      "default": 1,
+      "step": 0.001,
+      "unit": "",
+      "description": "Scales only the bachi contact pulse entering the body, independently of displaced-string excitation and continuous bridge drive. 1 preserves the original contact; 0 removes the strike but keeps the vibrating string and body response."
     }
   ],
   "drums": [

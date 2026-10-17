@@ -126,6 +126,22 @@ npm run audition:preset -- phys --preset "Shamisen" --guide --out .cache/shamise
 
 推奨音域・強弱は `playingGuide` としてMCP用カタログにも含めました。今回の確認用HTMLは生成せず、CloudflareプレビューのPhysical→Shamisenで試奏できます。
 
+## 参照録音に基づく三味線・シタールの調整（2026-10-17）
+
+上記の強い撥アタック調整を基準に、`docs/Shamisen.mp3` / `Sitar.mp3`の全編信号解析と現行JS DSPの候補比較を行いました。聴感上の再現性は未判定です。分析の詳細は[参照解析レポート](SHAMISEN_SITAR_REFERENCE_ANALYSIS_2026-10-17.md)を参照してください。
+
+- Shamisen：String Decayを1,800→2,400 ms、Pick Positionを0.05→0.08、新設Contact Gainを0.65へ。Plectrum 0.8 / Hardness 1 / Body Mix 0.65は維持し、弦の励振と独立に撥接触音を抑えます。
+- Sitar：Brightnessを0.85→0.40、Sawariを0.65→0.50へ。共鳴弦・Room・弦のDecayは維持します。これは初期励振とbuzz量の調整で、ジャワリ接触モデルや共鳴弦構造の置き換えは含みません。
+- 標準の和音＋単音フレーズで再校正し、出力をShamisen 5.2 dB、Sitar −5.5 dBに設定。測定はそれぞれ−18.00 / −17.94 LUFSです。
+
+Contact Gainは既存スライダー末尾への追加で、既存番号を維持します。既定値1は従来の発音を維持し、0でも弦の初期変位と胴への継続的入力は残ります。JS / JSFXの両方に実装しています。0はBody Mixのバイパスではありません。
+
+```powershell
+node scripts/string-reference-review.js
+```
+
+`.cache/string-reference-review/listen.html`と前後4本のWAV、比較MIDI、演奏条件・測定JSONを生成します。音域3種×velocity 3種、連打、既存の±200 centsベンドを含む28秒です。各楽器の前後でLUFSを揃え、sample peakが−1 dBFSを超えない目標を使います。前版は明示した旧パッチと、Contact Gain=1の従来経路で再現します。参照MP3を加工・収録したものではありません。
+
 ## 自動確認の範囲
 
 - フリーリード: 低音〜高音で息ノイズがリード音を覆わない、ムゼットを含む発音、Breath Noiseの効果が残ること。

@@ -1233,7 +1233,7 @@ function render_string(s, v, vib) {
   let contact = 0;
   if (v.bachi_t < v.bachi_len) {
     // Bipolar contact/release removes the low-frequency push of the old positive pulse.
-    contact = s.p.string_plectrum * v.vel * (1 + s.p.string_plectrum_hardness) * Math.sin(TWO_PI * v.bachi_t / v.bachi_len) / (0.5 * v.bachi_len);
+    contact = (s.p.string_contact_gain ?? 1) * s.p.string_plectrum * v.vel * (1 + s.p.string_plectrum_hardness) * Math.sin(TWO_PI * v.bachi_t / v.bachi_len) / (0.5 * v.bachi_len);
     v.bachi_t++;
   }
   if (!(s.p.string_body_mix > 0)) return direct;
