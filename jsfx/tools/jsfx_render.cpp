@@ -18,7 +18,7 @@
 //                                         (use multiples of the 128-frame block)
 //   printslider <index>       after rendering, print "slider<index> <value>" to stdout
 // Output: interleaved float32 (raw), one channel per out_pin (2 for the synth, 10 for the drums).
-#include "ysfx.h"
+#include "ysfx_compat.h"
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -128,7 +128,7 @@ int main(int argc, char **argv) {
     if (!prePath.empty()) {
         if (!(pre = open(prePath.c_str()))) return 1;
         ysfx_init(pre);
-        for (auto &s : preSliders) ysfx_slider_set_value(pre, (uint32_t)(s.first - 1), s.second);
+        for (auto &s : preSliders) set_slider(pre, (uint32_t)(s.first - 1), s.second);
     }
 
     ysfx_t *fx = open(path);
@@ -139,7 +139,7 @@ int main(int argc, char **argv) {
         else std::fprintf(stderr, "unknown variable: %s\n", v.first.c_str());
     }
     ysfx_init(fx);
-    for (auto &s : sliders) ysfx_slider_set_value(fx, (uint32_t)(s.first - 1), s.second);
+    for (auto &s : sliders) set_slider(fx, (uint32_t)(s.first - 1), s.second);
 
     uint64_t total = (uint64_t)(seconds * sr);
     const uint32_t nout = std::max<uint32_t>(2, ysfx_get_num_outputs(fx));
@@ -168,7 +168,7 @@ int main(int argc, char **argv) {
         ysfx_set_time_info(fx, &ti);
         if (pre) {
             for (auto &t : preTimed)
-                if (t.frame >= pos && t.frame < pos + n) ysfx_slider_set_value(pre, (uint32_t)(t.idx - 1), t.value);
+                if (t.frame >= pos && t.frame < pos + n) set_slider(pre, (uint32_t)(t.idx - 1), t.value);
             const uint32_t pn = std::max<uint32_t>(2, ysfx_get_num_outputs(pre));
             std::vector<std::vector<float>> pbufs(pn, std::vector<float>(block));
             std::vector<float *> pouts(pn);

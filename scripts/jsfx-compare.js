@@ -92,8 +92,10 @@ export function renderJsfx(renderBin, inst, params, events, sr, frames, host = {
   const dir = mkdtempSync(join(tmpdir(), 'amijsfx-'));
   if (host.sidechain) writeFileSync(join(dir, 'sidechain.f32'), Buffer.from(Float32Array.from(host.sidechain).buffer));
   const script = [
-    // ysfx knows 64 sliders; beyond that (REAPER allows 256) the ids are plain variables
-    ...inst.defs.map((d, i) => (i < 64 ? `slider ${i + 1} ${params[d.id]}` : `var ${d.id} ${params[d.id]}`)),
+    // upstream ysfx knows 64 sliders, so beyond that (REAPER allows 256) the ids are also set as
+    // plain variables; ysfx-s (the VST3 / CLAP plugin) takes all of them as sliders
+    ...inst.defs.map((d, i) => `slider ${i + 1} ${params[d.id]}`),
+    ...inst.defs.flatMap((d, i) => (i < 64 ? [] : [`var ${d.id} ${params[d.id]}`])),
     `tempo ${host.tempo ?? 120} ${host.playing ? 1 : 0}`,
     ...(host.scale ? [`dataroot ${host.scale.dataRoot}`] : []),
     ...(host.pre ? preScript(host.pre) : []),

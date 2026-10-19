@@ -18,7 +18,9 @@
     "check:catalogs": "node scripts/catalog-integrity.js",
     "deploy": "npm run build && wrangler deploy",
     "jsfx:tools": "bash scripts/build-jsfx-render.sh",
-    "jsfx:compare": "node scripts/jsfx-compare.js"
+    "jsfx:tools:ysfx-s": "bash scripts/build-jsfx-render.sh --ysfx-s",
+    "jsfx:compare": "node scripts/jsfx-compare.js",
+    "test:ysfx-s": "node scripts/test-ysfx-s.js"
   },
   "devDependencies": {
     "@sveltejs/vite-plugin-svelte": "^7.3.1",

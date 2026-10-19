@@ -31,6 +31,15 @@ test('REAPER installation dry-run is read-only; installed layout preserves depen
   assert.throws(() => installPlan(join(resource, 'missing')), /existing REAPER resource directory/);
 });
 
+test('--jsfx-only installs just the instruments, includes and presets for other JSFX hosts', () => {
+  const resource = mkdtempSync(join(tmpdir(), 'amisynth-jsfx-only-'));
+  const plan = install(resource, false, { jsfxOnly: true });
+  assert.equal(plan.length, 10);
+  assert.ok(plan.every((p) => p.destination.startsWith(join(resource, 'Effects', 'AmiSynth'))));
+  assert.deepEqual(readdirSync(resource), ['Effects']);
+  assert.deepEqual(installPlan(resource).filter((p) => p.destination.includes(join('Effects', 'AmiSynth'))), plan);
+});
+
 test('all installed Lua scripts have discovery metadata describing executable actions vs libraries', () => {
   for (const p of installPlan(mkdtempSync(join(tmpdir(), 'amisynth-metadata-'))).filter((p) => p.source.endsWith('.lua'))) {
     const text = readFileSync(p.source, 'utf8');
