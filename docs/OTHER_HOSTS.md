@@ -15,12 +15,23 @@ AmiSynth を REAPER 以外の DAW やブラウザ単体で使う方法をまと�
 
 ### 入手とインストール
 
-1. GitHub の Actions → **CLAP plugin** の実行結果から、OS に合った `AmiSynth-clap-…`(Windows x64 / macOS Universal / Linux x64)をダウンロードして展開します。手元でビルドする場合は、cmake と C++ コンパイラ(Windows は Visual Studio と NASM)を用意して `npm run clap:build` を実行します(`.cache/clap-build/` にできます)。
-2. `AmiSynth.clap` を CLAP フォルダに置きます。
-   - Windows: `C:\Program Files\Common Files\CLAP\`
-   - macOS: `~/Library/Audio/Plug-Ins/CLAP/`。署名していないので、`xattr -dr com.apple.quarantine ~/Library/Audio/Plug-Ins/CLAP/AmiSynth.clap` で許可します。
-   - Linux: `~/.clap/`
-3. DAW でプラグインを再スキャンし、インストゥルメント・トラックに **AmiSynth Synth** などを挿します。
+リポジトリから次のように実行すると、`AmiSynth.clap` をビルドしてユーザー用の CLAP フォルダにコピーします(管理者権限は不要です)。ビルドには cmake と C++ コンパイラ(Windows は Visual Studio と NASM)が必要です。
+
+```sh
+npm run install:clap -- --build --dry-run   # コピー先の確認だけ
+npm run install:clap -- --build
+```
+
+- 既にビルド済み(`npm run clap:build`)なら `--build` は不要です。
+- ビルドせずに、GitHub の Actions → **CLAP plugin** の実行結果から OS に合った `AmiSynth-clap-…`(Windows x64 / macOS Universal / Linux x64)をダウンロードして使う場合は、展開した `AmiSynth.clap` を `--plugin` で指定します: `npm run install:clap -- --plugin "<展開したフォルダ>/AmiSynth.clap"`
+- コピー先は次のとおりです。別の場所に入れるときは `--dest "<フォルダ>"` を付けます。
+  - Windows: `%LOCALAPPDATA%\Programs\Common\CLAP\`。DAW がここを探さない場合は、管理者として `--dest "C:\Program Files\Common Files\CLAP"` で入れます。
+  - macOS: `~/Library/Audio/Plug-Ins/CLAP/`。署名していないため、スクリプトがダウンロード時の隔離属性(`com.apple.quarantine`)を外します。
+  - Linux: `~/.clap/`
+- 更新するときも同じコマンドで上書きします。Windows では DAW を閉じてから実行します。
+- 手でコピーする場合は、`AmiSynth.clap` を上のフォルダに置きます(macOS では `xattr -dr com.apple.quarantine ~/Library/Audio/Plug-Ins/CLAP/AmiSynth.clap` も実行します)。
+
+インストールしたら、DAW でプラグインを再スキャンし、インストゥルメント・トラックに **AmiSynth Synth** などを挿します。
 
 ### 使い方
 

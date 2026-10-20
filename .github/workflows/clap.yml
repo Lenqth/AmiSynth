@@ -3,9 +3,9 @@ name: CLAP plugin
 on:
   push:
     branches: [main]
-    paths: ['clap/**', 'jsfx/**', 'scripts/test-clap.js', 'tests/clap.test.js', 'tests/jsfx.test.js', '.github/workflows/clap.yml']
+    paths: ['clap/**', 'jsfx/**', 'scripts/test-clap.js', 'scripts/install-clap.js', 'tests/clap.test.js', 'tests/jsfx.test.js', '.github/workflows/clap.yml']
   pull_request:
-    paths: ['clap/**', 'jsfx/**', 'scripts/test-clap.js', 'tests/clap.test.js', 'tests/jsfx.test.js', '.github/workflows/clap.yml']
+    paths: ['clap/**', 'jsfx/**', 'scripts/test-clap.js', 'scripts/install-clap.js', 'tests/clap.test.js', 'tests/jsfx.test.js', '.github/workflows/clap.yml']
   workflow_dispatch:
 
 jobs:
@@ -41,6 +41,12 @@ jobs:
           cmake --build .cache/clap-build --config Release --parallel
       - name: Test (the plugin against the JS DSP, then its host-facing parts)
         run: npm run test:clap
+      - name: Install script (copies the built plugin into a CLAP folder)
+        shell: bash
+        run: |
+          npm run install:clap -- --dest "$RUNNER_TEMP/clap"
+          test -e "$RUNNER_TEMP/clap/AmiSynth.clap"
+          npm run install:clap -- --dry-run
       - name: Collect
         shell: bash
         run: |
