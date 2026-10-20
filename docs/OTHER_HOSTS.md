@@ -4,13 +4,58 @@ AmiSynth を REAPER 以外の DAW やブラウザ単体で使う方法をまと�
 
 | 方法 | 向いている用途 | 音 | 制限 |
 | --- | --- | --- | --- |
-| **ysfx-s プラグイン(VST3 / CLAP / AU)で JSFX を読み込む**(推奨) | Ableton Live、Bitwig、Cubase、Studio One、FL Studio、Logic など、普段の DAW で打ち込み・録音・オートメーション | REAPER の JSFX と同じ(下記「互換性の確認」) | Companion / MCP 用の Lua スクリプトは使えない。ドラムのパーツ別出力は DAW 次第 |
+| **AmiSynth CLAP プラグイン**(推奨) | Bitwig、FL Studio、Studio One、REAPER など CLAP に対応した DAW で打ち込み・録音・オートメーション | REAPER の JSFX と同じ(下記「互換性の確認」) | 専用の画面は無く、DAW の標準パラメーター画面で操作する。Lua スクリプトは使えない |
+| ysfx-s プラグイン(VST3 / CLAP / AU)で JSFX を読み込む | CLAP に対応していない DAW(Ableton Live、Cubase、Logic など) | 同上 | JSFX を手で読み込む必要がある。Lua スクリプトは使えない。ドラムのパーツ別出力は DAW 次第 |
 | ブラウザ版 + Web MIDI | MIDI キーボードで弾く、DAW から仮想 MIDI ポート経由で鳴らす | Web 版の DSP(JSFX と同じ音) | 音は DAW に入らない(ブラウザから直接出る)。テンポ同期なし |
 | ブラウザ版で WAV / MP3 に書き出す | 打ち込んだフレーズを素材として DAW に貼る | 同上 | オーディオとしての取り込みなので、後から音色を変えるには書き出し直し |
 
+## CLAP プラグインとして使う
+
+`AmiSynth.clap` 1 つに、4 つのプラグイン(**AmiSynth Synth**、**AmiSynth Physical**、**AmiSynth Drums**、**AmiSynth Tuning**)が入っています。中身は REAPER 版と同じ JSFX で、JSFX を動かす部分(ysfx)ごとプラグインに組み込んでいるので、JSFX ホストを入れたりファイルを読み込んだりする手間はありません。
+
+### 入手とインストール
+
+1. GitHub の Actions → **CLAP plugin** の実行結果から、OS に合った `AmiSynth-clap-…`(Windows x64 / macOS Universal / Linux x64)をダウンロードして展開します。手元でビルドする場合は、cmake と C++ コンパイラ(Windows は Visual Studio と NASM)を用意して `npm run clap:build` を実行します(`.cache/clap-build/` にできます)。
+2. `AmiSynth.clap` を CLAP フォルダに置きます。
+   - Windows: `C:\Program Files\Common Files\CLAP\`
+   - macOS: `~/Library/Audio/Plug-Ins/CLAP/`。署名していないので、`xattr -dr com.apple.quarantine ~/Library/Audio/Plug-Ins/CLAP/AmiSynth.clap` で許可します。
+   - Linux: `~/.clap/`
+3. DAW でプラグインを再スキャンし、インストゥルメント・トラックに **AmiSynth Synth** などを挿します。
+
+### 使い方
+
+- **パラメーター**: すべてのスライダーが、REAPER と同じ名前・実値(Hz・ms・dB)・並び順でパラメーターになっています。Filter / Oscillators などの機能グループ(`jsfx/generated/automation.json` の `group`)ごとにまとまって表示されます。番号は `paramIndex` と同じです。
+- **プリセット**: 内蔵プリセット(Synth 78 種、Physical 103 種、Drums 8 キット)を、DAW のプリセット一覧(CLAP のプリセット機能)から選べます。名前は REAPER と同じ「Bass: Acid Bass」の形です。REAPER と同様、プリセットを切り替えても調律の設定は変わりません。DAW がこの機能に対応していない場合は、パラメーターを直接操作してください。
+- **ドラムのパーツ別出力**: AmiSynth Drums は Main と Kick / Snare/Clap/Rim / Hats/Cymbals / Toms/Perc の 5 つのステレオ出力を持ちます。
+- **サイドチェイン**: Synth / Physical は、サイドチェイン用のステレオ入力を 1 つ持ちます。
+- **AmiSynth Tuning**: ノートと音をそのまま通すノートエフェクトです。同じ DAW のプロセス内にある AmiSynth Synth / Physical と、Slot で音階を共有します。
+- **テンポ同期**: アルペジエーターやテンポ同期の LFO / ディレイは、DAW のテンポと再生位置に従います。
+- **保存**: パラメーターの値は DAW のプロジェクトに保存されます。
+
+### ファイルの場所
+
+プラグインは初回に、組み込みの JSFX をユーザーのデータフォルダに書き出して使います。Scala の音階ファイルもここに置きます。
+
+| OS | フォルダ |
+| --- | --- |
+| Windows | `%LOCALAPPDATA%\AmiSynth\` |
+| macOS | `~/Library/Application Support/AmiSynth/` |
+| Linux | `~/.local/share/AmiSynth/`(`$XDG_DATA_HOME` があればその下) |
+
+- `clap/<ビルドごとの番号>/Effects/AmiSynth/`: 書き出した JSFX。プラグインを更新すると新しいフォルダに書き出します。古いフォルダは消してかまいません。
+- `Data/AmiSynth/tuning.txt`: Scala の音階ファイル(Tuning Source = Scale file のとき)。
+- 環境変数 `AMISYNTH_DATA_DIR` を設定すると、`Data` フォルダの代わりにそのフォルダを使います。REAPER の `Data` フォルダを指定すれば、REAPER と同じ `tuning.txt` を共有できます。
+
+### 制限
+
+- **専用の画面はありません**。DAW の標準のパラメーター画面で操作します(REAPER 版のメーター表示も出ません)。
+- **Lua スクリプト(Companion、MCP 用の Read sound / Apply sound / Run)は使えません**。REAPER では、今までどおり JSFX 版と Lua スクリプトを使うのがおすすめです。
+- **VST3 / AU はまだありません**。CLAP に対応していない DAW では、下の ysfx-s を使います。
+- 配布しているのは GitHub Actions のビルド結果で、署名やインストーラーはありません。
+
 ## ysfx-s で他の DAW から使う
 
-[ysfx-s](https://github.com/JoepVanlier/ysfx) は、JSFX を読み込んで動かす VST3 / CLAP / AU プラグインです(オープンソース。REAPER の開発元とは別のプロジェクト)。AmiSynth の JSFX をそのまま読み込めるので、音源を別に移植する必要はありません。
+[ysfx-s](https://github.com/JoepVanlier/ysfx) は、JSFX を読み込んで動かす VST3 / CLAP / AU プラグインです(オープンソース。REAPER の開発元とは別のプロジェクト)。AmiSynth の JSFX をそのまま読み込めます。CLAP に対応していない DAW で使う方法です。
 
 ### 準備
 
@@ -56,6 +101,13 @@ npm run test:ysfx-s         # tests/jsfx.test.js を ysfx-s で実行
 Linux / macOS で cmake と C++ コンパイラが必要です。メーター表示の確認(`jsfx_meter_check_s`)は freetype と fontconfig がある環境だけビルドされます。別の版を試すときは `YSFX_COMMIT=<コミット> npm run jsfx:tools:ysfx-s` とし、先に `.cache/ysfx-s` を消してください。
 
 このテストはプラグイン本体(DAW との受け渡し)ではなく、ysfx-s のプラグインが内部で使う JSFX の実行部分を確認するものです。
+
+AmiSynth の CLAP プラグインは、DAW と同じ手順でプラグインを読み込むテスト用ホスト(`clap/tools/clap_render`)を通して、同じ比較を行います。メーター表示(`@gfx`)以外の 29 項目が対象です。あわせて、パラメーターの名前・範囲・グループ、プリセットの一覧と読み込み、保存と復元、ポート構成、CLAP 形式のノートを確認します(`tests/clap.test.js`)。GitHub Actions では Windows / macOS / Linux のそれぞれで実行します。
+
+```sh
+npm run clap:build   # .cache/clap-build/ に AmiSynth.clap とテスト用ホストをビルド
+npm run test:clap    # JS の DSP との比較と、プラグインとしての動作確認
+```
 
 ## ブラウザ版を MIDI 音源として使う
 
