@@ -21,6 +21,7 @@
 #include <string>
 #include <vector>
 #if defined(_WIN32)
+#define NOMINMAX
 #include <windows.h>
 #else
 #include <dlfcn.h>
