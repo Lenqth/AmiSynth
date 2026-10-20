@@ -1,11 +1,14 @@
 // Headless @gfx and telemetry checks. Link with ysfx built with YSFX_GFX=ON.
 // Usage: jsfx_meter_check file.jsfx synth|phys|drums [preview.bmp]
-#include "ysfx.h"
+#include "ysfx_compat.h"
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <fstream>
+#include <map>
+#include <string>
 #include <vector>
 
 static void log_reporter(intptr_t, ysfx_log_level level, const char *msg) {
@@ -14,11 +17,22 @@ static void log_reporter(intptr_t, ysfx_log_level level, const char *msg) {
 static void require(bool ok, const char *msg) {
     if (!ok) { std::fprintf(stderr, "FAIL: %s\n", msg); std::exit(1); }
 }
+// ysfx resolves named sliders as aliases of sliderN (upstream within its 64-slider limit,
+// ysfx-s for all 256), so a slider name is looked up through the file's slider lines.
+static std::map<std::string, std::string> slider_aliases;
+static void read_slider_aliases(const char *path) {
+    std::ifstream in(path);
+    std::string line;
+    while (std::getline(in, line)) {
+        unsigned n = 0; int used = 0;
+        if (std::sscanf(line.c_str(), "slider%u:%n", &n, &used) != 1 || !used) continue;
+        const size_t eq = line.find('=', used);
+        if (eq != std::string::npos) slider_aliases[line.substr(used, eq - used)] = "slider" + std::to_string(n);
+    }
+}
 static double &var(ysfx_t *fx, const char *name) {
     auto *p = ysfx_find_var(fx, name);
-    // ysfx resolves named sliders within its 64-slider limit as aliases.
-    if (!p && !std::strcmp(name, "master_volume_db")) p = ysfx_find_var(fx, "slider49");
-    if (!p && !std::strcmp(name, "phys_volume_db")) p = ysfx_find_var(fx, "slider49");
+    if (!p && slider_aliases.count(name)) p = ysfx_find_var(fx, slider_aliases[name].c_str());
     require(p != nullptr, name);
     return *p;
 }
@@ -32,6 +46,7 @@ static void put32(FILE *f, uint32_t value) {
 int main(int argc, char **argv) {
     if (argc < 3) return 2;
     const bool synth = !std::strcmp(argv[2], "synth"), drums = !std::strcmp(argv[2], "drums");
+    read_slider_aliases(argv[1]);
     auto *config = ysfx_config_new();
     ysfx_set_log_reporter(config, log_reporter); ysfx_guess_file_roots(config, argv[1]);
     auto *fx = ysfx_new(config); ysfx_config_free(config);
@@ -101,7 +116,7 @@ int main(int argc, char **argv) {
         require(pending == 1, "Physical defers note-off under CC64");
         const double old_release = ysfx_slider_get_value(fx, 42);
         const double expected = std::min(var(fx, "p0.loop_gain"), std::exp(-6.907755 / (var(fx, "p0.hz0") * old_release * 0.001)));
-        ysfx_slider_set_value(fx, 42, 10); ysfx_slider_set_value(fx, 59, 0);
+        set_slider(fx, 42, 10); set_slider(fx, 59, 0);
         ysfx_process_double(fx, ins, outs.data(), 0, channels, 128);
         ysfx_read_vmem(fx, (uint32_t)var(fx, "v_sus"), &pending, 1);
         require(pending == 0 && std::abs(var(fx, "p0.loop_gain") - expected) < 1e-12, "policy change flushes with previous release damping");

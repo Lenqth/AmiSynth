@@ -1,0 +1,66 @@
+name: CLAP plugin
+
+on:
+  push:
+    branches: [main]
+    paths: ['clap/**', 'jsfx/**', 'scripts/test-clap.js', 'scripts/install-clap.js', 'tests/clap.test.js', 'tests/jsfx.test.js', '.github/workflows/clap.yml']
+  pull_request:
+    paths: ['clap/**', 'jsfx/**', 'scripts/test-clap.js', 'scripts/install-clap.js', 'tests/clap.test.js', 'tests/jsfx.test.js', '.github/workflows/clap.yml']
+  workflow_dispatch:
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: ubuntu-22.04, name: linux-x64, cmake-args: '' }
+          - { os: windows-2022, name: windows-x64, cmake-args: '-A x64' }
+          - { os: macos-14, name: macos-universal, cmake-args: '"-DCMAKE_OSX_ARCHITECTURES=x86_64;arm64" -DCMAKE_OSX_DEPLOYMENT_TARGET=10.15' }
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    steps:
+      # keep LF line endings on Windows: the tests compare the JSFX text with the generated slider blocks
+      - run: git config --global core.autocrlf false
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install NASM (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          choco install nasm -y
+          echo "C:\Program Files\NASM" | Out-File -Append $env:GITHUB_PATH
+      - run: npm ci
+      - name: Build
+        shell: bash
+        run: |
+          cmake -S clap -B .cache/clap-build -DCMAKE_BUILD_TYPE=Release ${{ matrix.cmake-args }}
+          cmake --build .cache/clap-build --config Release --parallel
+      - name: Test (the plugin against the JS DSP, then its host-facing parts)
+        run: npm run test:clap
+      - name: Install script (copies the built plugin into a CLAP folder)
+        shell: bash
+        run: |
+          npm run install:clap -- --dest "$RUNNER_TEMP/clap"
+          test -e "$RUNNER_TEMP/clap/AmiSynth.clap"
+          npm run install:clap -- --dry-run
+      - name: Collect
+        shell: bash
+        run: |
+          mkdir -p dist-clap/licenses
+          if [ "$RUNNER_OS" = Windows ]; then cp .cache/clap-build/Release/AmiSynth.clap dist-clap/
+          else cp -R .cache/clap-build/AmiSynth.clap dist-clap/; fi
+          deps=.cache/clap-build/_deps
+          cp LICENSE dist-clap/licenses/AmiSynth.txt
+          cp clap/THIRD_PARTY.md dist-clap/
+          cp $deps/ysfx-src/LICENSE dist-clap/licenses/ysfx.txt
+          cp $deps/ysfx-src/thirdparty/WDL/LICENSE.txt dist-clap/licenses/WDL.txt
+          cp $deps/ysfx-src/thirdparty/dr_libs/LICENSE dist-clap/licenses/dr_libs.txt
+          cp $deps/clap-src/LICENSE dist-clap/licenses/clap.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: AmiSynth-clap-${{ matrix.name }}
+          path: dist-clap
