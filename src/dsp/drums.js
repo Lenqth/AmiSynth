@@ -28,6 +28,7 @@ import {
   clamp, db_to_gain, decay_env_init, decay_env_process, decay_env_trigger, noise_seed, noise_white, random_unit,
   onepole_hp, onepole_init, onepole_set, pan_gains, sine_process, soft_clip,
   square_naive_process, svf_init, svf_process, svf_reset, svf_set, t60_coef, tau_coef, TWO_PI,
+  midi_mix_enable, midi_mix_init, midi_mix_tick,
 } from './lib.js';
 import { GM_DRUM_VARIANTS } from './params.js';
 
@@ -111,6 +112,8 @@ export function drums_init(d, sr) {
   noise_seed(12345);
   d.sr = sr;
   d.p = {};
+  d.mix = {};
+  midi_mix_init(d.mix, sr);
   d.out_l = 0;
   d.out_r = 0;
   d.bus_l = [0, 0, 0, 0];
@@ -186,6 +189,7 @@ export function drums_update(d, p) {
   d.p = p;
   const sr = d.sr;
   d.master_gain = db_to_gain(p.drum_master_volume_db);
+  midi_mix_enable(d.mix, (p.midi_volume_pan ?? 1) >= 0.5);
   d.bus_main[0] = p.kick_bus_in_main >= 0.5 ? 1 : 0;
   d.bus_main[1] = p.snare_bus_in_main >= 0.5 ? 1 : 0;
   d.bus_main[2] = p.hats_bus_in_main >= 0.5 ? 1 : 0;
@@ -763,11 +767,13 @@ export function drums_render(d) {
     perc_r += y * cu.gr;
   }
 
-  const g = d.master_gain * 0.8;
+  // MIDI Volume / Expression on every output, Pan on the main mix only
+  midi_mix_tick(d.mix);
+  const g = d.master_gain * 0.8 * d.mix.g;
   const l = kick_l * d.bus_main[0] + sn_l * d.bus_main[1] + hat_l * d.bus_main[2] + perc_l * d.bus_main[3];
   const r = kick_r * d.bus_main[0] + sn_r * d.bus_main[1] + hat_r * d.bus_main[2] + perc_r * d.bus_main[3];
-  d.out_l = soft_clip(l * g);
-  d.out_r = soft_clip(r * g);
+  d.out_l = soft_clip(l * g * d.mix.bl);
+  d.out_r = soft_clip(r * g * d.mix.br);
   // separate outputs (JSFX pins 3..10); the web player only uses the main mix
   d.bus_l[0] = soft_clip(kick_l * g);
   d.bus_r[0] = soft_clip(kick_r * g);

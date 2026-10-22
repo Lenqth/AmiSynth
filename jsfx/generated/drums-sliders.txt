@@ -127,3 +127,4 @@ slider125:cuica_decay_ms=450<100,1500,1>Cuica Decay [ms]
 slider126:cuica_tone=0.6<0,1,0.001>Cuica Tone
 slider127:cuica_level_db=-8<-60,6,0.1>Cuica Level [dB]
 slider128:cuica_pan=-0.1<-1,1,0.01>Cuica Pan
+slider129:midi_volume_pan=1<0,1,1{Off,On}>MIDI Volume / Pan

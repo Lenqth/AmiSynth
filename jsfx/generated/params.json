@@ -2196,6 +2196,32 @@
       "unit": "ms",
       "scale": "log",
       "description": "How fast the follower falls back after the sidechain gets quieter (time constant): the length of the pump."
+    },
+    {
+      "id": "midi_volume_pan",
+      "name": "MIDI Volume / Pan",
+      "group": "MIDI",
+      "min": 0,
+      "max": 1,
+      "default": 1,
+      "step": 1,
+      "unit": "",
+      "options": [
+        "Off",
+        "On"
+      ],
+      "description": "On: CC7 Volume and CC11 Expression scale the output (GM curve: value 100 = -4.2 dB, 64 = -11.9 dB, 0 = silent) and CC10 Pan balances it (64 = centre). Both start at full level / centre, so nothing changes until such a CC arrives; Reset All Controllers (CC121) restores Expression only. Off: these CCs are ignored (e.g. when the host already maps them to the track fader)."
+    },
+    {
+      "id": "soft_pedal_depth",
+      "name": "Soft Pedal Depth",
+      "group": "MIDI",
+      "min": 0,
+      "max": 0.9,
+      "default": 0.3,
+      "step": 0.001,
+      "unit": "",
+      "description": "While the soft pedal (CC67 >= 64) is down, new notes play with their velocity lowered by this fraction (0.3 = 70 % of the velocity; notes already sounding keep theirs). 0 = the pedal does nothing."
     }
   ],
   "phys": [
@@ -3282,6 +3308,32 @@
       "unit": "ms",
       "scale": "log",
       "description": "How fast the follower falls back after the sidechain gets quieter (time constant): the length of the pump."
+    },
+    {
+      "id": "midi_volume_pan",
+      "name": "MIDI Volume / Pan",
+      "group": "MIDI",
+      "min": 0,
+      "max": 1,
+      "default": 1,
+      "step": 1,
+      "unit": "",
+      "options": [
+        "Off",
+        "On"
+      ],
+      "description": "On: CC7 Volume and CC11 Expression scale the output (GM curve: value 100 = -4.2 dB, 64 = -11.9 dB, 0 = silent) and CC10 Pan balances it (64 = centre). Both start at full level / centre, so nothing changes until such a CC arrives; Reset All Controllers (CC121) restores Expression only. Off: these CCs are ignored (e.g. when the host already maps them to the track fader)."
+    },
+    {
+      "id": "soft_pedal_depth",
+      "name": "Soft Pedal Depth",
+      "group": "MIDI",
+      "min": 0,
+      "max": 0.9,
+      "default": 0.3,
+      "step": 0.001,
+      "unit": "",
+      "description": "While the soft pedal (CC67 >= 64) is down, new notes play with their velocity lowered by this fraction (0.3 = 70 % of the velocity; notes already sounding keep theirs). 0 = the pedal does nothing."
     }
   ],
   "drums": [
@@ -4755,6 +4807,21 @@
       "step": 0.01,
       "unit": "",
       "description": "Stereo position of the cuica (-1 = left, +1 = right)."
+    },
+    {
+      "id": "midi_volume_pan",
+      "name": "MIDI Volume / Pan",
+      "group": "MIDI",
+      "min": 0,
+      "max": 1,
+      "default": 1,
+      "step": 1,
+      "unit": "",
+      "options": [
+        "Off",
+        "On"
+      ],
+      "description": "On: CC7 Volume and CC11 Expression scale the output (GM curve: value 100 = -4.2 dB, 64 = -11.9 dB, 0 = silent) and CC10 Pan balances it (64 = centre). Both start at full level / centre, so nothing changes until such a CC arrives; Reset All Controllers (CC121) restores Expression only. Off: these CCs are ignored (e.g. when the host already maps them to the track fader)."
     }
   ],
   "tuning": [
