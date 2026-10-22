@@ -8,9 +8,9 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { defaultValues, DRUM_PARAMS, PHYS_PARAMS, SYNTH_PARAMS, TUNING_HOLDER_PARAMS } from '../src/dsp/params.js';
-import { drums_init, drums_note_on, drums_render, drums_update } from '../src/dsp/drums.js';
+import { drums_init, drums_render, drums_update } from '../src/dsp/drums.js';
 import { phys_init, phys_render, phys_set_scale, phys_update } from '../src/dsp/phys.js';
-import { phys_midi, synth_midi } from '../src/dsp/midi.js';
+import { drums_midi, phys_midi, synth_midi } from '../src/dsp/midi.js';
 import { synth_init, synth_render, synth_set_scale, synth_transport, synth_update } from '../src/dsp/synth.js';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -34,9 +34,7 @@ export const INSTRUMENTS = {
         o[i + 3 + 2 * b] = s.bus_r[b];
       }
     },
-    midi(s, st, d1, d2) {
-      if ((st & 0xf0) === 0x90 && d2 > 0) drums_note_on(s, d1, d2);
-    },
+    midi: drums_midi,
   },
   phys: {
     file: 'AmiSynth Physical.jsfx', defs: PHYS_PARAMS, init: phys_init, update: phys_update, render: phys_render,

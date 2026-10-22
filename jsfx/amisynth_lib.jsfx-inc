@@ -393,6 +393,36 @@ function sidechain_process(l, r) instance(env gain att rel) local(x) (
 function sidechain_duck_gain(e) instance(duck_db) ( duck_db > 0 ? pow(10, (-duck_db * e) / 20) : 1; );
 
 // ---------------------------------------------------------------------------
+// MIDI channel mixer: CC7 Volume, CC11 Expression, CC10 Pan (port of midi_mix_* in src/dsp/lib.js)
+function midi_mix_targets() instance(on vol expr pan g_t bl_t br_t) local(a) (
+  a = on ? pan : 0;
+  g_t = on ? vol * expr : 1;
+  bl_t = a > 0 ? cos(a * 0.5 * $pi) : 1;
+  br_t = a < 0 ? cos(-a * 0.5 * $pi) : 1;
+);
+function midi_mix_init() instance(on vol expr pan g bl br g_t bl_t br_t c) (
+  on = 1; vol = 1; expr = 1; pan = 0;
+  g = 1; bl = 1; br = 1; g_t = 1; bl_t = 1; br_t = 1;
+  c = tau_coef(20);
+);
+/** CC7 / CC10 / CC11 (other numbers are ignored) */
+function midi_mix_cc(number, value) instance(vol expr pan) local(x) (
+  x = clamp(value / 127, 0, 1);
+  number === 7 ? ( vol = x * x; this.midi_mix_targets(); )
+  : number === 11 ? ( expr = x * x; this.midi_mix_targets(); )
+  : number === 10 ? ( pan = clamp((value - 64) / 63, -1, 1); this.midi_mix_targets(); );
+);
+function midi_mix_enable(enabled) instance(on) ( on = enabled ? 1 : 0; this.midi_mix_targets(); );
+/** Reset All Controllers (CC121): expression back to full; volume and pan stay (GM RP-015) */
+function midi_mix_reset() instance(expr) ( expr = 1; this.midi_mix_targets(); );
+/** once per sample: g = volume x expression, bl / br = balance */
+function midi_mix_tick() instance(g bl br g_t bl_t br_t c) (
+  g = g_t + c * (g - g_t);
+  bl = bl_t + c * (bl - bl_t);
+  br = br_t + c * (br - br_t);
+);
+
+// ---------------------------------------------------------------------------
 // ADSR (stage 0 idle, 1 attack, 2 decay/sustain, 3 release)
 
 function adsr_set(attack_ms, decay_ms, sus, release_ms) instance(attack_inc decay_coef release_coef sustain) (

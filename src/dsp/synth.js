@@ -30,6 +30,7 @@ import {
   osc_set_freq, osc_sync_to, smoother_init, smoother_process, smoother_set, soft_clip, svf_copy_coefs,
   svf_init, svf_output, svf_process, svf_reset, svf_set, tau_coef, TWO_PI, tuning_init, tuning_note_to_hz,
   tuning_set_edo, tuning_set_table, sidechain_duck_gain, sidechain_init, sidechain_process, sidechain_set,
+  midi_mix_enable, midi_mix_init, midi_mix_reset, midi_mix_tick,
 } from './lib.js';
 import { ARP_RATE_BEATS, DELAY_MAX_SECONDS, DELAY_SYNC_BEATS, LFO_SYNC_BEATS, MOD_DESTINATIONS, MOD_SLOTS, MOD_SOURCES } from './params.js';
 import { wt_build, wt_process, WT_BANKS } from './wavetable.js';
@@ -86,6 +87,7 @@ function voice_create() {
     pitch: 0, // note number it sounds at (key + transpose)
     gate: 0, // key held
     sustained: 0, // released while sustain pedal held
+    sost: 0, // key was down when the sostenuto pedal went down
     velocity: 0,
     age: 0, // allocation counter for voice stealing
     base_hz: 0,
@@ -275,6 +277,10 @@ export function synth_init(s, sr) {
   s.bend = 0; // -1..1
   s.modwheel = 0; // 0..1
   s.sustain_pedal = 0;
+  s.sostenuto = 0;
+  s.soft_pedal = 0;
+  s.mix = {};
+  midi_mix_init(s.mix, sr);
   s.last_hz = 0; // glide source
   s.lfo = {};
   lfo_init(s.lfo);
@@ -398,6 +404,7 @@ export function synth_update(s, p) {
   s.mm_n = mm;
   sidechain_set(s.sc, p.sc_input_gain_db, p.sc_attack_ms, p.sc_release_ms, p.sc_duck_db, s.sr);
   s.sc_on = p.sc_duck_db > 0 || s.mm_use[SRC_SC] ? 1 : 0;
+  midi_mix_enable(s.mix, (p.midi_volume_pan ?? 1) >= 0.5);
   s.glide_coef = p.glide_ms > 0 ? tau_coef(p.glide_ms / 3, s.sr) : 0; // ~95% there after glide_ms
   s.glide_legato = p.glide_mode >= 0.5 ? 1 : 0;
   s.drive_gain = 1 + 8 * p.filter_drive;
@@ -601,6 +608,7 @@ function poly_note_on(s, key, pitch, velocity) {
   v.active = 1;
   v.gate = 1;
   v.sustained = 0;
+  v.sost = 0;
   v.note = key;
   v.pitch = pitch;
   v.velocity = velocity / 127;
@@ -619,7 +627,7 @@ function poly_note_off(s, key) {
     const v = s.voices[i];
     if (v.active && v.gate && v.note === key) {
       v.gate = 0;
-      if (s.sustain_pedal) {
+      if (s.sustain_pedal || v.sost) {
         v.sustained = 1;
       } else {
         adsr_gate_off(v.amp_env);
@@ -649,6 +657,7 @@ function mono_play(s, key, pitch, velocity, retrig, overlap) {
   v.active = 1;
   v.gate = 1;
   v.sustained = 0;
+  v.sost = 0;
   v.note = key;
   v.pitch = pitch;
   v.age = ++s.age_counter;
@@ -870,6 +879,7 @@ export function synth_note_on(s, note, velocity) {
     synth_note_off(s, note);
     return;
   }
+  if (s.soft_pedal) velocity *= 1 - (s.p.soft_pedal_depth ?? 0.3);
   if (s.arp_mode > 0) arp_key_on(s, note, velocity);
   else engine_on(s, note, note + s.transpose, velocity);
 }
@@ -885,6 +895,7 @@ function synth_release_all(s) {
     const v = s.voices[i];
     v.gate = 0;
     v.sustained = 0;
+    v.sost = 0;
     adsr_gate_off(v.amp_env);
     adsr_gate_off(v.filt_env);
     adsr_gate_off(v.mod_env);
@@ -934,7 +945,7 @@ export function synth_sustain_pedal(s, on) {
   if (!on) {
     for (let i = 0; i < MAX_VOICES; i++) {
       const v = s.voices[i];
-      if (v.sustained) {
+      if (v.sustained && !v.sost) {
         v.sustained = 0;
         adsr_gate_off(v.amp_env);
         adsr_gate_off(v.filt_env);
@@ -942,6 +953,50 @@ export function synth_sustain_pedal(s, on) {
       }
     }
   }
+}
+
+/** Sostenuto (CC66): holds the notes whose keys are down when it goes down, until it comes up. */
+export function synth_sostenuto(s, on) {
+  if (on && !s.sostenuto) {
+    for (let i = 0; i < MAX_VOICES; i++) {
+      const v = s.voices[i];
+      if (v.active && v.gate) v.sost = 1;
+    }
+  } else if (!on && s.sostenuto) {
+    for (let i = 0; i < MAX_VOICES; i++) {
+      const v = s.voices[i];
+      if (v.sost) {
+        v.sost = 0;
+        if (v.sustained && !s.sustain_pedal) {
+          v.sustained = 0;
+          adsr_gate_off(v.amp_env);
+          adsr_gate_off(v.filt_env);
+          adsr_gate_off(v.mod_env);
+        }
+      }
+    }
+  }
+  s.sostenuto = on ? 1 : 0;
+}
+
+/** Soft pedal (CC67): lowers the velocity of the notes played while it is down. */
+export function synth_soft_pedal(s, on) {
+  s.soft_pedal = on ? 1 : 0;
+}
+
+/**
+ * Reset All Controllers (CC121, GM RP-015): pedals up, pitch bend centred, mod wheel, channel and
+ * key pressure to 0, expression to full. Volume, pan and the cutoff CC stay; held keys keep sounding.
+ */
+export function synth_reset_controllers(s) {
+  synth_sustain_pedal(s, false);
+  synth_sostenuto(s, false);
+  s.soft_pedal = 0;
+  s.bend = 0;
+  s.modwheel = 0;
+  s.pressure = 0;
+  for (let i = 0; i < MAX_VOICES; i++) s.voices[i].poly_at = 0;
+  midi_mix_reset(s.mix);
 }
 
 /** Render one stereo sample into s.out_l / s.out_r (JSFX @sample -> spl0/spl1). */
@@ -1203,6 +1258,11 @@ export function synth_render(s) {
     l *= d;
     r *= d;
   }
+
+  // MIDI Volume / Expression / Pan
+  midi_mix_tick(s.mix);
+  l *= s.mix.g * s.mix.bl;
+  r *= s.mix.g * s.mix.br;
 
   s.out_l = soft_clip(l);
   s.out_r = soft_clip(r);
