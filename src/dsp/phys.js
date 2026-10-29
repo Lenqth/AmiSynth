@@ -62,6 +62,7 @@ import {
   onepole_hp, onepole_init, onepole_lp, onepole_set, pan_gains, reson_init, reson_process, reson_reset,
   reson_set, reson_set_decay, soft_clip, svf_init, svf_process, svf_reset, svf_set, t60_coef, tuning_init,
   tuning_note_to_hz, tuning_set_edo, tuning_set_table, TWO_PI, sidechain_duck_gain, sidechain_init, sidechain_process, sidechain_set,
+  midi_mix_enable, midi_mix_init, midi_mix_tick,
 } from './lib.js';
 
 export const PHYS_MAX_VOICES = 8;
@@ -177,7 +178,7 @@ const MESH_CELLS = MESH_W * MESH_W;
 
 function voice_create() {
   const v = {
-    active: 0, note: -1, gate: 0, sustained: 0, age: 0, vel: 0, vel_raw: 0, hz: 0, level: 0, frames: 0,
+    active: 0, note: -1, gate: 0, sustained: 0, sost: 0, age: 0, vel: 0, vel_raw: 0, hz: 0, level: 0, frames: 0,
     // string / shared delay-line state
     line: {}, line2: {}, lp_z: 0, lp_z2: 0, loop_gain: 1, loop_gain2: 1, damp_b: 0,
     delay_len: 0, delay_len2: 0, read_gain: 1,
@@ -239,6 +240,10 @@ export function phys_init(s, sr) {
   s.custom_scale = 0;
   s.age_counter = 0;
   s.sustain_pedal = 0;
+  s.sostenuto = 0;
+  s.soft_pedal = 0;
+  s.mix = {};
+  midi_mix_init(s.mix, sr);
   s.bend_ratio = 1;
   s.dc = {};
   onepole_init(s.dc);
@@ -303,6 +308,7 @@ export function phys_update(s, p) {
   s.flut_a = 1 - Math.exp((-TWO_PI * 5) / s.sr);
   room_update(s, p.phys_room_decay_ms);
   sidechain_set(s.sc, p.sc_input_gain_db, p.sc_attack_ms, p.sc_release_ms, p.sc_duck_db, s.sr);
+  midi_mix_enable(s.mix, (p.midi_volume_pan ?? 1) >= 0.5);
   amp_update(s, p);
   s.hiss_a = 1 - Math.exp((-TWO_PI * 1000) / s.sr);
   s.reed_k = 1 / (2 * Math.sin((Math.PI * 1000) / s.sr));
@@ -798,7 +804,7 @@ export function phys_note_on(s, note, velocity) {
   for (let i = 0; i < limit; i++) if (s.voices[i].active && s.voices[i].note === note) idx = i;
   if (idx < 0) idx = voice_allocate(s, limit);
   const v = s.voices[idx];
-  const vel = velocity / 127;
+  const vel = (s.soft_pedal ? velocity * (1 - (p.soft_pedal_depth ?? 0.3)) : velocity) / 127;
   v.vel_raw = vel;
   v.vel = 1 - p.phys_velocity_amount + p.phys_velocity_amount * vel;
   v.note = note;
@@ -806,6 +812,7 @@ export function phys_note_on(s, note, velocity) {
   v.active = 1;
   v.gate = 1;
   v.sustained = 0; // a retrigger/steal must not inherit the old note's deferred release
+  v.sost = 0;
   v.age = ++s.age_counter;
   v.frames = 0;
   v.level = 1;
@@ -1123,10 +1130,13 @@ function phys_release_voice(s, v) {
   }
 }
 
-function phys_flush_sustain(s) {
+/** Releases the notes held by the pedals; keep_sost: not those the sostenuto pedal still holds. */
+function phys_flush_sustain(s, keep_sost = 0) {
   for (const v of s.voices) {
+    if (keep_sost && v.sost) continue;
     if (v.sustained && v.active) phys_release_voice(s, v);
     v.sustained = 0;
+    v.sost = 0;
   }
 }
 
@@ -1134,23 +1144,50 @@ export function phys_note_off(s, note) {
   for (const v of s.voices) {
     if (!v.active || !v.gate || v.note !== note) continue;
     v.gate = 0;
-    if (s.sustain_pedal && phys_pedal_enabled(s.p)) v.sustained = 1;
+    if ((s.sustain_pedal || v.sost) && phys_pedal_enabled(s.p)) v.sustained = 1;
     else phys_release_voice(s, v);
   }
 }
 
 export function phys_sustain_pedal(s, on) {
   s.sustain_pedal = on ? 1 : 0;
-  if (!s.sustain_pedal) phys_flush_sustain(s);
+  if (!s.sustain_pedal) phys_flush_sustain(s, s.sostenuto);
+}
+
+/**
+ * Sostenuto (CC66): holds the notes whose keys are down when it goes down, until it comes up.
+ * Same models as the sustain pedal (phys_sustain_mode).
+ */
+export function phys_sostenuto(s, on) {
+  if (on && !s.sostenuto) {
+    for (const v of s.voices) if (v.active && v.gate) v.sost = 1;
+  } else if (!on && s.sostenuto) {
+    for (const v of s.voices) {
+      if (!v.sost) continue;
+      v.sost = 0;
+      if (v.sustained && !s.sustain_pedal) {
+        v.sustained = 0;
+        if (v.active) phys_release_voice(s, v);
+      }
+    }
+  }
+  s.sostenuto = on ? 1 : 0;
+}
+
+/** Soft pedal (CC67): lowers the velocity of the notes played while it is down. */
+export function phys_soft_pedal(s, on) {
+  s.soft_pedal = on ? 1 : 0;
 }
 
 export function phys_all_notes_off(s) {
   // Panic/All Notes Off must also release notes whose keys have already been lifted.
   s.sustain_pedal = 0;
+  s.sostenuto = 0;
   for (const v of s.voices) {
     if (v.active && (v.gate || v.sustained)) phys_release_voice(s, v);
     v.gate = 0;
     v.sustained = 0;
+    v.sost = 0;
   }
 }
 
@@ -1606,8 +1643,11 @@ export function phys_render(s) {
   }
   let g = s.gain * 0.5;
   if (s.sc.duck_db > 0) g *= sidechain_duck_gain(s.sc, sidechain_process(s.sc, s.sc_in_l, s.sc_in_r));
-  s.out_l = soft_clip(onepole_hp(s.dc, l) * g);
-  s.out_r = soft_clip(onepole_hp(s.dc_r, r) * g);
+  // MIDI Volume / Expression / Pan
+  midi_mix_tick(s.mix);
+  g *= s.mix.g;
+  s.out_l = soft_clip(onepole_hp(s.dc, l) * g * s.mix.bl);
+  s.out_r = soft_clip(onepole_hp(s.dc_r, r) * g * s.mix.br);
 }
 
 // ---------------------------------------------------------------------------

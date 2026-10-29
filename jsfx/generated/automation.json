@@ -3752,6 +3752,48 @@
           "slider": 133,
           "paramIndex": 132,
           "valueDomain": "real"
+        },
+        {
+          "id": "midi_volume_pan",
+          "name": "MIDI Volume / Pan",
+          "group": "MIDI",
+          "min": 0,
+          "max": 1,
+          "default": 1,
+          "step": 1,
+          "unit": "",
+          "options": [
+            "Off",
+            "On"
+          ],
+          "description": "On: CC7 Volume and CC11 Expression scale the output (GM curve: value 100 = -4.2 dB, 64 = -11.9 dB, 0 = silent) and CC10 Pan balances it (64 = centre). Both start at full level / centre, so nothing changes until such a CC arrives; Reset All Controllers (CC121) restores Expression only. Off: these CCs are ignored (e.g. when the host already maps them to the track fader).",
+          "slider": 134,
+          "paramIndex": 133,
+          "valueDomain": "real",
+          "enumValues": [
+            {
+              "value": 0,
+              "label": "Off"
+            },
+            {
+              "value": 1,
+              "label": "On"
+            }
+          ]
+        },
+        {
+          "id": "soft_pedal_depth",
+          "name": "Soft Pedal Depth",
+          "group": "MIDI",
+          "min": 0,
+          "max": 0.9,
+          "default": 0.3,
+          "step": 0.001,
+          "unit": "",
+          "description": "While the soft pedal (CC67 >= 64) is down, new notes play with their velocity lowered by this fraction (0.3 = 70 % of the velocity; notes already sounding keep theirs). 0 = the pedal does nothing.",
+          "slider": 135,
+          "paramIndex": 134,
+          "valueDomain": "real"
         }
       ],
       "presets": [
@@ -3886,7 +3928,9 @@
             "sc_duck_db": 0,
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
-            "sc_release_ms": 150
+            "sc_release_ms": 150,
+            "midi_volume_pan": 1,
+            "soft_pedal_depth": 0.3
           }
         },
         {
@@ -4020,7 +4064,9 @@
             "sc_duck_db": 0,
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
-            "sc_release_ms": 150
+            "sc_release_ms": 150,
+            "midi_volume_pan": 1,
+            "soft_pedal_depth": 0.3
           }
         },
         {
@@ -4154,7 +4200,9 @@
             "sc_duck_db": 0,
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
-            "sc_release_ms": 150
+            "sc_release_ms": 150,
+            "midi_volume_pan": 1,
+            "soft_pedal_depth": 0.3
           }
         },
         {
@@ -4288,7 +4336,9 @@
             "sc_duck_db": 0,
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
-            "sc_release_ms": 150
+            "sc_release_ms": 150,
+            "midi_volume_pan": 1,
+            "soft_pedal_depth": 0.3
           }
         },
         {
@@ -4422,7 +4472,9 @@
             "sc_duck_db": 0,
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
-            "sc_release_ms": 150
+            "sc_release_ms": 150,
+            "midi_volume_pan": 1,
+            "soft_pedal_depth": 0.3
           }
         },
         {
@@ -4556,7 +4608,9 @@
             "sc_duck_db": 0,
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
-            "sc_release_ms": 150
+            "sc_release_ms": 150,
+            "midi_volume_pan": 1,
+            "soft_pedal_depth": 0.3
           }
         },
         {
@@ -4690,7 +4744,9 @@
             "sc_duck_db": 0,
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
-            "sc_release_ms": 150
+            "sc_release_ms": 150,
+            "midi_volume_pan": 1,
+            "soft_pedal_depth": 0.3
           }
         },
         {
@@ -4824,7 +4880,9 @@
             "sc_duck_db": 0,
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
-            "sc_release_ms": 150
+            "sc_release_ms": 150,
+            "midi_volume_pan": 1,
+            "soft_pedal_depth": 0.3
           }
         },
         {
@@ -4958,7 +5016,9 @@
             "sc_duck_db": 0,
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
-            "sc_release_ms": 150
+            "sc_release_ms": 150,
+            "midi_volume_pan": 1,
+            "soft_pedal_depth": 0.3
           }
         },
         {
@@ -5092,7 +5152,9 @@
             "sc_duck_db": 0,
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
-            "sc_release_ms": 150
+            "sc_release_ms": 150,
+            "midi_volume_pan": 1,
+            "soft_pedal_depth": 0.3
           }
         },
         {
@@ -5226,7 +5288,9 @@
             "sc_duck_db": 0,
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
-            "sc_release_ms": 150
+            "sc_release_ms": 150,
+            "midi_volume_pan": 1,
+            "soft_pedal_depth": 0.3
           }
         },
         {
@@ -5360,7 +5424,9 @@
             "sc_duck_db": 0,
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
-            "sc_release_ms": 150
+            "sc_release_ms": 150,
+            "midi_volume_pan": 1,
+            "soft_pedal_depth": 0.3
           }
         },
         {
@@ -5494,7 +5560,9 @@
             "sc_duck_db": 0,
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
-            "sc_release_ms": 150
+            "sc_release_ms": 150,
+            "midi_volume_pan": 1,
+            "soft_pedal_depth": 0.3
           }
         },
         {
@@ -5628,7 +5696,9 @@
             "sc_duck_db": 0,
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
-            "sc_release_ms": 150
+            "sc_release_ms": 150,
+            "midi_volume_pan": 1,
+            "soft_pedal_depth": 0.3
           }
         },
         {
@@ -5762,7 +5832,9 @@
             "sc_duck_db": 0,
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
-            "sc_release_ms": 150
+            "sc_release_ms": 150,
+            "midi_volume_pan": 1,
+            "soft_pedal_depth": 0.3
           }
         },
         {
@@ -5896,7 +5968,9 @@
             "sc_duck_db": 0,
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
-            "sc_release_ms": 150
+            "sc_release_ms": 150,
+            "midi_volume_pan": 1,
+            "soft_pedal_depth": 0.3
           }
         },
         {
@@ -6030,7 +6104,9 @@
             "sc_duck_db": 0,
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
-            "sc_release_ms": 150
+            "sc_release_ms": 150,
+            "midi_volume_pan": 1,
+            "soft_pedal_depth": 0.3
           }
         },
         {
@@ -6164,7 +6240,9 @@
             "sc_duck_db": 0,
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
-            "sc_release_ms": 150
+            "sc_release_ms": 150,
+            "midi_volume_pan": 1,
+            "soft_pedal_depth": 0.3
           }
         },
         {
@@ -6298,7 +6376,9 @@
             "sc_duck_db": 0,
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
-            "sc_release_ms": 150
+            "sc_release_ms": 150,
+            "midi_volume_pan": 1,
+            "soft_pedal_depth": 0.3
           }
         },
         {
@@ -6432,7 +6512,9 @@
             "sc_duck_db": 0,
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
-            "sc_release_ms": 150
+            "sc_release_ms": 150,
+            "midi_volume_pan": 1,
+            "soft_pedal_depth": 0.3
           }
         },
         {
@@ -6566,7 +6648,9 @@
             "sc_duck_db": 0,
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
-            "sc_release_ms": 150
+            "sc_release_ms": 150,
+            "midi_volume_pan": 1,
+            "soft_pedal_depth": 0.3
           }
         },
         {
@@ -6700,7 +6784,9 @@
             "sc_duck_db": 0,
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
-            "sc_release_ms": 150
+            "sc_release_ms": 150,
+            "midi_volume_pan": 1,
+            "soft_pedal_depth": 0.3
           }
         },
         {
@@ -6834,7 +6920,9 @@
             "sc_duck_db": 0,
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
-            "sc_release_ms": 150
+            "sc_release_ms": 150,
+            "midi_volume_pan": 1,
+            "soft_pedal_depth": 0.3
           }
         },
         {
@@ -6968,7 +7056,9 @@
             "sc_duck_db": 0,
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
-            "sc_release_ms": 150
+            "sc_release_ms": 150,
+            "midi_volume_pan": 1,
+            "soft_pedal_depth": 0.3
           }
         },
         {
@@ -7102,7 +7192,9 @@
             "sc_duck_db": 0,
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
-            "sc_release_ms": 150
+            "sc_release_ms": 150,
+            "midi_volume_pan": 1,
+            "soft_pedal_depth": 0.3
           }
         },
         {
@@ -7236,7 +7328,9 @@
             "sc_duck_db": 0,
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
-            "sc_release_ms": 150
+            "sc_release_ms": 150,
+            "midi_volume_pan": 1,
+            "soft_pedal_depth": 0.3
           }
         },
         {
@@ -7370,7 +7464,9 @@
             "sc_duck_db": 0,
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
-            "sc_release_ms": 150
+            "sc_release_ms": 150,
+            "midi_volume_pan": 1,
+            "soft_pedal_depth": 0.3
           }
         },
         {
@@ -7504,7 +7600,9 @@
             "sc_duck_db": 0,
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
-            "sc_release_ms": 150
+            "sc_release_ms": 150,
+            "midi_volume_pan": 1,
+            "soft_pedal_depth": 0.3
           }
         },
         {
@@ -7638,7 +7736,9 @@
             "sc_duck_db": 0,
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
-            "sc_release_ms": 150
+            "sc_release_ms": 150,
+            "midi_volume_pan": 1,
+            "soft_pedal_depth": 0.3
           }
         },
         {
@@ -7772,7 +7872,9 @@
             "sc_duck_db": 0,
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
-            "sc_release_ms": 150
+            "sc_release_ms": 150,
+            "midi_volume_pan": 1,
+            "soft_pedal_depth": 0.3
           }
         },
         {
@@ -7906,7 +8008,9 @@
             "sc_duck_db": 0,
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
-            "sc_release_ms": 150
+            "sc_release_ms": 150,
+            "midi_volume_pan": 1,
+            "soft_pedal_depth": 0.3
           }
         },
         {
@@ -8040,7 +8144,9 @@
             "sc_duck_db": 0,
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
-            "sc_release_ms": 150
+            "sc_release_ms": 150,
+            "midi_volume_pan": 1,
+            "soft_pedal_depth": 0.3
           }
         },
         {
@@ -8174,7 +8280,9 @@
             "sc_duck_db": 0,
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
-            "sc_release_ms": 150
+            "sc_release_ms": 150,
+            "midi_volume_pan": 1,
+            "soft_pedal_depth": 0.3
           }
         },
         {
@@ -8308,7 +8416,9 @@
             "sc_duck_db": 0,
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
-            "sc_release_ms": 150
+            "sc_release_ms": 150,
+            "midi_volume_pan": 1,
+            "soft_pedal_depth": 0.3
           }
         },
         {
@@ -8442,7 +8552,9 @@
             "sc_duck_db": 0,
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
-            "sc_release_ms": 150
+            "sc_release_ms": 150,
+            "midi_volume_pan": 1,
+            "soft_pedal_depth": 0.3
           }
         },
         {
@@ -8576,7 +8688,9 @@
             "sc_duck_db": 0,
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
-            "sc_release_ms": 150
+            "sc_release_ms": 150,
+            "midi_volume_pan": 1,
+            "soft_pedal_depth": 0.3
           }
         },
         {
@@ -8710,7 +8824,9 @@
             "sc_duck_db": 0,
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
-            "sc_release_ms": 150
+            "sc_release_ms": 150,
+            "midi_volume_pan": 1,
+            "soft_pedal_depth": 0.3
           }
         },
         {
@@ -8844,7 +8960,9 @@
             "sc_duck_db": 0,
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
-            "sc_release_ms": 150
+            "sc_release_ms": 150,
+            "midi_volume_pan": 1,
+            "soft_pedal_depth": 0.3
           }
         },
         {
@@ -8978,7 +9096,9 @@
             "sc_duck_db": 0,
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
-            "sc_release_ms": 150
+            "sc_release_ms": 150,
+            "midi_volume_pan": 1,
+            "soft_pedal_depth": 0.3
           }
         },
         {
@@ -9112,7 +9232,9 @@
             "sc_duck_db": 0,
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
-            "sc_release_ms": 150
+            "sc_release_ms": 150,
+            "midi_volume_pan": 1,
+            "soft_pedal_depth": 0.3
           }
         },
         {
@@ -9246,7 +9368,9 @@
             "sc_duck_db": 0,
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
-            "sc_release_ms": 150
+            "sc_release_ms": 150,
+            "midi_volume_pan": 1,
+            "soft_pedal_depth": 0.3
           }
         },
         {
@@ -9380,7 +9504,9 @@
             "sc_duck_db": 0,
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
-            "sc_release_ms": 150
+            "sc_release_ms": 150,
+            "midi_volume_pan": 1,
+            "soft_pedal_depth": 0.3
           }
         },
         {
@@ -9514,7 +9640,9 @@
             "sc_duck_db": 0,
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
-            "sc_release_ms": 150
+            "sc_release_ms": 150,
+            "midi_volume_pan": 1,
+            "soft_pedal_depth": 0.3
           }
         },
         {
@@ -9648,7 +9776,9 @@
             "sc_duck_db": 0,
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
-            "sc_release_ms": 150
+            "sc_release_ms": 150,
+            "midi_volume_pan": 1,
+            "soft_pedal_depth": 0.3
           }
         },
         {
@@ -9782,7 +9912,9 @@
             "sc_duck_db": 0,
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
-            "sc_release_ms": 150
+            "sc_release_ms": 150,
+            "midi_volume_pan": 1,
+            "soft_pedal_depth": 0.3
           }
         },
         {
@@ -9916,7 +10048,9 @@
             "sc_duck_db": 0,
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
-            "sc_release_ms": 150
+            "sc_release_ms": 150,
+            "midi_volume_pan": 1,
+            "soft_pedal_depth": 0.3
           }
         },
         {
@@ -10050,7 +10184,9 @@
             "sc_duck_db": 0,
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
-            "sc_release_ms": 150
+            "sc_release_ms": 150,
+            "midi_volume_pan": 1,
+            "soft_pedal_depth": 0.3
           }
         },
         {
@@ -10184,7 +10320,9 @@
             "sc_duck_db": 0,
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
-            "sc_release_ms": 150
+            "sc_release_ms": 150,
+            "midi_volume_pan": 1,
+            "soft_pedal_depth": 0.3
           }
         },
         {
@@ -10318,7 +10456,9 @@
             "sc_duck_db": 0,
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
-            "sc_release_ms": 150
+            "sc_release_ms": 150,
+            "midi_volume_pan": 1,
+            "soft_pedal_depth": 0.3
           }
         },
         {
@@ -10452,7 +10592,9 @@
             "sc_duck_db": 0,
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
-            "sc_release_ms": 150
+            "sc_release_ms": 150,
+            "midi_volume_pan": 1,
+            "soft_pedal_depth": 0.3
           }
         },
         {
@@ -10586,7 +10728,9 @@
             "sc_duck_db": 0,
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
-            "sc_release_ms": 150
+            "sc_release_ms": 150,
+            "midi_volume_pan": 1,
+            "soft_pedal_depth": 0.3
           }
         },
         {
@@ -10720,7 +10864,9 @@
             "sc_duck_db": 0,
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
-            "sc_release_ms": 150
+            "sc_release_ms": 150,
+            "midi_volume_pan": 1,
+            "soft_pedal_depth": 0.3
           }
         },
         {
@@ -10854,7 +11000,9 @@
             "sc_duck_db": 0,
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
-            "sc_release_ms": 150
+            "sc_release_ms": 150,
+            "midi_volume_pan": 1,
+            "soft_pedal_depth": 0.3
           }
         },
         {
@@ -10988,7 +11136,9 @@
             "sc_duck_db": 0,
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
-            "sc_release_ms": 150
+            "sc_release_ms": 150,
+            "midi_volume_pan": 1,
+            "soft_pedal_depth": 0.3
           }
         },
         {
@@ -11122,7 +11272,9 @@
             "sc_duck_db": 0,
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
-            "sc_release_ms": 150
+            "sc_release_ms": 150,
+            "midi_volume_pan": 1,
+            "soft_pedal_depth": 0.3
           }
         },
         {
@@ -11256,7 +11408,9 @@
             "sc_duck_db": 0,
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
-            "sc_release_ms": 150
+            "sc_release_ms": 150,
+            "midi_volume_pan": 1,
+            "soft_pedal_depth": 0.3
           }
         },
         {
@@ -11390,7 +11544,9 @@
             "sc_duck_db": 0,
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
-            "sc_release_ms": 150
+            "sc_release_ms": 150,
+            "midi_volume_pan": 1,
+            "soft_pedal_depth": 0.3
           }
         },
         {
@@ -11524,7 +11680,9 @@
             "sc_duck_db": 0,
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
-            "sc_release_ms": 150
+            "sc_release_ms": 150,
+            "midi_volume_pan": 1,
+            "soft_pedal_depth": 0.3
           }
         },
         {
@@ -11658,7 +11816,9 @@
             "sc_duck_db": 0,
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
-            "sc_release_ms": 150
+            "sc_release_ms": 150,
+            "midi_volume_pan": 1,
+            "soft_pedal_depth": 0.3
           }
         },
         {
@@ -11792,7 +11952,9 @@
             "sc_duck_db": 0,
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
-            "sc_release_ms": 150
+            "sc_release_ms": 150,
+            "midi_volume_pan": 1,
+            "soft_pedal_depth": 0.3
           }
         },
         {
@@ -11926,7 +12088,9 @@
             "sc_duck_db": 0,
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
-            "sc_release_ms": 150
+            "sc_release_ms": 150,
+            "midi_volume_pan": 1,
+            "soft_pedal_depth": 0.3
           }
         },
         {
@@ -12060,7 +12224,9 @@
             "sc_duck_db": 0,
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
-            "sc_release_ms": 150
+            "sc_release_ms": 150,
+            "midi_volume_pan": 1,
+            "soft_pedal_depth": 0.3
           }
         },
         {
@@ -12194,7 +12360,9 @@
             "sc_duck_db": 0,
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
-            "sc_release_ms": 150
+            "sc_release_ms": 150,
+            "midi_volume_pan": 1,
+            "soft_pedal_depth": 0.3
           }
         },
         {
@@ -12328,7 +12496,9 @@
             "sc_duck_db": 0,
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
-            "sc_release_ms": 150
+            "sc_release_ms": 150,
+            "midi_volume_pan": 1,
+            "soft_pedal_depth": 0.3
           }
         },
         {
@@ -12462,7 +12632,9 @@
             "sc_duck_db": 0,
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
-            "sc_release_ms": 150
+            "sc_release_ms": 150,
+            "midi_volume_pan": 1,
+            "soft_pedal_depth": 0.3
           }
         },
         {
@@ -12596,7 +12768,9 @@
             "sc_duck_db": 0,
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
-            "sc_release_ms": 150
+            "sc_release_ms": 150,
+            "midi_volume_pan": 1,
+            "soft_pedal_depth": 0.3
           }
         },
         {
@@ -12730,7 +12904,9 @@
             "sc_duck_db": 0,
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
-            "sc_release_ms": 150
+            "sc_release_ms": 150,
+            "midi_volume_pan": 1,
+            "soft_pedal_depth": 0.3
           }
         },
         {
@@ -12864,7 +13040,9 @@
             "sc_duck_db": 0,
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
-            "sc_release_ms": 150
+            "sc_release_ms": 150,
+            "midi_volume_pan": 1,
+            "soft_pedal_depth": 0.3
           }
         },
         {
@@ -12998,7 +13176,9 @@
             "sc_duck_db": 0,
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
-            "sc_release_ms": 150
+            "sc_release_ms": 150,
+            "midi_volume_pan": 1,
+            "soft_pedal_depth": 0.3
           }
         },
         {
@@ -13132,7 +13312,9 @@
             "sc_duck_db": 0,
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
-            "sc_release_ms": 150
+            "sc_release_ms": 150,
+            "midi_volume_pan": 1,
+            "soft_pedal_depth": 0.3
           }
         },
         {
@@ -13266,7 +13448,9 @@
             "sc_duck_db": 0,
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
-            "sc_release_ms": 150
+            "sc_release_ms": 150,
+            "midi_volume_pan": 1,
+            "soft_pedal_depth": 0.3
           }
         },
         {
@@ -13400,7 +13584,9 @@
             "sc_duck_db": 0,
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
-            "sc_release_ms": 150
+            "sc_release_ms": 150,
+            "midi_volume_pan": 1,
+            "soft_pedal_depth": 0.3
           }
         },
         {
@@ -13534,7 +13720,9 @@
             "sc_duck_db": 0,
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
-            "sc_release_ms": 150
+            "sc_release_ms": 150,
+            "midi_volume_pan": 1,
+            "soft_pedal_depth": 0.3
           }
         },
         {
@@ -13668,7 +13856,9 @@
             "sc_duck_db": 0,
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
-            "sc_release_ms": 150
+            "sc_release_ms": 150,
+            "midi_volume_pan": 1,
+            "soft_pedal_depth": 0.3
           }
         },
         {
@@ -13802,7 +13992,9 @@
             "sc_duck_db": 0,
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
-            "sc_release_ms": 150
+            "sc_release_ms": 150,
+            "midi_volume_pan": 1,
+            "soft_pedal_depth": 0.3
           }
         },
         {
@@ -13936,7 +14128,9 @@
             "sc_duck_db": 0,
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
-            "sc_release_ms": 150
+            "sc_release_ms": 150,
+            "midi_volume_pan": 1,
+            "soft_pedal_depth": 0.3
           }
         },
         {
@@ -14070,7 +14264,9 @@
             "sc_duck_db": 0,
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
-            "sc_release_ms": 150
+            "sc_release_ms": 150,
+            "midi_volume_pan": 1,
+            "soft_pedal_depth": 0.3
           }
         },
         {
@@ -14223,7 +14419,9 @@
             "sc_duck_db": 0,
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
-            "sc_release_ms": 150
+            "sc_release_ms": 150,
+            "midi_volume_pan": 1,
+            "soft_pedal_depth": 0.3
           }
         }
       ],
@@ -15897,6 +16095,48 @@
           "valueDomain": "real"
         },
         {
+          "id": "midi_volume_pan",
+          "name": "MIDI Volume / Pan",
+          "group": "MIDI",
+          "min": 0,
+          "max": 1,
+          "default": 1,
+          "step": 1,
+          "unit": "",
+          "options": [
+            "Off",
+            "On"
+          ],
+          "description": "On: CC7 Volume and CC11 Expression scale the output (GM curve: value 100 = -4.2 dB, 64 = -11.9 dB, 0 = silent) and CC10 Pan balances it (64 = centre). Both start at full level / centre, so nothing changes until such a CC arrives; Reset All Controllers (CC121) restores Expression only. Off: these CCs are ignored (e.g. when the host already maps them to the track fader).",
+          "slider": 92,
+          "paramIndex": 91,
+          "valueDomain": "real",
+          "enumValues": [
+            {
+              "value": 0,
+              "label": "Off"
+            },
+            {
+              "value": 1,
+              "label": "On"
+            }
+          ]
+        },
+        {
+          "id": "soft_pedal_depth",
+          "name": "Soft Pedal Depth",
+          "group": "MIDI",
+          "min": 0,
+          "max": 0.9,
+          "default": 0.3,
+          "step": 0.001,
+          "unit": "",
+          "description": "While the soft pedal (CC67 >= 64) is down, new notes play with their velocity lowered by this fraction (0.3 = 70 % of the velocity; notes already sounding keep theirs). 0 = the pedal does nothing.",
+          "slider": 93,
+          "paramIndex": 92,
+          "valueDomain": "real"
+        },
+        {
           "id": "string_contact_gain",
           "name": "String Contact Gain",
           "group": "String",
@@ -15906,8 +16146,8 @@
           "step": 0.001,
           "unit": "",
           "description": "Scales only the bachi contact pulse entering the body, independently of displaced-string excitation and continuous bridge drive. 1 preserves the original contact; 0 removes the strike but keeps the vibrating string and body response.",
-          "slider": 92,
-          "paramIndex": 91,
+          "slider": 94,
+          "paramIndex": 93,
           "valueDomain": "real"
         }
       ],
@@ -16002,6 +16242,8 @@
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
             "sc_release_ms": 150,
+            "midi_volume_pan": 1,
+            "soft_pedal_depth": 0.3,
             "string_contact_gain": 1
           }
         },
@@ -16095,6 +16337,8 @@
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
             "sc_release_ms": 150,
+            "midi_volume_pan": 1,
+            "soft_pedal_depth": 0.3,
             "string_contact_gain": 1
           }
         },
@@ -16188,6 +16432,8 @@
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
             "sc_release_ms": 150,
+            "midi_volume_pan": 1,
+            "soft_pedal_depth": 0.3,
             "string_contact_gain": 1
           }
         },
@@ -16281,6 +16527,8 @@
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
             "sc_release_ms": 150,
+            "midi_volume_pan": 1,
+            "soft_pedal_depth": 0.3,
             "string_contact_gain": 1
           }
         },
@@ -16374,6 +16622,8 @@
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
             "sc_release_ms": 150,
+            "midi_volume_pan": 1,
+            "soft_pedal_depth": 0.3,
             "string_contact_gain": 1
           }
         },
@@ -16486,6 +16736,8 @@
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
             "sc_release_ms": 150,
+            "midi_volume_pan": 1,
+            "soft_pedal_depth": 0.3,
             "string_contact_gain": 0.65
           }
         },
@@ -16579,6 +16831,8 @@
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
             "sc_release_ms": 150,
+            "midi_volume_pan": 1,
+            "soft_pedal_depth": 0.3,
             "string_contact_gain": 1
           }
         },
@@ -16672,6 +16926,8 @@
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
             "sc_release_ms": 150,
+            "midi_volume_pan": 1,
+            "soft_pedal_depth": 0.3,
             "string_contact_gain": 1
           }
         },
@@ -16765,6 +17021,8 @@
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
             "sc_release_ms": 150,
+            "midi_volume_pan": 1,
+            "soft_pedal_depth": 0.3,
             "string_contact_gain": 1
           }
         },
@@ -16858,6 +17116,8 @@
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
             "sc_release_ms": 150,
+            "midi_volume_pan": 1,
+            "soft_pedal_depth": 0.3,
             "string_contact_gain": 1
           }
         },
@@ -16951,6 +17211,8 @@
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
             "sc_release_ms": 150,
+            "midi_volume_pan": 1,
+            "soft_pedal_depth": 0.3,
             "string_contact_gain": 1
           }
         },
@@ -17044,6 +17306,8 @@
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
             "sc_release_ms": 150,
+            "midi_volume_pan": 1,
+            "soft_pedal_depth": 0.3,
             "string_contact_gain": 1
           }
         },
@@ -17137,6 +17401,8 @@
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
             "sc_release_ms": 150,
+            "midi_volume_pan": 1,
+            "soft_pedal_depth": 0.3,
             "string_contact_gain": 1
           }
         },
@@ -17230,6 +17496,8 @@
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
             "sc_release_ms": 150,
+            "midi_volume_pan": 1,
+            "soft_pedal_depth": 0.3,
             "string_contact_gain": 1
           }
         },
@@ -17323,6 +17591,8 @@
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
             "sc_release_ms": 150,
+            "midi_volume_pan": 1,
+            "soft_pedal_depth": 0.3,
             "string_contact_gain": 1
           }
         },
@@ -17416,6 +17686,8 @@
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
             "sc_release_ms": 150,
+            "midi_volume_pan": 1,
+            "soft_pedal_depth": 0.3,
             "string_contact_gain": 1
           }
         },
@@ -17509,6 +17781,8 @@
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
             "sc_release_ms": 150,
+            "midi_volume_pan": 1,
+            "soft_pedal_depth": 0.3,
             "string_contact_gain": 1
           }
         },
@@ -17602,6 +17876,8 @@
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
             "sc_release_ms": 150,
+            "midi_volume_pan": 1,
+            "soft_pedal_depth": 0.3,
             "string_contact_gain": 1
           }
         },
@@ -17695,6 +17971,8 @@
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
             "sc_release_ms": 150,
+            "midi_volume_pan": 1,
+            "soft_pedal_depth": 0.3,
             "string_contact_gain": 1
           }
         },
@@ -17788,6 +18066,8 @@
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
             "sc_release_ms": 150,
+            "midi_volume_pan": 1,
+            "soft_pedal_depth": 0.3,
             "string_contact_gain": 1
           }
         },
@@ -17881,6 +18161,8 @@
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
             "sc_release_ms": 150,
+            "midi_volume_pan": 1,
+            "soft_pedal_depth": 0.3,
             "string_contact_gain": 1
           }
         },
@@ -17974,6 +18256,8 @@
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
             "sc_release_ms": 150,
+            "midi_volume_pan": 1,
+            "soft_pedal_depth": 0.3,
             "string_contact_gain": 1
           }
         },
@@ -18067,6 +18351,8 @@
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
             "sc_release_ms": 150,
+            "midi_volume_pan": 1,
+            "soft_pedal_depth": 0.3,
             "string_contact_gain": 1
           }
         },
@@ -18160,6 +18446,8 @@
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
             "sc_release_ms": 150,
+            "midi_volume_pan": 1,
+            "soft_pedal_depth": 0.3,
             "string_contact_gain": 1
           }
         },
@@ -18253,6 +18541,8 @@
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
             "sc_release_ms": 150,
+            "midi_volume_pan": 1,
+            "soft_pedal_depth": 0.3,
             "string_contact_gain": 1
           }
         },
@@ -18346,6 +18636,8 @@
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
             "sc_release_ms": 150,
+            "midi_volume_pan": 1,
+            "soft_pedal_depth": 0.3,
             "string_contact_gain": 1
           }
         },
@@ -18439,6 +18731,8 @@
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
             "sc_release_ms": 150,
+            "midi_volume_pan": 1,
+            "soft_pedal_depth": 0.3,
             "string_contact_gain": 1
           }
         },
@@ -18532,6 +18826,8 @@
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
             "sc_release_ms": 150,
+            "midi_volume_pan": 1,
+            "soft_pedal_depth": 0.3,
             "string_contact_gain": 1
           }
         },
@@ -18625,6 +18921,8 @@
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
             "sc_release_ms": 150,
+            "midi_volume_pan": 1,
+            "soft_pedal_depth": 0.3,
             "string_contact_gain": 1
           }
         },
@@ -18718,6 +19016,8 @@
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
             "sc_release_ms": 150,
+            "midi_volume_pan": 1,
+            "soft_pedal_depth": 0.3,
             "string_contact_gain": 1
           }
         },
@@ -18811,6 +19111,8 @@
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
             "sc_release_ms": 150,
+            "midi_volume_pan": 1,
+            "soft_pedal_depth": 0.3,
             "string_contact_gain": 1
           }
         },
@@ -18904,6 +19206,8 @@
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
             "sc_release_ms": 150,
+            "midi_volume_pan": 1,
+            "soft_pedal_depth": 0.3,
             "string_contact_gain": 1
           }
         },
@@ -18997,6 +19301,8 @@
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
             "sc_release_ms": 150,
+            "midi_volume_pan": 1,
+            "soft_pedal_depth": 0.3,
             "string_contact_gain": 1
           }
         },
@@ -19090,6 +19396,8 @@
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
             "sc_release_ms": 150,
+            "midi_volume_pan": 1,
+            "soft_pedal_depth": 0.3,
             "string_contact_gain": 1
           }
         },
@@ -19183,6 +19491,8 @@
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
             "sc_release_ms": 150,
+            "midi_volume_pan": 1,
+            "soft_pedal_depth": 0.3,
             "string_contact_gain": 1
           }
         },
@@ -19276,6 +19586,8 @@
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
             "sc_release_ms": 150,
+            "midi_volume_pan": 1,
+            "soft_pedal_depth": 0.3,
             "string_contact_gain": 1
           }
         },
@@ -19369,6 +19681,8 @@
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
             "sc_release_ms": 150,
+            "midi_volume_pan": 1,
+            "soft_pedal_depth": 0.3,
             "string_contact_gain": 1
           }
         },
@@ -19462,6 +19776,8 @@
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
             "sc_release_ms": 150,
+            "midi_volume_pan": 1,
+            "soft_pedal_depth": 0.3,
             "string_contact_gain": 1
           }
         },
@@ -19555,6 +19871,8 @@
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
             "sc_release_ms": 150,
+            "midi_volume_pan": 1,
+            "soft_pedal_depth": 0.3,
             "string_contact_gain": 1
           }
         },
@@ -19648,6 +19966,8 @@
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
             "sc_release_ms": 150,
+            "midi_volume_pan": 1,
+            "soft_pedal_depth": 0.3,
             "string_contact_gain": 1
           }
         },
@@ -19741,6 +20061,8 @@
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
             "sc_release_ms": 150,
+            "midi_volume_pan": 1,
+            "soft_pedal_depth": 0.3,
             "string_contact_gain": 1
           }
         },
@@ -19834,6 +20156,8 @@
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
             "sc_release_ms": 150,
+            "midi_volume_pan": 1,
+            "soft_pedal_depth": 0.3,
             "string_contact_gain": 1
           }
         },
@@ -19927,6 +20251,8 @@
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
             "sc_release_ms": 150,
+            "midi_volume_pan": 1,
+            "soft_pedal_depth": 0.3,
             "string_contact_gain": 1
           }
         },
@@ -20020,6 +20346,8 @@
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
             "sc_release_ms": 150,
+            "midi_volume_pan": 1,
+            "soft_pedal_depth": 0.3,
             "string_contact_gain": 1
           }
         },
@@ -20113,6 +20441,8 @@
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
             "sc_release_ms": 150,
+            "midi_volume_pan": 1,
+            "soft_pedal_depth": 0.3,
             "string_contact_gain": 1
           }
         },
@@ -20206,6 +20536,8 @@
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
             "sc_release_ms": 150,
+            "midi_volume_pan": 1,
+            "soft_pedal_depth": 0.3,
             "string_contact_gain": 1
           }
         },
@@ -20299,6 +20631,8 @@
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
             "sc_release_ms": 150,
+            "midi_volume_pan": 1,
+            "soft_pedal_depth": 0.3,
             "string_contact_gain": 1
           }
         },
@@ -20392,6 +20726,8 @@
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
             "sc_release_ms": 150,
+            "midi_volume_pan": 1,
+            "soft_pedal_depth": 0.3,
             "string_contact_gain": 1
           }
         },
@@ -20485,6 +20821,8 @@
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
             "sc_release_ms": 150,
+            "midi_volume_pan": 1,
+            "soft_pedal_depth": 0.3,
             "string_contact_gain": 1
           }
         },
@@ -20578,6 +20916,8 @@
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
             "sc_release_ms": 150,
+            "midi_volume_pan": 1,
+            "soft_pedal_depth": 0.3,
             "string_contact_gain": 1
           }
         },
@@ -20671,6 +21011,8 @@
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
             "sc_release_ms": 150,
+            "midi_volume_pan": 1,
+            "soft_pedal_depth": 0.3,
             "string_contact_gain": 1
           }
         },
@@ -20764,6 +21106,8 @@
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
             "sc_release_ms": 150,
+            "midi_volume_pan": 1,
+            "soft_pedal_depth": 0.3,
             "string_contact_gain": 1
           }
         },
@@ -20857,6 +21201,8 @@
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
             "sc_release_ms": 150,
+            "midi_volume_pan": 1,
+            "soft_pedal_depth": 0.3,
             "string_contact_gain": 1
           }
         },
@@ -20950,6 +21296,8 @@
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
             "sc_release_ms": 150,
+            "midi_volume_pan": 1,
+            "soft_pedal_depth": 0.3,
             "string_contact_gain": 1
           }
         },
@@ -21043,6 +21391,8 @@
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
             "sc_release_ms": 150,
+            "midi_volume_pan": 1,
+            "soft_pedal_depth": 0.3,
             "string_contact_gain": 1
           }
         },
@@ -21136,6 +21486,8 @@
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
             "sc_release_ms": 150,
+            "midi_volume_pan": 1,
+            "soft_pedal_depth": 0.3,
             "string_contact_gain": 1
           }
         },
@@ -21229,6 +21581,8 @@
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
             "sc_release_ms": 150,
+            "midi_volume_pan": 1,
+            "soft_pedal_depth": 0.3,
             "string_contact_gain": 1
           }
         },
@@ -21322,6 +21676,8 @@
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
             "sc_release_ms": 150,
+            "midi_volume_pan": 1,
+            "soft_pedal_depth": 0.3,
             "string_contact_gain": 1
           }
         },
@@ -21415,6 +21771,8 @@
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
             "sc_release_ms": 150,
+            "midi_volume_pan": 1,
+            "soft_pedal_depth": 0.3,
             "string_contact_gain": 1
           }
         },
@@ -21508,6 +21866,8 @@
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
             "sc_release_ms": 150,
+            "midi_volume_pan": 1,
+            "soft_pedal_depth": 0.3,
             "string_contact_gain": 1
           }
         },
@@ -21601,6 +21961,8 @@
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
             "sc_release_ms": 150,
+            "midi_volume_pan": 1,
+            "soft_pedal_depth": 0.3,
             "string_contact_gain": 1
           }
         },
@@ -21694,6 +22056,8 @@
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
             "sc_release_ms": 150,
+            "midi_volume_pan": 1,
+            "soft_pedal_depth": 0.3,
             "string_contact_gain": 1
           }
         },
@@ -21787,6 +22151,8 @@
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
             "sc_release_ms": 150,
+            "midi_volume_pan": 1,
+            "soft_pedal_depth": 0.3,
             "string_contact_gain": 1
           }
         },
@@ -21880,6 +22246,8 @@
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
             "sc_release_ms": 150,
+            "midi_volume_pan": 1,
+            "soft_pedal_depth": 0.3,
             "string_contact_gain": 1
           }
         },
@@ -21973,6 +22341,8 @@
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
             "sc_release_ms": 150,
+            "midi_volume_pan": 1,
+            "soft_pedal_depth": 0.3,
             "string_contact_gain": 1
           }
         },
@@ -22066,6 +22436,8 @@
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
             "sc_release_ms": 150,
+            "midi_volume_pan": 1,
+            "soft_pedal_depth": 0.3,
             "string_contact_gain": 1
           }
         },
@@ -22159,6 +22531,8 @@
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
             "sc_release_ms": 150,
+            "midi_volume_pan": 1,
+            "soft_pedal_depth": 0.3,
             "string_contact_gain": 1
           }
         },
@@ -22252,6 +22626,8 @@
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
             "sc_release_ms": 150,
+            "midi_volume_pan": 1,
+            "soft_pedal_depth": 0.3,
             "string_contact_gain": 1
           }
         },
@@ -22345,6 +22721,8 @@
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
             "sc_release_ms": 150,
+            "midi_volume_pan": 1,
+            "soft_pedal_depth": 0.3,
             "string_contact_gain": 1
           }
         },
@@ -22438,6 +22816,8 @@
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
             "sc_release_ms": 150,
+            "midi_volume_pan": 1,
+            "soft_pedal_depth": 0.3,
             "string_contact_gain": 1
           }
         },
@@ -22550,6 +22930,8 @@
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
             "sc_release_ms": 150,
+            "midi_volume_pan": 1,
+            "soft_pedal_depth": 0.3,
             "string_contact_gain": 1
           }
         },
@@ -22643,6 +23025,8 @@
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
             "sc_release_ms": 150,
+            "midi_volume_pan": 1,
+            "soft_pedal_depth": 0.3,
             "string_contact_gain": 1
           }
         },
@@ -22736,6 +23120,8 @@
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
             "sc_release_ms": 150,
+            "midi_volume_pan": 1,
+            "soft_pedal_depth": 0.3,
             "string_contact_gain": 1
           }
         },
@@ -22829,6 +23215,8 @@
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
             "sc_release_ms": 150,
+            "midi_volume_pan": 1,
+            "soft_pedal_depth": 0.3,
             "string_contact_gain": 1
           }
         },
@@ -22922,6 +23310,8 @@
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
             "sc_release_ms": 150,
+            "midi_volume_pan": 1,
+            "soft_pedal_depth": 0.3,
             "string_contact_gain": 1
           }
         },
@@ -23015,6 +23405,8 @@
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
             "sc_release_ms": 150,
+            "midi_volume_pan": 1,
+            "soft_pedal_depth": 0.3,
             "string_contact_gain": 1
           }
         },
@@ -23108,6 +23500,8 @@
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
             "sc_release_ms": 150,
+            "midi_volume_pan": 1,
+            "soft_pedal_depth": 0.3,
             "string_contact_gain": 1
           }
         },
@@ -23201,6 +23595,8 @@
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
             "sc_release_ms": 150,
+            "midi_volume_pan": 1,
+            "soft_pedal_depth": 0.3,
             "string_contact_gain": 1
           }
         },
@@ -23294,6 +23690,8 @@
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
             "sc_release_ms": 150,
+            "midi_volume_pan": 1,
+            "soft_pedal_depth": 0.3,
             "string_contact_gain": 1
           }
         },
@@ -23387,6 +23785,8 @@
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
             "sc_release_ms": 150,
+            "midi_volume_pan": 1,
+            "soft_pedal_depth": 0.3,
             "string_contact_gain": 1
           }
         },
@@ -23480,6 +23880,8 @@
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
             "sc_release_ms": 150,
+            "midi_volume_pan": 1,
+            "soft_pedal_depth": 0.3,
             "string_contact_gain": 1
           }
         },
@@ -23573,6 +23975,8 @@
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
             "sc_release_ms": 150,
+            "midi_volume_pan": 1,
+            "soft_pedal_depth": 0.3,
             "string_contact_gain": 1
           }
         },
@@ -23666,6 +24070,8 @@
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
             "sc_release_ms": 150,
+            "midi_volume_pan": 1,
+            "soft_pedal_depth": 0.3,
             "string_contact_gain": 1
           }
         },
@@ -23778,6 +24184,8 @@
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
             "sc_release_ms": 150,
+            "midi_volume_pan": 1,
+            "soft_pedal_depth": 0.3,
             "string_contact_gain": 1
           }
         },
@@ -23871,6 +24279,8 @@
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
             "sc_release_ms": 150,
+            "midi_volume_pan": 1,
+            "soft_pedal_depth": 0.3,
             "string_contact_gain": 1
           }
         },
@@ -23964,6 +24374,8 @@
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
             "sc_release_ms": 150,
+            "midi_volume_pan": 1,
+            "soft_pedal_depth": 0.3,
             "string_contact_gain": 1
           }
         },
@@ -24057,6 +24469,8 @@
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
             "sc_release_ms": 150,
+            "midi_volume_pan": 1,
+            "soft_pedal_depth": 0.3,
             "string_contact_gain": 1
           }
         },
@@ -24150,6 +24564,8 @@
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
             "sc_release_ms": 150,
+            "midi_volume_pan": 1,
+            "soft_pedal_depth": 0.3,
             "string_contact_gain": 1
           }
         },
@@ -24243,6 +24659,8 @@
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
             "sc_release_ms": 150,
+            "midi_volume_pan": 1,
+            "soft_pedal_depth": 0.3,
             "string_contact_gain": 1
           }
         },
@@ -24336,6 +24754,8 @@
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
             "sc_release_ms": 150,
+            "midi_volume_pan": 1,
+            "soft_pedal_depth": 0.3,
             "string_contact_gain": 1
           }
         },
@@ -24429,6 +24849,8 @@
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
             "sc_release_ms": 150,
+            "midi_volume_pan": 1,
+            "soft_pedal_depth": 0.3,
             "string_contact_gain": 1
           }
         },
@@ -24522,6 +24944,8 @@
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
             "sc_release_ms": 150,
+            "midi_volume_pan": 1,
+            "soft_pedal_depth": 0.3,
             "string_contact_gain": 1
           }
         },
@@ -24634,6 +25058,8 @@
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
             "sc_release_ms": 150,
+            "midi_volume_pan": 1,
+            "soft_pedal_depth": 0.3,
             "string_contact_gain": 1
           }
         },
@@ -24746,6 +25172,8 @@
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
             "sc_release_ms": 150,
+            "midi_volume_pan": 1,
+            "soft_pedal_depth": 0.3,
             "string_contact_gain": 1
           }
         },
@@ -24858,6 +25286,8 @@
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
             "sc_release_ms": 150,
+            "midi_volume_pan": 1,
+            "soft_pedal_depth": 0.3,
             "string_contact_gain": 1
           }
         },
@@ -24970,6 +25400,8 @@
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
             "sc_release_ms": 150,
+            "midi_volume_pan": 1,
+            "soft_pedal_depth": 0.3,
             "string_contact_gain": 1
           }
         },
@@ -25082,6 +25514,8 @@
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
             "sc_release_ms": 150,
+            "midi_volume_pan": 1,
+            "soft_pedal_depth": 0.3,
             "string_contact_gain": 1
           }
         },
@@ -25194,6 +25628,8 @@
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
             "sc_release_ms": 150,
+            "midi_volume_pan": 1,
+            "soft_pedal_depth": 0.3,
             "string_contact_gain": 1
           }
         },
@@ -25306,6 +25742,8 @@
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
             "sc_release_ms": 150,
+            "midi_volume_pan": 1,
+            "soft_pedal_depth": 0.3,
             "string_contact_gain": 1
           }
         },
@@ -25418,6 +25856,8 @@
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
             "sc_release_ms": 150,
+            "midi_volume_pan": 1,
+            "soft_pedal_depth": 0.3,
             "string_contact_gain": 1
           }
         },
@@ -25530,6 +25970,8 @@
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
             "sc_release_ms": 150,
+            "midi_volume_pan": 1,
+            "soft_pedal_depth": 0.3,
             "string_contact_gain": 1
           }
         },
@@ -25642,6 +26084,8 @@
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
             "sc_release_ms": 150,
+            "midi_volume_pan": 1,
+            "soft_pedal_depth": 0.3,
             "string_contact_gain": 1
           }
         },
@@ -25754,6 +26198,8 @@
             "sc_input_gain_db": 0,
             "sc_attack_ms": 1,
             "sc_release_ms": 150,
+            "midi_volume_pan": 1,
+            "soft_pedal_depth": 0.3,
             "string_contact_gain": 1
           }
         }
@@ -27656,6 +28102,34 @@
           "slider": 128,
           "paramIndex": 127,
           "valueDomain": "real"
+        },
+        {
+          "id": "midi_volume_pan",
+          "name": "MIDI Volume / Pan",
+          "group": "MIDI",
+          "min": 0,
+          "max": 1,
+          "default": 1,
+          "step": 1,
+          "unit": "",
+          "options": [
+            "Off",
+            "On"
+          ],
+          "description": "On: CC7 Volume and CC11 Expression scale the output (GM curve: value 100 = -4.2 dB, 64 = -11.9 dB, 0 = silent) and CC10 Pan balances it (64 = centre). Both start at full level / centre, so nothing changes until such a CC arrives; Reset All Controllers (CC121) restores Expression only. Off: these CCs are ignored (e.g. when the host already maps them to the track fader).",
+          "slider": 129,
+          "paramIndex": 128,
+          "valueDomain": "real",
+          "enumValues": [
+            {
+              "value": 0,
+              "label": "Off"
+            },
+            {
+              "value": 1,
+              "label": "On"
+            }
+          ]
         }
       ],
       "presets": [
@@ -27791,7 +28265,8 @@
             "cuica_decay_ms": 450,
             "cuica_tone": 0.6,
             "cuica_level_db": -8,
-            "cuica_pan": -0.1
+            "cuica_pan": -0.1,
+            "midi_volume_pan": 1
           }
         },
         {
@@ -27926,7 +28401,8 @@
             "cuica_decay_ms": 450,
             "cuica_tone": 0.6,
             "cuica_level_db": -8,
-            "cuica_pan": -0.1
+            "cuica_pan": -0.1,
+            "midi_volume_pan": 1
           }
         },
         {
@@ -28061,7 +28537,8 @@
             "cuica_decay_ms": 450,
             "cuica_tone": 0.6,
             "cuica_level_db": -8,
-            "cuica_pan": -0.1
+            "cuica_pan": -0.1,
+            "midi_volume_pan": 1
           }
         },
         {
@@ -28196,7 +28673,8 @@
             "cuica_decay_ms": 450,
             "cuica_tone": 0.6,
             "cuica_level_db": -8,
-            "cuica_pan": -0.1
+            "cuica_pan": -0.1,
+            "midi_volume_pan": 1
           }
         },
         {
@@ -28331,7 +28809,8 @@
             "cuica_decay_ms": 450,
             "cuica_tone": 0.6,
             "cuica_level_db": -8,
-            "cuica_pan": -0.1
+            "cuica_pan": -0.1,
+            "midi_volume_pan": 1
           }
         },
         {
@@ -28466,7 +28945,8 @@
             "cuica_decay_ms": 450,
             "cuica_tone": 0.6,
             "cuica_level_db": -8,
-            "cuica_pan": -0.1
+            "cuica_pan": -0.1,
+            "midi_volume_pan": 1
           }
         },
         {
@@ -28601,7 +29081,8 @@
             "cuica_decay_ms": 450,
             "cuica_tone": 0.6,
             "cuica_level_db": -8,
-            "cuica_pan": -0.1
+            "cuica_pan": -0.1,
+            "midi_volume_pan": 1
           }
         },
         {
@@ -28736,7 +29217,8 @@
             "cuica_decay_ms": 450,
             "cuica_tone": 0.6,
             "cuica_level_db": -8,
-            "cuica_pan": -0.1
+            "cuica_pan": -0.1,
+            "midi_volume_pan": 1
           }
         }
       ],

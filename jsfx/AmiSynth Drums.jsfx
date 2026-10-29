@@ -136,6 +136,7 @@ slider125:cuica_decay_ms=450<100,1500,1>Cuica Decay [ms]
 slider126:cuica_tone=0.6<0,1,0.001>Cuica Tone
 slider127:cuica_level_db=-8<-60,6,0.1>Cuica Level [dB]
 slider128:cuica_pan=-0.1<-1,1,0.01>Cuica Pan
+slider129:midi_volume_pan=1<0,1,1{Off,On}>MIDI Volume / Pan
 // </generated sliders>
 
 import amisynth_lib.jsfx-inc
@@ -159,6 +160,7 @@ out_pin:Toms/Perc R
 meter.meter_init();
 kick_meter.meter_init(); snare_meter.meter_init(); hats_meter.meter_init(); perc_meter.meter_init();
 noise_seed(12345);
+mix.midi_mix_init();
 
 // ---- metallic cymbal circuit: 6 detuned squares (808 ratios) + noise -> BP -> HP
 function hat_init() instance(value choke vel mul) (
@@ -487,6 +489,7 @@ function note_on(note, velocity) local(vel, vgain, dmul, ms) (
 
 @slider
 master_gain = db_to_gain(drum_master_volume_db);
+mix.midi_mix_enable(midi_volume_pan >= 0.5);
 main_kick = kick_bus_in_main >= 0.5 ? 1 : 0;
 main_snare = snare_bus_in_main >= 0.5 ? 1 : 0;
 main_hats = hats_bus_in_main >= 0.5 ? 1 : 0;
@@ -588,7 +591,11 @@ midi_queue_read();
 
 @sample
 while (midi_pop()) (
-  (midi_m1 & 0xF0) === 0x90 && midi_m3 > 0 ? note_on(midi_m2, midi_m3);
+  (midi_m1 & 0xF0) === 0x90 && midi_m3 > 0 ? note_on(midi_m2, midi_m3)
+  : (midi_m1 & 0xF0) === 0xB0 ? (
+    mix.midi_mix_cc(midi_m2, midi_m3);
+    midi_m2 === 121 ? mix.midi_mix_reset();
+  );
 );
 midi_tick();
 
@@ -774,11 +781,13 @@ cuica.env.value > 0 ? (
   perc_r += y * cuica.gr;
 );
 
-g = master_gain * 0.8;
+// MIDI Volume / Expression on every output, Pan on the main mix only
+mix.midi_mix_tick();
+g = master_gain * 0.8 * mix.g;
 l = kick_l * main_kick + sn_l * main_snare + hat_l * main_hats + perc_l * main_perc;
 r = kick_r * main_kick + sn_r * main_snare + hat_r * main_hats + perc_r * main_perc;
-spl0 = soft_clip(l * g);
-spl1 = soft_clip(r * g);
+spl0 = soft_clip(l * g * mix.bl);
+spl1 = soft_clip(r * g * mix.br);
 spl2 = soft_clip(kick_l * g);
 spl3 = soft_clip(kick_r * g);
 spl4 = soft_clip(sn_l * g);

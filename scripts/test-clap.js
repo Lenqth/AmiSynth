@@ -1,4 +1,4 @@
-// Runs the JSFX-vs-JS comparison (tests/jsfx.test.js) through the AmiSynth CLAP plugin, loaded by
+// Runs the JSFX-vs-JS comparisons (tests/jsfx.test.js, tests/midi-cc.test.js) through the AmiSynth CLAP plugin, loaded by
 // clap/tools/clap_render the way a DAW loads it. Build it first: npm run clap:build
 import { spawnSync } from 'node:child_process';
 import { existsSync, mkdtempSync } from 'node:fs';
@@ -20,5 +20,6 @@ const env = {
   ...process.env, JSFX_RENDER: render, JSFX_METER_CHECK: join(build, 'no-meter-check'), AMISYNTH_CLAP: plugin,
   AMISYNTH_JSFX_HOST: 'ysfx-s', XDG_DATA_HOME: home, LOCALAPPDATA: home, HOME: home,
 };
-const r = spawnSync(process.execPath, ['--test', join(root, 'tests', 'jsfx.test.js')], { stdio: 'inherit', env });
+const tests = ['jsfx.test.js', 'midi-cc.test.js'].map((f) => join(root, 'tests', f));
+const r = spawnSync(process.execPath, ['--test', ...tests], { stdio: 'inherit', env });
 process.exit(r.status ?? 1);
