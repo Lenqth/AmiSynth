@@ -572,8 +572,11 @@ export const PHYS_PARAMS = /** @type {ParamDef[]} */ ([
     description: 'Lowest MIDI key of the 24 consecutive sympathetic scale degrees. Follows the instrument tuning, including custom/shared scales; does not follow pitch bend. Choose the range for the piece.' },
   { id: 'amp_auto_level', name: 'Amp Auto Level', group: 'Amp', min: 0, max: 1, default: 0, step: 1, unit: '', options: ['Off', 'On'],
     description: 'On: the amp keeps about the loudness of the instrument without the amp, whatever the Amp type and Amp Gain (more gain = more distortion, not louder); Amp Level then trims from there. Off: the louder the gain, the louder the output (set Amp Level by ear).' },
-  ...SIDECHAIN_PARAMS,  ...MIDI_MIXER_PARAMS,
+  ...SIDECHAIN_PARAMS,
+  ...MIDI_MIXER_PARAMS,
   ...SOFT_PEDAL_PARAMS,
+  { id: 'string_contact_gain', name: 'String Contact Gain', group: 'String', min: 0, max: 2, default: 1, step: 0.001, unit: '',
+    description: 'Scales only the bachi contact pulse entering the body, independently of displaced-string excitation and continuous bridge drive. 1 preserves the original contact; 0 removes the strike but keeps the vibrating string and body response.' },
 ]);
 
 // ---------------------------------------------------------------------------

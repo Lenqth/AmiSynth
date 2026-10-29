@@ -175,6 +175,8 @@ test('JSFX physical model matches JS with stress settings (vibrato, voice steali
     ['musette', { phys_model: 3, wind_type: 4, free_reed_detune_cents: 18, wind_embouchure: 1, tuning_divisions: 19 }],
     ['sitar sawari', { phys_model: 0, string_sawari: 1, string_damping: 0.1, string_decay_ms: 8000, phys_vibrato_cents: 20 }],
     ['bachi body', { phys_model: 0, string_plectrum: 1, string_plectrum_hardness: 1, string_body_mix: 1, string_sawari: 0.4 }],
+    ['independent bachi contact', { phys_model: 0, string_plectrum: 0.8, string_plectrum_hardness: 1, string_body_mix: 0.65, string_contact_gain: 0.35 }],
+    ['muted bachi contact', { phys_model: 0, string_plectrum: 0.8, string_body_mix: 0.65, string_contact_gain: 0 }],
     ['sympathetic bank', { phys_model: 0, string_sympathetic_mix: 1, string_sympathetic_decay_ms: 10000, string_sympathetic_root: 48, tuning_divisions: 19 }],
     ['circular mesh', { phys_model: 4, mesh_shape: 0, mesh_size: 16, mesh_high_damping: 1, mesh_hardness: 1 }],
     ['square mesh', { phys_model: 4, mesh_shape: 1, mesh_size: 7, mesh_strike_x: 0.9, mesh_strike_y: 0.1 }],
