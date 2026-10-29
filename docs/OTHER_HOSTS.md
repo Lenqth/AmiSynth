@@ -23,7 +23,7 @@ npm run install:clap -- --build
 ```
 
 - 既にビルド済み(`npm run clap:build`)なら `--build` は不要です。
-- ビルドせずに、GitHub の Actions → **CLAP plugin** の実行結果から OS に合った `AmiSynth-clap-…`(Windows x64 / macOS Universal / Linux x64)をダウンロードして使う場合は、展開した `AmiSynth.clap` を `--plugin` で指定します: `npm run install:clap -- --plugin "<展開したフォルダ>/AmiSynth.clap"`
+- ビルドせずに、[Releases](https://github.com/Lenqth/AmiSynth/releases) から OS に合った `AmiSynth-clap-<版>-…zip`(Windows x64 / macOS Universal / Linux x64)をダウンロードして使う場合は、展開した `AmiSynth.clap` を `--plugin` で指定します: `npm run install:clap -- --plugin "<展開したフォルダ>/AmiSynth.clap"`。リリース前の最新版は Actions → **CLAP plugin** の実行結果にあります
 - コピー先は次のとおりです。別の場所に入れるときは `--dest "<フォルダ>"` を付けます。
   - Windows: `%LOCALAPPDATA%\Programs\Common\CLAP\`。DAW がここを探さない場合は、管理者として `--dest "C:\Program Files\Common Files\CLAP"` で入れます。
   - macOS: `~/Library/Audio/Plug-Ins/CLAP/`。署名していないため、スクリプトがダウンロード時の隔離属性(`com.apple.quarantine`)を外します。

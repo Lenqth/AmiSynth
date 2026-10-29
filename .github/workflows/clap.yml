@@ -7,6 +7,8 @@ on:
   pull_request:
     paths: ['clap/**', 'jsfx/**', 'scripts/test-clap.js', 'scripts/install-clap.js', 'tests/clap.test.js', 'tests/jsfx.test.js', '.github/workflows/clap.yml']
   workflow_dispatch:
+  # release.yml reuses these builds for the release assets
+  workflow_call:
 
 jobs:
   build:
@@ -64,3 +66,16 @@ jobs:
         with:
           name: AmiSynth-clap-${{ matrix.name }}
           path: dist-clap
+      # Zipped here because artifacts drop file modes, which the macOS bundle needs
+      - name: Zip (release asset)
+        shell: bash
+        run: |
+          zip=AmiSynth-clap-${{ matrix.name }}.zip
+          if [ "$RUNNER_OS" = macOS ]; then ditto -c -k dist-clap "$zip"
+          elif [ "$RUNNER_OS" = Windows ]; then (cd dist-clap && 7z a -tzip "../$zip" .)
+          else (cd dist-clap && zip -qr "../$zip" .); fi
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-clap-${{ matrix.name }}
+          path: AmiSynth-clap-${{ matrix.name }}.zip
+          compression-level: 0

@@ -28,6 +28,8 @@ DSP はすべて「サンプル単位の素直なループ」で書かれてい�
 
 `jsfx/` に Synth / Physical / Drums / Tuning の 4 つの JSFX があります。REAPER 6.74 以降が必要です。
 
+[Releases](https://github.com/Lenqth/AmiSynth/releases) の `AmiSynth-jsfx-<版>.zip` は REAPER のリソースフォルダと同じ構成なので、Options → Show REAPER resource path で開いたフォルダにそのまま展開すれば使えます。リポジトリから入れる場合は次のとおりです。
+
 ```sh
 # 配置先を確認してから (--dry-run を外して) コピーする
 npm run install:reaper -- --resource "REAPERのリソースパス" --dry-run
@@ -208,6 +210,8 @@ npm run audition:preset -- synth --preset "Formant Half-time Bass" --out .cache/
                           # 固定 MIDI・WAV・測定値を保存
 npm run audition:timbre   # WAV・MIDI・プリセット JSON・試聴ページを生成
 ```
+
+**リリース**: `package.json` と `clap/CMakeLists.txt` の version を上げてから `v<版>` のタグ (例: `v0.1.0`) を push すると、`.github/workflows/release.yml` が JSFX の zip と 3 OS の CLAP の zip を作り、GitHub Release に添付します (説明文は `.github/release-notes.md` + 自動生成の変更一覧)。タグと version が食い違うと失敗します。Actions から手動実行すると、公開せずに同じ zip を作るだけです。
 
 ### 構成
 
