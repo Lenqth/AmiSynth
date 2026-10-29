@@ -1,0 +1,86 @@
+name: Release
+
+# Push a tag like v0.1.0 to publish AmiSynth-jsfx-<version>.zip and the CLAP zips as a GitHub release.
+# Run it from the Actions tab (workflow_dispatch) to build the same assets without publishing.
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  version:
+    runs-on: ubuntu-22.04
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: v
+        name: Check the tag against package.json and clap/CMakeLists.txt
+        run: |
+          pkg=$(node -p "require('./package.json').version")
+          cmake=$(sed -nE 's/^project\(amisynth_clap VERSION ([0-9.]+).*/\1/p' clap/CMakeLists.txt)
+          if [ "$pkg" != "$cmake" ]; then echo "::error::package.json ($pkg) and clap/CMakeLists.txt ($cmake) differ"; exit 1; fi
+          if [ "$GITHUB_REF_TYPE" = tag ] && [ "$GITHUB_REF_NAME" != "v$pkg" ]; then
+            echo "::error::tag $GITHUB_REF_NAME does not match version $pkg (expected v$pkg)"; exit 1
+          fi
+          echo "version=$pkg" >> "$GITHUB_OUTPUT"
+
+  clap:
+    uses: ./.github/workflows/clap.yml
+
+  jsfx:
+    needs: version
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Generated slider blocks are up to date
+        run: |
+          npm run gen:jsfx
+          git diff --exit-code -- jsfx
+      - run: npm run check:catalogs
+      - run: npm test
+      - name: Package (laid out like the REAPER resource folder)
+        run: |
+          out="$RUNNER_TEMP/AmiSynth-jsfx"
+          mkdir -p "$out"
+          npm run install:reaper -- --resource "$out"
+          cp LICENSE "$out/Effects/AmiSynth/LICENSE.txt"
+          cd "$out" && zip -qr "$GITHUB_WORKSPACE/AmiSynth-jsfx-${{ needs.version.outputs.version }}.zip" .
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-jsfx
+          path: AmiSynth-jsfx-*.zip
+          compression-level: 0
+
+  publish:
+    needs: [version, clap, jsfx]
+    if: github.ref_type == 'tag'
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: release-*
+          path: assets
+          merge-multiple: true
+      - name: Rename the CLAP zips with the version
+        run: |
+          cd assets
+          for f in AmiSynth-clap-*.zip; do mv "$f" "${f/AmiSynth-clap-/AmiSynth-clap-${{ needs.version.outputs.version }}-}"; done
+          ls -l
+      - name: Create the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" assets/*.zip --verify-tag --title "AmiSynth $GITHUB_REF_NAME" \
+            --notes-file .github/release-notes.md --generate-notes
