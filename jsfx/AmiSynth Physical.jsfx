@@ -102,6 +102,8 @@ slider88:sc_duck_db=0<0,48,0.1>Sidechain Duck [dB]
 slider89:sc_input_gain_db=0<-24,24,0.1>Sidechain Input Gain [dB]
 slider90:sc_attack_ms=1<0.1,100,0.1>Sidechain Attack [ms]
 slider91:sc_release_ms=150<10,2000,1>Sidechain Release [ms]
+slider92:midi_volume_pan=1<0,1,1{Off,On}>MIDI Volume / Pan
+slider93:soft_pedal_depth=0.3<0,0.9,0.001>Soft Pedal Depth
 // </generated sliders>
 
 import amisynth_lib.jsfx-inc
@@ -316,7 +318,11 @@ v_active = mem_alloc(MAX_VOICES);
 v_note = mem_alloc(MAX_VOICES);
 v_gate = mem_alloc(MAX_VOICES);
 v_sus = mem_alloc(MAX_VOICES);
+v_sost = mem_alloc(MAX_VOICES); // key was down when the sostenuto pedal went down
 sustain_pedal = 0;
+sostenuto = 0;
+soft_pedal = 0;
+mix.midi_mix_init();
 v_age = mem_alloc(MAX_VOICES);
 age_counter = 0;
 bend_ratio = 1;
@@ -1389,7 +1395,7 @@ function vcall(i, op, a, b) (
 i = 0;
 loop(MAX_VOICES,
   vcall(i, 0, i, 0);
-  v_active[i] = 0; v_note[i] = -1; v_gate[i] = 0; v_sus[i] = 0; v_age[i] = 0;
+  v_active[i] = 0; v_note[i] = -1; v_gate[i] = 0; v_sus[i] = 0; v_sost[i] = 0; v_age[i] = 0;
   i += 1;
 );
 
@@ -1411,18 +1417,43 @@ function sustain_enabled(m, material) (
     (m === MODEL_MODAL && floor(material + 0.5) !== 5)));
 );
 
-function flush_sustain(release_override, mesh_override) local(i) (
+/** releases the notes held by the pedals; keep_sost: not those the sostenuto pedal still holds */
+function flush_sustain(release_override, mesh_override, keep_sost) local(i) (
   i = 0;
   loop(MAX_VOICES,
-    v_sus[i] && v_active[i] ? vcall(i, 2, release_override, mesh_override);
-    v_sus[i] = 0;
+    !(keep_sost && v_sost[i]) ? (
+      v_sus[i] && v_active[i] ? vcall(i, 2, release_override, mesh_override);
+      v_sus[i] = 0;
+      v_sost[i] = 0;
+    );
     i += 1;
   );
 );
 
 function sustain(on) (
   sustain_pedal = on ? 1 : 0;
-  !sustain_pedal ? flush_sustain(0, 0);
+  !sustain_pedal ? flush_sustain(0, 0, sostenuto);
+);
+
+/** sostenuto (CC66): holds the notes whose keys are down when it goes down, until it comes up */
+function sostenuto_pedal(on) local(i) (
+  on && !sostenuto ? (
+    i = 0;
+    loop(MAX_VOICES, v_active[i] && v_gate[i] ? v_sost[i] = 1; i += 1;);
+  ) : !on && sostenuto ? (
+    i = 0;
+    loop(MAX_VOICES,
+      v_sost[i] ? (
+        v_sost[i] = 0;
+        v_sus[i] && !sustain_pedal ? (
+          v_sus[i] = 0;
+          v_active[i] ? vcall(i, 2, 0, 0);
+        );
+      );
+      i += 1;
+    );
+  );
+  sostenuto = on ? 1 : 0;
 );
 
 function note_off(note) local(i) (
@@ -1430,7 +1461,7 @@ function note_off(note) local(i) (
   loop(MAX_VOICES,
     v_active[i] && v_gate[i] && v_note[i] === note ? (
       v_gate[i] = 0;
-      sustain_pedal && sustain_enabled(model, modal_material) ? v_sus[i] = 1 : vcall(i, 2, 0, 0);
+      (sustain_pedal || v_sost[i]) && sustain_enabled(model, modal_material) ? v_sus[i] = 1 : vcall(i, 2, 0, 0);
     );
     i += 1;
   );
@@ -1447,18 +1478,20 @@ function note_on(note, velocity) local(i, idx, limit) (
     v_active[idx] = 1;
     v_gate[idx] = 1;
     v_sus[idx] = 0;
+    v_sost[idx] = 0;
     age_counter += 1;
     v_age[idx] = age_counter;
-    vcall(idx, 1, note, velocity);
+    vcall(idx, 1, note, soft_pedal ? velocity * (1 - soft_pedal_depth) : velocity);
   );
 );
 
 function all_notes_off() local(i) (
   sustain_pedal = 0;
+  sostenuto = 0;
   i = 0;
   loop(MAX_VOICES,
     v_active[i] && (v_gate[i] || v_sus[i]) ? vcall(i, 2, 0, 0);
-    v_gate[i] = 0; v_sus[i] = 0;
+    v_gate[i] = 0; v_sus[i] = 0; v_sost[i] = 0;
     i += 1;
   );
 );
@@ -1495,17 +1528,23 @@ function handle_midi(m1, m2, m3) local(type) (
   : type === 0xD0 ? channel_pressure(m2 / 127) // channel pressure (one data byte)
   : type === 0xA0 ? poly_pressure(m2, m3 / 127) // polyphonic aftertouch
   : type === 0xB0 ? (
+    mix.midi_mix_cc(m2, m3);
     m2 === 64 ? sustain(m3 >= 64)
+    : m2 === 66 ? sostenuto_pedal(m3 >= 64)
+    : m2 === 67 ? (soft_pedal = m3 >= 64 ? 1 : 0)
     : m2 === 1 ? modwheel = clamp(m3 / 127, 0, 1)
     : m2 === 120 || m2 === 123 ? all_notes_off()
-    : m2 === 121 ? (sustain(0); pitch_bend(0); pressure_reset(););
+    : m2 === 121 ? (
+      sustain(0); sostenuto_pedal(0); soft_pedal = 0;
+      pitch_bend(0); pressure_reset(); mix.midi_mix_reset();
+    );
   );
 );
 
 @slider
 // Release deferred notes with the previous model before changing the voice engine.
 (floor(phys_model + 0.5) !== model || (floor(phys_model + 0.5) === MODEL_MODAL && modal_material !== pedal_material) ||
-  !sustain_enabled(floor(phys_model + 0.5), modal_material)) ? flush_sustain(pedal_release, pedal_mesh_decay);
+  !sustain_enabled(floor(phys_model + 0.5), modal_material)) ? flush_sustain(pedal_release, pedal_mesh_decay, 0);
 pedal_material = modal_material;
 pedal_release = phys_release_ms;
 pedal_mesh_decay = mesh_decay_ms;
@@ -1524,6 +1563,7 @@ fr_det = pow(2, free_reed_detune_cents / 1200);
 fr_n = free_reed_detune_cents > 0 ? 3 : 1;
 saw_c = 0.8 - 0.55 * string_sawari;
 sc.sidechain_set(sc_input_gain_db, sc_attack_ms, sc_release_ms, sc_duck_db);
+mix.midi_mix_enable(midi_volume_pan >= 0.5);
 saw_env_c = exp(-1 / (0.03 * srate));
 saw_dc_a = 1 - exp((-2 * $pi * 5) / srate);
 saw_m_a = 1 - exp(-1 / (0.02 * srate));
@@ -1627,8 +1667,11 @@ phys_room_mix > 0 ? (
 
 g = out_gain * 0.5;
 sc.duck_db > 0 ? g *= sc.sidechain_duck_gain(sc.sidechain_process(spl2, spl3));
-spl0 = soft_clip(dc.onepole_hp(mix_l) * g);
-spl1 = soft_clip(dc_r.onepole_hp(mix_r) * g);
+// MIDI Volume / Expression / Pan
+mix.midi_mix_tick();
+g *= mix.g;
+spl0 = soft_clip(dc.onepole_hp(mix_l) * g * mix.bl);
+spl1 = soft_clip(dc_r.onepole_hp(mix_r) * g * mix.br);
 meter.meter_tick(spl0, spl1);
 
 @gfx 520 185

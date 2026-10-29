@@ -376,6 +376,63 @@ export function sidechain_duck_gain(o, e) {
 }
 
 // ----------------------------------------------------------------------------
+// MIDI channel mixer: CC7 Volume, CC11 Expression and CC10 Pan on the instrument's output.
+// Volume and expression follow the GM curve (gain = (value / 127)^2, i.e. 40 log10); pan is a
+// balance (centre = both sides at full level, the far side fades with a quarter cosine). Both
+// start at full level / centre, so nothing changes until a CC arrives. on = 0 ignores the CCs.
+// g / bl / br glide to their targets (20 ms) so a CC does not click.
+
+export function midi_mix_init(o, sr) {
+  o.on = 1;
+  o.vol = 1;
+  o.expr = 1;
+  o.pan = 0;
+  o.g = 1;
+  o.bl = 1;
+  o.br = 1;
+  o.g_t = 1;
+  o.bl_t = 1;
+  o.br_t = 1;
+  o.c = tau_coef(20, sr);
+}
+
+function midi_mix_targets(o) {
+  const a = o.on ? o.pan : 0;
+  o.g_t = o.on ? o.vol * o.expr : 1;
+  o.bl_t = a > 0 ? Math.cos(a * 0.5 * PI) : 1;
+  o.br_t = a < 0 ? Math.cos(-a * 0.5 * PI) : 1;
+}
+
+/** CC7 / CC10 / CC11 (other numbers are ignored). */
+export function midi_mix_cc(o, number, value) {
+  const x = clamp(value / 127, 0, 1);
+  if (number === 7) o.vol = x * x;
+  else if (number === 11) o.expr = x * x;
+  else if (number === 10) o.pan = clamp((value - 64) / 63, -1, 1);
+  else return;
+  midi_mix_targets(o);
+}
+
+/** The instrument's "MIDI Volume / Pan" switch. */
+export function midi_mix_enable(o, on) {
+  o.on = on ? 1 : 0;
+  midi_mix_targets(o);
+}
+
+/** Reset All Controllers (CC121): expression back to full; volume and pan stay (GM RP-015). */
+export function midi_mix_reset(o) {
+  o.expr = 1;
+  midi_mix_targets(o);
+}
+
+/** Once per sample: advances o.g (volume x expression) and the balance gains o.bl / o.br. */
+export function midi_mix_tick(o) {
+  o.g = o.g_t + o.c * (o.g - o.g_t);
+  o.bl = o.bl_t + o.c * (o.bl - o.bl_t);
+  o.br = o.br_t + o.c * (o.br - o.br_t);
+}
+
+// ----------------------------------------------------------------------------
 // ADSR envelope
 // stage: 0 idle, 1 attack, 2 decay/sustain, 3 release
 // Attack is linear, decay & release are exponential (time = to -60 dB).

@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "contentId": "98de682ed0792fc91213e38c8e18408272c352c0d706d7ef02306d6fcae37dae",
+  "contentId": "9c5c2c124addb4a67f0152c8d9c9a7ef8228b13f617d2e259f191bd89832c9fa",
   "presets": {
     "synth": [
       "Init",
@@ -203,17 +203,17 @@
     {
       "source": "jsfx/AmiSynth Synth.jsfx",
       "installedPath": "Effects/AmiSynth/AmiSynth Synth.jsfx",
-      "sha256": "8ea6efee2d970b0f226b6577d0989f5114e9de871cfdccdf72c1c0f1ce76dcd0"
+      "sha256": "033a9e791183a94cbf498b62b4577b3611b4cc6724949ac66a5864a0a4fa81b6"
     },
     {
       "source": "jsfx/AmiSynth Physical.jsfx",
       "installedPath": "Effects/AmiSynth/AmiSynth Physical.jsfx",
-      "sha256": "3e3e16194a0bd5a64ab84ad82d77922666ab94995b12543aa16cb542dec67b3a"
+      "sha256": "23c83399c3a7ecc9dd14207600db33aac47999230ed0345db4f2a8907a230638"
     },
     {
       "source": "jsfx/AmiSynth Drums.jsfx",
       "installedPath": "Effects/AmiSynth/AmiSynth Drums.jsfx",
-      "sha256": "1a34872e73ae579679c3d720244d0d2605d01508fe95c542a2dd8d096b3304d0"
+      "sha256": "262ed808fef8a673341f4adf67a46309a70a2c20e5d39370ef6477873a38c3b0"
     },
     {
       "source": "jsfx/AmiSynth Tuning.jsfx",
@@ -223,22 +223,22 @@
     {
       "source": "jsfx/AmiSynth Synth.jsfx.rpl",
       "installedPath": "Effects/AmiSynth/AmiSynth Synth.jsfx.rpl",
-      "sha256": "d7b65f23251cce881ea4afd1c4410aa3beaf272e9991125c48ad7bda9d8faa00"
+      "sha256": "9c67721da4c3fd7cc474a8ca153da2d294269dee643f74a87b9a78899f45d558"
     },
     {
       "source": "jsfx/AmiSynth Physical.jsfx.rpl",
       "installedPath": "Effects/AmiSynth/AmiSynth Physical.jsfx.rpl",
-      "sha256": "5cd8da66c5708e41f842593520e78e170c46844f7b8f759973d19c37f5b924e6"
+      "sha256": "d6f0ad875b67e4e0d90a8df7da981e10b48076f1ee5b777279b71236b3f0f655"
     },
     {
       "source": "jsfx/AmiSynth Drums.jsfx.rpl",
       "installedPath": "Effects/AmiSynth/AmiSynth Drums.jsfx.rpl",
-      "sha256": "df7ff60345cb9eef10e24edf0ef5faea347425fe7491b76b6a6f2f7e0f87846a"
+      "sha256": "51015ffaa435c4752bb920f4789d6273bfadc83003533a70dac25e5567242cf5"
     },
     {
       "source": "jsfx/amisynth_lib.jsfx-inc",
       "installedPath": "Effects/AmiSynth/amisynth_lib.jsfx-inc",
-      "sha256": "95c30ddc9846bc0127091d4f531d0cc7455550bb4f76f99b6b2fd95076a72a22"
+      "sha256": "20cf4bd66b67a08e8a9e24f1b90c2f86bee38a3efe236c6774d432c183c43010"
     },
     {
       "source": "jsfx/amisynth_meter.jsfx-inc",
@@ -293,17 +293,17 @@
     {
       "source": "jsfx/generated/catalog.lua",
       "installedPath": "Scripts/AmiSynth/generated/catalog.lua",
-      "sha256": "19ec4fda9b47337c4faaa009e5690f9731178837abcf251d1da5ffdb355ee325"
+      "sha256": "24155b2ea532554340458d5cb4d8e88fde18bfa08dd9685a7660727dc8b33bfe"
     },
     {
       "source": "jsfx/generated/automation.json",
       "installedPath": "Scripts/AmiSynth/generated/automation.json",
-      "sha256": "4d77d4f5b532b68b9b65d71edc6af62f010b92fd37d5f23d399f377e71fa4202"
+      "sha256": "49c34146ea21529ef367fbba4c2462d81d0a0d386b1184d72da89558c66c95b2"
     },
     {
       "source": "jsfx/generated/presets.json",
       "installedPath": "Scripts/AmiSynth/generated/presets.json",
-      "sha256": "a31bbbee22e2e735264bfaa1e8af74960dfacec2c507e472df87ed5307828af4"
+      "sha256": "e6b59f5048e09ff2dc9d52afab67d0ffbee82c2e1a5087e0e3ee5c64f0bccd84"
     }
   ]
 }

@@ -129,6 +129,21 @@ export const SIDECHAIN_PARAMS = /** @type {ParamDef[]} */ ([
     description: 'How fast the follower falls back after the sidechain gets quieter (time constant): the length of the pump.' },
 ]);
 
+/**
+ * MIDI controllers on the instrument's output (appended to each instrument, so the older slider
+ * numbers stay): CC7 Volume x CC11 Expression and CC10 Pan, see midi_mix_* in src/dsp/lib.js.
+ */
+export const MIDI_MIXER_PARAMS = /** @type {ParamDef[]} */ ([
+  { id: 'midi_volume_pan', name: 'MIDI Volume / Pan', group: 'MIDI', min: 0, max: 1, default: 1, step: 1, unit: '', options: ['Off', 'On'],
+    description: 'On: CC7 Volume and CC11 Expression scale the output (GM curve: value 100 = -4.2 dB, 64 = -11.9 dB, 0 = silent) and CC10 Pan balances it (64 = centre). Both start at full level / centre, so nothing changes until such a CC arrives; Reset All Controllers (CC121) restores Expression only. Off: these CCs are ignored (e.g. when the host already maps them to the track fader).' },
+]);
+
+/** Soft pedal (CC67) depth, Synth and Physical. */
+export const SOFT_PEDAL_PARAMS = /** @type {ParamDef[]} */ ([
+  { id: 'soft_pedal_depth', name: 'Soft Pedal Depth', group: 'MIDI', min: 0, max: 0.9, default: 0.3, step: 0.001, unit: '',
+    description: 'While the soft pedal (CC67 >= 64) is down, new notes play with their velocity lowered by this fraction (0.3 = 70 % of the velocity; notes already sounding keep theirs). 0 = the pedal does nothing.' },
+]);
+
 export const SYNTH_PARAMS = /** @type {ParamDef[]} */ ([
   ...TUNING_PARAMS,
 
@@ -362,6 +377,8 @@ export const SYNTH_PARAMS = /** @type {ParamDef[]} */ ([
   { id: 'legato_window_ms', name: 'Legato Window', group: 'Voice', min: 0, max: 100, default: 0, step: 0.1, unit: 'ms',
     description: 'Mono / Legato and Glide Mode "Legato only": a note that starts within this time after the previous note was released still counts as overlapping (Legato does not restart the envelopes, legato glide glides). For MIDI whose notes touch end to start or leave a small gap. 0 = notes must really overlap.' },
   ...SIDECHAIN_PARAMS,
+  ...MIDI_MIXER_PARAMS,
+  ...SOFT_PEDAL_PARAMS,
 ]);
 
 // ---------------------------------------------------------------------------
@@ -555,7 +572,8 @@ export const PHYS_PARAMS = /** @type {ParamDef[]} */ ([
     description: 'Lowest MIDI key of the 24 consecutive sympathetic scale degrees. Follows the instrument tuning, including custom/shared scales; does not follow pitch bend. Choose the range for the piece.' },
   { id: 'amp_auto_level', name: 'Amp Auto Level', group: 'Amp', min: 0, max: 1, default: 0, step: 1, unit: '', options: ['Off', 'On'],
     description: 'On: the amp keeps about the loudness of the instrument without the amp, whatever the Amp type and Amp Gain (more gain = more distortion, not louder); Amp Level then trims from there. Off: the louder the gain, the louder the output (set Amp Level by ear).' },
-  ...SIDECHAIN_PARAMS,
+  ...SIDECHAIN_PARAMS,  ...MIDI_MIXER_PARAMS,
+  ...SOFT_PEDAL_PARAMS,
 ]);
 
 // ---------------------------------------------------------------------------
@@ -860,6 +878,7 @@ export const DRUM_PARAMS = /** @type {ParamDef[]} */ ([
     decayDesc: 'Decay of the open cuica.',
     toneDesc: 'Upward glide of the rubbed stick at the start.',
   }),
+  ...MIDI_MIXER_PARAMS,
 ]);
 
 /** @param {ParamDef[]} defs */
