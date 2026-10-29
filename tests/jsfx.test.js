@@ -472,7 +472,10 @@ test('AmiSynth Tuning shows the scale file status and note count in its read-onl
   };
   assert.deepEqual(status(SCALA_7, { scale_source: 1 }), ['File loaded', 7]);
   assert.deepEqual(status(SCALA_7, { scale_source: 0, scale_size: 5 }), ['Sliders', 5]);
-  assert.deepEqual(status(null, { scale_source: 1, scale_size: 12 }), ['File not found', 12]);
+  // ysfx-s (the VST3 / CLAP plugin) opens a missing file selected by a file slider as an empty
+  // file, so it reports a format error; either way the Degree sliders take over
+  const missing = process.env.AMISYNTH_JSFX_HOST === 'ysfx-s' ? 'File format error' : 'File not found';
+  assert.deepEqual(status(null, { scale_source: 1, scale_size: 12 }), [missing, 12]);
   assert.deepEqual(status('! broken\nno count here\n', { scale_source: 1, scale_size: 9 }), ['File format error', 9]);
   assert.deepEqual(status('!\nshort\n 3\n 100.0\n 200.0\n', { scale_source: 1, scale_size: 9 }), ['File format error', 9], 'fewer pitches than the count');
 });
