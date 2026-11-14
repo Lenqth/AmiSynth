@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { MODULAR_TYPES, compileModularPatch, defaultModularPatch, modular_init, modular_midi, modular_render, modular_set_patch, safeModularPatch } from '../src/dsp/modular.js';
+import { renderPattern } from '../src/lib/render.js';
 
 test('modular default patch compiles and respects its dependency order', () => {
   const g = compileModularPatch(defaultModularPatch());
@@ -120,4 +121,34 @@ test('knob and macro changes keep active voices and update the output', () => {
   assert.equal(voice.held, true);
   modular_render(s);
   assert.equal(voice.signals[6].out, 0.75);
+});
+
+test('extreme CV cascades stay finite, including when the result is muted', () => {
+  const nodes = [{ id: 'cv', type: 'cv', params: { offset: 8 } }];
+  const cables = [];
+  for (let i = 1; i <= 15; i++) {
+    const from = nodes.at(-1).id, to = 'amp' + i;
+    nodes.push({ id: to, type: 'vca', params: { level: 2 } });
+    cables.push({ from, port: 'out', to, input: 'audio' }, { from, port: 'out', to, input: 'gain' });
+  }
+  nodes.push({ id: 'out', type: 'output', params: { level: 0 } });
+  cables.push({ from: 'amp15', port: 'out', to: 'out', input: 'audio' });
+  const s = {};
+  modular_init(s, 48000);
+  modular_set_patch(s, { nodes, cables });
+  modular_midi(s, 0x90, 60, 100);
+  modular_render(s);
+  assert.equal(s.out_l, 0);
+  assert.ok(s.voices[0].signals.every(sig => Number.isFinite(sig.out)));
+});
+
+test('offline Modular export retains a ten-second envelope release', () => {
+  const modularPatch = defaultModularPatch();
+  modularPatch.nodes.find(n => n.type === 'adsr').params.release = 10;
+  const { left } = renderPattern({
+    pattern: { bpm: 240, melodic: 'modular', notes: [{ note: 69, vel: 100, start: 63, len: 1 }], drums: [] },
+    params: {}, modularPatch, sampleRate: 8000,
+  });
+  assert.ok(left.length > 13.5 * 8000);
+  assert.ok(left.slice(11 * 8000, 11.1 * 8000).some(x => Math.abs(x) > 0.001));
 });

@@ -66,6 +66,9 @@ export function defaultModularPatch() {
 
 export const MODULAR_MACROS = 8;
 export const MODULAR_PATCH_BYTES = 64 * 1024;
+const MAX_RELEASE = 10;
+const RELEASE_FADE = 0.005;
+export const MODULAR_MAX_TAIL = MAX_RELEASE + RELEASE_FADE;
 
 export const MODULAR_PRESETS = [
   { name: 'Subtractive', patch: defaultModularPatch },
@@ -307,6 +310,8 @@ function sampleNode(s, v, i) {
     case 'delay': sig.out = st.memory; break;
     case 'output': sig.out = read(v, n, 'audio') * p.level; break;
   }
+  // Bound every intermediate so a cascade of multipliers cannot overflow.
+  sig.out = clamp(sig.out, -1e6, 1e6);
 }
 export function modular_render(s) {
   let out = 0;
@@ -319,9 +324,9 @@ export function modular_render(s) {
     for (const i of outputs) sample += v.signals[i].out;
     if (!v.held) {
       v.tail++;
-      const fade = Math.max(1, Math.round(0.005 * s.sampleRate));
-      if (envelopes.length === 0 || v.tail > 10 * s.sampleRate) {
-        const elapsed = envelopes.length ? v.tail - 10 * s.sampleRate : v.tail;
+      const fade = Math.max(1, Math.round(RELEASE_FADE * s.sampleRate));
+      if (envelopes.length === 0 || v.tail > MAX_RELEASE * s.sampleRate) {
+        const elapsed = envelopes.length ? v.tail - MAX_RELEASE * s.sampleRate : v.tail;
         sample *= clamp(1 - elapsed / fade, 0, 1);
         if (elapsed >= fade) v.active = false;
       } else if (envelopes.every(i => v.stages[i].mode === 0 && !v.stages[i].lastGate)) {

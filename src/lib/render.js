@@ -7,7 +7,7 @@ import { phys_init, phys_render, phys_set_scale, phys_update } from '../dsp/phys
 import { drums_init, drums_render, drums_update } from '../dsp/drums.js';
 import { drums_midi, phys_midi, synth_midi } from '../dsp/midi.js';
 import { STEPS, STEPS_PER_BEAT } from './pattern.js';
-import { defaultModularPatch, modular_init, modular_midi, modular_render, modular_set_patch } from '../dsp/modular.js';
+import { MODULAR_MAX_TAIL, defaultModularPatch, modular_init, modular_midi, modular_render, modular_set_patch } from '../dsp/modular.js';
 
 const CORES = {
   synth: {
@@ -74,7 +74,7 @@ export function renderPattern(opts, onProgress = () => {}) {
   const sr = opts.sampleRate ?? 48000;
   const tl = opts.timeline ?? patternTimeline(opts.pattern);
   const { ev, length } = timelineEvents(tl, sr, opts.loops ?? 1);
-  const maxTail = Math.round((opts.maxTail ?? 6) * sr);
+  const maxTail = Math.round((opts.maxTail ?? (ev.modular.length ? MODULAR_MAX_TAIL + 0.3 : 6)) * sr);
   // only the instruments that play something are run
   const active = Object.keys(CORES).filter((k) => ev[k].length > 0).map((k) => {
     const core = CORES[k];

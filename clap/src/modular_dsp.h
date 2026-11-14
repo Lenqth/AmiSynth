@@ -271,6 +271,7 @@ struct Engine {
         case Type::delay: sig[0] = st.memory; break;
         case Type::output: sig[0] = read(v, n, 0) * p[0]; break;
         }
+        sig[0] = std::clamp(sig[0], -1e6, 1e6);
     }
 
     double sample(const Macros &macros) {
