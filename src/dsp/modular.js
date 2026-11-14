@@ -134,8 +134,15 @@ export function modular_init(s, sampleRate) {
 }
 export function modular_set_patch(s, patch) {
   const graph = compileModularPatch(patch);
-  // Graph replacement happens outside render(), via the worklet message handler.
-  // Existing notes are released on replacement; no partial graph is ever exposed.
+  // Parameter updates on an unchanged graph do not interrupt held notes.
+  if (s.graph && s.graph.nodes.length === graph.nodes.length &&
+      s.graph.patch.cables.length === graph.patch.cables.length &&
+      s.graph.nodes.every((n, i) => n.id === graph.nodes[i].id && n.type === graph.nodes[i].type) &&
+      s.graph.patch.cables.every((c, i) => Object.keys(c).every(k => c[k] === graph.patch.cables[i][k]))) {
+    s.graph = graph;
+    return;
+  }
+  // Structural changes reset voices, so no partially rewired graph is audible.
   s.graph = graph;
   s.voices = Array.from({ length: MAX_VOICES }, () => newVoice(graph.nodes.length));
 }
