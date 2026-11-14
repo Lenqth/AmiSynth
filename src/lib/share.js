@@ -9,6 +9,7 @@
 
 import { clampParam, defaultValues, DRUM_PARAMS, PHYS_PARAMS, SYNTH_PARAMS } from '../dsp/params.js';
 import { diffFromDefaults } from './presets.js';
+import { safeModularPatch, defaultModularPatch } from '../dsp/modular.js';
 import { MAX_PATTERNS, MAX_SLOTS, sanitizeSong } from './song.js';
 
 export const SHARE_PREFIX = 's1.';
@@ -111,6 +112,7 @@ export function buildSharePayload(s) {
       drums: diffFromDefaults(DRUM_PARAMS, s.drums),
     },
     tuning,
+    modular: safeModularPatch(s.modular ?? defaultModularPatch()),
     scale: s.scale ? { name: s.scale.name, cents: [...s.scale.cents] } : null,
   };
 }
@@ -171,6 +173,7 @@ export function parseSharePayload(obj) {
     synth: paramsFrom(DEFS.synth, params.synth),
     phys: paramsFrom(DEFS.phys, params.phys),
     drums: paramsFrom(DEFS.drums, params.drums),
+    modular: safeModularPatch(obj.modular ?? defaultModularPatch()),
     scale: sanitizeScale(obj.scale),
   };
   // tuning is shared by both melodic instruments
