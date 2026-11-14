@@ -1,8 +1,8 @@
-// Copies AmiSynth.clap into the per-user CLAP folder (no admin rights needed). The JSFX are embedded
+// Copies AmiSynth.clap (including Modular) into the per-user CLAP folder. The JSFX are embedded
 // in the plugin, so nothing else is installed. See docs/OTHER_HOSTS.md.
-import { cpSync, existsSync, mkdirSync, rmSync, statSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, renameSync, rmSync, statSync } from 'node:fs';
 import { homedir } from 'node:os';
-import { dirname, join, resolve } from 'node:path';
+import { basename, dirname, join, resolve } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
@@ -19,20 +19,23 @@ export function defaultClapDir(platform = process.platform, env = process.env, h
   return join(home, '.clap');
 }
 
-const pluginName = modular => modular ? 'AmiSynthModular.clap' : 'AmiSynth.clap';
+const pluginName = 'AmiSynth.clap';
 
-export function builtPlugin(platform = process.platform, modular = false) {
-  return join(build, platform === 'win32' ? 'Release' : '', pluginName(modular));
+export function builtPlugin(platform = process.platform) {
+  return join(build, platform === 'win32' ? 'Release' : '', pluginName);
 }
 
-export function clapInstallPlan({ plugin, dest, modular = false, platform = process.platform, env = process.env, home = homedir() } = {}) {
-  const source = resolve(plugin ?? builtPlugin(platform, modular));
+export function clapInstallPlan({ plugin, dest, platform = process.platform, env = process.env, home = homedir() } = {}) {
+  const source = resolve(plugin ?? builtPlugin(platform));
+  if (basename(source).toLowerCase() === 'amisynthmodular.clap') {
+    throw new Error('Use the combined AmiSynth.clap; the standalone AmiSynthModular.clap is obsolete.');
+  }
   if (!existsSync(source)) {
     throw new Error(plugin ? `Missing plugin: ${source}`
-      : `${pluginName(modular)} is not built yet (${source}). Run with --build, or pass --plugin <downloaded .clap>.`);
+      : `${pluginName} is not built yet (${source}). Run with --build, or pass --plugin <downloaded .clap>.`);
   }
   // On macOS the plugin is a bundle (a folder); elsewhere it is one file.
-  return { source, destination: join(resolve(dest ?? defaultClapDir(platform, env, home)), pluginName(modular)), bundle: statSync(source).isDirectory() };
+  return { source, destination: join(resolve(dest ?? defaultClapDir(platform, env, home)), pluginName), bundle: statSync(source).isDirectory() };
 }
 
 export function installClap(options = {}, dryRun = false) {
@@ -43,6 +46,14 @@ export function installClap(options = {}, dryRun = false) {
   if (plan.bundle) rmSync(plan.destination, { recursive: true, force: true });
   try {
     cpSync(plan.source, plan.destination, { recursive: true });
+    // Retire the former standalone plugin without deleting it or overwriting an existing backup.
+    const legacy = join(dirname(plan.destination), 'AmiSynthModular.clap');
+    if (existsSync(legacy)) {
+      let backup = `${legacy}.disabled`;
+      for (let i = 1; existsSync(backup); i++) backup = `${legacy}.disabled-${i}`;
+      renameSync(legacy, backup);
+      console.log(`Retired standalone Modular: ${legacy} -> ${backup}`);
+    }
   } catch (e) {
     if (e.code === 'EBUSY' || e.code === 'EPERM') throw new Error(`Cannot write ${plan.destination} (${e.code}). Close the DAW and try again.`);
     throw e;
@@ -64,7 +75,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
     for (let i = 0; i < args.length; i++) {
       if (args[i] === '--plugin') options.plugin = value(++i, '--plugin');
       else if (args[i] === '--dest') options.dest = value(++i, '--dest');
-      else if (args[i] === '--modular') options.modular = true;
+      else if (args[i] === '--modular') console.warn('--modular is no longer needed: Modular is included in AmiSynth.clap.');
       else if (args[i] === '--build') doBuild = true;
       else if (args[i] === '--dry-run') dryRun = true;
       else throw new Error(`Unknown argument: ${args[i]}`);
@@ -76,10 +87,12 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
     }
     const plan = installClap(options, dryRun);
     console.log(`${dryRun ? 'Would copy' : 'Copied'}: ${plan.source} -> ${plan.destination}`);
-    console.log(`Next: rescan plugins in your DAW and add AmiSynth ${options.modular ? 'Modular' : 'Synth / Physical / Drums'} to an instrument track.`);
+    const legacy = join(dirname(plan.destination), 'AmiSynthModular.clap');
+    if (dryRun && existsSync(legacy)) console.log(`Would retire standalone Modular: ${legacy} (renamed to an unused .disabled backup)`);
+    console.log('Next: rescan plugins in your DAW. AmiSynth.clap provides Synth / Physical / Drums / Tuning / Modular.');
   } catch (e) {
     console.error(e.message);
-    console.error('Usage: npm run install:clap -- [--build] [--modular] [--plugin <file.clap>] [--dest <CLAP folder>] [--dry-run]');
+    console.error('Usage: npm run install:clap -- [--build] [--plugin <file.clap>] [--dest <CLAP folder>] [--dry-run]');
     process.exitCode = 1;
   }
 }

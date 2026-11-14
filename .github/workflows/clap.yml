@@ -48,15 +48,14 @@ jobs:
         run: |
           npm run install:clap -- --dest "$RUNNER_TEMP/clap"
           test -e "$RUNNER_TEMP/clap/AmiSynth.clap"
-          npm run install:clap -- --modular --dest "$RUNNER_TEMP/clap"
-          test -e "$RUNNER_TEMP/clap/AmiSynthModular.clap"
+          test ! -e "$RUNNER_TEMP/clap/AmiSynthModular.clap"
           npm run install:clap -- --dry-run
       - name: Collect
         shell: bash
         run: |
           mkdir -p dist-clap/licenses
-          if [ "$RUNNER_OS" = Windows ]; then cp .cache/clap-build/Release/AmiSynth{,Modular}.clap dist-clap/
-          else cp -R .cache/clap-build/AmiSynth{,Modular}.clap dist-clap/; fi
+          if [ "$RUNNER_OS" = Windows ]; then cp .cache/clap-build/Release/AmiSynth.clap dist-clap/
+          else cp -R .cache/clap-build/AmiSynth.clap dist-clap/; fi
           deps=.cache/clap-build/_deps
           cp LICENSE dist-clap/licenses/AmiSynth.txt
           cp clap/THIRD_PARTY.md dist-clap/

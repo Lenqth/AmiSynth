@@ -9,7 +9,7 @@ import { compileModularPatch } from '../src/dsp/modular.js';
 const win = process.platform === 'win32';
 const build = join(import.meta.dirname, '..', '.cache', 'clap-build', win ? 'Release' : '');
 const host = join(build, win ? 'modular_check.exe' : 'modular_check');
-const plugin = join(build, 'AmiSynthModular.clap');
+const plugin = join(build, 'AmiSynth.clap');
 const available = existsSync(host) && existsSync(plugin);
 const webPatch = compileModularPatch({
   nodes: [

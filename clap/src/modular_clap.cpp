@@ -1,4 +1,4 @@
-#include <clap/clap.h>
+#include "modular_clap.h"
 #include "modular_dsp.h"
 
 #include <atomic>
@@ -15,7 +15,7 @@ using namespace modular;
 constexpr const char *kId = "com.github.lenqth.amisynth.modular";
 constexpr const char *kFeatures[] = {CLAP_PLUGIN_FEATURE_INSTRUMENT, CLAP_PLUGIN_FEATURE_SYNTHESIZER,
     CLAP_PLUGIN_FEATURE_STEREO, nullptr};
-const clap_plugin_descriptor_t kDescriptor{CLAP_VERSION_INIT, kId, "AmiSynth Modular", "Lenqth",
+const clap_plugin_descriptor_t kDescriptor{CLAP_VERSION_INIT, kId, "AmiSynth Modular", "AmiSynth",
     "https://github.com/Lenqth/AmiSynth", "", "", AMISYNTH_VERSION, "Polyphonic modular synthesizer", kFeatures};
 
 struct Instance {
@@ -371,14 +371,9 @@ const clap_plugin_factory_t kFactory{
     },
 };
 
-const void *CLAP_ABI factory(const char *id) {
-    if (std::strcmp(id, CLAP_PLUGIN_FACTORY_ID) == 0) return &kFactory;
-    if (std::strcmp(id, CLAP_PRESET_DISCOVERY_FACTORY_ID) == 0 || std::strcmp(id, CLAP_PRESET_DISCOVERY_FACTORY_ID_COMPAT) == 0)
-        return &kPresetFactory;
-    return nullptr;
-}
 } // namespace
 
-extern "C" CLAP_EXPORT const clap_plugin_entry_t clap_entry{
-    CLAP_VERSION_INIT, [](const char *) { return true; }, [] {}, factory,
-};
+namespace amisynth_modular {
+const clap_plugin_factory_t *plugin_factory() { return &kFactory; }
+const clap_preset_discovery_factory_t *preset_factory() { return &kPresetFactory; }
+}

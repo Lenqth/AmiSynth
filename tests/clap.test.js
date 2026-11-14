@@ -32,9 +32,11 @@ function check() {
 
 const KINDS = [['synth', 'AmiSynth Synth'], ['phys', 'AmiSynth Physical'], ['drums', 'AmiSynth Drums'], ['tuning', 'AmiSynth Tuning']];
 
-test('CLAP: one plugin per JSFX, with the instruments and the Tuning note effect', { skip: !HAVE && 'CLAP plugin not built' }, () => {
+test('CLAP: one file contains the four JSFX plugins and Modular', { skip: !HAVE && 'CLAP plugin not built' }, () => {
   const { plugins } = check();
-  assert.deepEqual(plugins.map((p) => p.name), KINDS.map(([, name]) => name));
+  assert.deepEqual(plugins.map((p) => p.name), [...KINDS.map(([, name]) => name), 'AmiSynth Modular']);
+  assert.equal(plugins[4].id, 'com.github.lenqth.amisynth.modular');
+  assert.ok(plugins[4].features.includes('instrument'));
   for (const p of plugins.slice(0, 3)) assert.ok(p.features.includes('instrument'), p.name);
   assert.ok(plugins[3].features.includes('note-effect'));
   const version = JSON.parse(readFileSync(join(import.meta.dirname, '..', 'package.json'), 'utf8')).version;
@@ -81,7 +83,9 @@ test('CLAP: the state brings parameter values back in a new instance', { skip: !
 
 test('CLAP: presets are discovered with the same names as in REAPER and load their values', { skip: !HAVE && 'CLAP plugin not built' }, () => {
   const c = check();
-  assert.equal(c.presetLocations, 1);
+  assert.equal(c.presetLocations, 2);
+  assert.deepEqual(c.presets.filter((p) => p.plugin === 'com.github.lenqth.amisynth.modular').map((p) => p.name),
+    ['Subtractive', 'Vibrato Lead', 'Feedback Bass']);
   const ids = ['com.github.lenqth.amisynth.synth', 'com.github.lenqth.amisynth.physical', 'com.github.lenqth.amisynth.drums'];
   RPL_FILES.forEach(([, , presets], k) => {
     const found = c.presets.filter((p) => p.plugin === ids[k]);

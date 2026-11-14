@@ -18,6 +18,7 @@
 #include <clap/clap.h>
 #include "ysfx.h"
 #include "amisynth_embedded.h"
+#include "modular_clap.h"
 
 #include <algorithm>
 #include <atomic>
@@ -653,13 +654,19 @@ bool provider_get_metadata(const clap_preset_discovery_provider_t *, uint32_t ki
 
 const void *provider_get_extension(const clap_preset_discovery_provider_t *, const char *) { return nullptr; }
 
-uint32_t pd_count(const clap_preset_discovery_factory_t *) { return 1; }
+uint32_t pd_count(const clap_preset_discovery_factory_t *) { return 2; }
 const clap_preset_discovery_provider_descriptor_t *pd_get_descriptor(const clap_preset_discovery_factory_t *, uint32_t index) {
-    return index == 0 ? &kProviderDesc : nullptr;
+    if (index == 0) return &kProviderDesc;
+    const auto *modular = amisynth_modular::preset_factory();
+    return modular->get_descriptor(modular, index - 1);
 }
 const clap_preset_discovery_provider_t *pd_create(const clap_preset_discovery_factory_t *,
                                                   const clap_preset_discovery_indexer_t *indexer, const char *id) {
-    if (std::strcmp(id, kProviderDesc.id)) return nullptr;
+    if (!id) return nullptr;
+    if (std::strcmp(id, kProviderDesc.id)) {
+        const auto *modular = amisynth_modular::preset_factory();
+        return modular->create(modular, indexer, id);
+    }
     auto *pr = new Provider;
     pr->indexer = indexer;
     pr->clap = {&kProviderDesc, pr, provider_init, provider_destroy, provider_get_metadata, provider_get_extension};
@@ -682,15 +689,20 @@ const void *plugin_get_extension(const clap_plugin_t *p, const char *id) {
 
 void plugin_on_main_thread(const clap_plugin_t *) {}
 
-uint32_t factory_count(const clap_plugin_factory_t *) { return kKindCount; }
+uint32_t factory_count(const clap_plugin_factory_t *) { return kKindCount + 1; }
 const clap_plugin_descriptor_t *factory_descriptor(const clap_plugin_factory_t *, uint32_t index) {
-    return index < kKindCount ? &kDescriptors[index] : nullptr;
+    if (index < kKindCount) return &kDescriptors[index];
+    const auto *modular = amisynth_modular::plugin_factory();
+    return modular->get_plugin_descriptor(modular, index - kKindCount);
 }
 
 const clap_plugin_t *factory_create(const clap_plugin_factory_t *, const clap_host_t *host, const char *id) {
-    if (!clap_version_is_compatible(host->clap_version)) return nullptr;
+    if (!host || !id || !clap_version_is_compatible(host->clap_version)) return nullptr;
     const Kind *kind = kind_by_id(id);
-    if (!kind) return nullptr;
+    if (!kind) {
+        const auto *modular = amisynth_modular::plugin_factory();
+        return modular->create_plugin(modular, host, id);
+    }
     auto *pl = new Plugin;
     pl->host = host;
     pl->kind = kind;

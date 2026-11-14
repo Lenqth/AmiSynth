@@ -98,8 +98,14 @@ int main(int argc, char **argv) {
 #endif
     check(entry && entry->init(argv[1]), "Cannot load Modular CLAP");
     const auto *factory = static_cast<const clap_plugin_factory_t *>(entry->get_factory(CLAP_PLUGIN_FACTORY_ID));
-    check(factory && factory->get_plugin_count(factory) == 1, "Expected a standalone Modular instrument");
-    const auto *desc = factory->get_plugin_descriptor(factory, 0);
+    check(factory && factory->get_plugin_count(factory) == 5, "Expected five instruments in AmiSynth.clap");
+    check(!factory->get_plugin_descriptor(factory, 5), "Accepted out-of-range plugin index");
+    check(!factory->create_plugin(factory, &host, "unknown"), "Accepted unknown plugin ID");
+    const clap_plugin_descriptor_t *desc = nullptr;
+    for (uint32_t i = 0; i < factory->get_plugin_count(factory); ++i) {
+        const auto *candidate = factory->get_plugin_descriptor(factory, i);
+        if (candidate && std::strcmp(candidate->id, "com.github.lenqth.amisynth.modular") == 0) desc = candidate;
+    }
     check(desc && std::strcmp(desc->name, "AmiSynth Modular") == 0, "Wrong descriptor");
     const auto create = [&] {
         const auto *plugin = factory->create_plugin(factory, &host, desc->id);
@@ -117,12 +123,14 @@ int main(int argc, char **argv) {
             (info.flags & CLAP_PARAM_IS_AUTOMATABLE), "Invalid macro");
     }
     const auto *discovery = static_cast<const clap_preset_discovery_factory_t *>(entry->get_factory(CLAP_PRESET_DISCOVERY_FACTORY_ID));
-    check(discovery && discovery->count(discovery) == 1, "Missing preset discovery");
+    check(discovery && discovery->count(discovery) == 2, "Missing preset discovery providers");
+    check(!discovery->get_descriptor(discovery, 2), "Accepted out-of-range preset provider index");
+    check(!discovery->create(discovery, nullptr, "unknown"), "Accepted unknown preset provider ID");
     clap_preset_discovery_indexer_t indexer{};
     indexer.declare_location = [](const clap_preset_discovery_indexer_t *, const clap_preset_discovery_location_t *l) {
         return l->kind == CLAP_PRESET_DISCOVERY_LOCATION_PLUGIN && l->location == nullptr;
     };
-    const auto *provider = discovery->create(discovery, &indexer, discovery->get_descriptor(discovery, 0)->id);
+    const auto *provider = discovery->create(discovery, &indexer, "com.github.lenqth.amisynth.modular");
     check(provider && provider->init(provider), "Preset location failed");
     unsigned discovered = 0;
     clap_preset_discovery_metadata_receiver_t receiver{};

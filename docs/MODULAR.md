@@ -1,6 +1,6 @@
 # AmiSynth Modular
 
-Modular is a polyphonic patchable synth available in the Web app and as the standalone `AmiSynthModular.clap` instrument.
+Modular is a polyphonic patchable synth available in the Web app and as **AmiSynth Modular**, one of the five plugins in `AmiSynth.clap`.
 
 ## Web rack
 
@@ -27,7 +27,7 @@ Patches support up to 32 modules and eight voices. A structural edit resets the 
 
 ## CLAP
 
-Build with `npm ci && npm run clap:build`, then install with `npm run install:clap -- --modular`. Release archives built by the CLAP workflow include both `AmiSynth.clap` and `AmiSynthModular.clap`.
+Build with `npm ci && npm run clap:build`, then install with `npm run install:clap`. Release archives contain one `AmiSynth.clap` with Synth, Physical, Drums, Tuning and Modular. The installer renames a former standalone `AmiSynthModular.clap` in the destination to an unused `.disabled` backup. Modular retains its plugin ID and JSON state format; projects that stored the old file path may need their instrument replaced with Modular from `AmiSynth.clap`.
 
 Add **AmiSynth Modular** to an instrument track. The plug-in accepts CLAP notes and MIDI and exposes **Macro 1–8** with stable IDs 0–7. Open a factory preset using a DAW that supports CLAP preset discovery. The CLAP preset-load file interface also accepts JSON exported by the Web rack. DAW support for selecting custom preset files varies. The current plug-in uses the host's generic parameter controls. Patch editing takes place in the Web rack.
 
