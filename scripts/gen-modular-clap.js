@@ -12,7 +12,7 @@ const specs = Object.entries(MODULAR_TYPES).map(([type, spec]) => {
   // The native engine stores each module's ports and knobs in fixed arrays.
   if (spec.inputs.length > MODULAR_MAX_INPUTS || spec.outputs.length > MODULAR_MAX_OUTPUTS ||
       params.length > MODULAR_MAX_PARAMS) throw new Error(`Module ${type} exceeds the native port or knob limits`);
-  const knobs = params.map(([name, p]) => `{${json(name)}, ${p.min}, ${p.max}, ${p.default}, ${p.step >= 1}}`);
+  const knobs = params.map(([name, p]) => `{${json(name)}, ${p.min}, ${p.max}, ${p.default}, ${p.step >= 1}, ${!!p.fixed}}`);
   return `    {Type::${type}, ${json(type)}, ${list(spec.inputs)}, ${list(spec.outputs)}, {${knobs.join(', ')}}},`;
 });
 const materials = MODULAR_MATERIALS.map(m => {

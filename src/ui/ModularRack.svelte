@@ -395,7 +395,7 @@
             {@const input = modularParamInput(key)}
             {@const connected = wiredInputs.has(jackKey(n.id, input, 'in'))}
             <div class="parameter-row">
-              {@render jack(n, input, 'in', key, true)}
+              {#if def.fixed}<span aria-hidden="true"></span>{:else}{@render jack(n, input, 'in', key, true)}{/if}
               <label class="modular-param" class:driven={connected}>
                 <span>{key}</span>
                 <input aria-label="{n.id} {key}" type="range" min={def.min} max={def.max} step={def.step}

@@ -95,6 +95,7 @@ add_custom_command(
   OUTPUT "${MODULAR_CATALOG}"
   COMMAND "${NODE_EXECUTABLE}" "${MODULAR_GENERATOR}" "${MODULAR_CATALOG}"
   DEPENDS "${MODULAR_GENERATOR}" "${MODULAR_WEB_DSP}" "${CMAKE_CURRENT_SOURCE_DIR}/../src/dsp/phys.js"
+  "${CMAKE_CURRENT_SOURCE_DIR}/../src/presets/modular.js" "${CMAKE_CURRENT_SOURCE_DIR}/../src/presets/synth.js" "${CMAKE_CURRENT_SOURCE_DIR}/../src/dsp/params.js"
   VERBATIM)
 
 target_sources(AmiSynth PRIVATE src/modular_clap.cpp "${MODULAR_CATALOG}")
@@ -126,6 +127,9 @@ if(WIN32)
       "${CMAKE_CURRENT_SOURCE_DIR}/../src/ui/ModularRack.svelte"
       "${CMAKE_CURRENT_SOURCE_DIR}/../src/dsp/modular.js"
       "${CMAKE_CURRENT_SOURCE_DIR}/../src/dsp/phys.js"
+      "${CMAKE_CURRENT_SOURCE_DIR}/../src/presets/modular.js"
+      "${CMAKE_CURRENT_SOURCE_DIR}/../src/presets/synth.js"
+      "${CMAKE_CURRENT_SOURCE_DIR}/../src/dsp/params.js"
       "${CMAKE_CURRENT_SOURCE_DIR}/../src/app.css"
       "${CMAKE_CURRENT_SOURCE_DIR}/../package-lock.json"
     VERBATIM)

@@ -257,9 +257,9 @@ test('strings and comb filters share four delay lines per voice', () => {
   assert.throws(() => compileModularPatch(patch), /at most 4/);
 });
 
-test('patches saved before filter modes keep a lowpass without key tracking', () => {
+test('patches saved before filter modes keep a 12 dB lowpass without key tracking or drive', () => {
   const g = compileModularPatch(defaultModularPatch());
-  assert.deepEqual(g.patch.nodes.find(n => n.type === 'vcf').params, { cutoff: 2400, resonance: 0.15, mode: 0, keytrack: 0 });
+  assert.deepEqual(g.patch.nodes.find(n => n.type === 'vcf').params, { cutoff: 2400, resonance: 0.15, mode: 0, keytrack: 0, slope: 0, drive: 0 });
 });
 
 test('module search matches names, categories and keywords', () => {
@@ -268,4 +268,85 @@ test('module search matches names, categories and keywords', () => {
   assert.deepEqual(searchModularTypes('ring mod').map(r => r.type), ['ring']);
   assert.equal(searchModularTypes('').length, Object.keys(MODULAR_TYPES).length);
   assert.deepEqual(searchModularTypes('zzz'), []);
+});
+
+test('mono and legato voices use last-note priority, return to held keys and glide', () => {
+  const run = (voices, glide = 0) => {
+    const patch = defaultModularPatch();
+    patch.nodes[0].params = { voices, glide };
+    const s = {};
+    modular_init(s, 48000);
+    modular_set_patch(s, patch);
+    return s;
+  };
+  const pitch = s => s.voices[0].signals[0].pitch;
+  const env = s => s.voices[0].stages[2].env;
+
+  const mono = run(1);
+  modular_midi(mono, 0x90, 60, 100);
+  for (let i = 0; i < 4800; i++) modular_render(mono);
+  modular_midi(mono, 0x90, 64, 100);
+  modular_render(mono);
+  assert.equal(mono.voices.filter(v => v.active).length, 1);
+  assert.equal(pitch(mono), 64);
+  assert.ok(env(mono) < 0.01, 'Mono retriggers the envelope');
+  modular_midi(mono, 0x80, 64, 0);
+  modular_render(mono);
+  assert.equal(pitch(mono), 60, 'releasing the newest key returns to the held one');
+  assert.ok(mono.voices[0].held);
+
+  const legato = run(2);
+  modular_midi(legato, 0x90, 60, 100);
+  for (let i = 0; i < 4800; i++) modular_render(legato);
+  const before = env(legato);
+  modular_midi(legato, 0x90, 67, 100);
+  modular_render(legato);
+  assert.equal(pitch(legato), 67);
+  assert.ok(Math.abs(env(legato) - before) < 0.01, 'Legato keeps the envelope running');
+
+  const glide = run(1, 0.1);
+  modular_midi(glide, 0x90, 60, 100);
+  modular_render(glide);
+  modular_midi(glide, 0x90, 72, 100);
+  modular_render(glide);
+  assert.ok(pitch(glide) < 61, 'the new note starts from the old pitch');
+  for (let i = 0; i < 4800; i++) modular_render(glide);
+  assert.ok(pitch(glide) > 71 && pitch(glide) < 72, 'about 95% of the way after the glide time');
+  for (let i = 0; i < 19200; i++) modular_render(glide);
+  assert.equal(pitch(glide), 72);
+});
+
+test('voice mode and glide are patch settings that take no cable', () => {
+  const patch = defaultModularPatch();
+  patch.nodes.push({ id: 'lfo', type: 'lfo' });
+  patch.cables.push({ from: 'lfo', port: 'out', to: 'note', input: 'param:glide' });
+  assert.throws(() => compileModularPatch(patch), /Invalid or duplicate cable/);
+});
+
+test('Synth presets convert to Modular patches that fit the rack, or name what Modular cannot play', async () => {
+  const { modularFromSynth, MODULAR_SYNTH_PORTS } = await import('../src/presets/modular.js');
+  const { SYNTH_PRESETS } = await import('../src/presets/synth.js');
+  assert.ok(MODULAR_SYNTH_PORTS.length >= 30);
+  for (const preset of SYNTH_PRESETS) {
+    let patch;
+    try { patch = modularFromSynth(preset.params); } catch (e) {
+      assert.match(e.message, /^Modular cannot play|no sound source/, preset.name);
+      continue;
+    }
+    assert.ok(compileModularPatch(patch).nodes.length <= 32, preset.name);
+  }
+  assert.throws(() => modularFromSynth({ fx_delay_on: 1 }), /fx_delay_on/);
+});
+
+test('a pulse wave has no DC offset at any width', () => {
+  const s = {};
+  modular_init(s, 48000);
+  modular_set_patch(s, {
+    nodes: [{ id: 'note', type: 'midi' }, { id: 'osc', type: 'vco', params: { wave: 2, pw: 0.125, level: 0.2 } }, { id: 'out', type: 'output', params: { level: 1 } }],
+    cables: [{ from: 'note', port: 'pitch', to: 'osc', input: 'pitch' }, { from: 'osc', port: 'out', to: 'out', input: 'audio' }],
+  });
+  modular_midi(s, 0x90, 69, 100);
+  let sum = 0;
+  for (let i = 0; i < 48000; i++) { modular_render(s); sum += s.out_l; }
+  assert.ok(Math.abs(sum / 48000) < 0.002);
 });

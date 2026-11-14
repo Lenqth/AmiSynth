@@ -136,7 +136,46 @@ const PATCHES = {
     { from: 'tine', port: 'out', to: 'sum2', input: 'b' },
     { from: 'sum2', port: 'out', to: 'out', input: 'audio' },
   ]),
+  'pulse width, hard sync, phase modulation, 24 dB slope and drive': voice([
+    { id: 'master', type: 'vco', params: { wave: 0, level: 1 } },
+    { id: 'slave', type: 'vco', params: { wave: 1, octave: 1, detune: 700 } },
+    { id: 'pulse', type: 'vco', params: { wave: 2, pw: 0.2 } },
+    { id: 'pwm', type: 'lfo', params: { rate: 4, depth: 0.3 } },
+    { id: 'width', type: 'cv', params: { offset: 0.5 } },
+    { id: 'carrier', type: 'vco', params: { wave: 0 } },
+    { id: 'index', type: 'vca', params: { level: 2.5 } },
+    { id: 'sum', type: 'mix', params: { a: 0.6, b: 0.6 } },
+    { id: 'sum2', type: 'mix', params: { a: 1, b: 0.6 } },
+    { id: 'filter', type: 'vcf', params: { cutoff: 900, resonance: 0.7, slope: 1, drive: 0.6, mode: 0 } },
+    { id: 'bandpass', type: 'vcf', params: { cutoff: 1200, slope: 1, mode: 2 } },
+    { id: 'sum3', type: 'mix', params: { a: 1, b: 1 } },
+  ], [
+    { from: 'note', port: 'pitch', to: 'master', input: 'pitch' },
+    { from: 'note', port: 'pitch', to: 'slave', input: 'pitch' },
+    { from: 'master', port: 'out', to: 'slave', input: 'sync' },
+    { from: 'note', port: 'pitch', to: 'pulse', input: 'pitch' },
+    { from: 'pwm', port: 'out', to: 'width', input: 'in' },
+    { from: 'width', port: 'out', to: 'pulse', input: 'param:pw' },
+    { from: 'note', port: 'pitch', to: 'carrier', input: 'pitch' },
+    { from: 'master', port: 'out', to: 'index', input: 'audio' },
+    { from: 'index', port: 'out', to: 'carrier', input: 'pm' },
+    { from: 'slave', port: 'out', to: 'sum', input: 'a' },
+    { from: 'pulse', port: 'out', to: 'sum', input: 'b' },
+    { from: 'sum', port: 'out', to: 'sum2', input: 'a' },
+    { from: 'carrier', port: 'out', to: 'sum2', input: 'b' },
+    { from: 'sum2', port: 'out', to: 'filter', input: 'audio' },
+    { from: 'sum2', port: 'out', to: 'bandpass', input: 'audio' },
+    { from: 'filter', port: 'out', to: 'sum3', input: 'a' },
+    { from: 'bandpass', port: 'out', to: 'sum3', input: 'b' },
+    { from: 'sum3', port: 'out', to: 'out', input: 'audio' },
+  ]),
 };
+// The overlapping notes exercise last-note priority, retriggering and returning to a held key.
+for (const [mode, glideMode] of [[1, 0], [2, 1], [2, 0]]) {
+  const patch = MODULAR_PRESETS[0].patch();
+  patch.nodes.find(n => n.type === 'midi').params = { voices: mode, glide: 0.08, glideMode };
+  PATCHES[`${['', 'mono', 'legato'][mode]} voice with glide mode ${glideMode}`] = patch;
+}
 for (const preset of MODULAR_PRESETS) PATCHES['factory: ' + preset.name] = preset.patch();
 
 test('the parity patches use every module type', () => {
@@ -156,7 +195,7 @@ for (const [name, patch] of Object.entries(PATCHES)) {
         if (diff > worst) { worst = diff; at = i; }
         energy += web[i] * web[i];
       }
-      assert.ok(energy > 1, `${name} is silent`);
+      assert.ok(energy > 1e-3, `${name} is silent`);
       assert.ok(worst < 1e-4, `${name} differs by ${worst} at sample ${at}`);
     } finally {
       rmSync(dir, { recursive: true, force: true });

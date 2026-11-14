@@ -164,6 +164,8 @@ struct Instance {
         const int key = e.data[1] & 0x7f, value = e.data[2] & 0x7f;
         if (op == 0x90 && value) {
             end_note(dsp.note_on(channel, key, -1, value / 127.0, false), e.header.time, output);
+        } else if ((op == 0x90 || op == 0x80) && dsp.graph.voice_mode) {
+            end_note(dsp.mono_note_off(channel, key), e.header.time, output);
         } else if (op == 0x90 || op == 0x80) {
             Voice *oldest = nullptr;
             for (auto &v : dsp.voices)
@@ -176,7 +178,7 @@ struct Instance {
             for (auto &v : dsp.voices) {
                 if (!Engine::matches(v, channel, -1, -1)) continue;
                 if (key == 120) end_voice(v, e.header.time, output);
-                if (key == 123) dsp.release(v);
+                if (key == 123) { dsp.release(v); dsp.forget(channel, -1); }
                 if (key == 64 && !v.key_down && !dsp.sustain[channel]) v.held = false;
             }
         }
@@ -196,6 +198,11 @@ struct Instance {
             return;
         }
         if (e.port_index > 0) return;
+        if (h->type == CLAP_EVENT_NOTE_OFF && dsp.graph.voice_mode) {
+            end_note(dsp.mono_note_off(e.channel, e.key), h->time, output);
+            return;
+        }
+        if (h->type == CLAP_EVENT_NOTE_CHOKE) dsp.forget(e.channel, e.key);
         for (auto &v : dsp.voices) {
             if (!Engine::matches(v, e.channel, e.key, e.note_id)) continue;
             if (h->type == CLAP_EVENT_NOTE_CHOKE) end_voice(v, h->time, output);

@@ -30,9 +30,11 @@ int main(int argc, char **argv) {
                 const int key = note.at("key").get<int>();
                 if (note.at("on").get<size_t>() == n)
                     engine->note_on(0, key, -1, note.at("velocity").get<double>() / 127, false);
-                if (note.contains("off") && note.at("off").get<size_t>() == n)
-                    for (auto &v : engine->voices)
+                if (note.contains("off") && note.at("off").get<size_t>() == n) {
+                    if (engine->graph.voice_mode) engine->mono_note_off(0, key);
+                    else for (auto &v : engine->voices)
                         if (v.key_down && Engine::matches(v, 0, key, -1)) engine->release(v);
+                }
             }
             out[n] = float(engine->sample(macros));
         }

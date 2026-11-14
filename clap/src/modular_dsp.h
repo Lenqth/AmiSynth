@@ -13,7 +13,8 @@
 namespace modular {
 
 enum class Type;
-struct Param { const char *name; double min, max, initial; bool stepped; };
+// A fixed knob is a patch setting, such as the voice mode, and takes no cable.
+struct Param { const char *name; double min, max, initial; bool stepped, fixed; };
 struct Spec {
     Type type;
     const char *name;
@@ -46,6 +47,10 @@ struct Graph {
     std::array<Node, kNodes> nodes{};
     std::array<int, kNodes> order{}, delays{}, outputs{}, envelopes{};
     int size = 0, delay_count = 0, output_count = 0, envelope_count = 0, line_count = 0;
+    // From the first MIDI / Note module: 0 poly, 1 mono, 2 legato; glide in seconds.
+    int voice_mode = 0;
+    double glide = 0;
+    bool glide_legato_only = false;
 };
 
 inline int port_index(std::initializer_list<const char *> ports, const std::string &name) {
@@ -129,7 +134,7 @@ inline Graph compile(Json &patch, Macros &macros) {
             const auto &params = specs[dest]->params;
             const auto name = input.substr(6);
             const auto knob = std::find_if(params.begin(), params.end(), [&](const Param &p) { return name == p.name; });
-            if (knob == params.end()) throw std::invalid_argument("Invalid parameter input");
+            if (knob == params.end() || knob->fixed) throw std::invalid_argument("Invalid parameter input");
             dest_port = int(kMaxInputs) + int(knob - params.begin());
             node.modulated = true;
         } else {
@@ -165,6 +170,13 @@ inline Graph compile(Json &patch, Macros &macros) {
             audible.push_back(link.node);
         }
     }
+    for (int i = 0; i < graph.size; ++i) {
+        if (graph.nodes[i].type != Type::midi) continue;
+        graph.voice_mode = int(graph.nodes[i].knobs[0]);
+        graph.glide = graph.nodes[i].knobs[1];
+        graph.glide_legato_only = graph.nodes[i].knobs[2] != 0;
+        break;
+    }
     macros = {};
     const auto m = patch.find("macros");
     if (m != patch.end() && m->is_array()) {
@@ -177,7 +189,7 @@ inline Graph compile(Json &patch, Macros &macros) {
 }
 
 struct Stage {
-    double phase = 0, env = 0, release = 0, ic1 = 0, ic2 = 0, memory = 0;
+    double phase = 0, env = 0, release = 0, ic1 = 0, ic2 = 0, ic3 = 0, ic4 = 0, memory = 0;
     double p0 = 0, p1 = 0, p2 = 0, value = 0, prev = 0, amp = 0;
     uint32_t rng = 1;
     int mode = 0, write = 0;
@@ -192,7 +204,7 @@ struct Voice {
     int16_t channel = 0, key = -1;
     int32_t note_id = -1;
     uint64_t age = 0, tail = 0;
-    double velocity = 0;
+    double velocity = 0, glide = 0; // glide: semitones still to slide
     std::array<Stage, kNodes> stages{};
     std::array<std::array<double, kMaxOutputs>, kNodes> signals{};
     std::array<Line, kLines> lines{};
@@ -211,26 +223,34 @@ struct Engine {
     std::array<double, 16> bend{};
     std::array<bool, 16> sustain{};
     uint64_t clock = 0;
+    // Held keys in Mono and Legato, most recent last.
+    struct Held { int16_t channel, key; int32_t id; double velocity; bool clap_note; };
+    std::array<Held, 16> stack{};
+    int held_count = 0, last_key = -1;
 
     // Voices hold their delay lines, so they are reset in place rather than by assigning a
     // temporary, which would put hundreds of kilobytes on the stack.
     void reset() {
         for (auto &v : voices) { v.active = v.key_down = v.held = v.clap_note = false; v.tail = 0; }
-        bend = {}; sustain = {}; clock = 0;
+        bend = {}; sustain = {}; clock = 0; held_count = 0; last_key = -1;
     }
 
     NoteEnd note_on(int channel, int key, int32_t id, double velocity, bool clap_note) {
+        if (graph.voice_mode) return mono_note_on(channel, key, id, velocity, clap_note);
         auto chosen = voices.begin();
         for (auto it = voices.begin(); it != voices.end(); ++it) {
             if (!it->active) { chosen = it; break; }
             if (it->held == chosen->held ? it->age < chosen->age : !it->held) chosen = it;
         }
-        const NoteEnd previous{chosen->active && chosen->clap_note, chosen->channel, chosen->key, chosen->note_id};
-        auto &v = *chosen;
+        return start(*chosen, channel, key, id, velocity, clap_note);
+    }
+
+    NoteEnd start(Voice &v, int channel, int key, int32_t id, double velocity, bool clap_note) {
+        const NoteEnd previous{v.active && v.clap_note, v.channel, v.key, v.note_id};
         v.active = v.key_down = v.held = true;
         v.clap_note = clap_note;
         v.channel = int16_t(channel); v.key = int16_t(key); v.note_id = id;
-        v.age = ++clock; v.tail = 0; v.velocity = velocity;
+        v.age = ++clock; v.tail = 0; v.velocity = velocity; v.glide = 0;
         // Same seeds as the Web engine, so noise is identical in both.
         const auto age = uint32_t(v.age);
         for (size_t i = 0; i < v.stages.size(); ++i) {
@@ -241,6 +261,55 @@ struct Engine {
         v.signals = {};
         for (int i = 0; i < graph.line_count; ++i) v.lines[size_t(i)].fill(0);
         return previous;
+    }
+
+    // Mono and Legato play voice 0 with last-note priority, as the Synth instrument does.
+    NoteEnd mono_play(const Held &note, bool retrigger, bool overlap) {
+        auto &v = voices[0];
+        double offset = 0;
+        if (graph.glide > 0 && (overlap || !graph.glide_legato_only))
+            offset = v.active ? v.key + v.glide - note.key : last_key >= 0 ? double(last_key - note.key) : 0.0;
+        last_key = note.key;
+        NoteEnd previous;
+        if (retrigger || !v.active) {
+            previous = start(v, note.channel, note.key, note.id, note.velocity, note.clap_note);
+        } else {
+            // A legato change hands the sounding voice to another note.
+            previous = {v.clap_note && (v.note_id != note.id || v.key != note.key), v.channel, v.key, v.note_id};
+            v.channel = note.channel; v.key = note.key; v.note_id = note.id; v.clap_note = note.clap_note;
+            v.held = v.key_down = true; v.tail = 0;
+        }
+        v.glide = std::clamp(offset, -96.0, 96.0);
+        return previous;
+    }
+
+    void forget(int channel, int key) {
+        int kept = 0;
+        for (int i = 0; i < held_count; ++i)
+            if ((channel >= 0 && stack[size_t(i)].channel != channel) || (key >= 0 && stack[size_t(i)].key != key))
+                stack[size_t(kept++)] = stack[size_t(i)];
+        held_count = kept;
+    }
+
+    NoteEnd mono_note_on(int channel, int key, int32_t id, double velocity, bool clap_note) {
+        forget(channel, key);
+        if (held_count == int(stack.size())) {
+            std::move(stack.begin() + 1, stack.end(), stack.begin());
+            --held_count;
+        }
+        const Held note{int16_t(channel), int16_t(key), id, velocity, clap_note};
+        stack[size_t(held_count++)] = note;
+        const bool overlap = voices[0].active && voices[0].key_down;
+        return mono_play(note, !(graph.voice_mode == 2 && overlap), overlap);
+    }
+
+    NoteEnd mono_note_off(int channel, int key) {
+        forget(channel, key);
+        auto &v = voices[0];
+        if (!v.active || !v.key_down || v.key != key || v.channel != channel) return {};
+        if (held_count) return mono_play(stack[size_t(held_count - 1)], graph.voice_mode != 2, true);
+        release(v);
+        return {};
     }
 
     static bool matches(const Voice &v, int channel, int key, int32_t id) {
@@ -274,6 +343,14 @@ struct Engine {
         return line[size_t(i & kLineMask)] * (1 - frac) + line[size_t((i + 1) & kLineMask)] * frac;
     }
 
+    // The Synth instrument's soft clipper (tanh-like, exactly +/-1 beyond |x| >= 3).
+    static double soft_clip(double x) {
+        if (x > 3) return 1;
+        if (x < -3) return -1;
+        const double x2 = x * x;
+        return (x * (27 + x2)) / (27 + 9 * x2);
+    }
+
     static double blep(double phase, double step) {
         if (phase < step) { const double x = phase / step; return x + x - x * x - 1; }
         if (phase > 1 - step) { const double x = (phase - 1) / step; return x * x + x + x + 1; }
@@ -295,21 +372,37 @@ struct Engine {
         auto &sig = v.signals[i];
         switch (n.type) {
         case Type::midi:
-            sig = {v.key + bend[v.channel], v.held ? 1.0 : 0.0, v.velocity};
+            sig = {v.key + v.glide + bend[v.channel], v.held ? 1.0 : 0.0, v.velocity};
             break;
         case Type::vco: {
             const double note = read(v, n, 0, 69) + 12 * p[1] + p[2] / 100 + read(v, n, 1) * 12;
             const double step = std::clamp(440 * std::exp2((note - 69) / 12), 0.01, rate * 0.45) / rate;
-            const double phase = st.phase;
+            if (!st.ready) { st.phase = std::fmod(p[5], 1.0); st.ready = true; }
+            if (n.links[2].node >= 0) {
+                // Hard sync: restart the cycle where the sync input rises through zero.
+                const double sync = read(v, n, 2);
+                if (sync > 0 && st.value <= 0) st.phase = 0;
+                st.value = sync;
+            }
+            double phase = st.phase;
+            if (n.links[3].node >= 0) {
+                // Phase modulation in radians, the Synth instrument's FM.
+                phase += read(v, n, 3) / (2 * kPi);
+                phase -= std::floor(phase);
+            }
             double wave;
             switch (int(p[0])) {
             case 0: wave = std::sin(2 * kPi * phase); break;
             case 1: wave = 2 * phase - 1 - blep(phase, step); break;
-            case 2: wave = (phase < 0.5 ? 1 : -1) + blep(phase, step) - blep(std::fmod(phase + 0.5, 1.0), step); break;
+            case 2: // Without its DC offset, as in the Synth instrument.
+                wave = (phase < p[4] ? 1 : -1) + blep(phase, step) - blep(std::fmod(phase + 1 - p[4], 1.0), step) - (2 * p[4] - 1);
+                break;
             default: wave = 2 / kPi * std::asin(std::sin(2 * kPi * phase)); break;
             }
             sig[0] = wave * p[3];
-            st.phase = std::fmod(phase + step, 1.0);
+            const double next = st.phase + step;
+            sig[1] = next >= 1 ? 1 : 0;
+            st.phase = std::fmod(next, 1.0);
             break;
         }
         case Type::lfo:
@@ -327,13 +420,22 @@ struct Engine {
                 if (st.env >= 1) { st.env = 1; st.mode = 2; }
                 break;
             case 2:
-                st.env -= (1 - p[2]) / std::max(1.0, p[1] * rate);
-                if (st.env <= p[2]) { st.env = p[2]; st.mode = 3; }
+                if (p[4] != 0) {
+                    st.env = p[2] + std::exp(-kLn1000 / (p[1] * rate)) * (st.env - p[2]);
+                } else {
+                    st.env -= (1 - p[2]) / std::max(1.0, p[1] * rate);
+                    if (st.env <= p[2]) { st.env = p[2]; st.mode = 3; }
+                }
                 break;
             case 3: st.env = p[2]; break;
             case 4:
-                st.env -= st.release / std::max(1.0, p[3] * rate);
-                if (st.env <= 0) { st.env = 0; st.mode = 0; }
+                if (p[4] != 0) {
+                    st.env *= std::exp(-kLn1000 / (p[3] * rate));
+                    if (st.env < 0.00001) { st.env = 0; st.mode = 0; }
+                } else {
+                    st.env -= st.release / std::max(1.0, p[3] * rate);
+                    if (st.env <= 0) { st.env = 0; st.mode = 0; }
+                }
                 break;
             }
             sig[0] = st.env;
@@ -343,11 +445,21 @@ struct Engine {
             const double track = p[3] * (read(v, n, 2, 60) - 60) / 12;
             const double cutoff = std::clamp(p[0] * std::exp2(read(v, n, 1) * 2 + track), 20.0, rate * 0.45);
             const double g = std::tan(kPi * cutoff / rate), k = 2 - 1.95 * p[1];
-            const double hp = (read(v, n, 0) - (g + k) * st.ic1 - st.ic2) / (1 + g * (g + k));
+            const int mode = int(p[2]);
+            double input = read(v, n, 0);
+            if (p[5] > 0) input = soft_clip(input * (1 + 8 * p[5])) / (1 + 1.5 * p[5]);
+            if (p[4] != 0) {
+                // 24 dB: a Butterworth stage before the resonant one, as in the Synth instrument.
+                const double hp = (input - (g + 1.414) * st.ic3 - st.ic4) / (1 + g * (g + 1.414));
+                const double bp = g * hp + st.ic3, lp = g * bp + st.ic4;
+                st.ic3 = 2 * bp - st.ic3;
+                st.ic4 = 2 * lp - st.ic4;
+                input = mode == 0 ? lp : mode == 1 ? hp : mode == 2 ? bp : lp + hp;
+            }
+            const double hp = (input - (g + k) * st.ic1 - st.ic2) / (1 + g * (g + k));
             const double bp = g * hp + st.ic1, lp = g * bp + st.ic2;
             st.ic1 = 2 * bp - st.ic1;
             st.ic2 = 2 * lp - st.ic2;
-            const int mode = int(p[2]);
             const double out = mode == 0 ? lp : mode == 1 ? hp : mode == 2 ? bp : lp + hp;
             sig[0] = std::isfinite(out) ? std::clamp(out, -16.0, 16.0) : 0.0;
             break;
@@ -460,6 +572,9 @@ struct Engine {
         }
         case Type::vca: sig[0] = read(v, n, 0) * read(v, n, 1, 1) * p[0]; break;
         case Type::mix: sig[0] = read(v, n, 0) * p[0] + read(v, n, 1) * p[1]; break;
+        case Type::mix4:
+            sig[0] = read(v, n, 0) * p[0] + read(v, n, 1) * p[1] + read(v, n, 2) * p[2] + read(v, n, 3) * p[3];
+            break;
         case Type::cv: sig[0] = read(v, n, 0) * p[0] + p[1]; break;
         case Type::macro: sig[0] = macros[size_t(p[0]) - 1]; break;
         case Type::delay: sig[0] = st.memory; break;
@@ -470,12 +585,18 @@ struct Engine {
 
     double sample(const Macros &macros) {
         double out = 0;
+        // Glide decays like the Synth instrument: about 95% of the way after the glide time.
+        const double glide_coef = graph.glide > 0 ? std::exp(-1 / (graph.glide / 3 * rate)) : 0;
         for (auto &v : voices) {
             if (!v.active) continue;
             for (int i = 0; i < graph.size; ++i) sample_node(v, graph.order[i], macros);
             for (int i = 0; i < graph.delay_count; ++i) {
                 const int index = graph.delays[i];
                 v.stages[index].memory = std::clamp(read(v, graph.nodes[index], 0), -4.0, 4.0);
+            }
+            if (v.glide != 0) {
+                v.glide *= glide_coef;
+                if (std::abs(v.glide) < 0.0012) v.glide = 0;
             }
             double value = 0;
             for (int i = 0; i < graph.output_count; ++i) value += v.signals[graph.outputs[i]][0];

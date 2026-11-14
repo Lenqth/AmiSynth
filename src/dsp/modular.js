@@ -2,6 +2,7 @@
 // All cables carry a per-voice, audio-rate scalar. A Unit Delay breaks a feedback loop.
 // The native CLAP engine (clap/src/modular_dsp.h) mirrors every module; keep the two in step.
 import { MATERIALS } from './phys.js';
+import { MODULAR_SYNTH_PORTS } from '../presets/modular.js';
 
 // Native storage limits per module (checked by scripts/gen-modular-clap.js).
 export const MODULAR_MAX_INPUTS = 4;
@@ -16,14 +17,24 @@ export const MODULAR_MATERIALS = MATERIALS;
 export const MODULAR_CATEGORIES = ['Sources', 'Physical', 'Filters & Effects', 'Modulation', 'Utilities', 'Input & Output'];
 
 export const MODULAR_TYPES = Object.freeze({
-  midi: { label: 'MIDI / Note', category: 'Input & Output', keywords: 'keyboard pitch gate velocity trigger',
-    inputs: [], outputs: ['pitch', 'gate', 'velocity'], params: {} },
-  vco: { label: 'VCO', category: 'Sources', keywords: 'oscillator saw square sine triangle tone',
-    inputs: ['pitch', 'fm'], outputs: ['out'], params: {
+  // The first MIDI / Note module's knobs set how notes reach voices. They are patch settings,
+  // not per-voice signals, so they take no cable ("fixed").
+  midi: { label: 'MIDI / Note', category: 'Input & Output', keywords: 'keyboard pitch gate velocity trigger mono legato glide portamento',
+    inputs: [], outputs: ['pitch', 'gate', 'velocity'], params: {
+      voices: { min: 0, max: 2, default: 0, step: 1, choices: ['Poly', 'Mono', 'Legato'], fixed: true },
+      glide: { min: 0, max: 2, default: 0, step: 0.001, fixed: true },
+      glideMode: { min: 0, max: 1, default: 0, step: 1, choices: ['Always', 'Legato only'], fixed: true },
+    } },
+  vco: { label: 'VCO', category: 'Sources', keywords: 'oscillator saw square pulse sine triangle tone sync fm pm',
+    // The sync output is 1 for the sample where the cycle restarts; patch it into another VCO's sync.
+    inputs: ['pitch', 'fm', 'sync', 'pm'], outputs: ['out', 'sync'], params: {
       wave: { min: 0, max: 3, default: 1, step: 1, choices: ['Sine', 'Saw', 'Square', 'Triangle'] },
       octave: { min: -3, max: 3, default: 0, step: 1 },
       detune: { min: -1200, max: 1200, default: 0, step: 1 },
       level: { min: 0, max: 1, default: 0.4, step: 0.01 },
+      pw: { min: 0.02, max: 0.98, default: 0.5, step: 0.01 },
+      // Where each note's cycle starts; spread copies so they do not start in step.
+      phase: { min: 0, max: 1, default: 0, step: 0.01 },
     } },
   noise: { label: 'Noise', category: 'Sources', keywords: 'white pink random hiss breath',
     inputs: [], outputs: ['out'], params: {
@@ -57,6 +68,8 @@ export const MODULAR_TYPES = Object.freeze({
       decay: { min: 0.001, max: 5, default: 0.18, step: 0.001 },
       sustain: { min: 0, max: 1, default: 0.65, step: 0.01 },
       release: { min: 0.001, max: 10, default: 0.3, step: 0.001 },
+      // Exponential: decay and release fall to -60 dB in their time, like the Synth instrument.
+      curve: { min: 0, max: 1, default: 0, step: 1, choices: ['Linear', 'Exponential'] },
     } },
   sh: { label: 'Sample & Hold', category: 'Modulation', keywords: 'random stepped s&h clock',
     inputs: ['in', 'trigger'], outputs: ['out'], params: {
@@ -83,6 +96,8 @@ export const MODULAR_TYPES = Object.freeze({
       resonance: { min: 0, max: 0.95, default: 0.15, step: 0.01 },
       mode: { min: 0, max: 3, default: 0, step: 1, choices: ['Lowpass', 'Highpass', 'Bandpass', 'Notch'] },
       keytrack: { min: 0, max: 1, default: 0, step: 0.01 },
+      slope: { min: 0, max: 1, default: 0, step: 1, choices: ['12 dB', '24 dB'] },
+      drive: { min: 0, max: 1, default: 0, step: 0.01 },
     } },
   comb: { label: 'Comb / Delay Line', category: 'Filters & Effects', keywords: 'delay echo flanger chorus resonator feedback',
     inputs: ['in'], outputs: ['out'], params: {
@@ -103,6 +118,13 @@ export const MODULAR_TYPES = Object.freeze({
     inputs: ['a', 'b'], outputs: ['out'], params: {
       a: { min: 0, max: 2, default: 0.5, step: 0.01 },
       b: { min: 0, max: 2, default: 0.5, step: 0.01 },
+    } },
+  mix4: { label: 'Mixer (4)', category: 'Utilities', keywords: 'sum add combine four',
+    inputs: ['a', 'b', 'c', 'd'], outputs: ['out'], params: {
+      a: { min: 0, max: 2, default: 0.5, step: 0.01 },
+      b: { min: 0, max: 2, default: 0.5, step: 0.01 },
+      c: { min: 0, max: 2, default: 0.5, step: 0.01 },
+      d: { min: 0, max: 2, default: 0.5, step: 0.01 },
     } },
   cv: { label: 'CV Scale / Offset', category: 'Utilities', keywords: 'attenuator offset scale bias',
     inputs: ['in'], outputs: ['out'], params: {
@@ -199,15 +221,12 @@ export const MODULAR_PRESETS = [
     );
     return patch;
   } },
-  ...portedPresets(),
+  ...physicalPresets(),
+  ...MODULAR_SYNTH_PORTS,
 ];
 
-// Factory patches ported from Synth presets of the same name, plus a few for the physical
-// modules. Modular has no pulse width, hard sync, unison or mono glide, so those are
-// approximated: a second VCF stage makes a 24 dB filter, detuned VCOs stand in for unison and
-// a VCO an octave down for the sub oscillator. The VCF cutoff input adds two octaves per unit,
-// so a CV Scale of N/2 gives N octaves of filter envelope.
-function portedPresets() {
+// Patches for the physical modules. The Synth ports follow (src/presets/modular.js).
+function physicalPresets() {
   // nodes: { id: [type, params] }; cables: 'from.port > to.input'
   const make = (nodes, ...cables) => ({
     nodes: [{ id: 'note', type: 'midi' }, { id: 'out', type: 'output' },
@@ -217,105 +236,7 @@ function portedPresets() {
       return { from, port, to, input };
     }),
   });
-  const env = (attack, decay, sustain, release) => ['adsr', { attack, decay, sustain, release }];
-  const saw = 1, square = 2, sine = 0, triangle = 3;
   return [
-    { name: 'Acid Bass', patch: () => make({
-      osc: ['vco', { wave: saw, octave: -1, level: 0.5 }],
-      filter: ['vcf', { cutoff: 260, resonance: 0.82, keytrack: 0.3 }],
-      slope: ['vcf', { cutoff: 260, keytrack: 0.3 }],
-      fenv: env(0.001, 0.18, 0, 0.04), depth: ['cv', { scale: 2.1 }],
-      env: env(0.001, 0.3, 0.8, 0.04), amp: ['vca'],
-    }, 'note.pitch > osc.pitch', 'note.pitch > filter.pitch', 'note.pitch > slope.pitch',
-    'osc.out > filter.audio', 'filter.out > slope.audio', 'slope.out > amp.audio',
-    'note.gate > fenv.gate', 'fenv.out > depth.in', 'depth.out > filter.cutoff', 'depth.out > slope.cutoff',
-    'note.gate > env.gate', 'env.out > amp.gain', 'amp.out > out.audio') },
-    { name: 'Sub Bass', patch: () => make({
-      osc: ['vco', { wave: triangle, level: 0.6 }], sub: ['vco', { wave: square, octave: -1, level: 0.3 }],
-      sum: ['mix', { a: 1, b: 1 }], filter: ['vcf', { cutoff: 600, resonance: 0 }],
-      env: env(0.002, 0.18, 1, 0.08), amp: ['vca'],
-    }, 'note.pitch > osc.pitch', 'note.pitch > sub.pitch', 'osc.out > sum.a', 'sub.out > sum.b',
-    'sum.out > filter.audio', 'filter.out > amp.audio', 'note.gate > env.gate', 'env.out > amp.gain',
-    'amp.out > out.audio') },
-    { name: 'Pluck', patch: () => make({
-      osc: ['vco', { wave: saw, level: 0.45 }], osc2: ['vco', { wave: square, level: 0.25 }],
-      sum: ['mix', { a: 1, b: 1 }], filter: ['vcf', { cutoff: 400, resonance: 0.25 }],
-      fenv: env(0.001, 0.22, 0, 0.2), depth: ['cv', { scale: 2.25 }],
-      env: env(0.001, 0.45, 0, 0.2), amp: ['vca'],
-    }, 'note.pitch > osc.pitch', 'note.pitch > osc2.pitch', 'osc.out > sum.a', 'osc2.out > sum.b',
-    'sum.out > filter.audio', 'filter.out > amp.audio', 'note.gate > fenv.gate', 'fenv.out > depth.in',
-    'depth.out > filter.cutoff', 'note.gate > env.gate', 'env.out > amp.gain', 'amp.out > out.audio') },
-    { name: 'FM Bell', patch: () => make({
-      carrier: ['vco', { wave: sine, level: 0.8 }],
-      modulator: ['vco', { wave: sine, octave: 1, detune: 969, level: 1 }],
-      index: env(0.001, 1.6, 0, 1), depth: ['vca', { level: 0.7 }],
-      env: env(0.001, 2.5, 0, 1.5), amp: ['vca'],
-    }, 'note.pitch > carrier.pitch', 'note.pitch > modulator.pitch', 'modulator.out > depth.audio',
-    'note.gate > index.gate', 'index.out > depth.gain', 'depth.out > carrier.fm', 'carrier.out > amp.audio',
-    'note.gate > env.gate', 'env.out > amp.gain', 'amp.out > out.audio') },
-    { name: 'Chiptune Square', patch: () => make({
-      osc: ['vco', { wave: square, level: 0.45 }], env: env(0.001, 0.1, 1, 0.015), amp: ['vca'],
-    }, 'note.pitch > osc.pitch', 'osc.out > amp.audio', 'note.gate > env.gate', 'env.out > amp.gain',
-    'amp.out > out.audio') },
-    { name: 'Warm Pad', patch: () => make({
-      osc: ['vco', { wave: triangle, level: 0.5 }], osc2: ['vco', { wave: saw, detune: 12, level: 0.2 }],
-      osc3: ['vco', { wave: saw, detune: -18, level: 0.2 }],
-      sum: ['mix', { a: 1, b: 1 }], sum2: ['mix', { a: 1, b: 1 }],
-      filter: ['vcf', { cutoff: 700, resonance: 0.2 }],
-      fenv: env(1.5, 3, 0.5, 2), drift: ['lfo', { rate: 0.3, depth: 0.15 }], mod: ['mix', { a: 1, b: 1 }],
-      env: env(0.9, 0.5, 1, 2), amp: ['vca'],
-    }, 'note.pitch > osc.pitch', 'note.pitch > osc2.pitch', 'note.pitch > osc3.pitch',
-    'osc.out > sum.a', 'osc2.out > sum.b', 'sum.out > sum2.a', 'osc3.out > sum2.b', 'sum2.out > filter.audio',
-    'note.gate > fenv.gate', 'fenv.out > mod.a', 'drift.out > mod.b', 'mod.out > filter.cutoff',
-    'filter.out > amp.audio', 'note.gate > env.gate', 'env.out > amp.gain', 'amp.out > out.audio') },
-    { name: 'Wobble Bass', patch: () => make({
-      osc: ['vco', { wave: saw, level: 0.4 }], osc2: ['vco', { wave: saw, detune: 12, level: 0.25 }],
-      sub: ['vco', { wave: square, octave: -1, level: 0.2 }],
-      sum: ['mix', { a: 1, b: 1 }], sum2: ['mix', { a: 1, b: 1 }],
-      filter: ['vcf', { cutoff: 260, resonance: 0.6 }],
-      wobble: ['lfo', { rate: 3, wave: 1 }], depth: ['cv', { scale: 1.3, offset: 1.3 }],
-      env: env(0.002, 0.2, 1, 0.06), amp: ['vca'],
-    }, 'note.pitch > osc.pitch', 'note.pitch > osc2.pitch', 'note.pitch > sub.pitch',
-    'osc.out > sum.a', 'osc2.out > sum.b', 'sum.out > sum2.a', 'sub.out > sum2.b', 'sum2.out > filter.audio',
-    'wobble.out > depth.in', 'depth.out > filter.cutoff', 'filter.out > amp.audio',
-    'note.gate > env.gate', 'env.out > amp.gain', 'amp.out > out.audio') },
-    { name: 'Noise Sweep FX', patch: () => make({
-      noise: ['noise', { color: 0, level: 0.9 }], filter: ['vcf', { cutoff: 300, resonance: 0.55, mode: 2 }],
-      fenv: env(3, 0.5, 1, 1.5), depth: ['cv', { scale: 2.5 }],
-      env: env(0.8, 0.5, 1, 1.5), amp: ['vca'],
-    }, 'noise.out > filter.audio', 'note.gate > fenv.gate', 'fenv.out > depth.in', 'depth.out > filter.cutoff',
-    'filter.out > amp.audio', 'note.gate > env.gate', 'env.out > amp.gain', 'amp.out > out.audio') },
-    { name: 'Sample & Hold Blips', patch: () => make({
-      osc: ['vco', { wave: square, level: 0.3 }], filter: ['vcf', { cutoff: 1200, resonance: 0.7 }],
-      random: ['sh', { rate: 8 }], depth: ['cv', { scale: 1.1 }],
-      env: env(0.005, 0.2, 1, 0.3), amp: ['vca'],
-    }, 'note.pitch > osc.pitch', 'osc.out > filter.audio', 'random.out > depth.in', 'depth.out > filter.cutoff',
-    'filter.out > amp.audio', 'note.gate > env.gate', 'env.out > amp.gain', 'amp.out > out.audio') },
-    { name: 'Reese Bass', patch: () => make({
-      osc: ['vco', { wave: saw, detune: 11, level: 0.35 }], osc2: ['vco', { wave: saw, detune: -18, level: 0.35 }],
-      sub: ['vco', { wave: sine, octave: -1, level: 0.25 }],
-      sum: ['mix', { a: 1, b: 1 }], sum2: ['mix', { a: 1, b: 1 }],
-      filter: ['vcf', { cutoff: 650, resonance: 0.18 }], drift: ['lfo', { rate: 0.18, depth: 0.175 }],
-      env: env(0.008, 0.2, 1, 0.1), amp: ['vca'],
-    }, 'note.pitch > osc.pitch', 'note.pitch > osc2.pitch', 'note.pitch > sub.pitch',
-    'osc.out > sum.a', 'osc2.out > sum.b', 'sum.out > sum2.a', 'sub.out > sum2.b', 'sum2.out > filter.audio',
-    'drift.out > filter.cutoff', 'filter.out > amp.audio', 'note.gate > env.gate', 'env.out > amp.gain',
-    'amp.out > out.audio') },
-    { name: 'Brass', patch: () => make({
-      osc: ['vco', { wave: saw, level: 0.35 }], osc2: ['vco', { wave: saw, detune: 6, level: 0.3 }],
-      sum: ['mix', { a: 1, b: 1 }], filter: ['vcf', { cutoff: 700, resonance: 0.12 }],
-      fenv: env(0.06, 0.5, 0.55, 0.18), depth: ['cv', { scale: 1.3 }],
-      env: env(0.025, 0.3, 0.9, 0.18), amp: ['vca'],
-    }, 'note.pitch > osc.pitch', 'note.pitch > osc2.pitch', 'osc.out > sum.a', 'osc2.out > sum.b',
-    'sum.out > filter.audio', 'note.gate > fenv.gate', 'fenv.out > depth.in', 'depth.out > filter.cutoff',
-    'filter.out > amp.audio', 'note.gate > env.gate', 'env.out > amp.gain', 'amp.out > out.audio') },
-    { name: 'Soft Sine Lead', patch: () => make({
-      osc: ['vco', { wave: sine, level: 0.6 }], octave: ['vco', { wave: sine, octave: 1, level: 0.07 }],
-      vibrato: ['lfo', { rate: 5.5, depth: 0.025 }], sum: ['mix', { a: 1, b: 1 }],
-      env: env(0.015, 0.2, 1, 0.22), amp: ['vca'],
-    }, 'note.pitch > osc.pitch', 'note.pitch > octave.pitch', 'vibrato.out > osc.fm', 'vibrato.out > octave.fm',
-    'osc.out > sum.a', 'octave.out > sum.b', 'sum.out > amp.audio', 'note.gate > env.gate', 'env.out > amp.gain',
-    'amp.out > out.audio') },
     { name: 'Plucked String', patch: () => make({
       string: ['string', { decay: 3, release: 0.25, brightness: 0.65, level: 0.7 }],
       body: ['vcf', { cutoff: 5000, resonance: 0.1 }],
@@ -363,7 +284,7 @@ export function compileModularPatch(raw) {
     if (src === undefined || dst === undefined) throw new Error('Invalid cable endpoint');
     const dest = MODULAR_TYPES[nodes[dst].type];
     const parameter = typeof cable.input === 'string' && cable.input.startsWith('param:') &&
-      Object.hasOwn(dest.params, cable.input.slice(6));
+      Object.hasOwn(dest.params, cable.input.slice(6)) && !dest.params[cable.input.slice(6)].fixed;
     if (!MODULAR_TYPES[nodes[src].type].outputs.includes(cable.port) ||
         (!dest.inputs.includes(cable.input) && !parameter) ||
         nodes[dst].links[cable.input]) throw new Error('Invalid or duplicate cable');
@@ -392,8 +313,10 @@ export function compileModularPatch(raw) {
   const envelopes = [...audible].filter(i => RINGING_TYPES.has(nodes[i].type));
   const macros = Array.from({ length: MODULAR_MACROS }, (_, i) =>
     Number.isFinite(raw.macros?.[i]) ? clamp(raw.macros[i], 0, 1) : 0);
+  const midi = nodes.find(n => n.type === 'midi');
+  const mono = { mode: midi?.params.voices ?? 0, glide: midi?.params.glide ?? 0, legatoOnly: midi?.params.glideMode ?? 0 };
   return {
-    nodes, order, delays, outputs, envelopes, lineCount,
+    nodes, order, delays, outputs, envelopes, lineCount, mono,
     meterSources: [...new Map(raw.cables.map(c => {
       const key = c.from + '/' + c.port;
       return [key, { key, index: ids.get(c.from), port: c.port }];
@@ -428,13 +351,20 @@ function lineRead(line, write, delay) {
   const i = Math.floor(pos), frac = pos - i;
   return line[i & MASK] * (1 - frac) + line[(i + 1) & MASK] * frac;
 }
+// The Synth instrument's soft clipper (tanh-like, exactly +/-1 beyond |x| >= 3).
+function softClip(x) {
+  if (x > 3) return 1;
+  if (x < -3) return -1;
+  const x2 = x * x;
+  return (x * (27 + x2)) / (27 + 9 * x2);
+}
 const blep = (t, dt) => {
   if (t < dt) { const x = t / dt; return x + x - x * x - 1; }
   if (t > 1 - dt) { const x = (t - 1) / dt; return x * x + x + x + 1; }
   return 0;
 };
 function newStage() {
-  return { phase: 0, env: 0, mode: 0, release: 0, ic1: 0, ic2: 0, memory: 0, lastGate: false,
+  return { phase: 0, env: 0, mode: 0, release: 0, ic1: 0, ic2: 0, ic3: 0, ic4: 0, memory: 0, lastGate: false,
     rng: 1, p0: 0, p1: 0, p2: 0, value: 0, ready: false, write: 0, prev: 0, amp: 0,
     y1: new Float64Array(MODULAR_MODES), y2: new Float64Array(MODULAR_MODES),
     a1: new Float64Array(MODULAR_MODES), a2: new Float64Array(MODULAR_MODES), b: new Float64Array(MODULAR_MODES),
@@ -442,7 +372,7 @@ function newStage() {
 }
 // Same seed and generator as the native engine, so noise is identical in both.
 function resetStage(st, age, index) {
-  st.phase = st.env = st.mode = st.release = st.ic1 = st.ic2 = st.memory = 0;
+  st.phase = st.env = st.mode = st.release = st.ic1 = st.ic2 = st.ic3 = st.ic4 = st.memory = 0;
   st.p0 = st.p1 = st.p2 = st.value = st.write = st.prev = st.amp = 0;
   st.lastGate = st.ready = false;
   st.rng = (Math.imul(age, 0x9e3779b1) + Math.imul(index + 1, 0x85ebca77)) >>> 0 || 1;
@@ -458,7 +388,7 @@ function white(st) {
 }
 function newVoice(nodeCount) {
   return { active: false, keyDown: false, held: false, channel: 0, note: -1, velocity: 0,
-    age: 0, tail: 0,
+    age: 0, tail: 0, glide: 0,
     stages: Array.from({ length: nodeCount }, newStage),
     signals: Array.from({ length: nodeCount }, () => ({})),
     lines: Array.from({ length: MODULAR_LINES }, () => new Float32Array(MODULAR_LINE_SAMPLES)) };
@@ -469,6 +399,8 @@ export function modular_init(s, sampleRate) {
   s.bend = new Float64Array(16);
   s.sustain = new Uint8Array(16);
   s.tick = 0;
+  s.stack = []; // Held keys in Mono and Legato, most recent last.
+  s.lastKey = -1;
   s.out_l = 0; s.out_r = 0;
   modular_set_patch(s, defaultModularPatch());
 }
@@ -498,12 +430,17 @@ export function modular_midi(s, status, d1, d2) {
     for (const v of s.voices) {
       if (v.channel !== channel) continue;
       if (d1 === 120) v.active = false;
-      if (d1 === 123) v.keyDown = false;
+      if (d1 === 123) { v.keyDown = false; s.stack = s.stack.filter(h => h.channel !== channel); }
       if ((d1 === 64 || d1 === 123) && !v.keyDown && !s.sustain[channel]) v.held = false;
     }
     return;
   }
   if (!Number.isInteger(d1) || d1 < 0 || d1 > 127) return;
+  if (s.graph.mono.mode && (op === 0x80 || op === 0x90)) {
+    if (op === 0x90 && d2) { if (Number.isFinite(d2) && d2 <= 127) monoNoteOn(s, channel, d1, d2 / 127); }
+    else monoNoteOff(s, channel, d1);
+    return;
+  }
   if (op === 0x80 || (op === 0x90 && !d2)) {
     let oldest;
     for (const v of s.voices) {
@@ -515,15 +452,49 @@ export function modular_midi(s, status, d1, d2) {
   if (op !== 0x90 || !Number.isFinite(d2) || d2 < 1 || d2 > 127) return;
   let v = s.voices.find(voice => !voice.active);
   if (!v) v = s.voices.reduce((a, b) => a.held === b.held ? (a.age < b.age ? a : b) : a.held ? b : a);
+  startVoice(s, v, channel, d1, d2 / 127);
+}
+
+function startVoice(s, v, channel, key, velocity) {
   const age = ++s.tick;
   for (let i = 0; i < v.stages.length; i++) {
     resetStage(v.stages[i], age, i);
     const sig = v.signals[i];
-    sig.out = sig.pitch = sig.gate = sig.velocity = 0;
+    sig.out = sig.pitch = sig.gate = sig.velocity = sig.sync = 0;
   }
   for (let i = 0; i < s.graph.lineCount; i++) v.lines[i].fill(0);
   v.active = v.held = v.keyDown = true;
-  v.channel = channel; v.note = d1; v.velocity = d2 / 127; v.age = age; v.tail = 0;
+  v.channel = channel; v.note = key; v.velocity = velocity; v.age = age; v.tail = 0; v.glide = 0;
+}
+
+// Mono and Legato play voice 0 with last-note priority, as the Synth instrument does.
+function monoPlay(s, channel, key, velocity, retrigger, overlap) {
+  const v = s.voices[0], { glide, legatoOnly } = s.graph.mono;
+  let offset = 0;
+  if (glide > 0 && (overlap || !legatoOnly))
+    offset = v.active ? v.note + v.glide - key : s.lastKey >= 0 ? s.lastKey - key : 0;
+  s.lastKey = key;
+  if (retrigger || !v.active) startVoice(s, v, channel, key, velocity);
+  else { v.channel = channel; v.note = key; v.held = v.keyDown = true; v.tail = 0; }
+  v.glide = clamp(offset, -96, 96);
+}
+
+function monoNoteOn(s, channel, key, velocity) {
+  s.stack = s.stack.filter(h => h.channel !== channel || h.key !== key);
+  if (s.stack.length >= 16) s.stack.shift();
+  s.stack.push({ channel, key, velocity });
+  const v = s.voices[0];
+  const overlap = v.active && v.keyDown;
+  monoPlay(s, channel, key, velocity, !(s.graph.mono.mode === 2 && overlap), overlap);
+}
+
+function monoNoteOff(s, channel, key) {
+  s.stack = s.stack.filter(h => h.channel !== channel || h.key !== key);
+  const v = s.voices[0];
+  if (!v.active || !v.keyDown || v.note !== key || v.channel !== channel) return;
+  const back = s.stack.at(-1);
+  if (back) monoPlay(s, back.channel, back.key, back.velocity, s.graph.mono.mode !== 2, true);
+  else { v.keyDown = false; v.held = !!s.sustain[channel]; }
 }
 
 function read(v, node, key, fallback = 0) {
@@ -571,22 +542,38 @@ function sampleNode(s, v, i) {
   const n = s.graph.nodes[i], st = v.stages[i], sig = v.signals[i];
   switch (n.type) {
     case 'midi':
-      sig.pitch = v.note + s.bend[v.channel]; sig.gate = v.held ? 1 : 0; sig.velocity = v.velocity;
+      sig.pitch = v.note + v.glide + s.bend[v.channel]; sig.gate = v.held ? 1 : 0; sig.velocity = v.velocity;
       break;
     case 'vco': {
       const waveType = parameter(v, n, 'wave');
       const note = read(v, n, 'pitch', 69) + 12 * parameter(v, n, 'octave') + parameter(v, n, 'detune') / 100 + read(v, n, 'fm') * 12;
       const frequency = clamp(440 * Math.pow(2, (note - 69) / 12), 0.01, s.sampleRate * 0.45);
-      const dt = frequency / s.sampleRate, phase = st.phase;
+      const dt = frequency / s.sampleRate;
+      if (!st.ready) { st.phase = parameter(v, n, 'phase') % 1; st.ready = true; }
+      if (n.links.sync) {
+        // Hard sync: restart the cycle where the sync input rises through zero.
+        const sync = read(v, n, 'sync');
+        if (sync > 0 && st.value <= 0) st.phase = 0;
+        st.value = sync;
+      }
+      let phase = st.phase;
+      if (n.links.pm) {
+        // Phase modulation in radians, the Synth instrument's FM.
+        phase += read(v, n, 'pm') / TAU;
+        phase -= Math.floor(phase);
+      }
       let wave;
       if (waveType === 0) wave = Math.sin(TAU * phase);
       else if (waveType === 1) wave = 2 * phase - 1 - blep(phase, dt);
       else if (waveType === 2) {
-        wave = phase < 0.5 ? 1 : -1;
-        wave += blep(phase, dt) - blep((phase + 0.5) % 1, dt);
+        const width = parameter(v, n, 'pw');
+        // Without its DC offset, so pulse-width modulation does not thump (as in the Synth instrument).
+        wave = (phase < width ? 1 : -1) + blep(phase, dt) - blep((phase + 1 - width) % 1, dt) - (2 * width - 1);
       } else wave = 2 / Math.PI * Math.asin(Math.sin(TAU * phase));
       sig.out = wave * parameter(v, n, 'level');
-      st.phase = (phase + dt) % 1;
+      const next = st.phase + dt;
+      sig.sync = next >= 1 ? 1 : 0;
+      st.phase = next % 1;
       break;
     }
     case 'lfo': {
@@ -605,12 +592,21 @@ function sampleNode(s, v, i) {
         st.env += 1 / Math.max(1, parameter(v, n, 'attack') * s.sampleRate);
         if (st.env >= 1) { st.env = 1; st.mode = 2; }
       } else if (st.mode === 2) {
-        st.env -= (1 - sustain) / Math.max(1, parameter(v, n, 'decay') * s.sampleRate);
-        if (st.env <= sustain) { st.env = sustain; st.mode = 3; }
+        if (parameter(v, n, 'curve')) {
+          st.env = sustain + Math.exp(-LN1000 / (parameter(v, n, 'decay') * s.sampleRate)) * (st.env - sustain);
+        } else {
+          st.env -= (1 - sustain) / Math.max(1, parameter(v, n, 'decay') * s.sampleRate);
+          if (st.env <= sustain) { st.env = sustain; st.mode = 3; }
+        }
       } else if (st.mode === 3) st.env = sustain;
       else if (st.mode === 4) {
-        st.env -= st.release / Math.max(1, parameter(v, n, 'release') * s.sampleRate);
-        if (st.env <= 0) { st.env = 0; st.mode = 0; }
+        if (parameter(v, n, 'curve')) {
+          st.env *= Math.exp(-LN1000 / (parameter(v, n, 'release') * s.sampleRate));
+          if (st.env < 0.00001) { st.env = 0; st.mode = 0; }
+        } else {
+          st.env -= st.release / Math.max(1, parameter(v, n, 'release') * s.sampleRate);
+          if (st.env <= 0) { st.env = 0; st.mode = 0; }
+        }
       }
       sig.out = st.env;
       break;
@@ -620,13 +616,23 @@ function sampleNode(s, v, i) {
       const cutoff = clamp(parameter(v, n, 'cutoff') * Math.pow(2, read(v, n, 'cutoff') * 2 + track), 20, s.sampleRate * 0.45);
       const g = Math.tan(Math.PI * cutoff / s.sampleRate);
       const k = 2 - 1.95 * parameter(v, n, 'resonance');
+      const mode = parameter(v, n, 'mode');
+      const drive = parameter(v, n, 'drive');
+      let input = read(v, n, 'audio');
+      if (drive > 0) input = softClip(input * (1 + 8 * drive)) / (1 + 1.5 * drive);
+      if (parameter(v, n, 'slope')) {
+        // 24 dB: a Butterworth stage before the resonant one, as in the Synth instrument.
+        const hp = (input - (g + 1.414) * st.ic3 - st.ic4) / (1 + g * (g + 1.414));
+        const bp = g * hp + st.ic3;
+        const lp = g * bp + st.ic4;
+        st.ic3 = 2 * bp - st.ic3; st.ic4 = 2 * lp - st.ic4;
+        input = mode === 0 ? lp : mode === 1 ? hp : mode === 2 ? bp : lp + hp;
+      }
       const a1 = 1 / (1 + g * (g + k));
-      const input = read(v, n, 'audio');
       const hp = (input - (g + k) * st.ic1 - st.ic2) * a1;
       const bp = g * hp + st.ic1;
       const lp = g * bp + st.ic2;
       st.ic1 = 2 * bp - st.ic1; st.ic2 = 2 * lp - st.ic2;
-      const mode = parameter(v, n, 'mode');
       const out = mode === 0 ? lp : mode === 1 ? hp : mode === 2 ? bp : lp + hp;
       sig.out = Number.isFinite(out) ? clamp(out, -16, 16) : 0;
       break;
@@ -746,6 +752,10 @@ function sampleNode(s, v, i) {
     }
     case 'vca': sig.out = read(v, n, 'audio') * read(v, n, 'gain', 1) * parameter(v, n, 'level'); break;
     case 'mix': sig.out = read(v, n, 'a') * parameter(v, n, 'a') + read(v, n, 'b') * parameter(v, n, 'b'); break;
+    case 'mix4':
+      sig.out = read(v, n, 'a') * parameter(v, n, 'a') + read(v, n, 'b') * parameter(v, n, 'b') +
+        read(v, n, 'c') * parameter(v, n, 'c') + read(v, n, 'd') * parameter(v, n, 'd');
+      break;
     case 'cv': sig.out = read(v, n, 'in') * parameter(v, n, 'scale') + parameter(v, n, 'offset'); break;
     case 'macro': sig.out = s.graph.patch.macros[parameter(v, n, 'index') - 1]; break;
     case 'delay': sig.out = st.memory; break;
@@ -756,13 +766,19 @@ function sampleNode(s, v, i) {
 }
 export function modular_render(s) {
   let out = 0;
-  const { nodes, order, delays, outputs, envelopes } = s.graph;
+  const { nodes, order, delays, outputs, envelopes, mono } = s.graph;
+  // Glide decays like the Synth instrument: about 95% of the way after the glide time.
+  const glideCoef = mono.glide > 0 ? Math.exp(-1 / (mono.glide / 3 * s.sampleRate)) : 0;
   let meterVoice;
   for (const v of s.voices) {
     if (!v.active) continue;
     meterVoice ??= v;
     for (const i of order) sampleNode(s, v, i);
     for (const i of delays) v.stages[i].memory = clamp(read(v, nodes[i], 'in'), -4, 4);
+    if (v.glide !== 0) {
+      v.glide *= glideCoef;
+      if (Math.abs(v.glide) < 0.0012) v.glide = 0;
+    }
     let sample = 0;
     for (const i of outputs) sample += v.signals[i].out;
     if (!v.held) {
