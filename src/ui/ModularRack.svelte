@@ -1,7 +1,6 @@
 <script>
   import { MODULAR_TYPES, compileModularPatch, defaultModularPatch } from '../dsp/modular.js';
-  export let patch = $bindable(defaultModularPatch());
-  export let onchange = () => {};
+  let { patch = defaultModularPatch(), onchange = () => {} } = $props();
   let source = $state('');
   let sourcePort = $state('');
   let target = $state('');
