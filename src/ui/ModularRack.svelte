@@ -1,11 +1,16 @@
 <script>
-  import { onMount } from 'svelte';
+  import { onMount, tick } from 'svelte';
+  import { engine } from '../lib/engine.js';
   import {
     MODULAR_MACROS, MODULAR_PATCH_BYTES, MODULAR_POSITION_MAX, MODULAR_PRESETS, MODULAR_TYPES,
-    compileModularPatch, defaultModularPatch,
+    compileModularPatch, defaultModularPatch, modularParamInput,
   } from '../dsp/modular.js';
 
   let { patch = defaultModularPatch(), onchange = () => {} } = $props();
+  let showSignals = $state(false);
+  let activeSignals = $state(new Set());
+  let menu = $state(null);
+  let menuElement = $state();
   let error = $state('');
   let drag = $state(null);
   let selected = $state(null);
@@ -21,7 +26,7 @@
   const nodes = $derived(graph.nodes);
   const cardWidth = 224;
   const columnPitch = 274;
-  const rowPitch = 280;
+  const rowPitch = 340;
   const pad = 22;
   const anchor = (column, row) => ({ x: pad + column * columnPitch, y: pad + row * rowPitch });
   const defaultSlots = { note: [0, 0], osc: [1, 0], filter: [2, 0], amp: [3, 0], out: [4, 0], env: [2, 1] };
@@ -33,9 +38,11 @@
   }));
   const rackWidth = $derived(Math.max(5 * columnPitch - 10, ...cards.map(c => c.x + cardWidth + 100)));
   const rackHeight = $derived(Math.max(420, ...cards.map(c => c.y + rowPitch)));
+  const jackKey = (id, port, direction) => id + '/' + port + '/' + direction;
+  const wiredInputs = $derived(new Set(graph.cables.map(c => jackKey(c.to, c.input, 'in'))));
+  const wiredOutputs = $derived(new Set(graph.cables.map(c => jackKey(c.from, c.port, 'out'))));
   const outputCount = $derived(nodes.filter(n => n.type === 'output').length);
   const colors = ['#ffb547', '#71c7ff', '#91e6b3', '#f499b8', '#c3a7ff'];
-  const jackKey = (id, port, direction) => id + '/' + port + '/' + direction;
 
   function measure() {
     if (!rack) return;
@@ -59,6 +66,64 @@
     return () => cancelAnimationFrame(frame);
   });
 
+  $effect(() => {
+    if (!showSignals) return;
+    engine.setModularSignals(keys => activeSignals = new Set(keys));
+    return () => engine.setModularSignals(null);
+  });
+
+  function toggleSignals(e) {
+    showSignals = e.currentTarget.checked;
+    activeSignals = new Set();
+  }
+
+  function closeMenu(restoreFocus = false) {
+    const trigger = menu?.trigger;
+    menu = null;
+    if (restoreFocus) trigger?.focus({ preventScroll: true });
+  }
+
+  function outsideMenu(e) {
+    if (menu && !menuElement?.contains(e.target)) closeMenu();
+  }
+
+  function escape(e) {
+    if (e.key !== 'Escape') return;
+    if (menu) closeMenu(true);
+    else selected = drag = null;
+  }
+
+  async function openMenu(e, id) {
+    e.preventDefault();
+    const point = rack.getBoundingClientRect();
+    const target = e.currentTarget.getBoundingClientRect();
+    const x = e.clientX || target.left + target.width / 2;
+    const y = e.clientY || target.top + target.height / 2;
+    const card = id && cards.find(c => c.node.id === id);
+    menu = { id, left: x, top: y, trigger: e.target instanceof HTMLElement && e.target.closest('button'),
+      position: card ? boundedPoint(card.x + 30, card.y + 46) : boundedPoint(x - point.left, y - point.top) };
+    await tick();
+    if (!menu || !menuElement) return;
+    const bounds = menuElement.getBoundingClientRect();
+    menu.left = Math.max(4, Math.min(x, innerWidth - bounds.width - 4));
+    menu.top = Math.max(4, Math.min(y, innerHeight - bounds.height - 4));
+    menuElement.querySelector('button:not(:disabled)')?.focus({ preventScroll: true });
+  }
+
+  function contextMenu(e) {
+    if (e.target.closest('[data-jack]')) return;
+    openMenu(e, e.target.closest('[data-module]')?.dataset.module);
+  }
+
+  function menuKey(e) {
+    if (e.key === 'Tab') { closeMenu(true); return; }
+    if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
+    e.preventDefault();
+    const buttons = [...menuElement.querySelectorAll('button:not(:disabled)')];
+    const index = buttons.indexOf(document.activeElement);
+    buttons[(index + (e.key === 'ArrowDown' ? 1 : buttons.length - 1)) % buttons.length]?.focus();
+  }
+
   function commit(next, options) {
     try {
       onchange(compileModularPatch(next).patch, options);
@@ -72,25 +137,33 @@
     commit(next);
   }
 
-  function add(type) {
+  function add(type, preferred, params = {}) {
+    if (nodes.length >= 32) return;
     const id = 'module_' + crypto.randomUUID().slice(0, 8);
     // Put new modules in an open slot near the current viewport.
     const viewport = rack.parentElement;
     const startColumn = Math.floor(viewport.scrollLeft / columnPitch);
     const startRow = Math.floor(viewport.scrollTop / rowPitch);
-    let position;
-    for (let i = 0; i <= nodes.length; i++) {
+    let position = preferred;
+    for (let i = 0; !position && i <= nodes.length; i++) {
       const candidate = anchor(startColumn + i % 3, startRow + Math.floor(i / 3));
       if (!cards.some(c => Math.abs(c.x - candidate.x) < cardWidth + 16 && Math.abs(c.y - candidate.y) < 250)) {
         position = candidate;
         break;
       }
     }
-    commit({ ...graph, nodes: [...nodes, { id, type, params: {}, position }] });
+    commit({ ...graph, nodes: [...nodes, { id, type, params, position }] });
+    foreground = id;
+    closeMenu();
+  }
+
+  function duplicate(card, position = boundedPoint(card.x + 30, card.y + 46)) {
+    add(card.node.type, position, { ...card.node.params });
   }
 
   function remove(id) {
     drag = selected = moving = null;
+    closeMenu();
     commit({ ...graph, nodes: nodes.filter(n => n.id !== id), cables: graph.cables.filter(c => c.from !== id && c.to !== id) });
   }
 
@@ -98,10 +171,16 @@
     commit({ ...graph, nodes: nodes.map(n => n.id === id ? { ...n, params: { ...n.params, [key]: Number(value) } } : n) });
   }
 
-  function connect(source, to, input) {
-    if (!source) return;
-    const cables = graph.cables.filter(c => c.to !== to || c.input !== input);
-    commit({ ...graph, cables: [...cables, { from: source.from, port: source.port, to, input }] });
+  function connect(a, b) {
+    if (!a || !b || a.dir === b.dir) return;
+    const [output, input] = a.dir === 'out' ? [a, b] : [b, a];
+    const cables = graph.cables.filter(c => c.to !== input.id || c.input !== input.port);
+    commit({ ...graph, cables: [...cables, { from: output.id, port: output.port, to: input.id, input: input.port }] });
+    selected = null;
+  }
+
+  function disconnect(id, port) {
+    commit({ ...graph, cables: graph.cables.filter(c => c.to !== id || c.input !== port) });
     selected = null;
   }
 
@@ -165,16 +244,19 @@
     place(card.node.id, boundedPoint(card.x + offset[0] * step, card.y + offset[1] * step));
   }
 
-  function chooseOutput(e, from, port) {
+  function chooseJack(e, id, port, dir) {
     if (e.detail && suppressJackClick) return;
-    selected = selected?.from === from && selected?.port === port ? null : { from, port };
+    const jack = { id, port, dir };
+    if (selected && selected.dir !== dir) return connect(selected, jack);
+    if (dir === 'in' && wiredInputs.has(jackKey(id, port, dir))) return disconnect(id, port);
+    selected = selected?.id === id && selected?.port === port && selected?.dir === dir ? null : jack;
   }
 
-  function pointerStart(e, from, port) {
+  function pointerStart(e, id, port, dir) {
     if (!e.isPrimary || e.button !== 0) return;
     e.currentTarget.setPointerCapture(e.pointerId);
     suppressJackClick = false;
-    drag = { from, port, pointer: e.pointerId, startX: e.clientX, startY: e.clientY, point: null };
+    drag = { id, port, dir, pointer: e.pointerId, startX: e.clientX, startY: e.clientY, point: null };
   }
 
   function pointerMove(e) {
@@ -189,8 +271,19 @@
     if (drag.point) {
       suppressJackClick = true;
       selected = null;
-      const input = document.elementFromPoint(e.clientX, e.clientY)?.closest('[data-input]');
-      if (input && rack.contains(input)) connect(drag, input.dataset.node, input.dataset.input);
+      const hit = document.elementFromPoint(e.clientX, e.clientY);
+      const jack = hit?.closest('[data-jack]');
+      if (jack && rack.contains(jack) && jack.dataset.dir !== drag.dir) {
+        connect(drag, { id: jack.dataset.node, port: jack.dataset.port, dir: jack.dataset.dir });
+      } else if (drag.dir === 'in') {
+        // A single-output card is unambiguous even when the drop misses its jack.
+        const card = hit?.closest('[data-module]');
+        if (card && rack.contains(card)) {
+          const node = nodes.find(n => n.id === card.dataset.module);
+          const ports = MODULAR_TYPES[node.type].outputs;
+          if (ports.length === 1) connect(drag, { id: node.id, port: ports[0], dir: 'out' });
+        }
+      }
     }
     drag = null;
   }
@@ -220,6 +313,23 @@
   }
 </script>
 
+<svelte:window onpointerdown={outsideMenu} onkeydown={escape} />
+
+{#snippet jack(n, port, dir, label, parameter = false)}
+  {@const key = jackKey(n.id, port, dir)}
+  {@const connected = dir === 'in' ? wiredInputs.has(key) : wiredOutputs.has(key)}
+  <button type="button" class="jack" class:in={dir === 'in'} class:out={dir === 'out'}
+    class:parameter class:patched={connected} data-jack={key} data-node={n.id} data-port={port} data-dir={dir}
+    aria-label="{n.id} {dir === 'in' ? 'input' : 'output'} {parameter ? 'parameter ' : ''}{label}"
+    title={dir === 'out' ? label + ': drag or click to connect' : connected ? label + ': click to disconnect or drag to rewire' : label + ': drag or click to connect'}
+    aria-pressed={selected?.id === n.id && selected?.port === port && selected?.dir === dir}
+    onclick={(e) => chooseJack(e, n.id, port, dir)}
+    onpointerdown={(e) => pointerStart(e, n.id, port, dir)} onpointermove={pointerMove}
+    onpointerup={pointerEnd} onpointercancel={() => drag = null} onlostpointercapture={() => drag = null}>
+    {#if dir === 'out'}{label}{/if}<span class="socket"></span>{#if dir === 'in' && !parameter}{label}{/if}
+  </button>
+{/snippet}
+
 <section class="card modular" aria-label="Modular rack">
   <div class="modular-toolbar">
     <label>Add module
@@ -239,19 +349,20 @@
         {#each MODULAR_PRESETS as preset, i}<option value={i}>{preset.name}</option>{/each}
       </select>
     </label>
+    <label class="signal-toggle"><input type="checkbox" checked={showSignals} onchange={toggleSignals} /> Cable activity</label>
     <button onclick={download}>Save patch</button>
     <button onclick={() => file.click()}>Open patch</button>
     <input type="file" accept=".json,application/json" hidden bind:this={file} onchange={upload} />
   </div>
-  <p class="muted hint">Drag a title to move a module. Drag the background to pan. Connect a right-hand output to a left-hand input by dragging a cable or clicking both jacks.</p>
+  <p class="muted hint">Right-click the rack to add a module. Drag either jack to connect. Click a connected input to unplug it.</p>
   {#if error}<p role="alert" class="error">{error}</p>{/if}
   <p class="muted selection" role="status">
-    {#if selected}Selected output {selected.from}.{selected.port}. Choose an input.{/if}
+    {#if selected}Selected {selected.dir === 'out' ? 'output' : 'input'} {selected.id}.{selected.port.replace('param:', '')}. Choose {selected.dir === 'out' ? 'an input' : 'an output'}.{/if}
   </p>
   <div class="rack-scroll">
     <div class="modular-rack" role="group" aria-label="Patch canvas" class:panning={pan} bind:this={rack} style:width={rackWidth + 'px'}
       style:height={rackHeight + 'px'} style:--card-width={cardWidth + 'px'}
-      onpointerdown={panStart} onpointermove={panMove} onlostpointercapture={() => pan = null}>
+      oncontextmenu={contextMenu} onpointerdown={panStart} onpointermove={panMove} onlostpointercapture={() => pan = null}>
       {#each cards as card (card.node.id)}
         {@const n = card.node}
         <article class="modular-module" class:foreground={foreground === n.id}
@@ -262,37 +373,37 @@
               onpointerup={moveEnd} onpointercancel={() => moving = null} onkeydown={(e) => moveKey(e, card)}>
               {MODULAR_TYPES[n.type].label}
             </button>
-            <button class="remove" title="Remove module" aria-label="Remove {n.id}" disabled={n.type === 'output' && outputCount === 1} onclick={() => remove(n.id)}>×</button>
+            <button class="node-action" title="Duplicate module" aria-label="Duplicate {n.id}"
+              disabled={nodes.length >= 32} onclick={() => duplicate(card)}>
+              <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" fill="none" stroke="currentColor">
+                <path d="M5 5V2H2v9h3M5 5h9v9H5z" />
+              </svg>
+            </button>
+            <button class="node-action" title="Remove module" aria-label="Remove {n.id}" disabled={n.type === 'output' && outputCount === 1} onclick={() => remove(n.id)}>×</button>
           </header>
           <small class="muted">{n.id}</small>
           {#each Object.entries(MODULAR_TYPES[n.type].params) as [key, def]}
-            <label class="modular-param"><span>{key}</span>
-              <input aria-label="{n.id} {key}" type="range" min={def.min} max={def.max} step={def.step} value={n.params[key]} oninput={(e) => knob(n.id, key, e.currentTarget.value)} />
-              <output>{Number(n.params[key]).toFixed(def.step < 0.01 ? 3 : def.step < 1 ? 2 : 0)}</output>
-            </label>
+            {@const input = modularParamInput(key)}
+            {@const connected = wiredInputs.has(jackKey(n.id, input, 'in'))}
+            <div class="parameter-row">
+              {@render jack(n, input, 'in', key, true)}
+              <label class="modular-param" class:driven={connected}>
+                <span>{key}</span>
+                <input aria-label="{n.id} {key}" type="range" min={def.min} max={def.max} step={def.step}
+                  value={n.params[key]} disabled={connected} oninput={(e) => knob(n.id, key, e.currentTarget.value)} />
+                <output>{Number(n.params[key]).toFixed(def.step < 0.01 ? 3 : def.step < 1 ? 2 : 0)}</output>
+              </label>
+            </div>
           {/each}
           <div class="jacks">
             <div class="jack-column inputs">
               {#each MODULAR_TYPES[n.type].inputs as input}
-                <button class="jack in" data-jack={jackKey(n.id, input, 'in')} data-node={n.id} data-input={input}
-                  class:patched={graph.cables.some(c => c.to === n.id && c.input === input)}
-                  title="Input: {input}" aria-label="{n.id} input {input}" onclick={() => connect(selected, n.id, input)}>
-                  <span class="socket"></span>{input}
-                </button>
+                {@render jack(n, input, 'in', n.type === 'vcf' && input === 'cutoff' ? 'cutoff mod' : input)}
               {/each}
             </div>
             <div class="jack-column outputs">
               {#each MODULAR_TYPES[n.type].outputs as port}
-                <button class="jack out" data-jack={jackKey(n.id, port, 'out')}
-                  title="Output: {port} (drag or click to connect)" aria-label="{n.id} output {port}"
-                  aria-pressed={selected?.from === n.id && selected?.port === port}
-                  class:patched={graph.cables.some(c => c.from === n.id && c.port === port)}
-                  onclick={(e) => chooseOutput(e, n.id, port)}
-                  onpointerdown={(e) => pointerStart(e, n.id, port)} onpointermove={pointerMove}
-                  onpointerup={pointerEnd} onpointercancel={() => drag = null}
-                  onkeydown={(e) => { if (e.key === 'Escape') selected = null; }}>
-                  {port}<span class="socket"></span>
-                </button>
+                {@render jack(n, port, 'out', port)}
               {/each}
             </div>
           </div>
@@ -302,10 +413,15 @@
         {#each graph.cables as c, i}
           {@const a = positions[jackKey(c.from, c.port, 'out')]}
           {@const b = positions[jackKey(c.to, c.input, 'in')]}
-          {#if a && b}<path d={curve(a, b)} stroke={colors[i % colors.length]} />{/if}
+          {#if a && b}
+            <path class:signal-active={showSignals && activeSignals.has(c.from + '/' + c.port)}
+              data-wire={c.to + '/' + c.input} d={curve(a, b)} stroke={colors[i % colors.length]} />
+          {/if}
         {/each}
-        {#if drag?.point && positions[jackKey(drag.from, drag.port, 'out')]}
-          <path d={curve(positions[jackKey(drag.from, drag.port, 'out')], drag.point)} stroke="#fff" stroke-dasharray="4 4" />
+        {#if drag?.point && positions[jackKey(drag.id, drag.port, drag.dir)]}
+          {@const origin = positions[jackKey(drag.id, drag.port, drag.dir)]}
+          <path d={drag.dir === 'out' ? curve(origin, drag.point) : curve(drag.point, origin)}
+            stroke="#fff" stroke-dasharray="4 4" />
         {/if}
       </svg>
     </div>
@@ -315,7 +431,7 @@
     {#each graph.cables as c, i (`${c.to}/${c.input}`)}
       <div class="modular-cable" style:border-color={colors[i % colors.length]}>
         <code>{c.from}.{c.port} → {c.to}.{c.input}</code>
-        <button onclick={() => commit({ ...graph, cables: graph.cables.filter((_, index) => i !== index) })}
+        <button onclick={() => disconnect(c.to, c.input)}
           aria-label="Disconnect {c.to} input {c.input}">×</button>
       </div>
     {/each}
@@ -329,11 +445,30 @@
       </label>
     {/each}
   </div>
+  {#if menu}
+    <div class="context-actions" role="menu" tabindex="-1" data-modular-menu aria-label={menu.id ? 'Module actions' : 'Add module at cursor'}
+      style:left={menu.left + 'px'} style:top={menu.top + 'px'} bind:this={menuElement} onkeydown={menuKey}>
+      {#if menu.id}
+        {@const card = cards.find(c => c.node.id === menu.id)}
+        <button role="menuitem" disabled={nodes.length >= 32} onclick={() => duplicate(card, menu.position)}>Duplicate module</button>
+        <button role="menuitem" disabled={card.node.type === 'output' && outputCount === 1} onclick={() => remove(card.node.id)}>Remove module</button>
+      {:else}
+        {#each Object.entries(MODULAR_TYPES) as [type, def]}
+          <button role="menuitem" disabled={nodes.length >= 32} onclick={() => add(type, menu.position)}>{def.label}</button>
+        {/each}
+      {/if}
+    </div>
+  {/if}
 </section>
 
 <style>
   .modular-toolbar,.modular-cables,.macros { display:flex; align-items:center; flex-wrap:wrap; gap:0.6rem }
   .modular-toolbar label { display:grid; gap:0.3rem }
+  .modular-toolbar .signal-toggle { display:flex; align-items:center }
+  .context-actions { position:fixed; z-index:20; display:grid; min-width:185px; max-height:calc(100dvh - 8px);
+    overflow:auto; padding:4px; background:var(--panel-2); border:1px solid var(--line); border-radius:8px; box-shadow:0 5px 20px #0008 }
+  .context-actions button { text-align:left; border-color:transparent; padding:5px 8px }
+  .context-actions button:hover,.context-actions button:focus-visible { background:var(--panel) }
   .selection { min-height:1.2em; margin:0 0 0.4rem; font-size:0.8rem }
   .rack-scroll { overflow:auto; max-height:70vh; min-height:250px; border:1px solid var(--line,#555); border-radius:8px }
   .modular-rack { position:relative; min-width:100%; isolation:isolate; cursor:grab; background-image:radial-gradient(#46505e 1px,transparent 1px); background-size:18px 18px }
@@ -343,7 +478,11 @@
   .modular-module header { display:flex; align-items:center; margin:0 -0.7rem 0.4rem; border-bottom:1px solid var(--line,#555) }
   .module-handle { flex:1; min-width:0; padding:0.5rem 0.6rem; text-align:left; font-weight:bold; border:0; background:transparent; cursor:grab; touch-action:none; user-select:none }
   .module-handle:active { cursor:grabbing }
-  .remove { flex:none; margin-right:0.25rem; padding:0.15rem 0.4rem }
+  .node-action { flex:none; display:grid; place-items:center; width:24px; height:24px; margin-right:0.25rem; padding:0; color:var(--muted) }
+  .node-action:hover { color:inherit }
+  .parameter-row { display:grid; grid-template-columns:22px minmax(0,1fr); align-items:center; margin-left:-0.7rem }
+  .jack.parameter { width:22px; min-height:28px; }
+  .modular-param.driven { opacity:0.45 }
   .modular-module small,.modular-cable code { overflow-wrap:anywhere }
   .modular-param { display:grid; grid-template-columns:1fr auto; gap:0.15rem; margin:0.25rem 0 }
   .modular-param input { grid-column:1; width:100%; min-width:0; margin:0 }
@@ -358,6 +497,9 @@
   .jack[aria-pressed=true] .socket { outline:2px solid currentColor; outline-offset:2px }
   .wires { position:absolute; z-index:3; inset:0; width:100%; height:100%; pointer-events:none; overflow:visible; opacity:0.72 }
   .wires path { fill:none; stroke-width:2 }
+  .wires .signal-active { stroke-width:3; stroke-dasharray:8 6; animation:signal-flow 0.65s linear infinite }
+  @keyframes signal-flow { to { stroke-dashoffset:-28 } }
+  @media (prefers-reduced-motion: reduce) { .wires .signal-active { animation:none; stroke-width:4 } }
   .modular-cable { display:flex; align-items:center; gap:0.4rem; border:1px solid; border-radius:6px; padding:0.15rem 0.35rem }
   .macros label { display:grid; gap:0.35rem; font-size:0.8rem }
   .macros input { width:6rem }

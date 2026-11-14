@@ -2,6 +2,7 @@
 #include <clap/clap.h>
 #include <algorithm>
 #include <array>
+#include <cmath>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -146,6 +147,9 @@ int main(int argc, char **argv) {
     check(std::all_of(first.begin(), first.begin() + 17, [](float x) { return x == 0; }), "Note started too soon");
     check(std::any_of(first.begin() + 64, first.end(), [](float x) { return x > 0.01f; }), "Macro or note was silent");
     check(std::abs(first[63] - first[64]) > 0.01f, "Macro change missed its sample offset");
+    const double sum_before = 0.15 / (1 - 0.1);
+    const double expected = std::tanh((0.75 + 0.1 * sum_before) * 0.75);
+    check(std::abs(first[64] - expected) < 1e-6, "Patched parameter did not replace its knob");
 
     Stream saved;
     check(state->save(p, &saved.output), "Could not save patch through partial writes");

@@ -463,7 +463,7 @@
       }
       return;
     }
-    if (code === 'Space' && e.target.closest?.('[data-jack], [data-move-module]')) return;
+    if (code === 'Space' && e.target.closest?.('[data-jack], [data-move-module], [data-modular-menu]')) return;
     if (code === 'Space') {
       e.preventDefault();
       togglePlay();

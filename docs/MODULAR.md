@@ -5,7 +5,8 @@ Modular is a polyphonic patchable synth available in the Web app and as the stan
 ## Web rack
 
 1. Open **Modular** and play the keyboard. **Subtractive** starts with MIDI pitch → VCO → lowpass VCF → VCA → output. A gate-controlled ADSR drives VCA gain.
-2. Drag a module title to place it anywhere on the rack. A focused title also moves with the arrow keys. Scroll the rack to reach modules outside the viewport. To connect modules, drag from an output on the right to an input on the left. You can also activate the two jacks in order with a mouse or keyboard. Each input accepts one cable. Connecting to an occupied input replaces its cable. Use a Mixer to sum signals.
+2. Drag a module title to move it. Scroll or drag the background to pan. Right-click the background to add a module at the cursor. Use the copy button or the module's right-click menu to duplicate its knob settings.
+   Drag either jack to connect. When dragging from an input, you can drop on the body of a card with one output. Click a connected input to unplug it, or drag it to a new source. The **Cable activity** toggle highlights changing signals from the first active voice.
 3. Choose a factory patch from **Preset**. **Vibrato Lead** uses LFO pitch modulation. **Feedback Bass** uses a Unit Delay in its feedback path and Macro 1 for filter cutoff.
 4. **Save patch** and **Open patch** exchange portable JSON files. The app also restores the latest patch from browser storage. Module positions travel with the patch. Piano Roll share links include the patch. To export a sequence, select **Modular** as the Piano Roll melody instrument and choose WAV or MP3.
 
@@ -17,6 +18,7 @@ Patches support up to 32 modules and eight voices. A structural edit resets the 
 | --- | --- |
 | MIDI / Note | Pitch is a MIDI note number, gate is 0 or 1, and velocity is 0–1. |
 | VCO FM | 1 adds one octave. VCO pitch and FM run at audio rate. |
+| Parameter input | The cable replaces the slider value in the parameter’s native units. Discrete parameters round to the nearest step. Unplugging restores the slider value. |
 | VCF cutoff CV | 1 adds two octaves to the cutoff, with a sample-rate-dependent limit. |
 | VCA gain | A linear gain multiplier. An unpatched input uses 1. |
 | CV Scale / Offset | Applies `input × scale + offset`. An unpatched input uses 0. |

@@ -14,6 +14,7 @@ export class AudioEngine {
   /** @type {AudioWorkletNode | null} */ phys = null;
   /** @type {AudioWorkletNode | null} */ modular = null;
   /** @type {((data:any)=>void) | null} */ onPhysSnapshot = null;
+  onModularSignals = null;
   /** @type {AnalyserNode | null} */ analyser = null;
 
   /** Must be called from a user gesture (autoplay policy). */
@@ -37,6 +38,10 @@ export class AudioEngine {
     this.phys.port.onmessage = (e) => {
       if (e.data?.type === 'snapshot') this.onPhysSnapshot?.(e.data.data);
     };
+    this.modular.port.onmessage = (e) => {
+      if (e.data?.type === 'snapshot') this.onModularSignals?.(e.data.data);
+    };
+    this.modular.port.postMessage({ type: 'viz', on: !!this.onModularSignals });
     this.analyser = ctx.createAnalyser();
     this.analyser.fftSize = 2048;
     for (const node of [this.synth, this.drums, this.phys, this.modular]) {
@@ -79,6 +84,11 @@ export class AudioEngine {
 
   setParams(target, values) {
     this[target]?.port.postMessage({ type: 'params', values: { ...values } });
+  }
+
+  setModularSignals(callback) {
+    this.onModularSignals = callback;
+    this.modular?.port.postMessage({ type: 'viz', on: !!callback });
   }
 
   setModularPatch(patch) {

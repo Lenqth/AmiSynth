@@ -32,7 +32,10 @@ struct Link { int node = -1, port = 0; };
 struct Node {
     Type type{};
     std::array<double, 4> knobs{};
-    std::array<Link, 2> links{};
+    // Signal inputs occupy the first two slots, parameter inputs the next four.
+    std::array<Link, 6> links{};
+    std::array<const Param *, 4> specs{};
+    bool modulated = false;
 };
 struct Graph {
     std::array<Node, kNodes> nodes{};
@@ -79,6 +82,7 @@ inline Graph compile(Json &patch, Macros &macros) {
             if (params != n.end() && params->is_object() && params->contains(p.name) && (*params)[p.name].is_number())
                 value = std::clamp((*params)[p.name].get<double>(), p.min, p.max);
             if (p.stepped) value = std::floor(value + 0.5);
+            node.specs[index] = &p;
             node.knobs[index++] = value;
             normalized[p.name] = value;
         }
@@ -110,8 +114,19 @@ inline Graph compile(Json &patch, Macros &macros) {
         auto input = c.at("input").get<std::string>();
         const int source = node_index(from), dest = node_index(to);
         const int source_port = port_index(specs[source]->outputs, port);
-        const int dest_port = port_index(specs[dest]->inputs, input);
-        auto &link = graph.nodes[dest].links[dest_port];
+        auto &node = graph.nodes[dest];
+        int dest_port;
+        if (input.compare(0, 6, "param:") == 0) {
+            const auto &params = specs[dest]->params;
+            const auto name = input.substr(6);
+            const auto knob = std::find_if(params.begin(), params.end(), [&](const Param &p) { return name == p.name; });
+            if (knob == params.end()) throw std::invalid_argument("Invalid parameter input");
+            dest_port = 2 + int(knob - params.begin());
+            node.modulated = true;
+        } else {
+            dest_port = port_index(specs[dest]->inputs, input);
+        }
+        auto &link = node.links[dest_port];
         if (link.node >= 0) throw std::invalid_argument("Duplicate input");
         link = {source, source_port};
         if (graph.nodes[dest].type != Type::delay) {
@@ -215,7 +230,15 @@ struct Engine {
 
     void sample_node(Voice &v, int i, const Macros &macros) const {
         const auto &n = graph.nodes[i];
-        const auto &p = n.knobs;
+        auto p = n.knobs;
+        if (n.modulated) {
+            for (size_t index = 0; index < p.size(); ++index) {
+                if (n.links[index + 2].node < 0) continue;
+                const auto &spec = *n.specs[index];
+                const double value = std::clamp(read(v, n, int(index + 2)), spec.min, spec.max);
+                p[index] = spec.stepped ? std::floor(value + 0.5) : value;
+            }
+        }
         auto &st = v.stages[i];
         auto &sig = v.signals[i];
         switch (n.type) {

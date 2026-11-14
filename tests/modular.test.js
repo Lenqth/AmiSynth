@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { MODULAR_TYPES, compileModularPatch, defaultModularPatch, modular_init, modular_midi, modular_render, modular_set_patch, safeModularPatch } from '../src/dsp/modular.js';
+import { MODULAR_TYPES, compileModularPatch, defaultModularPatch, modular_init, modular_meter_enable, modular_meter_snapshot, modular_midi, modular_render, modular_set_patch, safeModularPatch } from '../src/dsp/modular.js';
 import { renderPattern } from '../src/lib/render.js';
 
 test('modular default patch compiles and respects its dependency order', () => {
@@ -151,4 +151,44 @@ test('offline Modular export retains a ten-second envelope release', () => {
   });
   assert.ok(left.length > 13.5 * 8000);
   assert.ok(left.slice(11 * 8000, 11.1 * 8000).some(x => Math.abs(x) > 0.001));
+});
+
+test('parameter CV replaces the saved knob value while connected and restores it when unplugged', () => {
+  const patch = {
+    nodes: [
+      { id: 'audio', type: 'cv', params: { offset: 1 } },
+      { id: 'macro', type: 'macro' },
+      { id: 'out', type: 'output', params: { level: 0.2 } },
+    ],
+    cables: [
+      { from: 'audio', port: 'out', to: 'out', input: 'audio' },
+      { from: 'macro', port: 'out', to: 'out', input: 'param:level' },
+    ],
+    macros: [0.7],
+  };
+  const s = {};
+  modular_init(s, 48000);
+  modular_set_patch(s, patch);
+  assert.equal(s.graph.patch.nodes[2].params.level, 0.2);
+  modular_midi(s, 0x90, 69, 100);
+  modular_render(s);
+  assert.equal(s.out_l, Math.tanh(0.7));
+  assert.throws(() => compileModularPatch({ ...patch, cables: [{ ...patch.cables[1], input: 'param:unknown' }] }));
+  modular_set_patch(s, { ...patch, cables: [patch.cables[0]] });
+  modular_midi(s, 0x90, 69, 100);
+  modular_render(s);
+  assert.equal(s.out_l, Math.tanh(0.2));
+});
+
+test('cable activity distinguishes changing signals from a constant gate', () => {
+  const s = {};
+  modular_init(s, 48000);
+  modular_meter_enable(s, true);
+  modular_midi(s, 0x90, 69, 100);
+  for (let i = 0; i < 2048; i++) modular_render(s);
+  const moving = modular_meter_snapshot(s);
+  assert.ok(moving.includes('osc/out'));
+  assert.ok(!moving.includes('note/gate'));
+  modular_meter_enable(s, false);
+  assert.equal(s.meter, null);
 });

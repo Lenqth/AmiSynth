@@ -20,6 +20,7 @@ const webPatch = compileModularPatch({
     { from: 'macro', port: 'out', to: 'sum', input: 'a' },
     { from: 'memory', port: 'out', to: 'sum', input: 'b' },
     { from: 'sum', port: 'out', to: 'out', input: 'audio' },
+    { from: 'macro', port: 'out', to: 'out', input: 'param:level' },
     { from: 'sum', port: 'out', to: 'memory', input: 'in' },
   ],
   macros: [0.15],

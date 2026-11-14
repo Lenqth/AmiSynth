@@ -49,6 +49,7 @@ export function registerAmiProcessor(name, core) {
           break;
         case 'viz':
           this.vizOn = !!msg.on && typeof core.snapshot === 'function';
+          core.visualize?.(this.state, this.vizOn);
           break;
         case 'clear':
           this.queue.length = 0;
@@ -90,8 +91,8 @@ export function registerAmiProcessor(name, core) {
         L[i] = s.out_l;
         R[i] = s.out_r;
       }
-      // ~60 snapshots/s at 48 kHz (every 6 blocks of 128 samples)
-      if (this.vizOn && ++this.vizCount >= 6) {
+      // Produce snapshots only while visualization is enabled.
+      if (this.vizOn && ++this.vizCount >= (core.vizInterval ?? 6)) {
         this.vizCount = 0;
         this.port.postMessage({ type: 'snapshot', data: core.snapshot(s) });
       }

@@ -43,6 +43,9 @@ export const MODULAR_TYPES = Object.freeze({
   } },
 });
 
+// A separate port name preserves the legacy VCF cutoff modulation input.
+export const modularParamInput = key => 'param:' + key;
+
 export function defaultModularPatch() {
   return {
     nodes: [
@@ -119,7 +122,7 @@ export function compileModularPatch(raw) {
         ? Math.max(def.min, Math.min(def.max, rawValue)) : def.default;
       if (def.step >= 1) params[key] = Math.round(params[key]);
     }
-    return { id: n.id, type: n.type, params, links: {} };
+    return { id: n.id, type: n.type, params, links: {}, paramLinks: {} };
   });
   if (!nodes.some((n) => n.type === 'output')) throw new Error('An audio output is required');
   const adjacency = nodes.map(() => []);
@@ -128,10 +131,15 @@ export function compileModularPatch(raw) {
     const src = ids.get(cable?.from);
     const dst = ids.get(cable?.to);
     if (src === undefined || dst === undefined) throw new Error('Invalid cable endpoint');
+    const dest = MODULAR_TYPES[nodes[dst].type];
+    const parameter = typeof cable.input === 'string' && cable.input.startsWith('param:') &&
+      Object.hasOwn(dest.params, cable.input.slice(6));
     if (!MODULAR_TYPES[nodes[src].type].outputs.includes(cable.port) ||
-        !MODULAR_TYPES[nodes[dst].type].inputs.includes(cable.input) ||
+        (!dest.inputs.includes(cable.input) && !parameter) ||
         nodes[dst].links[cable.input]) throw new Error('Invalid or duplicate cable');
-    nodes[dst].links[cable.input] = { index: src, port: cable.port };
+    const link = { index: src, port: cable.port };
+    nodes[dst].links[cable.input] = link;
+    if (parameter) nodes[dst].paramLinks[cable.input.slice(6)] = link;
     // Delay writes happen after all current-sample readers, including self-feedback.
     if (nodes[dst].type !== 'delay') {
       adjacency[src].push(dst);
@@ -156,6 +164,10 @@ export function compileModularPatch(raw) {
     Number.isFinite(raw.macros?.[i]) ? clamp(raw.macros[i], 0, 1) : 0);
   return {
     nodes, order, delays, outputs, envelopes,
+    meterSources: [...new Map(raw.cables.map(c => {
+      const key = c.from + '/' + c.port;
+      return [key, { key, index: ids.get(c.from), port: c.port }];
+    })).values()],
     patch: { version: 1, macros, nodes: nodes.map(({ id, type, params }, i) => {
       const position = raw.nodes[i].position;
       return Number.isFinite(position?.x) && Number.isFinite(position?.y)
@@ -202,6 +214,7 @@ export function modular_set_patch(s, patch) {
   const graph = compileModularPatch(patch);
   const old = s.graph;
   s.graph = graph;
+  if (s.meter) modular_meter_enable(s, true);
   if (old && old.nodes.length === graph.nodes.length &&
       old.patch.cables.length === graph.patch.cables.length &&
       old.nodes.every((n, i) => n.id === graph.nodes[i].id && n.type === graph.nodes[i].type) &&
@@ -253,56 +266,95 @@ function read(v, node, key, fallback = 0) {
   const link = node.links[key];
   return link ? v.signals[link.index][link.port] : fallback;
 }
+function parameter(v, node, key) {
+  const link = node.paramLinks[key];
+  const normal = node.params[key];
+  if (!link) return normal;
+  const def = MODULAR_TYPES[node.type].params[key];
+  const value = clamp(v.signals[link.index][link.port], def.min, def.max);
+  return def.step >= 1 ? Math.round(value) : value;
+}
+
+export function modular_meter_enable(s, enabled) {
+  s.meter = enabled ? {
+    remaining: 1,
+    interval: 15,
+    low: new Float64Array(s.graph.meterSources.length).fill(Infinity),
+    high: new Float64Array(s.graph.meterSources.length).fill(-Infinity),
+  } : null;
+}
+
+export function modular_meter_snapshot(s) {
+  const { low, high } = s.meter;
+  const moving = s.graph.meterSources.filter((_, i) => high[i] - low[i] > 1e-4).map(source => source.key);
+  low.fill(Infinity);
+  high.fill(-Infinity);
+  return moving;
+}
+
+function measureSignals(s, voice) {
+  const { low, high } = s.meter;
+  const sources = s.graph.meterSources;
+  for (let i = 0; i < sources.length; i++) {
+    const { index, port } = sources[i];
+    const value = voice ? voice.signals[index][port] : 0;
+    if (value < low[i]) low[i] = value;
+    if (value > high[i]) high[i] = value;
+  }
+}
+
 function sampleNode(s, v, i) {
-  const n = s.graph.nodes[i], p = n.params, st = v.stages[i], sig = v.signals[i];
+  const n = s.graph.nodes[i], st = v.stages[i], sig = v.signals[i];
   switch (n.type) {
     case 'midi':
       sig.pitch = v.note + s.bend[v.channel]; sig.gate = v.held ? 1 : 0; sig.velocity = v.velocity;
       break;
     case 'vco': {
-      const note = read(v, n, 'pitch', 69) + 12 * p.octave + p.detune / 100 + read(v, n, 'fm') * 12;
+      const waveType = parameter(v, n, 'wave');
+      const note = read(v, n, 'pitch', 69) + 12 * parameter(v, n, 'octave') + parameter(v, n, 'detune') / 100 + read(v, n, 'fm') * 12;
       const frequency = clamp(440 * Math.pow(2, (note - 69) / 12), 0.01, s.sampleRate * 0.45);
       const dt = frequency / s.sampleRate, phase = st.phase;
       let wave;
-      if (p.wave === 0) wave = Math.sin(TAU * phase);
-      else if (p.wave === 1) wave = 2 * phase - 1 - blep(phase, dt);
-      else if (p.wave === 2) {
+      if (waveType === 0) wave = Math.sin(TAU * phase);
+      else if (waveType === 1) wave = 2 * phase - 1 - blep(phase, dt);
+      else if (waveType === 2) {
         wave = phase < 0.5 ? 1 : -1;
         wave += blep(phase, dt) - blep((phase + 0.5) % 1, dt);
       } else wave = 2 / Math.PI * Math.asin(Math.sin(TAU * phase));
-      sig.out = wave * p.level;
+      sig.out = wave * parameter(v, n, 'level');
       st.phase = (phase + dt) % 1;
       break;
     }
     case 'lfo': {
       const phase = st.phase;
-      sig.out = (p.wave ? 1 - 4 * Math.abs(phase - 0.5) : Math.sin(TAU * phase)) * p.depth;
-      st.phase = (phase + p.rate / s.sampleRate) % 1;
+      sig.out = (parameter(v, n, 'wave') ? 1 - 4 * Math.abs(phase - 0.5) : Math.sin(TAU * phase)) * parameter(v, n, 'depth');
+      st.phase = (phase + parameter(v, n, 'rate') / s.sampleRate) % 1;
       break;
     }
     case 'adsr': {
+      const sustain = parameter(v, n, 'sustain');
       const gate = read(v, n, 'gate') >= 0.5;
       if (gate && !st.lastGate) st.mode = 1;
       if (!gate && st.lastGate) { st.mode = 4; st.release = st.env; }
       st.lastGate = gate;
       if (st.mode === 1) {
-        st.env += 1 / Math.max(1, p.attack * s.sampleRate);
+        st.env += 1 / Math.max(1, parameter(v, n, 'attack') * s.sampleRate);
         if (st.env >= 1) { st.env = 1; st.mode = 2; }
       } else if (st.mode === 2) {
-        st.env -= (1 - p.sustain) / Math.max(1, p.decay * s.sampleRate);
-        if (st.env <= p.sustain) { st.env = p.sustain; st.mode = 3; }
-      } else if (st.mode === 3) st.env = p.sustain;
+        st.env -= (1 - sustain) / Math.max(1, parameter(v, n, 'decay') * s.sampleRate);
+        if (st.env <= sustain) { st.env = sustain; st.mode = 3; }
+      } else if (st.mode === 3) st.env = sustain;
       else if (st.mode === 4) {
-        st.env -= st.release / Math.max(1, p.release * s.sampleRate);
+        st.env -= st.release / Math.max(1, parameter(v, n, 'release') * s.sampleRate);
         if (st.env <= 0) { st.env = 0; st.mode = 0; }
       }
       sig.out = st.env;
       break;
     }
     case 'vcf': {
-      const cutoff = clamp(p.cutoff * Math.pow(2, read(v, n, 'cutoff') * 2), 20, s.sampleRate * 0.45);
+      const cutoff = clamp(parameter(v, n, 'cutoff') * Math.pow(2, read(v, n, 'cutoff') * 2), 20, s.sampleRate * 0.45);
       const g = Math.tan(Math.PI * cutoff / s.sampleRate);
-      const k = 2 - 1.95 * p.resonance;
+      const k = 2 - 1.95 * parameter(v, n, 'resonance');
       const a1 = 1 / (1 + g * (g + k));
       const input = read(v, n, 'audio');
       const hp = (input - (g + k) * st.ic1 - st.ic2) * a1;
@@ -312,12 +364,12 @@ function sampleNode(s, v, i) {
       sig.out = Number.isFinite(lp) ? clamp(lp, -16, 16) : 0;
       break;
     }
-    case 'vca': sig.out = read(v, n, 'audio') * read(v, n, 'gain', 1) * p.level; break;
-    case 'mix': sig.out = read(v, n, 'a') * p.a + read(v, n, 'b') * p.b; break;
-    case 'cv': sig.out = read(v, n, 'in') * p.scale + p.offset; break;
-    case 'macro': sig.out = s.graph.patch.macros[p.index - 1]; break;
+    case 'vca': sig.out = read(v, n, 'audio') * read(v, n, 'gain', 1) * parameter(v, n, 'level'); break;
+    case 'mix': sig.out = read(v, n, 'a') * parameter(v, n, 'a') + read(v, n, 'b') * parameter(v, n, 'b'); break;
+    case 'cv': sig.out = read(v, n, 'in') * parameter(v, n, 'scale') + parameter(v, n, 'offset'); break;
+    case 'macro': sig.out = s.graph.patch.macros[parameter(v, n, 'index') - 1]; break;
     case 'delay': sig.out = st.memory; break;
-    case 'output': sig.out = read(v, n, 'audio') * p.level; break;
+    case 'output': sig.out = read(v, n, 'audio') * parameter(v, n, 'level'); break;
   }
   // Bound every intermediate so a cascade of multipliers cannot overflow.
   sig.out = clamp(sig.out, -1e6, 1e6);
@@ -325,8 +377,10 @@ function sampleNode(s, v, i) {
 export function modular_render(s) {
   let out = 0;
   const { nodes, order, delays, outputs, envelopes } = s.graph;
+  let meterVoice;
   for (const v of s.voices) {
     if (!v.active) continue;
+    meterVoice ??= v;
     for (const i of order) sampleNode(s, v, i);
     for (const i of delays) v.stages[i].memory = clamp(read(v, nodes[i], 'in'), -4, 4);
     let sample = 0;
@@ -343,6 +397,12 @@ export function modular_render(s) {
       }
     }
     out += sample;
+  }
+  if (s.meter && --s.meter.remaining === 0) {
+    measureSignals(s, meterVoice);
+    // Vary the stride to avoid measuring the same phase of a periodic signal.
+    s.meter.remaining = s.meter.interval;
+    s.meter.interval = s.meter.interval === 17 ? 15 : s.meter.interval + 1;
   }
   s.out_l = s.out_r = Math.tanh(out);
 }
