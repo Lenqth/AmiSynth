@@ -252,9 +252,9 @@ export function startAudio() {
   return starting;
 }
 
-export function setModularPatch(patch) {
+export function setModularPatch(patch, { layoutOnly = false } = {}) {
   app.modular = safeModularPatch(patch);
-  engine.setModularPatch(app.modular);
+  if (!layoutOnly) engine.setModularPatch(app.modular);
   persist();
 }
 

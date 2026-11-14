@@ -13,7 +13,7 @@ const plugin = join(build, 'AmiSynthModular.clap');
 const available = existsSync(host) && existsSync(plugin);
 const webPatch = compileModularPatch({
   nodes: [
-    { id: 'macro', type: 'macro' }, { id: 'memory', type: 'delay' },
+    { id: 'macro', type: 'macro', position: { x: 180, y: 43 } }, { id: 'memory', type: 'delay' },
     { id: 'sum', type: 'mix', params: { a: 1, b: 0.1 } }, { id: 'out', type: 'output' },
   ],
   cables: [

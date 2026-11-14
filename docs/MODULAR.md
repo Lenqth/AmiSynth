@@ -5,9 +5,9 @@ Modular is a polyphonic patchable synth available in the Web app and as the stan
 ## Web rack
 
 1. Open **Modular** and play the keyboard. **Subtractive** starts with MIDI pitch → VCO → lowpass VCF → VCA → output. A gate-controlled ADSR drives VCA gain.
-2. Add a module, then drag from an output jack to an input jack. You can also activate the two jacks in order with a mouse or keyboard. Each input accepts one cable. Connecting to an occupied input replaces its cable. Use a Mixer to sum signals.
+2. Drag a module title to place it anywhere on the rack. A focused title also moves with the arrow keys. Scroll the rack to reach modules outside the viewport. To connect modules, drag from an output on the right to an input on the left. You can also activate the two jacks in order with a mouse or keyboard. Each input accepts one cable. Connecting to an occupied input replaces its cable. Use a Mixer to sum signals.
 3. Choose a factory patch from **Preset**. **Vibrato Lead** uses LFO pitch modulation. **Feedback Bass** uses a Unit Delay in its feedback path and Macro 1 for filter cutoff.
-4. **Save patch** and **Open patch** exchange portable JSON files. The app also restores the latest patch from browser storage. Piano Roll share links include the patch. To export a sequence, select **Modular** as the Piano Roll melody instrument and choose WAV or MP3.
+4. **Save patch** and **Open patch** exchange portable JSON files. The app also restores the latest patch from browser storage. Module positions travel with the patch. Piano Roll share links include the patch. To export a sequence, select **Modular** as the Piano Roll melody instrument and choose WAV or MP3.
 
 Patches support up to 32 modules and eight voices. A structural edit resets the voices. Turning a knob or changing a macro keeps them running. Audio is mono per voice and goes to both stereo channels.
 
@@ -33,4 +33,4 @@ Add **AmiSynth Modular** to an instrument track. The plug-in accepts CLAP notes 
 
 ## Current limits
 
-Modular uses 12-TET and per-voice audio-rate signals. The Web rack uses automatic module layout. The Web DSP and native DSP share module definitions and factory patch data and have separate sample loops. Hosting external CLAP modules is a follow-up to the built-in engine.
+Modular uses 12-TET and per-voice audio-rate signals. The Web DSP and native DSP share module definitions and factory patch data and have separate sample loops. Hosting external CLAP modules is a follow-up to the built-in engine.

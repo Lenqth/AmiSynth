@@ -66,6 +66,7 @@ export function defaultModularPatch() {
 
 export const MODULAR_MACROS = 8;
 export const MODULAR_PATCH_BYTES = 64 * 1024;
+export const MODULAR_POSITION_MAX = 8192;
 const MAX_RELEASE = 10;
 const RELEASE_FADE = 0.005;
 export const MODULAR_MAX_TAIL = MAX_RELEASE + RELEASE_FADE;
@@ -155,7 +156,15 @@ export function compileModularPatch(raw) {
     Number.isFinite(raw.macros?.[i]) ? clamp(raw.macros[i], 0, 1) : 0);
   return {
     nodes, order, delays, outputs, envelopes,
-    patch: { version: 1, macros, nodes: nodes.map(({ id, type, params }) => ({ id, type, params })),
+    patch: { version: 1, macros, nodes: nodes.map(({ id, type, params }, i) => {
+      const position = raw.nodes[i].position;
+      return Number.isFinite(position?.x) && Number.isFinite(position?.y)
+        ? { id, type, params, position: {
+          x: Math.round(clamp(position.x, 0, MODULAR_POSITION_MAX)),
+          y: Math.round(clamp(position.y, 0, MODULAR_POSITION_MAX)),
+        } }
+        : { id, type, params };
+    }),
       cables: raw.cables.map(({ from, port, to, input }) => ({ from, port, to, input })) },
   };
 }

@@ -135,7 +135,7 @@ test('share link preserves a variable Modular patch and its macros', async () =>
   const { defaultModularPatch, compileModularPatch } = await import('../src/dsp/modular.js');
   const song = { ...demoSong(), melodic: 'modular' };
   const raw = defaultModularPatch();
-  raw.nodes.push({ id: 'cutoff', type: 'macro', params: { index: 3 } });
+  raw.nodes.push({ id: 'cutoff', type: 'macro', params: { index: 3 }, position: { x: 425, y: 72 } });
   raw.cables.push({ from: 'cutoff', port: 'out', to: 'filter', input: 'cutoff' });
   raw.macros = [0, 0, 0.4];
   const modular = compileModularPatch(raw).patch;

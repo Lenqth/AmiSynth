@@ -82,7 +82,17 @@ inline Graph compile(Json &patch, Macros &macros) {
             node.knobs[index++] = value;
             normalized[p.name] = value;
         }
-        n = {{"id", id}, {"type", type}, {"params", std::move(normalized)}};
+        Json saved{{"id", id}, {"type", type}, {"params", std::move(normalized)}};
+        const auto position = n.find("position");
+        if (position != n.end() && position->is_object() &&
+            position->contains("x") && (*position)["x"].is_number() &&
+            position->contains("y") && (*position)["y"].is_number()) {
+            const auto coordinate = [&](const char *axis) {
+                return std::round(std::clamp((*position)[axis].get<double>(), 0.0, kPositionMax));
+            };
+            saved["position"] = {{"x", coordinate("x")}, {"y", coordinate("y")}};
+        }
+        n = std::move(saved);
     }
     if (!graph.output_count) throw std::invalid_argument("Missing output");
 
