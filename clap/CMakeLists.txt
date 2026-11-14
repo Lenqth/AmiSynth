@@ -79,3 +79,86 @@ add_dependencies(clap_render AmiSynth)
 add_executable(clap_check tools/clap_check.cpp)
 target_link_libraries(clap_check PRIVATE clap ${CMAKE_DL_LIBS})
 add_dependencies(clap_check AmiSynth)
+
+# Native Modular instrument, included in AmiSynth.clap. Its catalog is shared with the Web editor.
+find_program(NODE_EXECUTABLE node REQUIRED)
+FetchContent_Declare(modular_json
+  GIT_REPOSITORY https://github.com/nlohmann/json.git
+  GIT_TAG 55f93686c01528224f448c19128836e7df245f72) # v3.12.0
+set(JSON_BuildTests OFF CACHE BOOL "" FORCE)
+FetchContent_MakeAvailable(modular_json)
+
+set(MODULAR_CATALOG "${CMAKE_CURRENT_BINARY_DIR}/generated/modular_catalog.h")
+set(MODULAR_GENERATOR "${CMAKE_CURRENT_SOURCE_DIR}/../scripts/gen-modular-clap.js")
+set(MODULAR_WEB_DSP "${CMAKE_CURRENT_SOURCE_DIR}/../src/dsp/modular.js")
+add_custom_command(
+  OUTPUT "${MODULAR_CATALOG}"
+  COMMAND "${NODE_EXECUTABLE}" "${MODULAR_GENERATOR}" "${MODULAR_CATALOG}"
+  DEPENDS "${MODULAR_GENERATOR}" "${MODULAR_WEB_DSP}" "${CMAKE_CURRENT_SOURCE_DIR}/../src/dsp/phys.js"
+  "${CMAKE_CURRENT_SOURCE_DIR}/../src/presets/modular.js" "${CMAKE_CURRENT_SOURCE_DIR}/../src/presets/synth.js" "${CMAKE_CURRENT_SOURCE_DIR}/../src/dsp/params.js"
+  VERBATIM)
+
+target_sources(AmiSynth PRIVATE src/modular_clap.cpp "${MODULAR_CATALOG}")
+target_link_libraries(AmiSynth PRIVATE nlohmann_json::nlohmann_json)
+
+if(WIN32)
+  # Reuse the Web rack in an offline WebView2 editor; no server or external assets.
+  # Use WebView2's asynchronous API directly. A synchronous webview constructor
+  # pumps the host's message queue inside clap.gui.create and can re-enter its UI.
+  FetchContent_Declare(microsoft_web_webview2
+    URL https://www.nuget.org/api/v2/package/Microsoft.Web.WebView2/1.0.1150.38
+    URL_HASH SHA256=921c004bd1764b585496b2eb3eec0a59a9a98e698246f1d9a3f1c08d1d84ebd5)
+  FetchContent_MakeAvailable(microsoft_web_webview2)
+  if(CMAKE_VS_PLATFORM_NAME STREQUAL "ARM64" OR CMAKE_SYSTEM_PROCESSOR MATCHES "^(ARM64|aarch64)$")
+    set(WEBVIEW2_ARCH arm64)
+  elseif(CMAKE_SIZEOF_VOID_P EQUAL 8)
+    set(WEBVIEW2_ARCH x64)
+  else()
+    set(WEBVIEW2_ARCH x86)
+  endif()
+  set(MODULAR_EDITOR "${CMAKE_CURRENT_BINARY_DIR}/generated/modular_editor_html.h")
+  file(GLOB_RECURSE MODULAR_EDITOR_SOURCES CONFIGURE_DEPENDS
+    "${CMAKE_CURRENT_SOURCE_DIR}/editor/*")
+  add_custom_command(
+    OUTPUT "${MODULAR_EDITOR}"
+    COMMAND "${NODE_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/../scripts/gen-modular-editor.js" "${MODULAR_EDITOR}"
+    DEPENDS ${MODULAR_EDITOR_SOURCES}
+      "${CMAKE_CURRENT_SOURCE_DIR}/../scripts/gen-modular-editor.js"
+      "${CMAKE_CURRENT_SOURCE_DIR}/../src/ui/ModularRack.svelte"
+      "${CMAKE_CURRENT_SOURCE_DIR}/../src/dsp/modular.js"
+      "${CMAKE_CURRENT_SOURCE_DIR}/../src/dsp/phys.js"
+      "${CMAKE_CURRENT_SOURCE_DIR}/../src/presets/modular.js"
+      "${CMAKE_CURRENT_SOURCE_DIR}/../src/presets/synth.js"
+      "${CMAKE_CURRENT_SOURCE_DIR}/../src/dsp/params.js"
+      "${CMAKE_CURRENT_SOURCE_DIR}/../src/app.css"
+      "${CMAKE_CURRENT_SOURCE_DIR}/../package-lock.json"
+    VERBATIM)
+  add_library(modular_editor OBJECT src/modular_editor_win.cpp "${MODULAR_EDITOR}")
+  target_include_directories(modular_editor PRIVATE "${CMAKE_CURRENT_BINARY_DIR}/generated"
+    "${microsoft_web_webview2_SOURCE_DIR}/build/native/include")
+  target_link_libraries(modular_editor PUBLIC clap nlohmann_json::nlohmann_json
+    "${microsoft_web_webview2_SOURCE_DIR}/build/native/${WEBVIEW2_ARCH}/WebView2LoaderStatic.lib"
+    comctl32 ole32 oleaut32 shlwapi shell32 advapi32 user32 version)
+  if(MSVC)
+    target_compile_options(modular_editor PRIVATE /utf-8)
+  endif()
+  target_link_libraries(AmiSynth PRIVATE modular_editor)
+endif()
+
+add_executable(modular_edit_check tools/modular_edit_check.cpp)
+target_include_directories(modular_edit_check PRIVATE "${CMAKE_CURRENT_BINARY_DIR}/generated")
+target_compile_definitions(modular_edit_check PRIVATE "AMISYNTH_VERSION=\"${PROJECT_VERSION}\"")
+target_link_libraries(modular_edit_check PRIVATE clap nlohmann_json::nlohmann_json)
+add_dependencies(modular_edit_check AmiSynth)
+if(WIN32)
+  target_link_libraries(modular_edit_check PRIVATE modular_editor)
+endif()
+
+# Native engine renders for the Web/native comparison in tests/modular-clap.test.js.
+add_executable(modular_render tools/modular_render.cpp "${MODULAR_CATALOG}")
+target_include_directories(modular_render PRIVATE "${CMAKE_CURRENT_BINARY_DIR}/generated")
+target_link_libraries(modular_render PRIVATE nlohmann_json::nlohmann_json)
+
+add_executable(modular_check tools/modular_check.cpp)
+target_link_libraries(modular_check PRIVATE clap ${CMAKE_DL_LIBS})
+add_dependencies(modular_check AmiSynth)

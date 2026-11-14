@@ -4,18 +4,18 @@ AmiSynth を REAPER 以外の DAW やブラウザ単体で使う方法をまと�
 
 | 方法 | 向いている用途 | 音 | 制限 |
 | --- | --- | --- | --- |
-| **AmiSynth CLAP プラグイン**(推奨) | Bitwig、FL Studio、Studio One、REAPER など CLAP に対応した DAW で打ち込み・録音・オートメーション | REAPER の JSFX と同じ(下記「互換性の確認」) | 専用の画面は無く、DAW の標準パラメーター画面で操作する。Lua スクリプトは使えない |
+| **AmiSynth CLAP プラグイン**(推奨) | Bitwig、FL Studio、Studio One、REAPER など CLAP に対応した DAW で打ち込み・録音・オートメーション | Synth / Physical / Drums は REAPER の JSFX と同じ(下記「互換性の確認」) | Windows の Modular は専用ラック画面、それ以外は DAW の標準パラメーター画面。Lua スクリプトは使えない |
 | ysfx-s プラグイン(VST3 / CLAP / AU)で JSFX を読み込む | CLAP に対応していない DAW(Ableton Live、Cubase、Logic など) | 同上 | JSFX を手で読み込む必要がある。Lua スクリプトは使えない。ドラムのパーツ別出力は DAW 次第 |
 | ブラウザ版 + Web MIDI | MIDI キーボードで弾く、DAW から仮想 MIDI ポート経由で鳴らす | Web 版の DSP(JSFX と同じ音) | 音は DAW に入らない(ブラウザから直接出る)。テンポ同期なし |
 | ブラウザ版で WAV / MP3 に書き出す | 打ち込んだフレーズを素材として DAW に貼る | 同上 | オーディオとしての取り込みなので、後から音色を変えるには書き出し直し |
 
 ## CLAP プラグインとして使う
 
-`AmiSynth.clap` 1 つに、4 つのプラグイン(**AmiSynth Synth**、**AmiSynth Physical**、**AmiSynth Drums**、**AmiSynth Tuning**)が入っています。中身は REAPER 版と同じ JSFX で、JSFX を動かす部分(ysfx)ごとプラグインに組み込んでいるので、JSFX ホストを入れたりファイルを読み込んだりする手間はありません。
+`AmiSynth.clap` 1 つに、5 つのプラグイン(**AmiSynth Synth**、**AmiSynth Physical**、**AmiSynth Drums**、**AmiSynth Tuning**、**AmiSynth Modular**)が入っています。Synth / Physical / Drums / Tuning は REAPER 版と同じ JSFX で、JSFX を動かす部分(ysfx)ごとプラグインに組み込んでいるので、JSFX ホストを入れたりファイルを読み込んだりする手間はありません。Modular は Web 版とパッチ形式を共有するネイティブ音源です。
 
 ### 入手とインストール
 
-リポジトリから次のように実行すると、`AmiSynth.clap` をビルドしてユーザー用の CLAP フォルダにコピーします(管理者権限は不要です)。ビルドには cmake と C++ コンパイラ(Windows は Visual Studio と NASM)が必要です。
+リポジトリから次のように実行すると、Modular を含む `AmiSynth.clap` をビルドしてユーザー用の CLAP フォルダにコピーします(管理者権限は不要です)。ビルドには cmake と C++ コンパイラ(Windows は Visual Studio と NASM)が必要です。
 
 ```sh
 npm run install:clap -- --build --dry-run   # コピー先の確認だけ
@@ -23,12 +23,14 @@ npm run install:clap -- --build
 ```
 
 - 既にビルド済み(`npm run clap:build`)なら `--build` は不要です。
+- Modular も同時に更新されるため、`--modular` は不要です。インストール先に旧 `AmiSynthModular.clap` がある場合は、上書きしない `.disabled` バックアップに改名して重複検出を防ぎます。`--dry-run` では改名しません。旧版を使った DAW プロジェクトは、統合版の Modular に差し替えが必要になる場合があります。
 - ビルドせずに、[Releases](https://github.com/Lenqth/AmiSynth/releases) から OS に合った `AmiSynth-clap-<版>-…zip`(Windows x64 / macOS Universal / Linux x64)をダウンロードして使う場合は、展開した `AmiSynth.clap` を `--plugin` で指定します: `npm run install:clap -- --plugin "<展開したフォルダ>/AmiSynth.clap"`。リリース前の最新版は Actions → **CLAP plugin** の実行結果にあります
 - コピー先は次のとおりです。別の場所に入れるときは `--dest "<フォルダ>"` を付けます。
   - Windows: `%LOCALAPPDATA%\Programs\Common\CLAP\`。DAW がここを探さない場合は、管理者として `--dest "C:\Program Files\Common Files\CLAP"` で入れます。
   - macOS: `~/Library/Audio/Plug-Ins/CLAP/`。署名していないため、スクリプトがダウンロード時の隔離属性(`com.apple.quarantine`)を外します。
   - Linux: `~/.clap/`
 - 更新するときも同じコマンドで上書きします。Windows では DAW を閉じてから実行します。
+- AmiSynth が重複して表示される場合は、ユーザー用とシステム用の CLAP フォルダや、DAW に追加した検索先に同じプラグインがないか確認します。使用するコピーを1つに統一し、古いコピーは検索対象外の場所に退避してから再スキャンしてください。インストールスクリプトは別フォルダのコピーを自動削除しません。
 - 手でコピーする場合は、`AmiSynth.clap` を上のフォルダに置きます(macOS では `xattr -dr com.apple.quarantine ~/Library/Audio/Plug-Ins/CLAP/AmiSynth.clap` も実行します)。
 
 インストールしたら、DAW でプラグインを再スキャンし、インストゥルメント・トラックに **AmiSynth Synth** などを挿します。
@@ -59,7 +61,7 @@ npm run install:clap -- --build
 
 ### 制限
 
-- **専用の画面はありません**。DAW の標準のパラメーター画面で操作します(REAPER 版のメーター表示も出ません)。
+- **Windows の Modular** は専用ラック画面でノードの追加・削除、配線、各ノブを編集できます。Microsoft Edge WebView2 Runtime が必要です。その他の音源と macOS / Linux の Modular は DAW の標準パラメーター画面で操作します(REAPER 版のメーター表示は出ません)。
 - **Lua スクリプト(Companion、MCP 用の Read sound / Apply sound / Run)は使えません**。REAPER では、今までどおり JSFX 版と Lua スクリプトを使うのがおすすめです。
 - **VST3 / AU はまだありません**。CLAP に対応していない DAW では、下の ysfx-s を使います。
 - 配布しているのは GitHub Actions のビルド結果で、署名やインストーラーはありません。
@@ -114,6 +116,14 @@ Linux / macOS で cmake と C++ コンパイラが必要です。メーター表
 このテストはプラグイン本体(DAW との受け渡し)ではなく、ysfx-s のプラグインが内部で使う JSFX の実行部分を確認するものです。
 
 AmiSynth の CLAP プラグインは、DAW と同じ手順でプラグインを読み込むテスト用ホスト(`clap/tools/clap_render`)を通して、同じ比較を行います。メーター表示(`@gfx`)以外の 29 項目が対象です。あわせて、パラメーターの名前・範囲・グループ、プリセットの一覧と読み込み、保存と復元、ポート構成、CLAP 形式のノートを確認します(`tests/clap.test.js`)。GitHub Actions では Windows / macOS / Linux のそれぞれで実行します。
+
+ローカルビルドには Node.js、Git、CMake 3.21 以上と C++17 対応コンパイラが必要です。初回は依存ライブラリを GitHub から取得します。Windows の MSVC x64 ビルドでは、Visual Studio の C++ ビルドツールに加えて [NASM](https://www.nasm.us/) が必要です。`nasm.exe` のあるフォルダを PATH に追加するか、次のように実行ファイルを指定してください。
+
+```powershell
+cmake -S clap -B .cache/clap-build -DCMAKE_BUILD_TYPE=Release "-DNASM_PROGRAM=C:/path/to/nasm.exe"
+```
+
+Windows での `Looking for pthread_create in pthread - not found` は検出途中の表示で、単独ではビルド失敗を意味しません。`Cannot find nasm, required in a MSVC x64 configuration` で停止する場合は、上の NASM の設定を確認してください。
 
 ```sh
 npm run clap:build   # .cache/clap-build/ に AmiSynth.clap とテスト用ホストをビルド

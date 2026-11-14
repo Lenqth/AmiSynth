@@ -11,3 +11,7 @@ components. Their license texts are shipped next to the plugin as `licenses/*.tx
 | [CLAP](https://github.com/free-audio/clap) | plugin API headers | MIT (`licenses/clap.txt`) |
 
 Only ysfx's library is used: not its JUCE-based plugin (AGPL), and no graphics code.
+
+AmiSynth Modular uses [JSON for Modern C++](https://github.com/nlohmann/json) under the MIT license for patch and state serialization.
+
+The Windows Modular editor embeds its offline Svelte UI using the Microsoft WebView2 SDK and static loader (`licenses/WebView2.txt`). The WebView2 Runtime is supplied by the operating system or installed separately. Initialization uses asynchronous WebView2 callbacks on the host UI thread and never pumps the host message queue from `clap.gui.create`.

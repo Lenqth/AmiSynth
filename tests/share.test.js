@@ -130,3 +130,20 @@ test('share link: rejects what is not an AmiSynth share', async () => {
   assert.throws(() => parseSharePayload('string'), /形式/);
   assert.deepEqual([...fromBase64Url(toBase64Url(new Uint8Array([0, 255, 250, 1])))], [0, 255, 250, 1]);
 });
+
+test('share link preserves a variable Modular patch and its macros', async () => {
+  const { defaultModularPatch, compileModularPatch } = await import('../src/dsp/modular.js');
+  const song = { ...demoSong(), melodic: 'modular' };
+  const raw = defaultModularPatch();
+  raw.nodes.push({ id: 'cutoff', type: 'macro', params: { index: 3 }, position: { x: 425, y: 72 } });
+  raw.cables.push({ from: 'cutoff', port: 'out', to: 'filter', input: 'cutoff' });
+  raw.macros = [0, 0, 0.4];
+  const modular = compileModularPatch(raw).patch;
+  const frag = await encodeShare({
+    song, mode: 'pattern', synth: defaultValues(SYNTH_PARAMS), phys: defaultValues(PHYS_PARAMS),
+    drums: defaultValues(DRUM_PARAMS), scale: null, modular,
+  });
+  const restored = await decodeShare(frag);
+  assert.equal(restored.song.melodic, 'modular');
+  assert.deepEqual(restored.modular, modular);
+});

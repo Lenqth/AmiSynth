@@ -9,7 +9,7 @@ export const STEPS = STEPS_PER_BEAT * BEATS_PER_BAR * BARS;
 
 /** @typedef {{note:number,start:number,len:number,vel:number}} RollNote */
 /** @typedef {{note:number,step:number,vel:number}} DrumHit */
-/** @typedef {{bpm:number, notes:RollNote[], drums:DrumHit[], melodic?:'synth'|'phys'}} Pattern */
+/** @typedef {{bpm:number, notes:RollNote[], drums:DrumHit[], melodic?:'synth'|'phys'|'modular'}} Pattern */
 
 /** @returns {Pattern} */
 export function demoPattern() {
@@ -127,7 +127,7 @@ export class Sequencer {
     const t = this.getTimeline();
     if (Array.isArray(t.entries)) return t;
     // a bare pattern (old API): one entry
-    return { bpm: t.bpm, melodic: t.melodic === 'phys' ? 'phys' : 'synth', entries: [{ pattern: t, slot: -1, index: 0 }] };
+    return { bpm: t.bpm, melodic: ['synth', 'phys', 'modular'].includes(t.melodic) ? t.melodic : 'synth', entries: [{ pattern: t, slot: -1, index: 0 }] };
   }
 
   start() {
@@ -202,7 +202,7 @@ export class Sequencer {
   }
 
   scheduleStep(tl, pattern, step, time, stepDur, entry = 0) {
-    const inst = tl.melodic === 'phys' ? 'phys' : 'synth';
+    const inst = ['synth', 'phys', 'modular'].includes(tl.melodic) ? tl.melodic : 'synth';
     // host transport for the arpeggiator / synced LFO: bar 1 of the timeline = beat 0
     if (step === 0 || this.sendTransport) {
       this.sendTransport = false;

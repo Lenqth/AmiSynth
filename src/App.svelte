@@ -11,7 +11,7 @@
   import {
     app, applyPreset, beginSongGesture, clearSeqHighlights, commitSongGesture, drumHit, editedPattern, editSong, flashDrum,
     flashSeqNote, hadSavedState, persist, redo, replaceSong, setBend, setMelodic, setModwheel, setParam, setPressure, setScale,
-    setSustain, startAudio, synthNoteOff, synthNoteOn, undo,
+    setSustain, setModularPatch, startAudio, synthNoteOff, synthNoteOn, undo,
   } from './lib/state.svelte.js';
   import { makeTuning } from './lib/tuning.js';
   import { coarsePointerQuery } from './lib/keysize.js';
@@ -29,6 +29,7 @@
   import { gmProgramPreset } from './presets/gm.js';
   import PhysViz from './ui/PhysViz.svelte';
   import Scope from './ui/Scope.svelte';
+  import ModularRack from './ui/ModularRack.svelte';
   import TuningPanel from './ui/TuningPanel.svelte';
   import { phys_pedal_enabled } from './dsp/phys.js';
   import Wheels from './ui/Wheels.svelte';
@@ -76,7 +77,7 @@
   /** Tabs with a keyboard also choose which instrument it plays. */
   function selectTab(id) {
     app.tab = id;
-    if (id === 'synth' || id === 'phys') setMelodic(id);
+    if (id === 'synth' || id === 'phys' || id === 'modular') setMelodic(id);
     persist();
   }
 
@@ -184,6 +185,7 @@
       // song mode: the whole arrangement; pattern mode: the pattern being edited
       timeline: timeline(song, app.playMode),
       params: { synth: $state.snapshot(app.synth), phys: $state.snapshot(app.phys), drums: $state.snapshot(app.drums) },
+      modularPatch: $state.snapshot(app.modular),
       scaleCents: app.scale ? [...app.scale.cents] : null,
       sampleRate: engine.ctx?.sampleRate ?? 48000,
       loops: Number(exportLoops),
@@ -284,7 +286,7 @@
     try {
       const frag = await encodeShare({
         song: $state.snapshot(app.song), mode: app.playMode, synth: $state.snapshot(app.synth), phys: $state.snapshot(app.phys),
-        drums: $state.snapshot(app.drums), scale: app.scale ? $state.snapshot(app.scale) : null,
+        drums: $state.snapshot(app.drums), modular: $state.snapshot(app.modular), scale: app.scale ? $state.snapshot(app.scale) : null,
       });
       const url = `${location.origin}${location.pathname}${location.search}#${frag}`;
       try {
@@ -323,6 +325,7 @@
     }
     setScale(shared.scale);
     if (!seq.playing) engine.transport(app.song.bpm, false);
+    if (shared.modular) setModularPatch(shared.modular);
     app.tab = 'roll';
     persist();
   }
@@ -460,6 +463,7 @@
       }
       return;
     }
+    if (code === 'Space' && e.target.closest?.('[data-jack], [data-move-module], [data-modular-menu]')) return;
     if (code === 'Space') {
       e.preventDefault();
       togglePlay();
@@ -596,6 +600,7 @@
   const TABS = [
     { id: 'synth', label: 'Synth' },
     { id: 'phys', label: 'Physical' },
+    { id: 'modular', label: 'Modular' },
     { id: 'drums', label: 'Drums' },
     { id: 'roll', label: 'Piano Roll' },
     { id: 'params', label: 'Parameters' },
@@ -807,6 +812,9 @@
       {/if}
     </section>
     <ParamPanel defs={PHYS_PARAMS} values={app.phys} groups={physGroups} onchange={(id, v) => setParam('phys', id, v)} />
+  {:else if app.tab === 'modular'}
+    {@render playCard()}
+    <ModularRack patch={app.modular} onchange={setModularPatch} signalSource={engine} />
   {:else if app.tab === 'drums'}
     <section class="card">
       <DrumPads flash={app.drumFlash} onhit={hit} />
@@ -823,9 +831,10 @@
       <button onclick={() => editSong((s) => (s.patterns[s.current].drums = []))}>ドラム全消去</button>
       <button onclick={() => editSong((s) => { s.patterns[s.current].notes = []; s.patterns[s.current].drums = []; })}>すべて消去</button>
       <label class="muted">メロディ音源
-        <select value={app.song.melodic} onchange={(e) => { const v = e.currentTarget.value; editSong((s) => (s.melodic = v === 'phys' ? 'phys' : 'synth')); }}>
+        <select value={app.song.melodic} onchange={(e) => { const v = e.currentTarget.value; editSong((s) => (s.melodic = ['synth', 'phys', 'modular'].includes(v) ? v : 'synth')); }}>
           <option value="synth">Synth</option>
           <option value="phys">Physical</option>
+          <option value="modular">Modular</option>
         </select>
       </label>
       <span class="muted">パターン {editedPattern().name} (4 小節) · 行は現在のチューニングのステップ</span>

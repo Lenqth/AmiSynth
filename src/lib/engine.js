@@ -1,17 +1,20 @@
-// Main-thread side of the audio engine. Only creates the AudioContext and three
-// AudioWorkletNodes (synth, drums, physical); all DSP happens in the worklets (no built-in Web Audio DSP
+// Main-thread side of the audio engine. Only creates the AudioContext and its
+// AudioWorkletNodes; all DSP happens in the worklets (no built-in Web Audio DSP
 // nodes are used for sound — an AnalyserNode is tapped for the scope only).
 
 import synthUrl from '../worklets/synth-processor.js?worker&url';
 import drumUrl from '../worklets/drum-processor.js?worker&url';
 import physUrl from '../worklets/phys-processor.js?worker&url';
+import modularUrl from '../worklets/modular-processor.js?worker&url';
 
 export class AudioEngine {
   /** @type {AudioContext | null} */ ctx = null;
   /** @type {AudioWorkletNode | null} */ synth = null;
   /** @type {AudioWorkletNode | null} */ drums = null;
   /** @type {AudioWorkletNode | null} */ phys = null;
+  /** @type {AudioWorkletNode | null} */ modular = null;
   /** @type {((data:any)=>void) | null} */ onPhysSnapshot = null;
+  onModularSignals = null;
   /** @type {AnalyserNode | null} */ analyser = null;
 
   /** Must be called from a user gesture (autoplay policy). */
@@ -21,17 +24,27 @@ export class AudioEngine {
       return;
     }
     const ctx = new AudioContext({ latencyHint: 'interactive' });
-    await Promise.all([synthUrl, drumUrl, physUrl].map((u) => ctx.audioWorklet.addModule(u)));
+    try {
+      await Promise.all([synthUrl, drumUrl, physUrl, modularUrl].map((u) => ctx.audioWorklet.addModule(u)));
+    } catch (error) {
+      await ctx.close();
+      throw error;
+    }
     const opts = { numberOfInputs: 0, numberOfOutputs: 1, outputChannelCount: [2] };
     this.synth = new AudioWorkletNode(ctx, 'amisynth-synth', opts);
     this.drums = new AudioWorkletNode(ctx, 'amisynth-drums', opts);
     this.phys = new AudioWorkletNode(ctx, 'amisynth-phys', opts);
+    this.modular = new AudioWorkletNode(ctx, 'amisynth-modular', opts);
     this.phys.port.onmessage = (e) => {
       if (e.data?.type === 'snapshot') this.onPhysSnapshot?.(e.data.data);
     };
+    this.modular.port.onmessage = (e) => {
+      if (e.data?.type === 'snapshot') this.onModularSignals?.(e.data.data);
+    };
+    this.modular.port.postMessage({ type: 'viz', on: !!this.onModularSignals });
     this.analyser = ctx.createAnalyser();
     this.analyser.fftSize = 2048;
-    for (const node of [this.synth, this.drums, this.phys]) {
+    for (const node of [this.synth, this.drums, this.phys, this.modular]) {
       node.connect(ctx.destination);
       node.connect(this.analyser);
     }
@@ -43,7 +56,7 @@ export class AudioEngine {
     return this.ctx ? this.ctx.currentTime : 0;
   }
 
-  /** @param {'synth'|'drums'|'phys'} target @param {number[]} data MIDI bytes @param {number} [time] AudioContext time */
+  /** @param {'synth'|'drums'|'phys'|'modular'} target @param {number[]} data MIDI bytes @param {number} [time] AudioContext time */
   midi(target, data, time) {
     this[target]?.port.postMessage({ type: 'midi', data, time });
   }
@@ -73,6 +86,15 @@ export class AudioEngine {
     this[target]?.port.postMessage({ type: 'params', values: { ...values } });
   }
 
+  setModularSignals(callback) {
+    this.onModularSignals = callback;
+    this.modular?.port.postMessage({ type: 'viz', on: !!callback });
+  }
+
+  setModularPatch(patch) {
+    this.modular?.port.postMessage({ type: 'patch', patch: JSON.parse(JSON.stringify(patch)) });
+  }
+
   /** @param {number[] | null} cents Scala-style degrees (last = period) or null for EDO */
   setScale(cents) {
     for (const node of [this.synth, this.phys]) node?.port.postMessage({ type: 'scale', cents: cents ? [...cents] : null });
@@ -88,6 +110,7 @@ export class AudioEngine {
     this.synth?.port.postMessage({ type: 'clear' });
     this.drums?.port.postMessage({ type: 'clear' });
     this.phys?.port.postMessage({ type: 'clear' });
+    this.modular?.port.postMessage({ type: 'clear' });
   }
 }
 

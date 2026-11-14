@@ -7,6 +7,7 @@ import { phys_init, phys_render, phys_set_scale, phys_update } from '../dsp/phys
 import { drums_init, drums_render, drums_update } from '../dsp/drums.js';
 import { drums_midi, phys_midi, synth_midi } from '../dsp/midi.js';
 import { STEPS, STEPS_PER_BEAT } from './pattern.js';
+import { MODULAR_MAX_TAIL, defaultModularPatch, modular_init, modular_midi, modular_render, modular_set_patch } from '../dsp/modular.js';
 
 const CORES = {
   synth: {
@@ -15,11 +16,12 @@ const CORES = {
   },
   phys: { defs: PHYS_PARAMS, init: phys_init, update: phys_update, render: phys_render, midi: phys_midi, scale: phys_set_scale },
   drums: { defs: DRUM_PARAMS, init: drums_init, update: drums_update, render: drums_render, midi: drums_midi, scale: null },
+  modular: { defs: [], init: modular_init, update() {}, render: modular_render, midi: modular_midi, scale: null },
 };
 
 /** A single pattern as a one-entry timeline (see song.js). */
 export function patternTimeline(pattern) {
-  return { bpm: pattern.bpm, melodic: pattern.melodic === 'phys' ? 'phys' : 'synth', entries: [{ pattern, slot: -1, index: 0 }] };
+  return { bpm: pattern.bpm, melodic: ['synth', 'phys', 'modular'].includes(pattern.melodic) ? pattern.melodic : 'synth', entries: [{ pattern, slot: -1, index: 0 }] };
 }
 
 /**
@@ -30,9 +32,9 @@ export function patternTimeline(pattern) {
  */
 export function timelineEvents(tl, sr, loops = 1) {
   const stepDur = 60 / tl.bpm / STEPS_PER_BEAT;
-  const melodic = tl.melodic === 'phys' ? 'phys' : 'synth';
+  const melodic = ['synth', 'phys', 'modular'].includes(tl.melodic) ? tl.melodic : 'synth';
   const total = tl.entries.length * STEPS;
-  const ev = { synth: [], phys: [], drums: [] };
+  const ev = { synth: [], phys: [], modular: [], drums: [] };
   for (let k = 0; k < loops; k++) {
     tl.entries.forEach(({ pattern }, i) => {
       for (let step = 0; step < STEPS; step++) {
@@ -63,7 +65,7 @@ export function patternEvents(pattern, sr, loops = 1) {
 
 /**
  * Render the pattern or the song timeline (plus the ringing tail, up to maxTail seconds) to stereo float buffers.
- * @param {{ pattern?: any, timeline?: import('./song.js').Timeline, params: {synth?:object, phys?:object, drums?:object}, scaleCents?: number[] | null,
+ * @param {{ pattern?: any, timeline?: import('./song.js').Timeline, params: {synth?:object, phys?:object, drums?:object}, modularPatch?: object, scaleCents?: number[] | null,
  *   sampleRate?: number, loops?: number, maxTail?: number }} opts
  * @param {(fraction:number)=>void} [onProgress]
  * @returns {{ left: Float32Array, right: Float32Array, sampleRate: number, peak: number }}
@@ -72,7 +74,7 @@ export function renderPattern(opts, onProgress = () => {}) {
   const sr = opts.sampleRate ?? 48000;
   const tl = opts.timeline ?? patternTimeline(opts.pattern);
   const { ev, length } = timelineEvents(tl, sr, opts.loops ?? 1);
-  const maxTail = Math.round((opts.maxTail ?? 6) * sr);
+  const maxTail = Math.round((opts.maxTail ?? (ev.modular.length ? MODULAR_MAX_TAIL + 0.3 : 6)) * sr);
   // only the instruments that play something are run
   const active = Object.keys(CORES).filter((k) => ev[k].length > 0).map((k) => {
     const core = CORES[k];
@@ -80,6 +82,7 @@ export function renderPattern(opts, onProgress = () => {}) {
     core.init(s, sr);
     const p = { ...defaultValues(core.defs), ...(opts.params?.[k] || {}) };
     core.update(s, p);
+    if (k === 'modular') modular_set_patch(s, opts.modularPatch ?? defaultModularPatch());
     if (core.scale && opts.scaleCents) core.scale(s, opts.scaleCents, opts.scaleCents.length);
     // playing from beat 0 at the pattern tempo (arpeggiator / synced LFO), like the Sequencer
     if (core.transport) core.transport(s, tl.bpm, 1, 0);

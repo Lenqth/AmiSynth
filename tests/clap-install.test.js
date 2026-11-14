@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, mkdirSync, readFileSync, readdirSync, writeFileSync, existsSync } from 'node:fs';
+import { cpSync, mkdtempSync, mkdirSync, readFileSync, readdirSync, writeFileSync, existsSync, rmSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { clapInstallPlan, defaultClapDir, installClap } from '../scripts/install-clap.js';
@@ -41,4 +42,39 @@ test('CLAP install: dry-run writes nothing; a file or a macOS bundle is copied a
 test('CLAP install explains how to get the plugin when it is missing', () => {
   const dir = mkdtempSync(join(tmpdir(), 'amisynth-clap-install-'));
   assert.throws(() => clapInstallPlan({ plugin: join(dir, 'nope.clap'), dest: dir }), /Missing plugin/);
+});
+
+test('CLAP installer installs one combined plugin and safely retires standalone Modular', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'amisynth-clap-cli-'));
+  try {
+    mkdirSync(join(dir, 'scripts'));
+    const script = join(dir, 'scripts', 'install-clap.mjs');
+    cpSync(new URL('../scripts/install-clap.js', import.meta.url), script);
+    const build = join(dir, '.cache', 'clap-build', process.platform === 'win32' ? 'Release' : '');
+    mkdirSync(build, { recursive: true });
+    const dest = join(dir, 'CLAP');
+    const run = (...args) => execFileSync(process.execPath, [script, '--dest', dest, ...args], { encoding: 'utf8', stdio: 'pipe' });
+    assert.throws(() => run(), /AmiSynth.clap is not built/);
+    assert.equal(existsSync(dest), false);
+    writeFileSync(join(build, 'AmiSynth.clap'), 'combined');
+    assert.match(run('--dry-run'), /Would copy:.*AmiSynth.clap/);
+    assert.equal(existsSync(dest), false);
+    mkdirSync(dest);
+    const legacy = join(dest, 'AmiSynthModular.clap');
+    writeFileSync(legacy, 'legacy');
+    writeFileSync(`${legacy}.disabled`, 'older backup');
+    assert.match(run('--dry-run'), /Would retire standalone Modular/);
+    assert.equal(readFileSync(legacy, 'utf8'), 'legacy', 'dry-run preserves the old plugin');
+    run();
+    assert.equal(readFileSync(join(dest, 'AmiSynth.clap'), 'utf8'), 'combined');
+    assert.equal(existsSync(legacy), false);
+    assert.equal(readFileSync(`${legacy}.disabled`, 'utf8'), 'older backup');
+    assert.equal(readFileSync(`${legacy}.disabled-1`, 'utf8'), 'legacy');
+    run('--modular');
+    assert.equal(readFileSync(join(dest, 'AmiSynth.clap'), 'utf8'), 'combined');
+    writeFileSync(join(build, 'AmiSynthModular.clap'), 'obsolete');
+    assert.throws(() => run('--plugin', join(build, 'AmiSynthModular.clap')), /standalone.*obsolete/);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 });

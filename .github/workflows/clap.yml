@@ -3,9 +3,9 @@ name: CLAP plugin
 on:
   push:
     branches: [main]
-    paths: ['clap/**', 'jsfx/**', 'scripts/test-clap.js', 'scripts/install-clap.js', 'tests/clap.test.js', 'tests/jsfx.test.js', '.github/workflows/clap.yml']
+    paths: ['clap/**', 'jsfx/**', 'src/dsp/modular.js', 'src/ui/ModularRack.svelte', 'src/app.css', 'scripts/gen-modular-clap.js', 'scripts/gen-modular-editor.js', 'package.json', 'package-lock.json', 'tests/modular-clap.test.js', 'scripts/test-clap.js', 'scripts/install-clap.js', 'tests/clap.test.js', 'tests/jsfx.test.js', '.github/workflows/clap.yml']
   pull_request:
-    paths: ['clap/**', 'jsfx/**', 'scripts/test-clap.js', 'scripts/install-clap.js', 'tests/clap.test.js', 'tests/jsfx.test.js', '.github/workflows/clap.yml']
+    paths: ['clap/**', 'jsfx/**', 'src/dsp/modular.js', 'src/ui/ModularRack.svelte', 'src/app.css', 'scripts/gen-modular-clap.js', 'scripts/gen-modular-editor.js', 'package.json', 'package-lock.json', 'tests/modular-clap.test.js', 'scripts/test-clap.js', 'scripts/install-clap.js', 'tests/clap.test.js', 'tests/jsfx.test.js', '.github/workflows/clap.yml']
   workflow_dispatch:
   # release.yml reuses these builds for the release assets
   workflow_call:
@@ -18,7 +18,7 @@ jobs:
         include:
           - { os: ubuntu-22.04, name: linux-x64, cmake-args: '' }
           - { os: windows-2022, name: windows-x64, cmake-args: '-A x64' }
-          - { os: macos-14, name: macos-universal, cmake-args: '"-DCMAKE_OSX_ARCHITECTURES=x86_64;arm64" -DCMAKE_OSX_DEPLOYMENT_TARGET=10.15' }
+          - { os: macos-15, name: macos-universal, cmake-args: '"-DCMAKE_OSX_ARCHITECTURES=x86_64;arm64" -DCMAKE_OSX_DEPLOYMENT_TARGET=10.15' }
     name: ${{ matrix.name }}
     runs-on: ${{ matrix.os }}
     steps:
@@ -48,6 +48,7 @@ jobs:
         run: |
           npm run install:clap -- --dest "$RUNNER_TEMP/clap"
           test -e "$RUNNER_TEMP/clap/AmiSynth.clap"
+          test ! -e "$RUNNER_TEMP/clap/AmiSynthModular.clap"
           npm run install:clap -- --dry-run
       - name: Collect
         shell: bash
@@ -62,6 +63,10 @@ jobs:
           cp $deps/ysfx-src/thirdparty/WDL/LICENSE.txt dist-clap/licenses/WDL.txt
           cp $deps/ysfx-src/thirdparty/dr_libs/LICENSE dist-clap/licenses/dr_libs.txt
           cp $deps/clap-src/LICENSE dist-clap/licenses/clap.txt
+          cp $deps/modular_json-src/LICENSE.MIT dist-clap/licenses/nlohmann-json.txt
+          if [ "$RUNNER_OS" = Windows ]; then
+            cp $deps/microsoft_web_webview2-src/LICENSE.txt dist-clap/licenses/WebView2.txt
+          fi
       - uses: actions/upload-artifact@v4
         with:
           name: AmiSynth-clap-${{ matrix.name }}

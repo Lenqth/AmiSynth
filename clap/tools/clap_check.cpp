@@ -225,9 +225,6 @@ int main(int argc, char **argv) {
         };
         indexer.declare_soundpack = [](const clap_preset_discovery_indexer_t *, const clap_preset_discovery_soundpack_t *) { return true; };
         indexer.get_extension = [](const clap_preset_discovery_indexer_t *, const char *) -> const void * { return nullptr; };
-        const auto *desc = pf->get_descriptor(pf, 0);
-        const clap_preset_discovery_provider_t *prov = pf->create(pf, &indexer, desc->id);
-        prov->init(prov);
         clap_preset_discovery_metadata_receiver_t r{};
         r.on_error = [](const clap_preset_discovery_metadata_receiver_t *, int32_t, const char *) {};
         r.begin_preset = [](const clap_preset_discovery_metadata_receiver_t *, const char *name, const char *key) {
@@ -244,8 +241,13 @@ int main(int argc, char **argv) {
         r.set_timestamps = [](const clap_preset_discovery_metadata_receiver_t *, clap_timestamp, clap_timestamp) {};
         r.add_feature = [](const clap_preset_discovery_metadata_receiver_t *, const char *f) { presets.back().features.push_back(f); };
         r.add_extra_info = [](const clap_preset_discovery_metadata_receiver_t *, const char *, const char *) {};
-        prov->get_metadata(prov, CLAP_PRESET_DISCOVERY_LOCATION_PLUGIN, nullptr, &r);
-        prov->destroy(prov);
+        for (uint32_t i = 0; i < pf->count(pf); ++i) {
+            const auto *desc = pf->get_descriptor(pf, i);
+            const auto *prov = pf->create(pf, &indexer, desc->id);
+            if (!prov || !prov->init(prov)) return 1;
+            prov->get_metadata(prov, CLAP_PRESET_DISCOVERY_LOCATION_PLUGIN, nullptr, &r);
+            prov->destroy(prov);
+        }
         std::printf(",\"presetLocations\":%d,\"presets\":[", locations);
         for (size_t k = 0; k < presets.size(); k++)
             std::printf("%s{\"name\":%s,\"key\":%s,\"plugin\":%s,\"features\":[%s]}", k ? "," : "", json(presets[k].name.c_str()).c_str(),

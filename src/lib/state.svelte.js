@@ -6,6 +6,7 @@ import { clampParam, defaultValues, DRUM_PARAMS, PHYS_PARAMS, SYNTH_PARAMS } fro
 /** Parameter definitions per instrument. */
 export const DEFS = { synth: SYNTH_PARAMS, drums: DRUM_PARAMS, phys: PHYS_PARAMS };
 import { engine } from './engine.js';
+import { safeModularPatch } from '../dsp/modular.js';
 import { currentPattern, migrateSaved, sanitizeSong } from './song.js';
 import { UndoStack } from './history.js';
 import { resolvePreset } from './presets.js';
@@ -34,11 +35,11 @@ function merged(defs, savedValues) {
   return v;
 }
 
-const TABS = ['synth', 'phys', 'drums', 'roll', 'params'];
+const TABS = ['synth', 'phys', 'modular', 'drums', 'roll', 'params'];
 // reopen the last tab; the keyboard always plays the instrument of the tab it sits on
 // (restoring 'phys' while showing the Synth tab used to play the piano from the Synth page)
 const savedTab = TABS.includes(saved?.tab) ? saved.tab : 'synth';
-const savedMelodic = savedTab === 'synth' || savedTab === 'phys' ? savedTab : saved?.melodic === 'phys' ? 'phys' : 'synth';
+const savedMelodic = savedTab === 'synth' || savedTab === 'phys' || savedTab === 'modular' ? savedTab : ['synth', 'phys', 'modular'].includes(saved?.melodic) ? saved.melodic : 'synth';
 
 export const app = $state({
   started: false,
@@ -47,9 +48,10 @@ export const app = $state({
   tab: savedTab,
   synth: merged(SYNTH_PARAMS, saved?.synth),
   drums: merged(DRUM_PARAMS, saved?.drums),
+  modular: safeModularPatch(saved?.modular ?? null),
   // first visit: start from the first physical preset so the preset name matches the sound
   phys: saved?.phys ? merged(PHYS_PARAMS, saved.phys) : resolvePreset(PHYS_PARAMS, PHYS_PRESETS[0]),
-  /** which melodic instrument the keyboard / MIDI / piano roll play: 'synth' | 'phys' */
+  /** which melodic instrument the keyboard / MIDI / piano roll play: 'synth' | 'phys' | 'modular' */
   melodic: savedMelodic,
   /** physical model visualisation on/off */
   physViz: false,
@@ -108,7 +110,7 @@ export function persist() {
   saveTimer = setTimeout(() => {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify({
-        tab: app.tab, synth: app.synth, drums: app.drums, phys: app.phys, melodic: app.melodic, scale: app.scale, song: app.song, playMode: app.playMode,
+        tab: app.tab, synth: app.synth, drums: app.drums, phys: app.phys, modular: app.modular, melodic: app.melodic, scale: app.scale, song: app.song, playMode: app.playMode,
         presetName: app.presetName, userPresets: app.userPresets, keyScale: app.keyScale,
         kb: { layout: app.kbLayout, iso: app.iso, velMode: app.kbVelMode, velFixed: app.kbVelFixed },
       }));
@@ -235,6 +237,7 @@ export function startAudio() {
         engine.setParams('drums', app.drums);
         for (const d of SYNTH_PARAMS) if (d.id.startsWith('tuning_')) app.phys[d.id] = app.synth[d.id];
         engine.setParams('phys', app.phys);
+        engine.setModularPatch(app.modular);
         engine.setPhysViz(app.physViz);
         if (app.scale) engine.setScale(app.scale.cents);
         app.started = true;
@@ -247,6 +250,12 @@ export function startAudio() {
     })();
   }
   return starting;
+}
+
+export function setModularPatch(patch, { layoutOnly = false } = {}) {
+  app.modular = safeModularPatch(patch);
+  if (!layoutOnly) engine.setModularPatch(app.modular);
+  persist();
 }
 
 export function synthNoteOn(note, velocity = 100) {
@@ -310,6 +319,7 @@ export function setBend(v) {
   const clamped = Math.max(0, Math.min(16383, value));
   engine.midi('synth', [0xe0, clamped & 0x7f, clamped >> 7]);
   engine.midi('phys', [0xe0, clamped & 0x7f, clamped >> 7]);
+  engine.midi('modular', [0xe0, clamped & 0x7f, clamped >> 7]);
 }
 
 export function setModwheel(v) {
