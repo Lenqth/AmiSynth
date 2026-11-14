@@ -10,7 +10,7 @@ test('modular default patch compiles and respects its dependency order', () => {
 
 test('modular rejects cycles, duplicate input links, invalid ports, and malformed patches', () => {
   const p = defaultModularPatch();
-  assert.throws(() => compileModularPatch({ ...p, cables: [...p.cables, { from: 'amp', port: 'out', to: 'filter', input: 'audio' }] }));
+  assert.throws(() => compileModularPatch({ ...p, cables: [...p.cables, { from: 'amp', port: 'out', to: 'osc', input: 'fm' }] }));
   assert.throws(() => compileModularPatch({ ...p, cables: [...p.cables, { from: 'osc', port: 'out', to: 'amp', input: 'audio' }] }));
   assert.throws(() => compileModularPatch({ ...p, cables: [...p.cables, { from: 'note', port: 'bad', to: 'osc', input: 'fm' }] }));
   assert.deepEqual(safeModularPatch({ nodes: [], cables: [] }), defaultModularPatch());
