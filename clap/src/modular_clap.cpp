@@ -8,6 +8,9 @@
 #include <filesystem>
 #include <fstream>
 #include <new>
+#if defined(_WIN32)
+#include "modular_editor.h"
+#endif
 
 namespace {
 using namespace modular;
@@ -24,18 +27,25 @@ struct Instance {
     Engine dsp;
     Json patch;  // Owned by the main thread.
     std::array<std::atomic<double>, kMacroCount> values{};
+    std::atomic<uint32_t> gui_macro_changes{0};
 
     // Single-producer/single-consumer triple buffer. The main thread writes only
     // back; the audio thread reads only front. The middle index carries a dirty bit.
     std::array<Graph, 3> graphs{};
+    std::array<uint64_t, 3> graph_epochs{};
+    uint64_t next_epoch = 0; // Main thread.
+    uint64_t applied_epoch = 0; // Audio thread.
     static constexpr unsigned dirty = 4;
     std::atomic<unsigned> middle{1};
     unsigned back = 2, front = 0;
     std::atomic<uint32_t> tail_samples{480240};
+#if defined(_WIN32)
+    std::unique_ptr<ModularEditor> editor;
+#endif
 
     static Instance &get(const clap_plugin_t *p) { return *static_cast<Instance *>(p->plugin_data); }
 
-    bool load(const std::string &text) {
+    bool load(const std::string &text, bool edit = false, uint32_t macro_mask = (1u << kMacroCount) - 1) {
         try {
             // Bound nesting separately from byte size before JSON builds a tree.
             auto next = Json::parse(text, [](int depth, Json::parse_event_t, Json &) {
@@ -44,14 +54,34 @@ struct Instance {
             });
             Macros macros;
             const auto graph = compile(next, macros);
+            // Moving modules and turning knobs preserve running voices and their DSP memory.
+            const auto topology = [](Json value) {
+                value.erase("macros");
+                for (auto &node : value["nodes"]) { node.erase("params"); node.erase("position"); }
+                return value;
+            };
+            const bool reset = !edit || topology(next) != topology(patch);
+            if (edit)
+                for (size_t i = 0; i < macros.size(); ++i)
+                    if (!(macro_mask & (1u << i))) macros[i] = values[i].load();
+            next["macros"] = macros;
             patch = std::move(next);
-            for (size_t i = 0; i < macros.size(); ++i) values[i].store(macros[i]);
+            uint32_t changed = 0;
+            for (size_t i = 0; i < macros.size(); ++i)
+                if (!edit || (macro_mask & (1u << i)))
+                    if (values[i].exchange(macros[i]) != macros[i] && edit) changed |= 1u << i;
+            gui_macro_changes.fetch_or(changed);
             graphs[back] = graph;
+            // Keep structural resets even when several edits arrive before the next audio block.
+            if (reset) ++next_epoch;
+            graph_epochs[back] = next_epoch;
             back = middle.exchange(back | dirty) & ~dirty;
         } catch (...) { return false; }
 
-        if (const auto *params = static_cast<const clap_host_params_t *>(host->get_extension(host, CLAP_EXT_PARAMS)))
+        if (const auto *params = static_cast<const clap_host_params_t *>(host->get_extension(host, CLAP_EXT_PARAMS))) {
             params->rescan(host, CLAP_PARAM_RESCAN_VALUES);
+            if (gui_macro_changes.load()) params->request_flush(host);
+        }
         host->request_process(host);
         return true;
     }
@@ -72,7 +102,52 @@ struct Instance {
         if ((middle.load() & dirty) == 0) return;
         front = middle.exchange(front) & ~dirty;
         dsp.graph = graphs[front];
-        for (auto &v : dsp.voices) if (v.active) end_voice(v, 0, output);
+        if (applied_epoch != graph_epochs[front])
+            for (auto &v : dsp.voices) if (v.active) end_voice(v, 0, output);
+        applied_epoch = graph_epochs[front];
+    }
+
+    Json snapshot() const {
+        auto result = patch;
+        Macros macros;
+        for (size_t i = 0; i < macros.size(); ++i) macros[i] = values[i].load();
+        result["macros"] = macros;
+        return result;
+    }
+
+    void emit_macro_changes(const clap_output_events_t *output) {
+        if (!output) return;
+        const uint32_t changed = gui_macro_changes.exchange(0);
+        for (clap_id i = 0; i < kMacroCount; ++i) {
+            if (!(changed & (1u << i))) continue;
+            clap_event_param_gesture_t begin{{sizeof(begin), 0, CLAP_CORE_EVENT_SPACE_ID, CLAP_EVENT_PARAM_GESTURE_BEGIN, 0}, i};
+            clap_event_param_value_t value{{sizeof(value), 0, CLAP_CORE_EVENT_SPACE_ID, CLAP_EVENT_PARAM_VALUE, 0},
+                i, nullptr, -1, -1, -1, -1, values[i].load()};
+            clap_event_param_gesture_t end{{sizeof(end), 0, CLAP_CORE_EVENT_SPACE_ID, CLAP_EVENT_PARAM_GESTURE_END, 0}, i};
+            if (!output->try_push(output, &begin.header) || !output->try_push(output, &value.header) || !output->try_push(output, &end.header))
+                gui_macro_changes.fetch_or(1u << i);
+        }
+    }
+
+    std::string editor_message(const std::string &request) {
+        try {
+            if (request.size() > kPatchBytes * 3) throw std::invalid_argument("Editor message too large");
+            const auto args = Json::parse(request, [](int depth, Json::parse_event_t, Json &) {
+                if (depth > 16) throw std::invalid_argument("Editor message nesting");
+                return true;
+            });
+            if (!args.is_array() || args.size() != 1) throw std::invalid_argument("Invalid editor message");
+            const auto &message = args[0];
+            const auto action = message.at("action").get<std::string>();
+            if (action == "edit") {
+                const auto text = message.at("patch").dump();
+                if (text.size() > kPatchBytes || !load(text, true, message.value("macroMask", 0u)))
+                    throw std::invalid_argument("Invalid Modular patch");
+                if (const auto *state = static_cast<const clap_host_state_t *>(host->get_extension(host, CLAP_EXT_STATE)))
+                    state->mark_dirty(host);
+            } else if (action != "read") throw std::invalid_argument("Unknown editor action");
+            return Json{{"ok", true}, {"patch", snapshot()}}.dump();
+        } catch (const std::exception &e) { return Json{{"ok", false}, {"error", e.what()}}.dump(); }
     }
 
     void param(const clap_event_header_t *h) {
@@ -157,6 +232,7 @@ clap_process_status CLAP_ABI process(const clap_plugin_t *p, const clap_process_
     if (!out.data32 && !out.data64) return CLAP_PROCESS_ERROR;
     out.constant_mask = 0;
     self.sync_graph(block->out_events);
+    self.emit_macro_changes(block->out_events);
     const auto *events = block->in_events;
     const uint32_t count = events ? events->size(events) : 0;
     uint32_t index = 0;
@@ -183,10 +259,7 @@ clap_process_status CLAP_ABI process(const clap_plugin_t *p, const clap_process_
 bool CLAP_ABI save_state(const clap_plugin_t *p, const clap_ostream_t *s) {
     try {
         const auto &self = Instance::get(p);
-        auto payload = self.patch;
-        Macros macros;
-        for (size_t i = 0; i < macros.size(); ++i) macros[i] = self.values[i].load();
-        payload["macros"] = macros;
+        auto payload = self.snapshot();
         const std::string bytes = payload.dump();
         for (size_t pos = 0; pos < bytes.size();) {
             const auto n = s->write(s, bytes.data() + pos, bytes.size() - pos);
@@ -241,8 +314,10 @@ const clap_plugin_params_t kParams{
         *value = x;
         return true;
     },
-    [](const clap_plugin_t *p, const clap_input_events_t *events, const clap_output_events_t *) {
-        for (uint32_t i = 0, n = events->size(events); i < n; ++i) Instance::get(p).param(events->get(events, i));
+    [](const clap_plugin_t *p, const clap_input_events_t *events, const clap_output_events_t *output) {
+        auto &self = Instance::get(p);
+        if (events) for (uint32_t i = 0, n = events->size(events); i < n; ++i) self.param(events->get(events, i));
+        self.emit_macro_changes(output);
     },
 };
 
@@ -343,7 +418,54 @@ const clap_preset_discovery_factory_t kPresetFactory{
     },
 };
 
+#if defined(_WIN32)
+const clap_plugin_gui_t kGui{
+    [](const clap_plugin_t *, const char *api, bool floating) {
+        return ((!api || !*api) && floating) || (api && std::strcmp(api, CLAP_WINDOW_API_WIN32) == 0);
+    },
+    [](const clap_plugin_t *, const char **api, bool *floating) {
+        *api = CLAP_WINDOW_API_WIN32; *floating = false; return true;
+    },
+    [](const clap_plugin_t *p, const char *api, bool floating) {
+        auto &self = Instance::get(p);
+        if (self.editor || !kGui.is_api_supported(p, api, floating)) return false;
+        try {
+            self.editor = std::make_unique<ModularEditor>(
+                [&self](const std::string &request) { return self.editor_message(request); },
+                [&self] {
+                    if (const auto *gui = static_cast<const clap_host_gui_t *>(self.host->get_extension(self.host, CLAP_EXT_GUI)))
+                        gui->closed(self.host, false);
+                }, floating);
+            return true;
+        } catch (const std::exception &e) { std::fprintf(stderr, "[AmiSynth Modular GUI] %s\n", e.what()); return false; }
+    },
+    [](const clap_plugin_t *p) { Instance::get(p).editor.reset(); },
+    [](const clap_plugin_t *, double) { return false; }, // Use Windows/WebView2 DPI scaling.
+    [](const clap_plugin_t *p, uint32_t *w, uint32_t *h) {
+        auto &editor = Instance::get(p).editor;
+        if (!editor) return false;
+        editor->get_size(w, h); return true;
+    },
+    [](const clap_plugin_t *) { return true; },
+    [](const clap_plugin_t *, clap_gui_resize_hints_t *hints) {
+        *hints = {}; hints->can_resize_horizontally = hints->can_resize_vertically = true; return true;
+    },
+    [](const clap_plugin_t *, uint32_t *w, uint32_t *h) {
+        *w = std::clamp(*w, 640u, 8192u); *h = std::clamp(*h, 480u, 8192u); return true;
+    },
+    [](const clap_plugin_t *p, uint32_t w, uint32_t h) { auto &e = Instance::get(p).editor; return e && e->size(w, h); },
+    [](const clap_plugin_t *p, const clap_window_t *w) { auto &e = Instance::get(p).editor; return e && e->parent(w); },
+    [](const clap_plugin_t *p, const clap_window_t *w) { auto &e = Instance::get(p).editor; return e && e->transient(w); },
+    [](const clap_plugin_t *p, const char *text) { if (auto &e = Instance::get(p).editor) e->title(text); },
+    [](const clap_plugin_t *p) { auto &e = Instance::get(p).editor; return e && e->show(true); },
+    [](const clap_plugin_t *p) { auto &e = Instance::get(p).editor; return e && e->show(false); },
+};
+#endif
+
 const void *CLAP_ABI extension(const clap_plugin_t *, const char *id) {
+#if defined(_WIN32)
+    if (std::strcmp(id, CLAP_EXT_GUI) == 0) return &kGui;
+#endif
     if (std::strcmp(id, CLAP_EXT_AUDIO_PORTS) == 0) return &kAudio;
     if (std::strcmp(id, CLAP_EXT_NOTE_PORTS) == 0) return &kNotes;
     if (std::strcmp(id, CLAP_EXT_PARAMS) == 0) return &kParams;

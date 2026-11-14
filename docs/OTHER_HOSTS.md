@@ -4,7 +4,7 @@ AmiSynth を REAPER 以外の DAW やブラウザ単体で使う方法をまと�
 
 | 方法 | 向いている用途 | 音 | 制限 |
 | --- | --- | --- | --- |
-| **AmiSynth CLAP プラグイン**(推奨) | Bitwig、FL Studio、Studio One、REAPER など CLAP に対応した DAW で打ち込み・録音・オートメーション | REAPER の JSFX と同じ(下記「互換性の確認」) | 専用の画面は無く、DAW の標準パラメーター画面で操作する。Lua スクリプトは使えない |
+| **AmiSynth CLAP プラグイン**(推奨) | Bitwig、FL Studio、Studio One、REAPER など CLAP に対応した DAW で打ち込み・録音・オートメーション | Synth / Physical / Drums は REAPER の JSFX と同じ(下記「互換性の確認」) | Windows の Modular は専用ラック画面、それ以外は DAW の標準パラメーター画面。Lua スクリプトは使えない |
 | ysfx-s プラグイン(VST3 / CLAP / AU)で JSFX を読み込む | CLAP に対応していない DAW(Ableton Live、Cubase、Logic など) | 同上 | JSFX を手で読み込む必要がある。Lua スクリプトは使えない。ドラムのパーツ別出力は DAW 次第 |
 | ブラウザ版 + Web MIDI | MIDI キーボードで弾く、DAW から仮想 MIDI ポート経由で鳴らす | Web 版の DSP(JSFX と同じ音) | 音は DAW に入らない(ブラウザから直接出る)。テンポ同期なし |
 | ブラウザ版で WAV / MP3 に書き出す | 打ち込んだフレーズを素材として DAW に貼る | 同上 | オーディオとしての取り込みなので、後から音色を変えるには書き出し直し |
@@ -61,7 +61,7 @@ npm run install:clap -- --build
 
 ### 制限
 
-- **専用の画面はありません**。DAW の標準のパラメーター画面で操作します(REAPER 版のメーター表示も出ません)。
+- **Windows の Modular** は専用ラック画面でノードの追加・削除、配線、各ノブを編集できます。Microsoft Edge WebView2 Runtime が必要です。その他の音源と macOS / Linux の Modular は DAW の標準パラメーター画面で操作します(REAPER 版のメーター表示は出ません)。
 - **Lua スクリプト(Companion、MCP 用の Read sound / Apply sound / Run)は使えません**。REAPER では、今までどおり JSFX 版と Lua スクリプトを使うのがおすすめです。
 - **VST3 / AU はまだありません**。CLAP に対応していない DAW では、下の ysfx-s を使います。
 - 配布しているのは GitHub Actions のビルド結果で、署名やインストーラーはありません。

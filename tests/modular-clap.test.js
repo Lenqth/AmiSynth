@@ -11,6 +11,13 @@ const build = join(import.meta.dirname, '..', '.cache', 'clap-build', win ? 'Rel
 const host = join(build, win ? 'modular_check.exe' : 'modular_check');
 const plugin = join(build, 'AmiSynth.clap');
 const available = existsSync(host) && existsSync(plugin);
+const editCheck = join(build, win ? 'modular_edit_check.exe' : 'modular_edit_check');
+
+test('Modular editor changes nodes, cables and knobs without losing voices or macro automation', {
+  skip: !existsSync(editCheck) && 'Modular editor bridge check unavailable',
+}, () => {
+  assert.match(execFileSync(editCheck, [], { encoding: 'utf8' }), /dirty state passed/);
+});
 const webPatch = compileModularPatch({
   nodes: [
     { id: 'macro', type: 'macro', position: { x: 180, y: 43 } }, { id: 'memory', type: 'delay' },

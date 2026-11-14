@@ -1,12 +1,11 @@
 <script>
   import { onMount, tick } from 'svelte';
-  import { engine } from '../lib/engine.js';
   import {
     MODULAR_MACROS, MODULAR_PATCH_BYTES, MODULAR_POSITION_MAX, MODULAR_PRESETS, MODULAR_TYPES,
     compileModularPatch, defaultModularPatch, modularParamInput,
   } from '../dsp/modular.js';
 
-  let { patch = defaultModularPatch(), onchange = () => {} } = $props();
+  let { patch = defaultModularPatch(), onchange = () => {}, signalSource = null } = $props();
   let showSignals = $state(false);
   let activeSignals = $state(new Set());
   let menu = $state(null);
@@ -67,9 +66,9 @@
   });
 
   $effect(() => {
-    if (!showSignals) return;
-    engine.setModularSignals(keys => activeSignals = new Set(keys));
-    return () => engine.setModularSignals(null);
+    if (!showSignals || !signalSource) return;
+    signalSource.setModularSignals(keys => activeSignals = new Set(keys));
+    return () => signalSource.setModularSignals(null);
   });
 
   function toggleSignals(e) {
@@ -139,7 +138,8 @@
 
   function add(type, preferred, params = {}) {
     if (nodes.length >= 32) return;
-    const id = 'module_' + crypto.randomUUID().slice(0, 8);
+    // Embedded offline pages do not always expose randomUUID (secure-context API).
+    const id = 'module_' + Array.from(crypto.getRandomValues(new Uint8Array(4)), n => n.toString(16).padStart(2, '0')).join('');
     // Put new modules in an open slot near the current viewport.
     const viewport = rack.parentElement;
     const startColumn = Math.floor(viewport.scrollLeft / columnPitch);
@@ -349,7 +349,7 @@
         {#each MODULAR_PRESETS as preset, i}<option value={i}>{preset.name}</option>{/each}
       </select>
     </label>
-    <label class="signal-toggle"><input type="checkbox" checked={showSignals} onchange={toggleSignals} /> Cable activity</label>
+    {#if signalSource}<label class="signal-toggle"><input type="checkbox" checked={showSignals} onchange={toggleSignals} /> Cable activity</label>{/if}
     <button onclick={download}>Save patch</button>
     <button onclick={() => file.click()}>Open patch</button>
     <input type="file" accept=".json,application/json" hidden bind:this={file} onchange={upload} />

@@ -814,7 +814,7 @@
     <ParamPanel defs={PHYS_PARAMS} values={app.phys} groups={physGroups} onchange={(id, v) => setParam('phys', id, v)} />
   {:else if app.tab === 'modular'}
     {@render playCard()}
-    <ModularRack patch={app.modular} onchange={setModularPatch} />
+    <ModularRack patch={app.modular} onchange={setModularPatch} signalSource={engine} />
   {:else if app.tab === 'drums'}
     <section class="card">
       <DrumPads flash={app.drumFlash} onhit={hit} />

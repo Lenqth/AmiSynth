@@ -100,6 +100,52 @@ add_custom_command(
 target_sources(AmiSynth PRIVATE src/modular_clap.cpp "${MODULAR_CATALOG}")
 target_link_libraries(AmiSynth PRIVATE nlohmann_json::nlohmann_json)
 
+if(WIN32)
+  # Reuse the Web rack in an offline WebView2 editor; no server or external assets.
+  FetchContent_Declare(webview
+    GIT_REPOSITORY https://github.com/webview/webview.git
+    GIT_TAG 0.12.0)
+  set(WEBVIEW_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+  set(WEBVIEW_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
+  set(WEBVIEW_BUILD_SHARED_LIBRARY OFF CACHE BOOL "" FORCE)
+  set(WEBVIEW_BUILD_STATIC_LIBRARY OFF CACHE BOOL "" FORCE)
+  FetchContent_MakeAvailable(webview)
+  # Isolate webview's Win32 window classes from other plugins in the same DAW.
+  file(READ "${webview_SOURCE_DIR}/core/include/webview/webview.h" WEBVIEW_HEADER)
+  string(REPLACE "L\"webview_widget\"" "L\"AmiSynthModular_webview_widget\"" WEBVIEW_HEADER "${WEBVIEW_HEADER}")
+  string(REPLACE "L\"webview_message\"" "L\"AmiSynthModular_webview_message\"" WEBVIEW_HEADER "${WEBVIEW_HEADER}")
+  file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/generated/amisynth_webview.h" "${WEBVIEW_HEADER}")
+  set(MODULAR_EDITOR "${CMAKE_CURRENT_BINARY_DIR}/generated/modular_editor_html.h")
+  file(GLOB_RECURSE MODULAR_EDITOR_SOURCES CONFIGURE_DEPENDS
+    "${CMAKE_CURRENT_SOURCE_DIR}/editor/*")
+  add_custom_command(
+    OUTPUT "${MODULAR_EDITOR}"
+    COMMAND "${NODE_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/../scripts/gen-modular-editor.js" "${MODULAR_EDITOR}"
+    DEPENDS ${MODULAR_EDITOR_SOURCES}
+      "${CMAKE_CURRENT_SOURCE_DIR}/../scripts/gen-modular-editor.js"
+      "${CMAKE_CURRENT_SOURCE_DIR}/../src/ui/ModularRack.svelte"
+      "${CMAKE_CURRENT_SOURCE_DIR}/../src/dsp/modular.js"
+      "${CMAKE_CURRENT_SOURCE_DIR}/../src/app.css"
+      "${CMAKE_CURRENT_SOURCE_DIR}/../package-lock.json"
+    VERBATIM)
+  add_library(modular_editor OBJECT src/modular_editor_win.cpp "${MODULAR_EDITOR}")
+  target_include_directories(modular_editor PRIVATE "${CMAKE_CURRENT_BINARY_DIR}/generated")
+  target_link_libraries(modular_editor PUBLIC clap webview::core comctl32)
+  if(MSVC)
+    target_compile_options(modular_editor PRIVATE /utf-8)
+  endif()
+  target_link_libraries(AmiSynth PRIVATE modular_editor)
+endif()
+
+add_executable(modular_edit_check tools/modular_edit_check.cpp)
+target_include_directories(modular_edit_check PRIVATE "${CMAKE_CURRENT_BINARY_DIR}/generated")
+target_compile_definitions(modular_edit_check PRIVATE "AMISYNTH_VERSION=\"${PROJECT_VERSION}\"")
+target_link_libraries(modular_edit_check PRIVATE clap nlohmann_json::nlohmann_json)
+add_dependencies(modular_edit_check AmiSynth)
+if(WIN32)
+  target_link_libraries(modular_edit_check PRIVATE modular_editor)
+endif()
+
 add_executable(modular_check tools/modular_check.cpp)
 target_link_libraries(modular_check PRIVATE clap ${CMAKE_DL_LIBS})
 add_dependencies(modular_check AmiSynth)
