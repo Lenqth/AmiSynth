@@ -102,19 +102,19 @@ target_link_libraries(AmiSynth PRIVATE nlohmann_json::nlohmann_json)
 
 if(WIN32)
   # Reuse the Web rack in an offline WebView2 editor; no server or external assets.
-  FetchContent_Declare(webview
-    GIT_REPOSITORY https://github.com/webview/webview.git
-    GIT_TAG 0.12.0)
-  set(WEBVIEW_BUILD_TESTS OFF CACHE BOOL "" FORCE)
-  set(WEBVIEW_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
-  set(WEBVIEW_BUILD_SHARED_LIBRARY OFF CACHE BOOL "" FORCE)
-  set(WEBVIEW_BUILD_STATIC_LIBRARY OFF CACHE BOOL "" FORCE)
-  FetchContent_MakeAvailable(webview)
-  # Isolate webview's Win32 window classes from other plugins in the same DAW.
-  file(READ "${webview_SOURCE_DIR}/core/include/webview/webview.h" WEBVIEW_HEADER)
-  string(REPLACE "L\"webview_widget\"" "L\"AmiSynthModular_webview_widget\"" WEBVIEW_HEADER "${WEBVIEW_HEADER}")
-  string(REPLACE "L\"webview_message\"" "L\"AmiSynthModular_webview_message\"" WEBVIEW_HEADER "${WEBVIEW_HEADER}")
-  file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/generated/amisynth_webview.h" "${WEBVIEW_HEADER}")
+  # Use WebView2's asynchronous API directly. A synchronous webview constructor
+  # pumps the host's message queue inside clap.gui.create and can re-enter its UI.
+  FetchContent_Declare(microsoft_web_webview2
+    URL https://www.nuget.org/api/v2/package/Microsoft.Web.WebView2/1.0.1150.38
+    URL_HASH SHA256=921c004bd1764b585496b2eb3eec0a59a9a98e698246f1d9a3f1c08d1d84ebd5)
+  FetchContent_MakeAvailable(microsoft_web_webview2)
+  if(CMAKE_VS_PLATFORM_NAME STREQUAL "ARM64" OR CMAKE_SYSTEM_PROCESSOR MATCHES "^(ARM64|aarch64)$")
+    set(WEBVIEW2_ARCH arm64)
+  elseif(CMAKE_SIZEOF_VOID_P EQUAL 8)
+    set(WEBVIEW2_ARCH x64)
+  else()
+    set(WEBVIEW2_ARCH x86)
+  endif()
   set(MODULAR_EDITOR "${CMAKE_CURRENT_BINARY_DIR}/generated/modular_editor_html.h")
   file(GLOB_RECURSE MODULAR_EDITOR_SOURCES CONFIGURE_DEPENDS
     "${CMAKE_CURRENT_SOURCE_DIR}/editor/*")
@@ -129,8 +129,11 @@ if(WIN32)
       "${CMAKE_CURRENT_SOURCE_DIR}/../package-lock.json"
     VERBATIM)
   add_library(modular_editor OBJECT src/modular_editor_win.cpp "${MODULAR_EDITOR}")
-  target_include_directories(modular_editor PRIVATE "${CMAKE_CURRENT_BINARY_DIR}/generated")
-  target_link_libraries(modular_editor PUBLIC clap webview::core comctl32)
+  target_include_directories(modular_editor PRIVATE "${CMAKE_CURRENT_BINARY_DIR}/generated"
+    "${microsoft_web_webview2_SOURCE_DIR}/build/native/include")
+  target_link_libraries(modular_editor PUBLIC clap nlohmann_json::nlohmann_json
+    "${microsoft_web_webview2_SOURCE_DIR}/build/native/${WEBVIEW2_ARCH}/WebView2LoaderStatic.lib"
+    comctl32 ole32 oleaut32 shlwapi shell32 advapi32 user32 version)
   if(MSVC)
     target_compile_options(modular_editor PRIVATE /utf-8)
   endif()

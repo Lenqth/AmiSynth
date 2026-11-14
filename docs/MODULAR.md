@@ -35,6 +35,8 @@ On Windows, open the plugin's editor to use the same node rack as the Web app: a
 
 The Windows editor requires the Microsoft Edge WebView2 Runtime. Its HTML, scripts and styles are embedded in `AmiSynth.clap`; no web server or internet connection is required to edit a patch. Embedded and floating CLAP windows are supported. macOS and Linux currently use the host's generic parameter controls and JSON patch loading.
 
+The window is created immediately and its WebView2 initialization is scheduled asynchronously after the host's GUI callback returns. This avoids nested host message dispatch during `clap.gui.create`, which can otherwise crash hosts with a borrowed UI context, such as GPUI-based applications. Closing the editor before initialization completes cancels its pending callbacks through weak references.
+
 Developer checks: `modular_edit_check` tests the native edit bridge. On Windows, `modular_edit_check --gui-smoke <preview.png>` also opens a temporary editor, exercises adding/removing nodes, connecting cables and changing knobs, and renders a preview image.
 
 `clap.state` stores the complete versioned JSON patch and current macro values. Existing Web patches with no version field are treated as version 1. Invalid or oversized loads leave the current patch intact. Patch compilation runs on the main thread, then publishes the result for the next audio block. Note events and macro automation apply at their sample offsets. The processing callback uses preallocated voice and graph storage.

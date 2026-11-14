@@ -21,5 +21,5 @@ public:
     void capture_png(const std::string &path, std::function<void(bool)> complete);
 private:
     struct Impl;
-    std::unique_ptr<Impl> impl;
+    std::shared_ptr<Impl> impl;
 };

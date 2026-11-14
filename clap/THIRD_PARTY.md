@@ -14,4 +14,4 @@ Only ysfx's library is used: not its JUCE-based plugin (AGPL), and no graphics c
 
 AmiSynth Modular uses [JSON for Modern C++](https://github.com/nlohmann/json) under the MIT license for patch and state serialization.
 
-The Windows Modular editor embeds its offline Svelte UI using [webview](https://github.com/webview/webview) 0.12.0 (MIT, `licenses/webview.txt`) and the Microsoft WebView2 SDK (`licenses/WebView2.txt`). The WebView2 Runtime is supplied by the operating system or installed separately. The webview Win32 widget and message-window class names are prefixed with `AmiSynthModular_` to isolate them from other plugins; their registrations are released when the last editor closes.
+The Windows Modular editor embeds its offline Svelte UI using the Microsoft WebView2 SDK and static loader (`licenses/WebView2.txt`). The WebView2 Runtime is supplied by the operating system or installed separately. Initialization uses asynchronous WebView2 callbacks on the host UI thread and never pumps the host message queue from `clap.gui.create`.

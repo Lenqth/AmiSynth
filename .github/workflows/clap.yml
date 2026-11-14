@@ -65,7 +65,6 @@ jobs:
           cp $deps/clap-src/LICENSE dist-clap/licenses/clap.txt
           cp $deps/modular_json-src/LICENSE.MIT dist-clap/licenses/nlohmann-json.txt
           if [ "$RUNNER_OS" = Windows ]; then
-            cp $deps/webview-src/LICENSE dist-clap/licenses/webview.txt
             cp $deps/microsoft_web_webview2-src/LICENSE.txt dist-clap/licenses/WebView2.txt
           fi
       - uses: actions/upload-artifact@v4

@@ -4,6 +4,7 @@
 #if defined(_WIN32)
 #define NOMINMAX
 #include <windows.h>
+#include <commctrl.h>
 #endif
 
 namespace {
@@ -74,6 +75,16 @@ int main(int argc, char **argv) {
             check(self.load(kPresets[0].patch), "GUI initial state failed");
             unsigned reads = 0;
             bool finished = false, passed = false;
+            bool sentinel_dispatched = false;
+            const HWND sentinel = CreateWindowW(L"STATIC", L"Host reentrancy probe", 0,
+                0, 0, 1, 1, nullptr, nullptr, GetModuleHandleW(nullptr), nullptr);
+            check(sentinel != nullptr, "Cannot create host probe");
+            check(SetWindowSubclass(sentinel,
+                [](HWND window, UINT msg, WPARAM w, LPARAM l, UINT_PTR, DWORD_PTR data) -> LRESULT {
+                    if (msg == WM_APP + 99) { *reinterpret_cast<bool *>(data) = true; return 0; }
+                    return DefSubclassProc(window, msg, w, l);
+                }, 1, reinterpret_cast<DWORD_PTR>(&sentinel_dispatched)) != 0, "Cannot install host probe");
+            check(PostMessageW(sentinel, WM_APP + 99, 0, 0) != 0, "Cannot queue host probe");
             ModularEditor editor([&](const std::string &request) {
                 const auto args = Json::parse(request);
                 if (args[0].value("action", "") == "smoke-result") {
@@ -83,6 +94,7 @@ int main(int argc, char **argv) {
                 ++reads;
                 return self.editor_message(request);
             }, [] {}, true);
+            check(!sentinel_dispatched, "GUI initialization re-entered the host before create returned");
             editor.show(true);
             const auto pump = [](const std::function<bool()> &done) {
                 const auto start = GetTickCount64();
@@ -94,6 +106,8 @@ int main(int argc, char **argv) {
                 return done();
             };
             check(pump([&] { return reads > 1; }), "Editor did not load or bridge failed");
+            check(sentinel_dispatched, "Host reentrancy probe was never dispatched");
+            DestroyWindow(sentinel);
             editor.evaluate(R"JS(
                 (async () => {
                   const wait = async (test, label) => { for (let i=0;i<100;i++) { if (await test()) return; await new Promise(r=>setTimeout(r,50)); } throw Error('UI update timed out: '+label); };
