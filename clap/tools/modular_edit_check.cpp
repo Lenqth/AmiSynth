@@ -5,6 +5,8 @@
 #define NOMINMAX
 #include <windows.h>
 #include <commctrl.h>
+// Hosts usually run with Common Controls v6, which replaces the STATIC/BUTTON window procedures.
+#pragma comment(linker, "/manifestdependency:\"type='win32' name='Microsoft.Windows.Common-Controls' version='6.0.0.0' processorArchitecture='*' publicKeyToken='6595b64144ccf1df' language='*'\"")
 #endif
 
 namespace {
@@ -96,6 +98,13 @@ int main(int argc, char **argv) {
             }, [] {}, true);
             check(!sentinel_dispatched, "GUI initialization re-entered the host before create returned");
             editor.show(true);
+            {
+                const HWND floating = FindWindowW(nullptr, L"AmiSynth Modular");
+                RECT frame{}; GetWindowRect(floating, &frame);
+                const POINT caption{(frame.left + frame.right) / 2, frame.top + GetSystemMetrics(SM_CYFRAME) + GetSystemMetrics(SM_CYCAPTION) / 2};
+                check(floating && SendMessageW(floating, WM_NCHITTEST, 0, MAKELPARAM(caption.x, caption.y)) == HTCAPTION,
+                    "Floating editor caption cannot be dragged");
+            }
             const auto pump = [](const std::function<bool()> &done) {
                 const auto start = GetTickCount64();
                 while (!done() && GetTickCount64() - start < 20000) {
@@ -107,6 +116,25 @@ int main(int argc, char **argv) {
             };
             check(pump([&] { return reads > 1; }), "Editor did not load or bridge failed");
             check(sentinel_dispatched, "Host reentrancy probe was never dispatched");
+            if (argc > 1 && std::strcmp(argv[argc - 1], "--gui-drag") == 0) {
+                // Manual check: moves the real mouse cursor to drag the floating caption.
+                const HWND floating = FindWindowW(nullptr, L"AmiSynth Modular");
+                RECT before{}; GetWindowRect(floating, &before);
+                SetForegroundWindow(floating);
+                const int x = (before.left + before.right) / 2 - 150, y = before.top + GetSystemMetrics(SM_CYFRAME) + GetSystemMetrics(SM_CYCAPTION) / 2;
+                const auto at = [](int px, int py, DWORD flags) {
+                    INPUT in{}; in.type = INPUT_MOUSE;
+                    in.mi.dx = px * 65535 / (GetSystemMetrics(SM_CXSCREEN) - 1); in.mi.dy = py * 65535 / (GetSystemMetrics(SM_CYSCREEN) - 1);
+                    in.mi.dwFlags = flags | MOUSEEVENTF_MOVE | MOUSEEVENTF_ABSOLUTE; SendInput(1, &in, sizeof in);
+                };
+                at(x, y, 0); at(x, y, MOUSEEVENTF_LEFTDOWN);
+                for (int i = 1; i <= 10; ++i) at(x + i * 8, y + i * 6, 0);
+                at(x + 80, y + 60, MOUSEEVENTF_LEFTUP);
+                pump([&] { RECT r{}; GetWindowRect(floating, &r); return r.left != before.left; });
+                RECT after{}; GetWindowRect(floating, &after);
+                std::cout << "drag: " << before.left << "," << before.top << " -> " << after.left << "," << after.top << std::endl;
+                check(after.left != before.left, "Dragging the floating caption did not move the editor");
+            }
             DestroyWindow(sentinel);
             editor.evaluate(R"JS(
                 (async () => {
@@ -129,7 +157,7 @@ int main(int argc, char **argv) {
                 })().catch(e=>window.amisynthBridge({action:'smoke-result',ok:false,error:e.message}));
             )JS");
             check(pump([&] { return finished; }) && passed, "Editor UI interactions failed");
-            if (argc > 2) {
+            if (argc > 2 && std::strcmp(argv[2], "--gui-drag") != 0) {
                 bool captured = false, capture_ok = false;
                 editor.capture_png(argv[2], [&](bool ok) { captured = true; capture_ok = ok; });
                 check(pump([&] { return captured; }) && capture_ok, "Editor image render failed");

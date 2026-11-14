@@ -1,6 +1,5 @@
 #define NOMINMAX
 #include <windows.h>
-#include <commctrl.h>
 #include <shlobj.h>
 #include <shlwapi.h>
 #include <wrl.h>
@@ -41,6 +40,8 @@ struct ModularEditor::Impl : std::enable_shared_from_this<Impl> {
     Bridge bridge;
     std::function<void()> closed;
     bool floating = false, com = false, visible = false;
+    // NavigateToString starts a data:text/html navigation; allow only that one.
+    bool loading_document = false;
 
     void resize() {
         if (controller) { RECT r{}; GetClientRect(window, &r); controller->put_Bounds(r); }
@@ -48,6 +49,7 @@ struct ModularEditor::Impl : std::enable_shared_from_this<Impl> {
     void failed(const char *stage = "initialization", HRESULT error = E_FAIL) {
         std::fprintf(stderr, "[AmiSynth Modular GUI] %s failed: 0x%08lx\n", stage, static_cast<unsigned long>(error));
         SetWindowTextW(window, L"Cannot open the editor. Check the Microsoft Edge WebView2 Runtime.");
+        InvalidateRect(window, nullptr, TRUE);
     }
 
     void document_ready() {
@@ -69,9 +71,12 @@ struct ModularEditor::Impl : std::enable_shared_from_this<Impl> {
                 return S_OK;
             }).Get(), &token);
         browser->add_NavigationStarting(Callback<ICoreWebView2NavigationStartingEventHandler>(
-            [](ICoreWebView2 *, ICoreWebView2NavigationStartingEventArgs *args) -> HRESULT {
+            [weak](ICoreWebView2 *, ICoreWebView2NavigationStartingEventArgs *args) -> HRESULT {
                 LPWSTR uri = nullptr; args->get_Uri(&uri);
-                if (!uri || std::wcscmp(uri, L"about:blank")) args->put_Cancel(TRUE);
+                auto self = weak.lock();
+                const bool ours = self && self->loading_document && uri && std::wcsncmp(uri, L"data:text/html", 14) == 0;
+                if (self) self->loading_document = false;
+                if (!ours) args->put_Cancel(TRUE);
                 CoTaskMemFree(uri); return S_OK;
             }).Get(), &token);
         browser->add_NewWindowRequested(Callback<ICoreWebView2NewWindowRequestedEventHandler>(
@@ -97,6 +102,7 @@ struct ModularEditor::Impl : std::enable_shared_from_this<Impl> {
                     if (auto self = weak.lock()) {
                         if (FAILED(error)) self->failed("bridge script", error);
                         else {
+                            self->loading_document = true;
                             const auto result = self->browser->NavigateToString(wide(modular_editor_html()).c_str());
                             if (FAILED(result)) self->failed("document", result);
                         }
@@ -147,8 +153,11 @@ struct ModularEditor::Impl : std::enable_shared_from_this<Impl> {
         } catch (...) { failed(); }
     }
 
-    static LRESULT CALLBACK proc(HWND window, UINT message, WPARAM w, LPARAM l, UINT_PTR, DWORD_PTR data) {
-        auto *self = reinterpret_cast<Impl *>(data);
+    static LRESULT CALLBACK proc(HWND window, UINT message, WPARAM w, LPARAM l) {
+        if (message == WM_NCCREATE)
+            SetWindowLongPtrW(window, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(reinterpret_cast<CREATESTRUCTW *>(l)->lpCreateParams));
+        auto *self = reinterpret_cast<Impl *>(GetWindowLongPtrW(window, GWLP_USERDATA));
+        if (!self) return DefWindowProcW(window, message, w, l);
         if (message == kInitialize) { self->start(); return 0; }
         if (message == WM_CLOSE) {
             self->visible = false; ShowWindow(window, SW_HIDE);
@@ -158,12 +167,37 @@ struct ModularEditor::Impl : std::enable_shared_from_this<Impl> {
         if (message == WM_SIZE) self->resize();
         if (message == WM_MOVE && self->controller) self->controller->NotifyParentWindowPositionChanged();
         if (message == WM_SETFOCUS && self->controller) self->controller->MoveFocus(COREWEBVIEW2_MOVE_FOCUS_REASON_PROGRAMMATIC);
-        return DefSubclassProc(window, message, w, l);
+        if (message == WM_PAINT && !self->controller) {
+            // Shows the failure text, which a caption alone would hide when embedded.
+            PAINTSTRUCT paint; const HDC dc = BeginPaint(window, &paint);
+            wchar_t text[256] = L""; GetWindowTextW(window, text, 256);
+            RECT r{}; GetClientRect(window, &r);
+            SetBkMode(dc, TRANSPARENT); SetTextColor(dc, GetSysColor(COLOR_WINDOWTEXT));
+            DrawTextW(dc, text, -1, &r, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+            EndPaint(window, &paint); return 0;
+        }
+        return DefWindowProcW(window, message, w, l);
     }
+    // A real window class: STATIC's window procedure (notably the Common Controls v6
+    // one that hosts load) swallows caption clicks, so the window cannot be moved,
+    // minimized, maximized or closed. The class is unregistered with its last window
+    // because this DLL can be unloaded and loaded again at another address.
+    static inline unsigned windows = 0;
+    static HINSTANCE module() {
+        HMODULE result = nullptr;
+        GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
+            reinterpret_cast<LPCWSTR>(&proc), &result);
+        return result;
+    }
+    static constexpr const wchar_t *kClass = L"AmiSynthModularEditor";
     ~Impl() {
         if (controller) controller->Close();
         browser.Reset(); controller.Reset();
-        if (window) { RemoveWindowSubclass(window, proc, 1); DestroyWindow(window); }
+        if (window) {
+            SetWindowLongPtrW(window, GWLP_USERDATA, 0);
+            DestroyWindow(window);
+            if (--windows == 0) UnregisterClassW(kClass, module());
+        }
         if (com) CoUninitialize();
     }
 };
@@ -176,11 +210,24 @@ ModularEditor::ModularEditor(Bridge bridge, std::function<void()> closed, bool f
     const HRESULT hr = CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED);
     if (FAILED(hr)) throw std::runtime_error("The editor needs an STA UI thread");
     impl->com = true;
-    impl->window = CreateWindowExW(WS_EX_CONTROLPARENT, L"STATIC", L"AmiSynth Modular",
+    if (Impl::windows == 0) {
+        WNDCLASSEXW type{sizeof type};
+        type.lpfnWndProc = Impl::proc;
+        type.hInstance = Impl::module();
+        type.hCursor = LoadCursorW(nullptr, MAKEINTRESOURCEW(32512));
+        type.hbrBackground = reinterpret_cast<HBRUSH>(COLOR_WINDOW + 1);
+        type.lpszClassName = Impl::kClass;
+        if (!RegisterClassExW(&type) && GetLastError() != ERROR_CLASS_ALREADY_EXISTS)
+            throw std::runtime_error("Cannot register editor window class");
+    }
+    impl->window = CreateWindowExW(WS_EX_CONTROLPARENT, Impl::kClass, L"AmiSynth Modular",
         WS_OVERLAPPEDWINDOW | WS_CLIPCHILDREN, CW_USEDEFAULT, CW_USEDEFAULT, 1120, 780,
-        nullptr, nullptr, GetModuleHandleW(nullptr), nullptr);
-    if (!impl->window || !SetWindowSubclass(impl->window, Impl::proc, 1, reinterpret_cast<DWORD_PTR>(impl.get())))
+        nullptr, nullptr, Impl::module(), impl.get());
+    if (!impl->window) {
+        if (Impl::windows == 0) UnregisterClassW(Impl::kClass, Impl::module());
         throw std::runtime_error("Cannot create editor window");
+    }
+    ++Impl::windows;
     size(1120, 780);
     if (!PostMessageW(impl->window, kInitialize, 0, 0)) throw std::runtime_error("Cannot schedule editor initialization");
 }
