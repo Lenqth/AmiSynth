@@ -185,6 +185,7 @@
       // song mode: the whole arrangement; pattern mode: the pattern being edited
       timeline: timeline(song, app.playMode),
       params: { synth: $state.snapshot(app.synth), phys: $state.snapshot(app.phys), drums: $state.snapshot(app.drums) },
+      modularPatch: $state.snapshot(app.modular),
       scaleCents: app.scale ? [...app.scale.cents] : null,
       sampleRate: engine.ctx?.sampleRate ?? 48000,
       loops: Number(exportLoops),
@@ -285,7 +286,7 @@
     try {
       const frag = await encodeShare({
         song: $state.snapshot(app.song), mode: app.playMode, synth: $state.snapshot(app.synth), phys: $state.snapshot(app.phys),
-        drums: $state.snapshot(app.drums), scale: app.scale ? $state.snapshot(app.scale) : null,
+        drums: $state.snapshot(app.drums), modular: $state.snapshot(app.modular), scale: app.scale ? $state.snapshot(app.scale) : null,
       });
       const url = `${location.origin}${location.pathname}${location.search}#${frag}`;
       try {
@@ -324,6 +325,7 @@
     }
     setScale(shared.scale);
     if (!seq.playing) engine.transport(app.song.bpm, false);
+    if (shared.modular) setModularPatch(shared.modular);
     app.tab = 'roll';
     persist();
   }
