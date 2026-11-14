@@ -3,9 +3,9 @@ name: CLAP plugin
 on:
   push:
     branches: [main]
-    paths: ['clap/**', 'jsfx/**', 'scripts/test-clap.js', 'scripts/install-clap.js', 'tests/clap.test.js', 'tests/jsfx.test.js', '.github/workflows/clap.yml']
+    paths: ['clap/**', 'jsfx/**', 'src/dsp/modular.js', 'scripts/gen-modular-clap.js', 'tests/modular-clap.test.js', 'scripts/test-clap.js', 'scripts/install-clap.js', 'tests/clap.test.js', 'tests/jsfx.test.js', '.github/workflows/clap.yml']
   pull_request:
-    paths: ['clap/**', 'jsfx/**', 'scripts/test-clap.js', 'scripts/install-clap.js', 'tests/clap.test.js', 'tests/jsfx.test.js', '.github/workflows/clap.yml']
+    paths: ['clap/**', 'jsfx/**', 'src/dsp/modular.js', 'scripts/gen-modular-clap.js', 'tests/modular-clap.test.js', 'scripts/test-clap.js', 'scripts/install-clap.js', 'tests/clap.test.js', 'tests/jsfx.test.js', '.github/workflows/clap.yml']
   workflow_dispatch:
   # release.yml reuses these builds for the release assets
   workflow_call:
@@ -48,13 +48,15 @@ jobs:
         run: |
           npm run install:clap -- --dest "$RUNNER_TEMP/clap"
           test -e "$RUNNER_TEMP/clap/AmiSynth.clap"
+          npm run install:clap -- --modular --dest "$RUNNER_TEMP/clap"
+          test -e "$RUNNER_TEMP/clap/AmiSynthModular.clap"
           npm run install:clap -- --dry-run
       - name: Collect
         shell: bash
         run: |
           mkdir -p dist-clap/licenses
-          if [ "$RUNNER_OS" = Windows ]; then cp .cache/clap-build/Release/AmiSynth.clap dist-clap/
-          else cp -R .cache/clap-build/AmiSynth.clap dist-clap/; fi
+          if [ "$RUNNER_OS" = Windows ]; then cp .cache/clap-build/Release/AmiSynth{,Modular}.clap dist-clap/
+          else cp -R .cache/clap-build/AmiSynth{,Modular}.clap dist-clap/; fi
           deps=.cache/clap-build/_deps
           cp LICENSE dist-clap/licenses/AmiSynth.txt
           cp clap/THIRD_PARTY.md dist-clap/
@@ -62,6 +64,7 @@ jobs:
           cp $deps/ysfx-src/thirdparty/WDL/LICENSE.txt dist-clap/licenses/WDL.txt
           cp $deps/ysfx-src/thirdparty/dr_libs/LICENSE dist-clap/licenses/dr_libs.txt
           cp $deps/clap-src/LICENSE dist-clap/licenses/clap.txt
+          cp $deps/modular_json-src/LICENSE.MIT dist-clap/licenses/nlohmann-json.txt
       - uses: actions/upload-artifact@v4
         with:
           name: AmiSynth-clap-${{ matrix.name }}

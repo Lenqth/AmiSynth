@@ -23,7 +23,7 @@
     "jsfx:compare": "node scripts/jsfx-compare.js",
     "test:ysfx-s": "node scripts/test-ysfx-s.js",
     "clap:build": "cmake -S clap -B .cache/clap-build -DCMAKE_BUILD_TYPE=Release && cmake --build .cache/clap-build --config Release",
-    "test:clap": "node scripts/test-clap.js && node --test tests/clap.test.js"
+    "test:clap": "node scripts/test-clap.js && node --test tests/clap.test.js tests/modular-clap.test.js"
   },
   "devDependencies": {
     "@sveltejs/vite-plugin-svelte": "^7.3.1",

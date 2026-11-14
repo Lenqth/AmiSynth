@@ -65,7 +65,7 @@ export function patternEvents(pattern, sr, loops = 1) {
 
 /**
  * Render the pattern or the song timeline (plus the ringing tail, up to maxTail seconds) to stereo float buffers.
- * @param {{ pattern?: any, timeline?: import('./song.js').Timeline, params: {synth?:object, phys?:object, drums?:object}, scaleCents?: number[] | null,
+ * @param {{ pattern?: any, timeline?: import('./song.js').Timeline, params: {synth?:object, phys?:object, drums?:object}, modularPatch?: object, scaleCents?: number[] | null,
  *   sampleRate?: number, loops?: number, maxTail?: number }} opts
  * @param {(fraction:number)=>void} [onProgress]
  * @returns {{ left: Float32Array, right: Float32Array, sampleRate: number, peak: number }}

@@ -1,35 +1,36 @@
-# AmiSynth Modular (experimental)
+# AmiSynth Modular
 
-AmiSynth Modular is a fourth **independent** sound engine beside Synth, Physical and Drums. The initial implementation runs in the browser AudioWorklet and in the offline renderer. **It is not yet exposed as a CLAP or JSFX instrument.**
+Modular is a polyphonic patchable synth available in the Web app and as the standalone `AmiSynthModular.clap` instrument.
 
-## First milestone
+## Web rack
 
-1. Select the **Modular** tab and start audio by playing the on-screen keyboard.
-2. The default patch is MIDI pitch → VCO → VCF → VCA → output, with a gate-controlled ADSR connected to VCA gain.
-3. Add up to 32 modules, configure parameters, and route output ports to input ports using the cable editor.
-4. Each input permits one incoming cable (use Mixer modules for multiple sources); multiple outputs and multiple destination connections are permitted.
-5. Graphs are topologically sorted. Cycles and malformed connections are rejected. Feedback needs an explicit delay module in a later milestone.
-6. Graph patches are stored in localStorage, included in share links, and rendered by the WAV/MP3 offline renderer. Preset browsing for complete patches is planned.
+1. Open **Modular** and play the keyboard. **Subtractive** starts with MIDI pitch → VCO → lowpass VCF → VCA → output. A gate-controlled ADSR drives VCA gain.
+2. Add a module, then drag from an output jack to an input jack. You can also activate the two jacks in order with a mouse or keyboard. Each input accepts one cable. Connecting to an occupied input replaces its cable. Use a Mixer to sum signals.
+3. Choose a factory patch from **Preset**. **Vibrato Lead** uses LFO pitch modulation. **Feedback Bass** uses a Unit Delay in its feedback path and Macro 1 for filter cutoff.
+4. **Save patch** and **Open patch** exchange portable JSON files. The app also restores the latest patch from browser storage. Piano Roll share links include the patch. To export a sequence, select **Modular** as the Piano Roll melody instrument and choose WAV or MP3.
 
-The included nodes are MIDI/Note, VCO, LFO, ADSR, lowpass VCF, VCA, two-input mixer and audio output. VCO has four waveforms, including band-limited saw/pulse; VCF is a state-variable lowpass; ADSR is gated per voice. The first version supports 8 voices. Port signals are audio-rate scalar values per voice.
+Patches support up to 32 modules and eight voices. A structural edit resets the voices. Turning a knob or changing a macro keeps them running. Audio is mono per voice and goes to both stereo channels.
 
-### Architecture
+### Signal conventions
 
-- `src/dsp/modular.js`: portable, pure JavaScript graph compiler, validator and DSP runtime.
-- `src/worklets/modular-processor.js`: AudioWorklet adapter reusing the MIDI/sample-accurate event queue.
-- `src/ui/ModularRack.svelte`: patch and parameter editor.
-- `src/lib/engine.js`, `state.svelte.js`, `song.js`, `render.js`, `share.js`: integration with the existing application.
-- `tests/modular.test.js`: graph correctness, finite audio, note release, update and validation tests.
+| Port or module | Meaning |
+| --- | --- |
+| MIDI / Note | Pitch is a MIDI note number, gate is 0 or 1, and velocity is 0–1. |
+| VCO FM | 1 adds one octave. VCO pitch and FM run at audio rate. |
+| VCF cutoff CV | 1 adds two octaves to the cutoff, with a sample-rate-dependent limit. |
+| VCA gain | A linear gain multiplier. An unpatched input uses 1. |
+| CV Scale / Offset | Applies `input × scale + offset`. An unpatched input uses 0. |
+| Macro CV | Outputs one of eight shared 0–1 macro values per voice. |
+| Unit Delay | Outputs the previous sample. The value stored at its input is limited to ±4. Every feedback loop needs a delay. |
 
-**Current limitations:** The UI edits cables using dropdowns rather than drag-and-drop patch cords. There is no module positioning, CV scaling/attenuverter, feedback/delay block, sample-rate independent control bus, patch preset library, or polyphony routing modes. Tuning from the separate scale editor is not wired to Modular yet. Structural graph edits reset active voices; parameter-only edits keep them. Audio is mono per voice then summed to both stereo channels.
+## CLAP
 
-## CLAP migration plan
+Build with `npm ci && npm run clap:build`, then install with `npm run install:clap -- --modular`. Release archives built by the CLAP workflow include both `AmiSynth.clap` and `AmiSynthModular.clap`.
 
-The existing `clap/src/amisynth_clap.cpp` runs bundled **JSFX** via ysfx; it cannot simply embed this arbitrary graph JSON as a JSFX slider group. A future Modular CLAP plugin should be a separate plugin descriptor with its own native modular runtime (or a dedicated graph interpreter), with a versioned state serializer and macro-based CLAP parameter automation. It should not require adding/removing host-visible CLAP parameters for every module.
+Add **AmiSynth Modular** to an instrument track. The plug-in accepts CLAP notes and MIDI and exposes **Macro 1–8** with stable IDs 0–7. Open a factory preset using a DAW that supports CLAP preset discovery. The CLAP preset-load file interface also accepts JSON exported by the Web rack. DAW support for selecting custom preset files varies. The current plug-in uses the host's generic parameter controls. Patch editing takes place in the Web rack.
 
-Proposed milestones:
+`clap.state` stores the complete versioned JSON patch and current macro values. Existing Web patches with no version field are treated as version 1. Invalid or oversized loads leave the current patch intact. Patch compilation runs on the main thread, then publishes the result for the next audio block. Note events and macro automation apply at their sample offsets. The processing callback uses preallocated voice and graph storage.
 
-- **A1:** Web runtime and graph patch editor (this branch).
-- **A2:** Better patch-cable UI, per-voice/global separation, attenuverters, feedback/delay, preset management, tuning and regression/performance tests.
-- **A3:** Dedicated CLAP Modular descriptor, graph serialization through `clap.state`, host-visible macro automation; ensure round-trip patch compatibility and test with clap-check / offline render.
-- **B:** Optional CLAP-hosting modules with sandboxing/lifecycle, plugin state, audio/note port adapters and clear failure isolation. Plugin-hosting modules are explicitly *not* required for A.
+## Current limits
+
+Modular uses 12-TET and per-voice audio-rate signals. The Web rack uses automatic module layout. The Web DSP and native DSP share module definitions and factory patch data and have separate sample loops. Hosting external CLAP modules is a follow-up to the built-in engine.

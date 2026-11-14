@@ -1,5 +1,5 @@
 // AmiSynth Modular: a small, independent, serializable graph DSP (no Web Audio dependencies).
-// All edges are per-voice and carry a single audio-rate scalar. Graphs are acyclic in v1.
+// All cables carry a per-voice, audio-rate scalar. A Unit Delay breaks a feedback loop.
 export const MODULAR_TYPES = Object.freeze({
   midi: { label: 'MIDI / Note', inputs: [], outputs: ['pitch', 'gate', 'velocity'], params: {} },
   vco: { label: 'VCO', inputs: ['pitch', 'fm'], outputs: ['out'], params: {
@@ -30,6 +30,14 @@ export const MODULAR_TYPES = Object.freeze({
     a: { min: 0, max: 2, default: 0.5, step: 0.01 },
     b: { min: 0, max: 2, default: 0.5, step: 0.01 },
   } },
+  cv: { label: 'CV Scale / Offset', inputs: ['in'], outputs: ['out'], params: {
+    scale: { min: -8, max: 8, default: 1, step: 0.01 },
+    offset: { min: -8, max: 8, default: 0, step: 0.01 },
+  } },
+  macro: { label: 'Macro CV', inputs: [], outputs: ['out'], params: {
+    index: { min: 1, max: 8, default: 1, step: 1 },
+  } },
+  delay: { label: 'Unit Delay', inputs: ['in'], outputs: ['out'], params: {} },
   output: { label: 'Audio output', inputs: ['audio'], outputs: [], params: {
     level: { min: 0, max: 1, default: 0.8, step: 0.01 },
   } },
@@ -56,11 +64,43 @@ export function defaultModularPatch() {
   };
 }
 
-/** Validate untrusted saved patches, clamp knobs, reject cycles and invalid connections. */
+export const MODULAR_MACROS = 8;
+export const MODULAR_PATCH_BYTES = 64 * 1024;
+
+export const MODULAR_PRESETS = [
+  { name: 'Subtractive', patch: defaultModularPatch },
+  { name: 'Vibrato Lead', patch() {
+    const patch = defaultModularPatch();
+    patch.nodes.push({ id: 'vibrato', type: 'lfo', params: { rate: 5.2, depth: 0.035 } });
+    patch.cables.push({ from: 'vibrato', port: 'out', to: 'osc', input: 'fm' });
+    return patch;
+  } },
+  { name: 'Feedback Bass', patch() {
+    const patch = defaultModularPatch();
+    patch.nodes.push(
+      { id: 'sum', type: 'mix', params: { a: 1, b: 0.45 } },
+      { id: 'memory', type: 'delay', params: {} },
+      { id: 'brightness', type: 'macro', params: { index: 1 } },
+    );
+    patch.nodes.find(n => n.id === 'filter').params.cutoff = 360;
+    patch.cables = patch.cables.filter(c => c.to !== 'filter');
+    patch.cables.push(
+      { from: 'osc', port: 'out', to: 'sum', input: 'a' },
+      { from: 'memory', port: 'out', to: 'sum', input: 'b' },
+      { from: 'sum', port: 'out', to: 'filter', input: 'audio' },
+      { from: 'filter', port: 'out', to: 'memory', input: 'in' },
+      { from: 'brightness', port: 'out', to: 'filter', input: 'cutoff' },
+    );
+    return patch;
+  } },
+];
+
+/** Validate and normalize a portable patch before publishing it to the DSP. */
 export function compileModularPatch(raw) {
   if (!raw || !Array.isArray(raw.nodes) || !Array.isArray(raw.cables) ||
       raw.nodes.length < 1 || raw.nodes.length > 32 || raw.cables.length > 128)
     throw new Error('Invalid modular patch size');
+  if (raw.version !== undefined && raw.version !== 1) throw new Error('Unsupported modular patch version');
   const ids = new Map();
   const nodes = raw.nodes.map((n, i) => {
     if (!n || typeof n.id !== 'string' || !/^[A-Za-z0-9_-]{1,32}$/.test(n.id) ||
@@ -83,13 +123,16 @@ export function compileModularPatch(raw) {
   for (const cable of raw.cables) {
     const src = ids.get(cable?.from);
     const dst = ids.get(cable?.to);
-    if (src === undefined || dst === undefined || src === dst) throw new Error('Invalid cable endpoint');
+    if (src === undefined || dst === undefined) throw new Error('Invalid cable endpoint');
     if (!MODULAR_TYPES[nodes[src].type].outputs.includes(cable.port) ||
         !MODULAR_TYPES[nodes[dst].type].inputs.includes(cable.input) ||
         nodes[dst].links[cable.input]) throw new Error('Invalid or duplicate cable');
     nodes[dst].links[cable.input] = { index: src, port: cable.port };
-    adjacency[src].push(dst);
-    degree[dst]++;
+    // Delay writes happen after all current-sample readers, including self-feedback.
+    if (nodes[dst].type !== 'delay') {
+      adjacency[src].push(dst);
+      degree[dst]++;
+    }
   }
   const queue = [];
   for (let i = 0; i < nodes.length; i++) if (degree[i] === 0) queue.push(i);
@@ -99,10 +142,17 @@ export function compileModularPatch(raw) {
     order.push(i);
     for (const j of adjacency[i]) if (--degree[j] === 0) queue.push(j);
   }
-  if (order.length !== nodes.length) throw new Error('Feedback loops need a delay module (not yet supported)');
+  if (order.length !== nodes.length) throw new Error('Add a Unit Delay to each feedback loop');
+  const delays = order.filter(i => nodes[i].type === 'delay');
+  const outputs = order.filter(i => nodes[i].type === 'output');
+  const audible = new Set(outputs);
+  for (const i of audible) for (const link of Object.values(nodes[i].links)) audible.add(link.index);
+  const envelopes = [...audible].filter(i => nodes[i].type === 'adsr');
+  const macros = Array.from({ length: MODULAR_MACROS }, (_, i) =>
+    Number.isFinite(raw.macros?.[i]) ? clamp(raw.macros[i], 0, 1) : 0);
   return {
-    nodes, order,
-    patch: { nodes: nodes.map(({ id, type, params }) => ({ id, type, params })),
+    nodes, order, delays, outputs, envelopes,
+    patch: { version: 1, macros, nodes: nodes.map(({ id, type, params }) => ({ id, type, params })),
       cables: raw.cables.map(({ from, port, to, input }) => ({ from, port, to, input })) },
   };
 }
@@ -121,47 +171,70 @@ const blep = (t, dt) => {
   return 0;
 };
 function newVoice(nodeCount) {
-  return { active: false, held: false, note: -1, velocity: 0, age: 0,
-    stages: Array.from({ length: nodeCount }, () => ({ phase: 0, env: 0, mode: 0, lastGate: false, release: 0, ic1: 0, ic2: 0 })),
-    signals: Array.from({ length: nodeCount }, () => ({ out: 0, pitch: 0, gate: 0, velocity: 0 })) };
+  return { active: false, keyDown: false, held: false, channel: 0, note: -1, velocity: 0,
+    age: 0, tail: 0,
+    stages: Array.from({ length: nodeCount }, () => ({})),
+    signals: Array.from({ length: nodeCount }, () => ({})) };
 }
+
 export function modular_init(s, sampleRate) {
   s.sampleRate = sampleRate;
-  s.pitchBend = 0;
+  s.bend = new Float64Array(16);
+  s.sustain = new Uint8Array(16);
   s.tick = 0;
   s.out_l = 0; s.out_r = 0;
   modular_set_patch(s, defaultModularPatch());
 }
+
 export function modular_set_patch(s, patch) {
   const graph = compileModularPatch(patch);
-  // Parameter updates on an unchanged graph do not interrupt held notes.
-  if (s.graph && s.graph.nodes.length === graph.nodes.length &&
-      s.graph.patch.cables.length === graph.patch.cables.length &&
-      s.graph.nodes.every((n, i) => n.id === graph.nodes[i].id && n.type === graph.nodes[i].type) &&
-      s.graph.patch.cables.every((c, i) => Object.keys(c).every(k => c[k] === graph.patch.cables[i][k]))) {
-    s.graph = graph;
-    return;
-  }
-  // Structural changes reset voices, so no partially rewired graph is audible.
+  const old = s.graph;
   s.graph = graph;
+  if (old && old.nodes.length === graph.nodes.length &&
+      old.patch.cables.length === graph.patch.cables.length &&
+      old.nodes.every((n, i) => n.id === graph.nodes[i].id && n.type === graph.nodes[i].type) &&
+      old.patch.cables.every((c, i) => Object.keys(c).every(k => c[k] === graph.patch.cables[i][k]))) return;
   s.voices = Array.from({ length: MAX_VOICES }, () => newVoice(graph.nodes.length));
 }
+
 export function modular_all_notes_off(s) {
-  for (const v of s.voices) { v.held = false; v.active = false; }
+  s.sustain.fill(0);
+  for (const v of s.voices) v.active = false;
 }
+
 export function modular_midi(s, status, d1, d2) {
-  const op = status & 0xf0;
-  if (op === 0xe0) { s.pitchBend = (((d2 << 7) | d1) - 8192) / 8192 * 2; return; }
-  if (op === 0xb0 && (d1 === 120 || d1 === 123)) { modular_all_notes_off(s); return; }
-  if (op === 0x80 || (op === 0x90 && !d2)) {
-    for (const v of s.voices) if (v.active && v.note === d1) v.held = false;
+  const op = status & 0xf0, channel = status & 0x0f;
+  if (op === 0xe0) { s.bend[channel] = (((d2 << 7) | d1) - 8192) / 4096; return; }
+  if (op === 0xb0) {
+    if (d1 === 64) s.sustain[channel] = d2 >= 64;
+    for (const v of s.voices) {
+      if (v.channel !== channel) continue;
+      if (d1 === 120) v.active = false;
+      if (d1 === 123) v.keyDown = false;
+      if ((d1 === 64 || d1 === 123) && !v.keyDown && !s.sustain[channel]) v.held = false;
+    }
     return;
   }
-  if (op !== 0x90 || d1 > 127 || d2 < 1) return;
-  let v = s.voices.find((voice) => !voice.active);
-  if (!v) v = s.voices.reduce((a, b) => a.age < b.age ? a : b);
-  const fresh = newVoice(s.graph.nodes.length);
-  Object.assign(v, fresh, { active: true, held: true, note: d1, velocity: d2 / 127, age: ++s.tick });
+  if (!Number.isInteger(d1) || d1 < 0 || d1 > 127) return;
+  if (op === 0x80 || (op === 0x90 && !d2)) {
+    let oldest;
+    for (const v of s.voices) {
+      if (v.active && v.keyDown && v.channel === channel && v.note === d1 && (!oldest || v.age < oldest.age)) oldest = v;
+    }
+    if (oldest) { oldest.keyDown = false; oldest.held = !!s.sustain[channel]; }
+    return;
+  }
+  if (op !== 0x90 || !Number.isFinite(d2) || d2 < 1 || d2 > 127) return;
+  let v = s.voices.find(voice => !voice.active);
+  if (!v) v = s.voices.reduce((a, b) => a.held === b.held ? (a.age < b.age ? a : b) : a.held ? b : a);
+  for (let i = 0; i < v.stages.length; i++) {
+    const st = v.stages[i], sig = v.signals[i];
+    st.phase = st.env = st.mode = st.release = st.ic1 = st.ic2 = st.memory = 0;
+    st.lastGate = false;
+    sig.out = sig.pitch = sig.gate = sig.velocity = 0;
+  }
+  v.active = v.held = v.keyDown = true;
+  v.channel = channel; v.note = d1; v.velocity = d2 / 127; v.age = ++s.tick; v.tail = 0;
 }
 
 function read(v, node, key, fallback = 0) {
@@ -172,7 +245,7 @@ function sampleNode(s, v, i) {
   const n = s.graph.nodes[i], p = n.params, st = v.stages[i], sig = v.signals[i];
   switch (n.type) {
     case 'midi':
-      sig.pitch = v.note + s.pitchBend; sig.gate = v.held ? 1 : 0; sig.velocity = v.velocity;
+      sig.pitch = v.note + s.bend[v.channel]; sig.gate = v.held ? 1 : 0; sig.velocity = v.velocity;
       break;
     case 'vco': {
       const note = read(v, n, 'pitch', 69) + 12 * p.octave + p.detune / 100 + read(v, n, 'fm') * 12;
@@ -229,18 +302,33 @@ function sampleNode(s, v, i) {
     }
     case 'vca': sig.out = read(v, n, 'audio') * read(v, n, 'gain', 1) * p.level; break;
     case 'mix': sig.out = read(v, n, 'a') * p.a + read(v, n, 'b') * p.b; break;
+    case 'cv': sig.out = read(v, n, 'in') * p.scale + p.offset; break;
+    case 'macro': sig.out = s.graph.patch.macros[p.index - 1]; break;
+    case 'delay': sig.out = st.memory; break;
     case 'output': sig.out = read(v, n, 'audio') * p.level; break;
   }
 }
 export function modular_render(s) {
   let out = 0;
-  const hasADSR = s.graph.nodes.some((n) => n.type === 'adsr');
+  const { nodes, order, delays, outputs, envelopes } = s.graph;
   for (const v of s.voices) {
     if (!v.active) continue;
-    for (const i of s.graph.order) sampleNode(s, v, i);
-    for (let i = 0; i < s.graph.nodes.length; i++)
-      if (s.graph.nodes[i].type === 'output') out += v.signals[i].out;
-    if (!v.held && (!hasADSR || v.stages.every((st, i) => s.graph.nodes[i].type !== 'adsr' || st.env <= 0))) v.active = false;
+    for (const i of order) sampleNode(s, v, i);
+    for (const i of delays) v.stages[i].memory = clamp(read(v, nodes[i], 'in'), -4, 4);
+    let sample = 0;
+    for (const i of outputs) sample += v.signals[i].out;
+    if (!v.held) {
+      v.tail++;
+      const fade = Math.max(1, Math.round(0.005 * s.sampleRate));
+      if (envelopes.length === 0 || v.tail > 10 * s.sampleRate) {
+        const elapsed = envelopes.length ? v.tail - 10 * s.sampleRate : v.tail;
+        sample *= clamp(1 - elapsed / fade, 0, 1);
+        if (elapsed >= fade) v.active = false;
+      } else if (envelopes.every(i => v.stages[i].mode === 0 && !v.stages[i].lastGate)) {
+        v.active = false;
+      }
+    }
+    out += sample;
   }
   s.out_l = s.out_r = Math.tanh(out);
 }

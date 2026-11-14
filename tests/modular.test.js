@@ -48,3 +48,76 @@ test('modular graph replacement is atomic at the API boundary', () => {
   assert.throws(() => modular_set_patch(s, { nodes: [], cables: [] }));
   assert.equal(s.graph, old);
 });
+
+test('explicit feedback delay reads the previous sample and bounds the loop', () => {
+  const patch = {
+    nodes: [
+      { id: 'constant', type: 'cv', params: { offset: 1 } }, { id: 'delay', type: 'delay' },
+      { id: 'sum', type: 'mix', params: { a: 1, b: 0.5 } }, { id: 'out', type: 'output', params: { level: 1 } },
+    ],
+    cables: [
+      { from: 'constant', port: 'out', to: 'sum', input: 'a' },
+      { from: 'delay', port: 'out', to: 'sum', input: 'b' },
+      { from: 'sum', port: 'out', to: 'delay', input: 'in' },
+      { from: 'sum', port: 'out', to: 'out', input: 'audio' },
+    ],
+  };
+  const s = {};
+  modular_init(s, 48000);
+  modular_set_patch(s, patch);
+  modular_midi(s, 0x90, 60, 100);
+  for (const expected of [1, 1.5, 1.75, 1.875]) {
+    modular_render(s);
+    assert.equal(s.out_l, Math.tanh(expected));
+  }
+  patch.nodes[2].params.b = 2;
+  modular_set_patch(s, patch);
+  for (let i = 0; i < 100; i++) modular_render(s);
+  assert.equal(s.voices[0].stages[1].memory, 4);
+});
+
+test('channel note-off and sustain keep other notes and later retriggers held', () => {
+  const s = {};
+  modular_init(s, 48000);
+  modular_midi(s, 0x92, 69, 100);
+  modular_midi(s, 0x93, 69, 100);
+  modular_midi(s, 0x92, 69, 100);
+  modular_midi(s, 0xb2, 64, 127);
+  modular_midi(s, 0x82, 69, 0);
+  assert.deepEqual(s.voices.slice(0, 3).map(v => [v.keyDown, v.held]), [[false, true], [true, true], [true, true]]);
+  modular_midi(s, 0xb2, 64, 0);
+  assert.deepEqual(s.voices.slice(0, 3).map(v => v.held), [false, true, true]);
+});
+
+test('silent or externally gated envelopes cannot keep a released voice allocated forever', () => {
+  const patch = defaultModularPatch();
+  patch.nodes.push({ id: 'high', type: 'cv', params: { offset: 1 } });
+  patch.cables[1] = { from: 'high', port: 'out', to: 'env', input: 'gate' };
+  const s = {};
+  modular_init(s, 1000);
+  modular_set_patch(s, patch);
+  modular_midi(s, 0x90, 60, 100);
+  for (let i = 0; i < 20; i++) modular_render(s);
+  modular_midi(s, 0x80, 60, 0);
+  for (let i = 0; i < 10005; i++) modular_render(s);
+  assert.equal(s.out_l, 0);
+  assert.ok(s.voices.every(v => !v.active));
+});
+
+test('knob and macro changes keep active voices and update the output', () => {
+  const s = {};
+  modular_init(s, 48000);
+  const patch = defaultModularPatch();
+  patch.nodes.push({ id: 'macro', type: 'macro', params: {} });
+  patch.cables.push({ from: 'macro', port: 'out', to: 'filter', input: 'cutoff' });
+  modular_set_patch(s, patch);
+  modular_midi(s, 0x90, 69, 100);
+  for (let i = 0; i < 480; i++) modular_render(s);
+  const voice = s.voices[0];
+  patch.macros = [0.75];
+  modular_set_patch(s, patch);
+  assert.equal(s.voices[0], voice);
+  assert.equal(voice.held, true);
+  modular_render(s);
+  assert.equal(voice.signals[6].out, 0.75);
+});

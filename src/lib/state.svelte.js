@@ -51,7 +51,7 @@ export const app = $state({
   modular: safeModularPatch(saved?.modular ?? null),
   // first visit: start from the first physical preset so the preset name matches the sound
   phys: saved?.phys ? merged(PHYS_PARAMS, saved.phys) : resolvePreset(PHYS_PARAMS, PHYS_PRESETS[0]),
-  /** which melodic instrument the keyboard / MIDI / piano roll play: 'synth' | 'phys' */
+  /** which melodic instrument the keyboard / MIDI / piano roll play: 'synth' | 'phys' | 'modular' */
   melodic: savedMelodic,
   /** physical model visualisation on/off */
   physViz: false,

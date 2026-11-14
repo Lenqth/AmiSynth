@@ -1,7 +1,7 @@
 // Song model: several 4-bar patterns (A, B, C, ...) and an arrangement (ordered pattern slots
 // with repeat counts). Pure data + helpers, no Svelte / Web Audio, so Node tests can use it.
 //
-//   Song = { bpm, melodic: 'synth'|'phys', patterns: SongPattern[], arrangement: Slot[], current }
+//   Song = { bpm, melodic: 'synth'|'phys'|'modular', patterns: SongPattern[], arrangement: Slot[], current }
 //   SongPattern = { id, name, notes: RollNote[], drums: DrumHit[] }
 //   Slot = { pattern: <SongPattern.id>, repeat: 1..MAX_REPEAT }
 //
@@ -22,10 +22,10 @@ export const BPM_MAX = 240;
 /** @typedef {import('./pattern.js').DrumHit} DrumHit */
 /** @typedef {{id:number, name:string, notes:RollNote[], drums:DrumHit[]}} SongPattern */
 /** @typedef {{pattern:number, repeat:number}} Slot */
-/** @typedef {{bpm:number, melodic:'synth'|'phys', patterns:SongPattern[], arrangement:Slot[], current:number}} Song */
+/** @typedef {{bpm:number, melodic:'synth'|'phys'|'modular', patterns:SongPattern[], arrangement:Slot[], current:number}} Song */
 /** @typedef {'pattern'|'song'} PlayMode */
 /** @typedef {{pattern: SongPattern, slot: number, index: number}} TimelineEntry */
-/** @typedef {{bpm:number, melodic:'synth'|'phys', entries: TimelineEntry[]}} Timeline */
+/** @typedef {{bpm:number, melodic:'synth'|'phys'|'modular', entries: TimelineEntry[]}} Timeline */
 
 const isInt = (v) => typeof v === 'number' && Number.isInteger(v);
 const num = (v, lo, hi, fallback) => (typeof v === 'number' && Number.isFinite(v) ? Math.min(hi, Math.max(lo, v)) : fallback);

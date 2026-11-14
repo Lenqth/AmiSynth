@@ -112,7 +112,7 @@ export function buildSharePayload(s) {
       drums: diffFromDefaults(DRUM_PARAMS, s.drums),
     },
     tuning,
-    modular: safeModularPatch(s.modular ?? defaultModularPatch()),
+    ...(s.modular == null ? {} : { modular: safeModularPatch(s.modular) }),
     scale: s.scale ? { name: s.scale.name, cents: [...s.scale.cents] } : null,
   };
 }
@@ -173,7 +173,9 @@ export function parseSharePayload(obj) {
     synth: paramsFrom(DEFS.synth, params.synth),
     phys: paramsFrom(DEFS.phys, params.phys),
     drums: paramsFrom(DEFS.drums, params.drums),
-    modular: safeModularPatch(obj.modular ?? defaultModularPatch()),
+    ...(obj.modular == null
+      ? (song.melodic === 'modular' ? { modular: defaultModularPatch() } : {})
+      : { modular: safeModularPatch(obj.modular) }),
     scale: sanitizeScale(obj.scale),
   };
   // tuning is shared by both melodic instruments

@@ -1,5 +1,5 @@
-// Main-thread side of the audio engine. Only creates the AudioContext and three
-// AudioWorkletNodes (synth, drums, physical); all DSP happens in the worklets (no built-in Web Audio DSP
+// Main-thread side of the audio engine. Only creates the AudioContext and its
+// AudioWorkletNodes; all DSP happens in the worklets (no built-in Web Audio DSP
 // nodes are used for sound — an AnalyserNode is tapped for the scope only).
 
 import synthUrl from '../worklets/synth-processor.js?worker&url';
@@ -23,7 +23,12 @@ export class AudioEngine {
       return;
     }
     const ctx = new AudioContext({ latencyHint: 'interactive' });
-    await Promise.all([synthUrl, drumUrl, physUrl, modularUrl].map((u) => ctx.audioWorklet.addModule(u)));
+    try {
+      await Promise.all([synthUrl, drumUrl, physUrl, modularUrl].map((u) => ctx.audioWorklet.addModule(u)));
+    } catch (error) {
+      await ctx.close();
+      throw error;
+    }
     const opts = { numberOfInputs: 0, numberOfOutputs: 1, outputChannelCount: [2] };
     this.synth = new AudioWorkletNode(ctx, 'amisynth-synth', opts);
     this.drums = new AudioWorkletNode(ctx, 'amisynth-drums', opts);
@@ -46,7 +51,7 @@ export class AudioEngine {
     return this.ctx ? this.ctx.currentTime : 0;
   }
 
-  /** @param {'synth'|'drums'|'phys'} target @param {number[]} data MIDI bytes @param {number} [time] AudioContext time */
+  /** @param {'synth'|'drums'|'phys'|'modular'} target @param {number[]} data MIDI bytes @param {number} [time] AudioContext time */
   midi(target, data, time) {
     this[target]?.port.postMessage({ type: 'midi', data, time });
   }

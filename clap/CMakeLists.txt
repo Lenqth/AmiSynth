@@ -79,3 +79,42 @@ add_dependencies(clap_render AmiSynth)
 add_executable(clap_check tools/clap_check.cpp)
 target_link_libraries(clap_check PRIVATE clap ${CMAKE_DL_LIBS})
 add_dependencies(clap_check AmiSynth)
+
+# Standalone native Modular instrument. Its patch catalog is shared with the Web editor.
+find_program(NODE_EXECUTABLE node REQUIRED)
+FetchContent_Declare(modular_json
+  GIT_REPOSITORY https://github.com/nlohmann/json.git
+  GIT_TAG 55f93686c01528224f448c19128836e7df245f72) # v3.12.0
+set(JSON_BuildTests OFF CACHE BOOL "" FORCE)
+FetchContent_MakeAvailable(modular_json)
+
+set(MODULAR_CATALOG "${CMAKE_CURRENT_BINARY_DIR}/generated/modular_catalog.h")
+set(MODULAR_GENERATOR "${CMAKE_CURRENT_SOURCE_DIR}/../scripts/gen-modular-clap.js")
+set(MODULAR_WEB_DSP "${CMAKE_CURRENT_SOURCE_DIR}/../src/dsp/modular.js")
+add_custom_command(
+  OUTPUT "${MODULAR_CATALOG}"
+  COMMAND "${NODE_EXECUTABLE}" "${MODULAR_GENERATOR}" "${MODULAR_CATALOG}"
+  DEPENDS "${MODULAR_GENERATOR}" "${MODULAR_WEB_DSP}"
+  VERBATIM)
+
+add_library(AmiSynthModular MODULE src/modular_clap.cpp "${MODULAR_CATALOG}")
+target_include_directories(AmiSynthModular PRIVATE "${CMAKE_CURRENT_BINARY_DIR}/generated")
+target_link_libraries(AmiSynthModular PRIVATE clap nlohmann_json::nlohmann_json)
+target_compile_definitions(AmiSynthModular PRIVATE "AMISYNTH_VERSION=\"${PROJECT_VERSION}\"")
+set_target_properties(AmiSynthModular PROPERTIES PREFIX "" SUFFIX ".clap")
+if(APPLE)
+  set_target_properties(AmiSynthModular PROPERTIES
+    BUNDLE TRUE
+    BUNDLE_EXTENSION clap
+    MACOSX_BUNDLE_GUI_IDENTIFIER com.github.lenqth.amisynth.modular
+    MACOSX_BUNDLE_BUNDLE_NAME "AmiSynth Modular"
+    MACOSX_BUNDLE_BUNDLE_VERSION "${PROJECT_VERSION}"
+    MACOSX_BUNDLE_SHORT_VERSION_STRING "${PROJECT_VERSION}"
+    MACOSX_BUNDLE_INFO_PLIST "${CMAKE_CURRENT_SOURCE_DIR}/cmake/Info.plist.in")
+elseif(UNIX)
+  target_link_options(AmiSynthModular PRIVATE "-Wl,--no-undefined")
+endif()
+
+add_executable(modular_check tools/modular_check.cpp)
+target_link_libraries(modular_check PRIVATE clap ${CMAKE_DL_LIBS})
+add_dependencies(modular_check AmiSynthModular)

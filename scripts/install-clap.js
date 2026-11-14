@@ -19,18 +19,20 @@ export function defaultClapDir(platform = process.platform, env = process.env, h
   return join(home, '.clap');
 }
 
-export function builtPlugin(platform = process.platform) {
-  return join(build, platform === 'win32' ? 'Release' : '', 'AmiSynth.clap');
+const pluginName = modular => modular ? 'AmiSynthModular.clap' : 'AmiSynth.clap';
+
+export function builtPlugin(platform = process.platform, modular = false) {
+  return join(build, platform === 'win32' ? 'Release' : '', pluginName(modular));
 }
 
-export function clapInstallPlan({ plugin, dest, platform = process.platform, env = process.env, home = homedir() } = {}) {
-  const source = resolve(plugin ?? builtPlugin(platform));
+export function clapInstallPlan({ plugin, dest, modular = false, platform = process.platform, env = process.env, home = homedir() } = {}) {
+  const source = resolve(plugin ?? builtPlugin(platform, modular));
   if (!existsSync(source)) {
     throw new Error(plugin ? `Missing plugin: ${source}`
-      : `AmiSynth.clap is not built yet (${source}). Run with --build, or pass --plugin <downloaded AmiSynth.clap>.`);
+      : `${pluginName(modular)} is not built yet (${source}). Run with --build, or pass --plugin <downloaded .clap>.`);
   }
   // On macOS the plugin is a bundle (a folder); elsewhere it is one file.
-  return { source, destination: join(resolve(dest ?? defaultClapDir(platform, env, home)), 'AmiSynth.clap'), bundle: statSync(source).isDirectory() };
+  return { source, destination: join(resolve(dest ?? defaultClapDir(platform, env, home)), pluginName(modular)), bundle: statSync(source).isDirectory() };
 }
 
 export function installClap(options = {}, dryRun = false) {
@@ -62,6 +64,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
     for (let i = 0; i < args.length; i++) {
       if (args[i] === '--plugin') options.plugin = value(++i, '--plugin');
       else if (args[i] === '--dest') options.dest = value(++i, '--dest');
+      else if (args[i] === '--modular') options.modular = true;
       else if (args[i] === '--build') doBuild = true;
       else if (args[i] === '--dry-run') dryRun = true;
       else throw new Error(`Unknown argument: ${args[i]}`);
@@ -73,10 +76,10 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
     }
     const plan = installClap(options, dryRun);
     console.log(`${dryRun ? 'Would copy' : 'Copied'}: ${plan.source} -> ${plan.destination}`);
-    console.log('Next: rescan plugins in your DAW and add AmiSynth Synth / Physical / Drums to an instrument track.');
+    console.log(`Next: rescan plugins in your DAW and add AmiSynth ${options.modular ? 'Modular' : 'Synth / Physical / Drums'} to an instrument track.`);
   } catch (e) {
     console.error(e.message);
-    console.error('Usage: npm run install:clap -- [--build] [--plugin <AmiSynth.clap>] [--dest <CLAP folder>] [--dry-run]');
+    console.error('Usage: npm run install:clap -- [--build] [--modular] [--plugin <file.clap>] [--dest <CLAP folder>] [--dry-run]');
     process.exitCode = 1;
   }
 }
