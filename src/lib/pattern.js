@@ -202,7 +202,7 @@ export class Sequencer {
   }
 
   scheduleStep(tl, pattern, step, time, stepDur, entry = 0) {
-    const inst = tl.melodic === 'phys' ? 'phys' : 'synth';
+    const inst = ['synth', 'phys', 'modular'].includes(tl.melodic) ? tl.melodic : 'synth';
     // host transport for the arpeggiator / synced LFO: bar 1 of the timeline = beat 0
     if (step === 0 || this.sendTransport) {
       this.sendTransport = false;
