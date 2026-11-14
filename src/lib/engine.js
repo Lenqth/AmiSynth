@@ -5,12 +5,14 @@
 import synthUrl from '../worklets/synth-processor.js?worker&url';
 import drumUrl from '../worklets/drum-processor.js?worker&url';
 import physUrl from '../worklets/phys-processor.js?worker&url';
+import modularUrl from '../worklets/modular-processor.js?worker&url';
 
 export class AudioEngine {
   /** @type {AudioContext | null} */ ctx = null;
   /** @type {AudioWorkletNode | null} */ synth = null;
   /** @type {AudioWorkletNode | null} */ drums = null;
   /** @type {AudioWorkletNode | null} */ phys = null;
+  /** @type {AudioWorkletNode | null} */ modular = null;
   /** @type {((data:any)=>void) | null} */ onPhysSnapshot = null;
   /** @type {AnalyserNode | null} */ analyser = null;
 
@@ -21,17 +23,18 @@ export class AudioEngine {
       return;
     }
     const ctx = new AudioContext({ latencyHint: 'interactive' });
-    await Promise.all([synthUrl, drumUrl, physUrl].map((u) => ctx.audioWorklet.addModule(u)));
+    await Promise.all([synthUrl, drumUrl, physUrl, modularUrl].map((u) => ctx.audioWorklet.addModule(u)));
     const opts = { numberOfInputs: 0, numberOfOutputs: 1, outputChannelCount: [2] };
     this.synth = new AudioWorkletNode(ctx, 'amisynth-synth', opts);
     this.drums = new AudioWorkletNode(ctx, 'amisynth-drums', opts);
     this.phys = new AudioWorkletNode(ctx, 'amisynth-phys', opts);
+    this.modular = new AudioWorkletNode(ctx, 'amisynth-modular', opts);
     this.phys.port.onmessage = (e) => {
       if (e.data?.type === 'snapshot') this.onPhysSnapshot?.(e.data.data);
     };
     this.analyser = ctx.createAnalyser();
     this.analyser.fftSize = 2048;
-    for (const node of [this.synth, this.drums, this.phys]) {
+    for (const node of [this.synth, this.drums, this.phys, this.modular]) {
       node.connect(ctx.destination);
       node.connect(this.analyser);
     }
@@ -73,6 +76,10 @@ export class AudioEngine {
     this[target]?.port.postMessage({ type: 'params', values: { ...values } });
   }
 
+  setModularPatch(patch) {
+    this.modular?.port.postMessage({ type: 'patch', patch: JSON.parse(JSON.stringify(patch)) });
+  }
+
   /** @param {number[] | null} cents Scala-style degrees (last = period) or null for EDO */
   setScale(cents) {
     for (const node of [this.synth, this.phys]) node?.port.postMessage({ type: 'scale', cents: cents ? [...cents] : null });
@@ -88,6 +95,7 @@ export class AudioEngine {
     this.synth?.port.postMessage({ type: 'clear' });
     this.drums?.port.postMessage({ type: 'clear' });
     this.phys?.port.postMessage({ type: 'clear' });
+    this.modular?.port.postMessage({ type: 'clear' });
   }
 }
 
