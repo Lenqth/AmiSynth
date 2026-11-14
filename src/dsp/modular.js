@@ -511,30 +511,53 @@ function parameter(v, node, key) {
 }
 
 export function modular_meter_enable(s, enabled) {
+  const count = s.graph.meterSources.length;
   s.meter = enabled ? {
     remaining: 1,
     interval: 15,
-    low: new Float64Array(s.graph.meterSources.length).fill(Infinity),
-    high: new Float64Array(s.graph.meterSources.length).fill(-Infinity),
+    elapsed: 0,
+    low: new Float64Array(count).fill(Infinity),
+    high: new Float64Array(count).fill(-Infinity),
+    last: new Float64Array(count),
+    direction: new Int8Array(count),
+    turns: new Uint32Array(count),
   } : null;
 }
 
+// One entry per cable source since the last snapshot: span is the peak-to-peak
+// swing, level the largest magnitude and rate an estimate of how often it cycles (Hz).
 export function modular_meter_snapshot(s) {
-  const { low, high } = s.meter;
-  const moving = s.graph.meterSources.filter((_, i) => high[i] - low[i] > 1e-4).map(source => source.key);
+  const { low, high, turns } = s.meter;
+  const seconds = s.meter.elapsed / s.sampleRate;
+  const signals = s.graph.meterSources.map(({ key }, i) => high[i] < low[i] ? { key, span: 0, level: 0, rate: 0 } : {
+    key,
+    span: high[i] - low[i],
+    level: Math.max(Math.abs(low[i]), Math.abs(high[i])),
+    rate: seconds > 0 ? turns[i] / 2 / seconds : 0,
+  });
   low.fill(Infinity);
   high.fill(-Infinity);
-  return moving;
+  turns.fill(0);
+  s.meter.elapsed = 0;
+  return signals;
 }
 
 function measureSignals(s, voice) {
-  const { low, high } = s.meter;
+  const { low, high, last, direction, turns } = s.meter;
   const sources = s.graph.meterSources;
   for (let i = 0; i < sources.length; i++) {
     const { index, port } = sources[i];
     const value = voice ? voice.signals[index][port] : 0;
     if (value < low[i]) low[i] = value;
     if (value > high[i]) high[i] = value;
+    // Each change of direction is half a cycle.
+    const step = value - last[i];
+    if (Math.abs(step) > 1e-6) {
+      const sign = step > 0 ? 1 : -1;
+      if (direction[i] && sign !== direction[i]) turns[i]++;
+      direction[i] = sign;
+    }
+    last[i] = value;
   }
 }
 
@@ -794,7 +817,7 @@ export function modular_render(s) {
     }
     out += sample;
   }
-  if (s.meter && --s.meter.remaining === 0) {
+  if (s.meter && (s.meter.elapsed++, --s.meter.remaining === 0)) {
     measureSignals(s, meterVoice);
     // Vary the stride to avoid measuring the same phase of a periodic signal.
     s.meter.remaining = s.meter.interval;
