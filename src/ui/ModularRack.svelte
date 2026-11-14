@@ -13,8 +13,8 @@
   const inputs = $derived(nodes.filter(n => MODULAR_TYPES[n.type]?.inputs.length));
   function commit(next) {
     try {
-      patch = compileModularPatch(next).patch;
-      onchange(patch);
+      const compiled = compileModularPatch(next).patch;
+      onchange(compiled);
       error = '';
     } catch (e) { error = e.message; }
   }
