@@ -139,7 +139,7 @@ int main(int argc, char **argv) {
         ++*static_cast<unsigned *>(r->receiver_data); return true;
     };
     receiver.add_plugin_id = [](const clap_preset_discovery_metadata_receiver_t *, const clap_universal_plugin_id_t *) {};
-    check(provider->get_metadata(provider, CLAP_PRESET_DISCOVERY_LOCATION_PLUGIN, nullptr, &receiver) && discovered == 3,
+    check(provider->get_metadata(provider, CLAP_PRESET_DISCOVERY_LOCATION_PLUGIN, nullptr, &receiver) && discovered >= 3,
         "Factory presets not discoverable");
     provider->destroy(provider);
     check(presets->from_location(p, CLAP_PRESET_DISCOVERY_LOCATION_PLUGIN, nullptr, "Feedback Bass"), "Factory preset failed");

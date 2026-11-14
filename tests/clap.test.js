@@ -3,6 +3,7 @@
 // by `npm run test:clap` (tests/jsfx.test.js through clap/tools/clap_render).
 // Needs `npm run clap:build`; skipped when the plugin is not built (e.g. Cloudflare builds).
 import { test } from 'node:test';
+import { MODULAR_PRESETS } from '../src/dsp/modular.js';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { existsSync, mkdtempSync, readFileSync } from 'node:fs';
@@ -85,7 +86,7 @@ test('CLAP: presets are discovered with the same names as in REAPER and load the
   const c = check();
   assert.equal(c.presetLocations, 2);
   assert.deepEqual(c.presets.filter((p) => p.plugin === 'com.github.lenqth.amisynth.modular').map((p) => p.name),
-    ['Subtractive', 'Vibrato Lead', 'Feedback Bass']);
+    MODULAR_PRESETS.map((p) => p.name));
   const ids = ['com.github.lenqth.amisynth.synth', 'com.github.lenqth.amisynth.physical', 'com.github.lenqth.amisynth.drums'];
   RPL_FILES.forEach(([, , presets], k) => {
     const found = c.presets.filter((p) => p.plugin === ids[k]);

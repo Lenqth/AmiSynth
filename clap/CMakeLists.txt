@@ -94,7 +94,7 @@ set(MODULAR_WEB_DSP "${CMAKE_CURRENT_SOURCE_DIR}/../src/dsp/modular.js")
 add_custom_command(
   OUTPUT "${MODULAR_CATALOG}"
   COMMAND "${NODE_EXECUTABLE}" "${MODULAR_GENERATOR}" "${MODULAR_CATALOG}"
-  DEPENDS "${MODULAR_GENERATOR}" "${MODULAR_WEB_DSP}"
+  DEPENDS "${MODULAR_GENERATOR}" "${MODULAR_WEB_DSP}" "${CMAKE_CURRENT_SOURCE_DIR}/../src/dsp/phys.js"
   VERBATIM)
 
 target_sources(AmiSynth PRIVATE src/modular_clap.cpp "${MODULAR_CATALOG}")
@@ -125,6 +125,7 @@ if(WIN32)
       "${CMAKE_CURRENT_SOURCE_DIR}/../scripts/gen-modular-editor.js"
       "${CMAKE_CURRENT_SOURCE_DIR}/../src/ui/ModularRack.svelte"
       "${CMAKE_CURRENT_SOURCE_DIR}/../src/dsp/modular.js"
+      "${CMAKE_CURRENT_SOURCE_DIR}/../src/dsp/phys.js"
       "${CMAKE_CURRENT_SOURCE_DIR}/../src/app.css"
       "${CMAKE_CURRENT_SOURCE_DIR}/../package-lock.json"
     VERBATIM)
@@ -148,6 +149,11 @@ add_dependencies(modular_edit_check AmiSynth)
 if(WIN32)
   target_link_libraries(modular_edit_check PRIVATE modular_editor)
 endif()
+
+# Native engine renders for the Web/native comparison in tests/modular-clap.test.js.
+add_executable(modular_render tools/modular_render.cpp "${MODULAR_CATALOG}")
+target_include_directories(modular_render PRIVATE "${CMAKE_CURRENT_BINARY_DIR}/generated")
+target_link_libraries(modular_render PRIVATE nlohmann_json::nlohmann_json)
 
 add_executable(modular_check tools/modular_check.cpp)
 target_link_libraries(modular_check PRIVATE clap ${CMAKE_DL_LIBS})

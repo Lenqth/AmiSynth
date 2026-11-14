@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { MODULAR_TYPES, compileModularPatch, defaultModularPatch, modular_init, modular_meter_enable, modular_meter_snapshot, modular_midi, modular_render, modular_set_patch, safeModularPatch } from '../src/dsp/modular.js';
+import { MODULAR_TYPES, compileModularPatch, searchModularTypes, defaultModularPatch, modular_init, modular_meter_enable, modular_meter_snapshot, modular_midi, modular_render, modular_set_patch, safeModularPatch } from '../src/dsp/modular.js';
 import { renderPattern } from '../src/lib/render.js';
 
 test('modular default patch compiles and respects its dependency order', () => {
@@ -191,4 +191,81 @@ test('cable activity distinguishes changing signals from a constant gate', () =>
   assert.ok(!moving.includes('note/gate'));
   modular_meter_enable(s, false);
   assert.equal(s.meter, null);
+});
+
+const stringPatch = (extra = {}) => ({
+  nodes: [
+    { id: 'note', type: 'midi' },
+    { id: 'string', type: 'string', params: { decay: 3, release: 0.1, ...extra } },
+    { id: 'out', type: 'output' },
+  ],
+  cables: [
+    { from: 'note', port: 'pitch', to: 'string', input: 'pitch' },
+    { from: 'note', port: 'gate', to: 'string', input: 'gate' },
+    { from: 'string', port: 'out', to: 'out', input: 'audio' },
+  ],
+});
+
+test('a plucked string sounds at the played pitch, rings while held and stops after its release', () => {
+  const s = {};
+  modular_init(s, 48000);
+  modular_set_patch(s, stringPatch());
+  modular_midi(s, 0x90, 57, 100); // A3, 220 Hz
+  const out = new Float64Array(9600);
+  for (let i = 0; i < out.length; i++) { modular_render(s); out[i] = s.out_l; }
+  // The strongest autocorrelation lag after the first period is one period of 220 Hz.
+  const tail = out.subarray(4800);
+  let best = 0, period = 0;
+  for (let lag = 100; lag < 400; lag++) {
+    let sum = 0;
+    for (let i = 0; i + lag < tail.length; i++) sum += tail[i] * tail[i + lag];
+    if (sum > best) { best = sum; period = lag; }
+  }
+  assert.ok(Math.abs(48000 / period - 220) < 2, `pitch ${48000 / period} Hz`);
+  assert.ok(s.voices.some(v => v.active));
+  modular_midi(s, 0x80, 57, 0);
+  for (let i = 0; i < 48000; i++) modular_render(s);
+  assert.ok(s.voices.every(v => !v.active), 'released string kept its voice');
+});
+
+test('a struck modal resonator rings on after note-off and then frees its voice', () => {
+  const s = {};
+  modular_init(s, 48000);
+  modular_set_patch(s, {
+    nodes: [{ id: 'note', type: 'midi' }, { id: 'bar', type: 'modal', params: { decay: 1, release: 0.5 } }, { id: 'out', type: 'output' }],
+    cables: [
+      { from: 'note', port: 'pitch', to: 'bar', input: 'pitch' },
+      { from: 'note', port: 'gate', to: 'bar', input: 'gate' },
+      { from: 'bar', port: 'out', to: 'out', input: 'audio' },
+    ],
+  });
+  modular_midi(s, 0x90, 72, 100);
+  for (let i = 0; i < 480; i++) modular_render(s);
+  modular_midi(s, 0x80, 72, 0);
+  let after = 0;
+  for (let i = 0; i < 2400; i++) { modular_render(s); after = Math.max(after, Math.abs(s.out_l)); }
+  assert.ok(after > 0.001, 'the bar was cut off at note-off');
+  for (let i = 0; i < 96000; i++) modular_render(s);
+  assert.ok(s.voices.every(v => !v.active));
+});
+
+test('strings and comb filters share four delay lines per voice', () => {
+  const patch = { nodes: [{ id: 'out', type: 'output' }], cables: [] };
+  for (let i = 0; i < 4; i++) patch.nodes.push({ id: 'line' + i, type: i % 2 ? 'comb' : 'string' });
+  assert.equal(compileModularPatch(patch).lineCount, 4);
+  patch.nodes.push({ id: 'line4', type: 'comb' });
+  assert.throws(() => compileModularPatch(patch), /at most 4/);
+});
+
+test('patches saved before filter modes keep a lowpass without key tracking', () => {
+  const g = compileModularPatch(defaultModularPatch());
+  assert.deepEqual(g.patch.nodes.find(n => n.type === 'vcf').params, { cutoff: 2400, resonance: 0.15, mode: 0, keytrack: 0 });
+});
+
+test('module search matches names, categories and keywords', () => {
+  assert.equal(searchModularTypes('pluck')[0].type, 'string');
+  assert.equal(searchModularTypes('portamento')[0].type, 'slew');
+  assert.deepEqual(searchModularTypes('ring mod').map(r => r.type), ['ring']);
+  assert.equal(searchModularTypes('').length, Object.keys(MODULAR_TYPES).length);
+  assert.deepEqual(searchModularTypes('zzz'), []);
 });

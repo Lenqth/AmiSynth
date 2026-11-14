@@ -25,7 +25,9 @@ void check(bool condition, const char *message) {
 
 int main(int argc, char **argv) {
     try {
-        Instance self;
+        // Voices hold their delay lines; keep the instance off the stack.
+        auto owned = std::make_unique<Instance>();
+        auto &self = *owned;
         self.host = &test_host;
         self.plugin.plugin_data = &self;
         check(init(&self.plugin), "Initial patch failed");
@@ -153,7 +155,15 @@ int main(int argc, char **argv) {
                   await wait(async ()=>(await state()).cables.some(c=>c.from===id && c.to==='osc' && c.input==='fm'),'connect');
                   document.querySelector(`[aria-label="Remove ${id}"]`).click();
                   await wait(async ()=>(await state()).nodes.length===6 && !(await state()).cables.some(c=>c.from===id),'remove');
-                  await window.amisynthBridge({action:'smoke-result',ok:true,nodes:6,cutoff:1700});
+                  const rack=document.querySelector('.modular-rack'), bounds=rack.getBoundingClientRect();
+                  rack.dispatchEvent(new MouseEvent('contextmenu',{bubbles:true,cancelable:true,clientX:bounds.left+640,clientY:bounds.top+390}));
+                  await wait(()=>document.querySelector('[data-modular-menu] input[type=search]'),'search menu');
+                  const search=document.querySelector('[data-modular-menu] input[type=search]');
+                  search.value='pluck'; search.dispatchEvent(new Event('input',{bubbles:true}));
+                  await wait(()=>document.querySelectorAll('[data-modular-menu] [role=menuitem]').length===1,'search filter');
+                  search.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true}));
+                  await wait(async ()=>(await state()).nodes.some(n=>n.type==='string'),'add from search');
+                  await window.amisynthBridge({action:'smoke-result',ok:true,nodes:7,cutoff:1700});
                 })().catch(e=>window.amisynthBridge({action:'smoke-result',ok:false,error:e.message}));
             )JS");
             check(pump([&] { return finished; }) && passed, "Editor UI interactions failed");

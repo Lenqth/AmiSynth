@@ -2,7 +2,7 @@
   import { onMount, tick } from 'svelte';
   import {
     MODULAR_MACROS, MODULAR_PATCH_BYTES, MODULAR_POSITION_MAX, MODULAR_PRESETS, MODULAR_TYPES,
-    compileModularPatch, defaultModularPatch, modularParamInput,
+    compileModularPatch, defaultModularPatch, modularParamInput, searchModularTypes,
   } from '../dsp/modular.js';
 
   let { patch = defaultModularPatch(), onchange = () => {}, signalSource = null } = $props();
@@ -10,6 +10,8 @@
   let activeSignals = $state(new Set());
   let menu = $state(null);
   let menuElement = $state();
+  let menuQuery = $state('');
+  const menuResults = $derived(searchModularTypes(menuQuery));
   let error = $state('');
   let drag = $state(null);
   let selected = $state(null);
@@ -25,7 +27,7 @@
   const nodes = $derived(graph.nodes);
   const cardWidth = 224;
   const columnPitch = 274;
-  const rowPitch = 340;
+  const rowPitch = 420;
   const pad = 22;
   const anchor = (column, row) => ({ x: pad + column * columnPitch, y: pad + row * rowPitch });
   const defaultSlots = { note: [0, 0], osc: [1, 0], filter: [2, 0], amp: [3, 0], out: [4, 0], env: [2, 1] };
@@ -99,6 +101,7 @@
     const x = e.clientX || target.left + target.width / 2;
     const y = e.clientY || target.top + target.height / 2;
     const card = id && cards.find(c => c.node.id === id);
+    menuQuery = '';
     menu = { id, left: x, top: y, trigger: e.target instanceof HTMLElement && e.target.closest('button'),
       position: card ? boundedPoint(card.x + 30, card.y + 46) : boundedPoint(x - point.left, y - point.top) };
     await tick();
@@ -106,7 +109,7 @@
     const bounds = menuElement.getBoundingClientRect();
     menu.left = Math.max(4, Math.min(x, innerWidth - bounds.width - 4));
     menu.top = Math.max(4, Math.min(y, innerHeight - bounds.height - 4));
-    menuElement.querySelector('button:not(:disabled)')?.focus({ preventScroll: true });
+    menuElement.querySelector('input, button:not(:disabled)')?.focus({ preventScroll: true });
   }
 
   function contextMenu(e) {
@@ -116,11 +119,17 @@
 
   function menuKey(e) {
     if (e.key === 'Tab') { closeMenu(true); return; }
+    if (e.key === 'Enter' && e.target.matches('input')) {
+      e.preventDefault();
+      const first = menuResults[0];
+      if (first && nodes.length < 32) add(first.type, menu.position);
+      return;
+    }
     if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
     e.preventDefault();
-    const buttons = [...menuElement.querySelectorAll('button:not(:disabled)')];
-    const index = buttons.indexOf(document.activeElement);
-    buttons[(index + (e.key === 'ArrowDown' ? 1 : buttons.length - 1)) % buttons.length]?.focus();
+    const items = [...menuElement.querySelectorAll('input, button:not(:disabled)')];
+    const index = items.indexOf(document.activeElement);
+    items[(index + (e.key === 'ArrowDown' ? 1 : items.length - 1)) % items.length]?.focus();
   }
 
   function commit(next, options) {
@@ -391,7 +400,7 @@
                 <span>{key}</span>
                 <input aria-label="{n.id} {key}" type="range" min={def.min} max={def.max} step={def.step}
                   value={n.params[key]} disabled={connected} oninput={(e) => knob(n.id, key, e.currentTarget.value)} />
-                <output>{Number(n.params[key]).toFixed(def.step < 0.01 ? 3 : def.step < 1 ? 2 : 0)}</output>
+                <output>{def.choices ? def.choices[n.params[key] - def.min] : Number(n.params[key]).toFixed(def.step < 0.01 ? 3 : def.step < 1 ? 2 : 0)}</output>
               </label>
             </div>
           {/each}
@@ -453,8 +462,15 @@
         <button role="menuitem" disabled={nodes.length >= 32} onclick={() => duplicate(card, menu.position)}>Duplicate module</button>
         <button role="menuitem" disabled={card.node.type === 'output' && outputCount === 1} onclick={() => remove(card.node.id)}>Remove module</button>
       {:else}
-        {#each Object.entries(MODULAR_TYPES) as [type, def]}
+        <input type="search" class="menu-search" placeholder="Search modules" aria-label="Search modules"
+          autocomplete="off" spellcheck="false" bind:value={menuQuery} />
+        {#each menuResults as { type, def }, i (type)}
+          {#if !menuQuery && def.category !== menuResults[i - 1]?.def.category}
+            <span class="menu-group" role="presentation">{def.category}</span>
+          {/if}
           <button role="menuitem" disabled={nodes.length >= 32} onclick={() => add(type, menu.position)}>{def.label}</button>
+        {:else}
+          <span class="menu-empty muted" role="presentation">No module matches “{menuQuery}”.</span>
         {/each}
       {/if}
     </div>
@@ -469,6 +485,9 @@
     overflow:auto; padding:4px; background:var(--panel-2); border:1px solid var(--line); border-radius:8px; box-shadow:0 5px 20px #0008 }
   .context-actions button { text-align:left; border-color:transparent; padding:5px 8px }
   .context-actions button:hover,.context-actions button:focus-visible { background:var(--panel) }
+  .menu-search { margin:0 0 4px; padding:5px 8px; min-width:0 }
+  .menu-group { padding:6px 8px 2px; font-size:0.72rem; text-transform:uppercase; letter-spacing:0.04em; color:var(--muted) }
+  .menu-empty { padding:5px 8px; font-size:0.8rem }
   .selection { min-height:1.2em; margin:0 0 0.4rem; font-size:0.8rem }
   .rack-scroll { overflow:auto; max-height:70vh; min-height:250px; border:1px solid var(--line,#555); border-radius:8px }
   .modular-rack { position:relative; min-width:100%; isolation:isolate; cursor:grab; background-image:radial-gradient(#46505e 1px,transparent 1px); background-size:18px 18px }
