@@ -133,7 +133,7 @@ export function sanitizeSong(raw) {
   }
   return {
     bpm: num(src.bpm, BPM_MIN, BPM_MAX, 120),
-    melodic: src.melodic === 'phys' ? 'phys' : 'synth',
+    melodic: ['synth', 'phys', 'modular'].includes(src.melodic) ? src.melodic : 'synth',
     patterns,
     arrangement,
     current: int(src.current, 0, patterns.length - 1, 0),
@@ -179,7 +179,7 @@ export function timeline(song, mode) {
     const index = Math.min(song.patterns.length - 1, Math.max(0, song.current));
     entries.push({ pattern: song.patterns[index], slot: -1, index });
   }
-  return { bpm: song.bpm, melodic: song.melodic === 'phys' ? 'phys' : 'synth', entries };
+  return { bpm: song.bpm, melodic: ['synth', 'phys', 'modular'].includes(song.melodic) ? song.melodic : 'synth', entries };
 }
 
 /** Number of bars the song plays in song mode. */
