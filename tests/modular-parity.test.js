@@ -55,6 +55,16 @@ const PATCHES = {
     { from: 'fn', port: 'eoc', to: 'sum', input: 'b' },
     { from: 'sum', port: 'out', to: 'out', input: 'audio' },
   ]),
+  'wavefolder and soft clip': voice([
+    { id: 'osc', type: 'vco', params: { wave: 0 } },
+    { id: 'fold', type: 'wavefolder', params: { drive: 8, bias: 0.2 } },
+    { id: 'shape', type: 'wavefolder', params: { drive: 3, shape: 1, mix: 0.6 } },
+  ], [
+    { from: 'note', port: 'pitch', to: 'osc', input: 'pitch' },
+    { from: 'osc', port: 'out', to: 'fold', input: 'in' },
+    { from: 'fold', port: 'out', to: 'shape', input: 'in' },
+    { from: 'shape', port: 'out', to: 'out', input: 'audio' },
+  ]),
   'autonomous clock division, probability, and quantized steps': {
     nodes: [
       { id: 'clock', type: 'clock', params: { bpm: 300, pulses: 12, duty: 0.25 } },
