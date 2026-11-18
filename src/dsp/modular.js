@@ -89,6 +89,9 @@ export const MODULAR_TYPES = Object.freeze({
   macro: { label: 'Macro CV', category: 'Modulation', keywords: 'automation daw knob',
     inputs: [], outputs: ['out'], params: {
       index: { min: 1, max: 8, default: 1, step: 1 },
+      from: { min: -24000, max: 24000, default: 0, step: 0.01 },
+      to: { min: -24000, max: 24000, default: 1, step: 0.01 },
+      curve: { min: -1, max: 1, default: 0, step: 0.01 },
     } },
   vcf: { label: 'VCF', category: 'Filters & Effects', keywords: 'filter lowpass highpass bandpass notch cutoff resonance keytrack',
     inputs: ['audio', 'cutoff', 'pitch'], outputs: ['out'], params: {
@@ -313,6 +316,10 @@ export function compileModularPatch(raw) {
   const envelopes = [...audible].filter(i => RINGING_TYPES.has(nodes[i].type));
   const macros = Array.from({ length: MODULAR_MACROS }, (_, i) =>
     Number.isFinite(raw.macros?.[i]) ? clamp(raw.macros[i], 0, 1) : 0);
+  const macroNames = Array.from({ length: MODULAR_MACROS }, (_, i) => {
+    const name = Array.isArray(raw.macroNames) ? raw.macroNames[i] : '';
+    return typeof name === 'string' ? [...name].slice(0, 24).join('') : '';
+  });
   const midi = nodes.find(n => n.type === 'midi');
   const mono = { mode: midi?.params.voices ?? 0, glide: midi?.params.glide ?? 0, legatoOnly: midi?.params.glideMode ?? 0 };
   return {
@@ -321,7 +328,7 @@ export function compileModularPatch(raw) {
       const key = c.from + '/' + c.port;
       return [key, { key, index: ids.get(c.from), port: c.port }];
     })).values()],
-    patch: { version: 1, macros, nodes: nodes.map(({ id, type, params }, i) => {
+    patch: { version: 1, macros, macroNames, nodes: nodes.map(({ id, type, params }, i) => {
       const position = raw.nodes[i].position;
       return Number.isFinite(position?.x) && Number.isFinite(position?.y)
         ? { id, type, params, position: {
@@ -780,7 +787,12 @@ function sampleNode(s, v, i) {
         read(v, n, 'c') * parameter(v, n, 'c') + read(v, n, 'd') * parameter(v, n, 'd');
       break;
     case 'cv': sig.out = read(v, n, 'in') * parameter(v, n, 'scale') + parameter(v, n, 'offset'); break;
-    case 'macro': sig.out = s.graph.patch.macros[parameter(v, n, 'index') - 1]; break;
+    case 'macro': {
+      const value = s.graph.patch.macros[parameter(v, n, 'index') - 1];
+      const from = parameter(v, n, 'from'), to = parameter(v, n, 'to');
+      sig.out = from + (to - from) * Math.pow(value, Math.pow(4, parameter(v, n, 'curve')));
+      break;
+    }
     case 'delay': sig.out = st.memory; break;
     case 'output': sig.out = read(v, n, 'audio') * parameter(v, n, 'level'); break;
   }
