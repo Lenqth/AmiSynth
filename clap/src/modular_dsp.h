@@ -165,7 +165,7 @@ inline Graph compile(Json &patch, Macros &macros) {
         const int index = audible[i];
         // Modules that ring on after their gate falls keep a released voice alive until quiet.
         const auto type = graph.nodes[index].type;
-        if (type == Type::adsr || type == Type::string || type == Type::modal)
+        if (type == Type::adsr || type == Type::functionGen || type == Type::string || type == Type::modal)
             graph.envelopes[graph.envelope_count++] = index;
         for (auto link : graph.nodes[index].links) {
             if (link.node < 0 || seen[link.node]) continue;
@@ -529,6 +529,28 @@ struct Engine {
             if (fire) st.value = n.links[0].node >= 0 ? read(v, n, 0) : white(st);
             st.ready = true;
             sig[0] = st.value;
+            break;
+        }
+        case Type::functionGen: {
+            const bool trigger = read(v, n, 0, v.held) > 0;
+            const bool loop = p[3] != 0 && read(v, n, 1, v.held) > 0;
+            if ((trigger && !st.ready) || (loop && st.mode == 0)) {
+                st.mode = 1;
+                st.phase = 0;
+            }
+            st.ready = trigger;
+            sig[1] = 0;
+            if (st.mode == 1) {
+                st.phase = std::min(1.0, st.phase + 1 / (rate * p[0]));
+                if (st.phase == 1) st.mode = 2;
+            } else if (st.mode == 2) {
+                st.phase = std::max(0.0, st.phase - 1 / (rate * p[1]));
+                if (st.phase == 0) {
+                    st.mode = 0;
+                    sig[1] = 1;
+                }
+            }
+            sig[0] = std::pow(st.phase, std::pow(4.0, p[2]));
             break;
         }
         case Type::slew: {

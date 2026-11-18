@@ -75,6 +75,13 @@ export const MODULAR_TYPES = Object.freeze({
     inputs: ['in', 'trigger'], outputs: ['out'], params: {
       rate: { min: 0.01, max: 50, default: 8, step: 0.01 },
     } },
+  functionGen: { label: 'Function Generator', category: 'Modulation', keywords: 'attack decay envelope ad loop ramp trigger cycle',
+    inputs: ['trigger', 'run'], outputs: ['out', 'eoc'], params: {
+      rise: { min: 0.001, max: 5, default: 0.01, step: 0.001 },
+      fall: { min: 0.001, max: 5, default: 0.25, step: 0.001 },
+      curve: { min: -1, max: 1, default: 0, step: 0.01 },
+      loop: { min: 0, max: 1, default: 0, step: 1, choices: ['One shot', 'Loop'] },
+    } },
   slew: { label: 'Slew / Glide', category: 'Modulation', keywords: 'portamento lag smooth glide',
     inputs: ['in'], outputs: ['out'], params: {
       rise: { min: 0, max: 5, default: 0.05, step: 0.001 },
@@ -166,7 +173,7 @@ export const MODULAR_TYPES = Object.freeze({
 
 const LINE_TYPES = new Set(['string', 'comb']);
 // Modules that ring on after their gate falls; a released voice lives until they are quiet.
-const RINGING_TYPES = new Set(['adsr', 'string', 'modal']);
+const RINGING_TYPES = new Set(['adsr', 'functionGen', 'string', 'modal']);
 const QUANTIZER_SCALES = [0xfff, 0xab5, 0x5ad, 0x295, 0x4a9];
 
 const searchWords = text => text.toLowerCase().split(/[^a-z0-9&]+/).filter(Boolean);
@@ -223,6 +230,25 @@ export const MODULAR_MAX_TAIL = MAX_RELEASE + RELEASE_FADE;
 
 export const MODULAR_PRESETS = [
   { name: 'Subtractive', patch: defaultModularPatch },
+  { name: 'Falling Glass', patch: () => ({
+    nodes: [
+      { id: 'note', type: 'midi', position: { x: 22, y: 22 } },
+      { id: 'osc', type: 'vco', params: { wave: 0, level: 0.68 }, position: { x: 296, y: 22 } },
+      { id: 'shape', type: 'functionGen', params: { rise: 0.003, fall: 0.33, curve: 0.35 }, position: { x: 296, y: 442 } },
+      { id: 'sweep', type: 'cv', params: { scale: 0.18 }, position: { x: 570, y: 442 } },
+      { id: 'amp', type: 'vca', position: { x: 570, y: 22 } },
+      { id: 'out', type: 'output', position: { x: 844, y: 22 } },
+    ],
+    cables: [
+      { from: 'note', port: 'pitch', to: 'osc', input: 'pitch' },
+      { from: 'note', port: 'gate', to: 'shape', input: 'trigger' },
+      { from: 'shape', port: 'out', to: 'sweep', input: 'in' },
+      { from: 'sweep', port: 'out', to: 'osc', input: 'fm' },
+      { from: 'shape', port: 'out', to: 'amp', input: 'gain' },
+      { from: 'osc', port: 'out', to: 'amp', input: 'audio' },
+      { from: 'amp', port: 'out', to: 'out', input: 'audio' },
+    ],
+  }) },
   { name: 'Vibrato Lead', patch() {
     const patch = defaultModularPatch();
     patch.nodes.push({ id: 'vibrato', type: 'lfo', params: { rate: 5.2, depth: 0.035 } });
@@ -768,6 +794,28 @@ function sampleNode(s, v, i) {
       if (fire) st.value = n.links.in ? read(v, n, 'in') : white(st);
       st.ready = true;
       sig.out = st.value;
+      break;
+    }
+    case 'functionGen': {
+      const trigger = read(v, n, 'trigger', Number(v.held)) > 0;
+      const loop = parameter(v, n, 'loop') && read(v, n, 'run', Number(v.held)) > 0;
+      if ((trigger && !st.ready) || (loop && st.mode === 0)) {
+        st.mode = 1;
+        st.phase = 0;
+      }
+      st.ready = trigger;
+      sig.eoc = 0;
+      if (st.mode === 1) {
+        st.phase = Math.min(1, st.phase + 1 / (s.sampleRate * parameter(v, n, 'rise')));
+        if (st.phase === 1) st.mode = 2;
+      } else if (st.mode === 2) {
+        st.phase = Math.max(0, st.phase - 1 / (s.sampleRate * parameter(v, n, 'fall')));
+        if (st.phase === 0) {
+          st.mode = 0;
+          sig.eoc = 1;
+        }
+      }
+      sig.out = Math.pow(st.phase, Math.pow(4, parameter(v, n, 'curve')));
       break;
     }
     case 'slew': {

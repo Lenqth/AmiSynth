@@ -47,6 +47,14 @@ const voice = (extra, cables) => ({
   cables,
 });
 const PATCHES = {
+  'looping function generator and end-of-cycle pulse': voice([
+    { id: 'fn', type: 'functionGen', params: { rise: 0.003, fall: 0.01, curve: 0.3, loop: 1 } },
+    { id: 'sum', type: 'mix' },
+  ], [
+    { from: 'fn', port: 'out', to: 'sum', input: 'a' },
+    { from: 'fn', port: 'eoc', to: 'sum', input: 'b' },
+    { from: 'sum', port: 'out', to: 'out', input: 'audio' },
+  ]),
   'autonomous clock division, probability, and quantized steps': {
     nodes: [
       { id: 'clock', type: 'clock', params: { bpm: 300, pulses: 12, duty: 0.25 } },
