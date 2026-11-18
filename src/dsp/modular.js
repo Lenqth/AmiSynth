@@ -225,6 +225,31 @@ export const MODULAR_PRESETS = [
     return patch;
   } },
   ...physicalPresets(),
+  { name: 'Macro Morph', patch: () => ({
+    macros: [0.28],
+    macroNames: ['Tone'],
+    nodes: [
+      { id: 'note', type: 'midi', position: { x: 22, y: 22 } },
+      { id: 'osc', type: 'vco', params: { wave: 1, level: 0.37 }, position: { x: 296, y: 22 } },
+      { id: 'filter', type: 'vcf', params: { slope: 1, keytrack: 0.35 }, position: { x: 570, y: 22 } },
+      { id: 'amp', type: 'vca', position: { x: 844, y: 22 } },
+      { id: 'out', type: 'output', position: { x: 1118, y: 22 } },
+      { id: 'env', type: 'adsr', params: { attack: 0.02, decay: 0.24, sustain: 0.68, release: 0.27 }, position: { x: 570, y: 442 } },
+      { id: 'cutoff', type: 'macro', params: { index: 1, from: 380, to: 6400, curve: 0.45 }, position: { x: 22, y: 442 } },
+      { id: 'resonance', type: 'macro', params: { index: 1, from: 0.53, to: 0.12, curve: -0.35 }, position: { x: 296, y: 442 } },
+    ],
+    cables: [
+      { from: 'note', port: 'pitch', to: 'osc', input: 'pitch' },
+      { from: 'note', port: 'pitch', to: 'filter', input: 'pitch' },
+      { from: 'note', port: 'gate', to: 'env', input: 'gate' },
+      { from: 'osc', port: 'out', to: 'filter', input: 'audio' },
+      { from: 'cutoff', port: 'out', to: 'filter', input: 'param:cutoff' },
+      { from: 'resonance', port: 'out', to: 'filter', input: 'param:resonance' },
+      { from: 'filter', port: 'out', to: 'amp', input: 'audio' },
+      { from: 'env', port: 'out', to: 'amp', input: 'gain' },
+      { from: 'amp', port: 'out', to: 'out', input: 'audio' },
+    ],
+  }) },
   ...MODULAR_SYNTH_PORTS,
 ];
 
