@@ -36,6 +36,37 @@ test('an autonomous rack clocks steps and rounds MIDI pitch without note input',
   assert.deepEqual(observed, [[60, 1, 60], [60, 0, 60], [61, 1, 60], [60, 1, 60]]);
 });
 
+test('a custom resonance table sets the audible frequency and survives patch serialization', () => {
+  const modalTable = [{ ratio: 2.5, gain: 0.8, decay: 0.75 }];
+  const patch = {
+    nodes: [
+      { id: 'modal', type: 'modal', modalTable },
+      { id: 'out', type: 'output' },
+    ],
+    cables: [{ from: 'modal', port: 'out', to: 'out', input: 'audio' }],
+  };
+  const saved = JSON.parse(JSON.stringify(compileModularPatch(patch).patch));
+  assert.deepEqual(saved.nodes[0].modalTable, modalTable);
+  const s = {};
+  modular_init(s, 48000);
+  modular_set_patch(s, saved);
+  modular_midi(s, 0x90, 69, 100);
+  const samples = Array.from({ length: 4800 }, () => { modular_render(s); return s.out_l; });
+  function amplitude(hz) {
+    let real = 0, imaginary = 0;
+    for (const [i, sample] of samples.entries()) {
+      const angle = 2 * Math.PI * hz * i / 48000;
+      real += sample * Math.cos(angle);
+      imaginary += sample * Math.sin(angle);
+    }
+    return Math.hypot(real, imaginary);
+  }
+  assert.ok(amplitude(1100) > 10 * amplitude(440));
+  assert.throws(() => compileModularPatch({
+    ...patch, nodes: [{ ...patch.nodes[0], modalTable: [{ ratio: 0, gain: 0.8, decay: 1 }] }, patch.nodes[1]],
+  }), /Frequency ratio/);
+});
+
 test('modular rejects cycles, duplicate input links, invalid ports, and malformed patches', () => {
   const p = defaultModularPatch();
   assert.throws(() => compileModularPatch({ ...p, cables: [...p.cables, { from: 'amp', port: 'out', to: 'osc', input: 'fm' }] }));

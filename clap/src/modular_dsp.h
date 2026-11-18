@@ -40,6 +40,9 @@ struct Node {
     // Signal inputs occupy the first kMaxInputs slots, parameter inputs the rest.
     std::array<Link, kMaxInputs + kMaxParams> links{};
     std::array<const Param *, kMaxParams> specs{};
+    Material custom_material{};
+    std::array<double, kModes> modal_decay{};
+    bool custom_modal = false;
     bool modulated = false;
     int line = -1; // Delay-line slot for strings and comb filters.
 };
@@ -104,6 +107,31 @@ inline Graph compile(Json &patch, Macros &macros) {
             normalized[p.name] = value;
         }
         Json saved{{"id", id}, {"type", type}, {"params", std::move(normalized)}};
+        if (const auto table = n.find("modalTable"); node.type == Type::modal && table != n.end()) {
+            if (!table->is_array() || table->empty() || table->size() > kModes)
+                throw std::invalid_argument("Invalid resonance table size");
+            node.custom_modal = true;
+            Json rows = Json::array();
+            for (size_t k = 0; k < table->size(); ++k) {
+                const auto &row = (*table)[k];
+                const auto field = [&](const char *name, double min, double max) {
+                    const auto &value = row.at(name);
+                    if (!value.is_number()) throw std::invalid_argument("Invalid resonance table value");
+                    const double number = value.get<double>();
+                    if (!std::isfinite(number) || number < min || number > max)
+                        throw std::invalid_argument("Resonance table value out of range");
+                    return number;
+                };
+                const double ratio = field("ratio", kModalRatioMin, kModalRatioMax);
+                const double gain = field("gain", kModalGainMin, kModalGainMax);
+                const double decay = field("decay", kModalDecayMin, kModalDecayMax);
+                node.custom_material.ratios[k] = ratio;
+                node.custom_material.gains[k] = gain;
+                node.modal_decay[k] = decay;
+                rows.push_back({{"ratio", ratio}, {"gain", gain}, {"decay", decay}});
+            }
+            saved["modalTable"] = std::move(rows);
+        }
         const auto position = n.find("position");
         if (position != n.end() && position->is_object() &&
             position->contains("x") && (*position)["x"].is_number() &&
@@ -628,16 +656,18 @@ struct Engine {
             const bool gate = read(v, n, 2, 1) >= 0.5;
             const double strike = gate && !st.gate ? 1 : 0;
             st.gate = gate;
-            const double material = p[0], t60 = gate ? p[1] : std::min(p[1], p[2]), brightness = p[3];
+            const double material = n.custom_modal ? -1 : p[0];
+            const double t60 = gate ? p[1] : std::min(p[1], p[2]), brightness = p[3];
             const double hz = 440 * std::pow(2.0, (read(v, n, 1, 69) - 69) / 12);
             if (st.key[0] != hz || st.key[1] != material || st.key[2] != t60 || st.key[3] != brightness) {
                 st.key = {hz, material, t60, brightness};
-                const auto &mat = kMaterials[size_t(material)];
+                const auto &mat = n.custom_modal ? n.custom_material : kMaterials[size_t(material)];
                 for (size_t k = 0; k < kModes; ++k) {
                     const double ratio = mat.ratios[k], f = hz * ratio;
                     if (!(f > 0 && f < rate * 0.45)) { st.a1[k] = st.a2[k] = st.b[k] = 0; continue; }
                     // Darker settings damp the upper modes faster, as in the Physical instrument.
-                    const double t = t60 / std::max(0.25, 1 + (1 - brightness) * 4 * (ratio - 1));
+                    const double t = t60 * (n.custom_modal ? n.modal_decay[k] : 1) /
+                        std::max(0.25, 1 + (1 - brightness) * 4 * (ratio - 1));
                     const double r = std::exp(-kLn1000 / (t * rate));
                     const double w = 2 * kPi * f / rate;
                     st.a1[k] = 2 * r * std::cos(w); st.a2[k] = r * r; st.b[k] = mat.gains[k] * std::sin(w);

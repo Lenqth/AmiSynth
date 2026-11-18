@@ -13,6 +13,31 @@ export const MODULAR_LINES = 4;
 export const MODULAR_LINE_SAMPLES = 4096;
 export const MODULAR_MODES = 8;
 export const MODULAR_MATERIALS = MATERIALS;
+export const MODULAR_MODAL_FIELDS = {
+  ratio: { label: 'Frequency ratio', min: 0.125, max: 128 },
+  gain: { label: 'Gain', min: 0, max: 1 },
+  decay: { label: 'Decay multiplier', min: 0.1, max: 4 },
+};
+
+export function modularMaterialTable(index) {
+  const material = MATERIALS[index];
+  return material.ratios.map((ratio, i) => ({ ratio, gain: material.gains[i], decay: 1 }));
+}
+
+function normalizeModalTable(table) {
+  if (!Array.isArray(table) || table.length < 1 || table.length > MODULAR_MODES)
+    throw new Error(`A resonance table needs 1–${MODULAR_MODES} modes`);
+  return Array.from(table, (row, i) => {
+    const values = {};
+    for (const [key, { label, min, max }] of Object.entries(MODULAR_MODAL_FIELDS)) {
+      const value = row?.[key];
+      if (!Number.isFinite(value) || value < min || value > max)
+        throw new Error(`Mode ${i + 1}: ${label} must be between ${min} and ${max}`);
+      values[key] = value;
+    }
+    return values;
+  });
+}
 
 export const MODULAR_CATEGORIES = ['Sources', 'Physical', 'Filters & Effects', 'Modulation', 'Utilities', 'Input & Output'];
 
@@ -334,6 +359,26 @@ export const MODULAR_PRESETS = [
     ],
   }) },
   ...physicalPresets(),
+  { name: 'Twin Glass', patch: () => ({
+    nodes: [
+      { id: 'note', type: 'midi', position: { x: 22, y: 22 } },
+      { id: 'glass', type: 'modal', position: { x: 296, y: 22 },
+        params: { decay: 2.9, release: 1.1, brightness: 0.78, level: 0.32 },
+        modalTable: [
+          { ratio: 1, gain: 0.75, decay: 1.1 },
+          { ratio: 1.009, gain: 0.66, decay: 1 },
+          { ratio: 2.31, gain: 0.42, decay: 0.85 },
+          { ratio: 4.18, gain: 0.27, decay: 0.58 },
+          { ratio: 6.57, gain: 0.13, decay: 0.44 },
+        ] },
+      { id: 'out', type: 'output', position: { x: 570, y: 22 } },
+    ],
+    cables: [
+      { from: 'note', port: 'pitch', to: 'glass', input: 'pitch' },
+      { from: 'note', port: 'gate', to: 'glass', input: 'gate' },
+      { from: 'glass', port: 'out', to: 'out', input: 'audio' },
+    ],
+  }) },
   { name: 'Macro Morph', patch: () => ({
     macros: [0.28],
     macroNames: ['Tone'],
@@ -428,7 +473,8 @@ export function compileModularPatch(raw) {
         ? Math.max(def.min, Math.min(def.max, rawValue)) : def.default;
       if (def.step >= 1) params[key] = Math.round(params[key]);
     }
-    return { id: n.id, type: n.type, params, links: {}, paramLinks: {} };
+    const modalTable = n.type === 'modal' && n.modalTable !== undefined ? normalizeModalTable(n.modalTable) : undefined;
+    return { id: n.id, type: n.type, params, modalTable, links: {}, paramLinks: {} };
   });
   if (!nodes.some((n) => n.type === 'output')) throw new Error('An audio output is required');
   let lineCount = 0;
@@ -484,14 +530,15 @@ export function compileModularPatch(raw) {
       const key = c.from + '/' + c.port;
       return [key, { key, index: ids.get(c.from), port: c.port }];
     })).values()],
-    patch: { version: 1, macros, macroNames, nodes: nodes.map(({ id, type, params }, i) => {
+    patch: { version: 1, macros, macroNames, nodes: nodes.map(({ id, type, params, modalTable }, i) => {
       const position = raw.nodes[i].position;
+      const saved = { id, type, params, ...(modalTable ? { modalTable } : {}) };
       return Number.isFinite(position?.x) && Number.isFinite(position?.y)
-        ? { id, type, params, position: {
+        ? { ...saved, position: {
           x: Math.round(clamp(position.x, 0, MODULAR_POSITION_MAX)),
           y: Math.round(clamp(position.y, 0, MODULAR_POSITION_MAX)),
         } }
-        : { id, type, params };
+        : saved;
     }),
       cables: raw.cables.map(({ from, port, to, input }) => ({ from, port, to, input })) },
   };
@@ -575,6 +622,7 @@ export function modular_set_patch(s, patch) {
   if (s.meter) modular_meter_enable(s, true);
   if (old && old.nodes.length === graph.nodes.length &&
       old.patch.cables.length === graph.patch.cables.length &&
+      old.nodes.every((n, i) => JSON.stringify(n.modalTable) === JSON.stringify(graph.nodes[i].modalTable)) &&
       old.nodes.every((n, i) => n.id === graph.nodes[i].id && n.type === graph.nodes[i].type) &&
       old.patch.cables.every((c, i) => Object.keys(c).every(k => c[k] === graph.patch.cables[i][k]))) return;
   s.voices = Array.from({ length: MAX_VOICES }, (_, slot) => newVoice(graph.nodes.length, slot));
@@ -994,7 +1042,8 @@ function sampleNode(s, v, i) {
       const gate = read(v, n, 'gate', 1) >= 0.5;
       const strike = gate && !st.lastGate ? 1 : 0;
       st.lastGate = gate;
-      const material = parameter(v, n, 'material'), decay = parameter(v, n, 'decay');
+      const material = n.modalTable ? -1 : parameter(v, n, 'material');
+      const decay = parameter(v, n, 'decay');
       const t60 = gate ? decay : Math.min(decay, parameter(v, n, 'release'));
       const brightness = parameter(v, n, 'brightness');
       const hz = 440 * Math.pow(2, (read(v, n, 'pitch', 69) - 69) / 12);
@@ -1003,13 +1052,15 @@ function sampleNode(s, v, i) {
         key[0] = hz; key[1] = material; key[2] = t60; key[3] = brightness;
         const mat = MATERIALS[material];
         for (let k = 0; k < MODULAR_MODES; k++) {
-          const ratio = mat.ratios[k], f = hz * ratio;
+          const mode = n.modalTable?.[k];
+          const ratio = mode?.ratio ?? mat?.ratios[k] ?? 0;
+          const f = hz * ratio;
           if (!(f > 0 && f < s.sampleRate * 0.45)) { st.a1[k] = st.a2[k] = st.b[k] = 0; continue; }
           // Darker settings damp the upper modes faster, as in the Physical instrument.
-          const t = t60 / Math.max(0.25, 1 + (1 - brightness) * 4 * (ratio - 1));
+          const t = t60 * (mode?.decay ?? 1) / Math.max(0.25, 1 + (1 - brightness) * 4 * (ratio - 1));
           const r = Math.exp(-LN1000 / (t * s.sampleRate));
           const w = TAU * f / s.sampleRate;
-          st.a1[k] = 2 * r * Math.cos(w); st.a2[k] = r * r; st.b[k] = mat.gains[k] * Math.sin(w);
+          st.a1[k] = 2 * r * Math.cos(w); st.a2[k] = r * r; st.b[k] = (mode?.gain ?? mat.gains[k]) * Math.sin(w);
         }
       }
       const x = read(v, n, 'in') + strike;
