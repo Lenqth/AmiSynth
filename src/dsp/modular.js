@@ -150,8 +150,13 @@ export const MODULAR_TYPES = Object.freeze({
     } },
   delay: { label: 'Unit Delay', category: 'Utilities', keywords: 'feedback one sample z-1',
     inputs: ['in'], outputs: ['out'], params: {} },
+  pan: { label: 'Pan / Spread', category: 'Utilities', keywords: 'stereo balance panner voice spread',
+    inputs: ['in'], outputs: ['left', 'right'], params: {
+      pan: { min: -1, max: 1, default: 0, step: 0.01 },
+      spread: { min: 0, max: 1, default: 0, step: 0.01 },
+    } },
   output: { label: 'Audio output', category: 'Input & Output', keywords: 'out speaker master',
-    inputs: ['audio'], outputs: [], params: {
+    inputs: ['audio', 'right'], outputs: [], params: {
       level: { min: 0, max: 1, default: 0.8, step: 0.01 },
     } },
 });
@@ -281,6 +286,27 @@ export const MODULAR_PRESETS = [
     );
     return patch;
   } },
+  { name: 'Stereo Drift', patch: () => ({
+    nodes: [
+      { id: 'note', type: 'midi', position: { x: 22, y: 22 } },
+      { id: 'osc', type: 'vco', params: { wave: 3, level: 0.52 }, position: { x: 296, y: 22 } },
+      { id: 'amp', type: 'vca', position: { x: 570, y: 22 } },
+      { id: 'pan', type: 'pan', params: { spread: 0.42 }, position: { x: 844, y: 22 } },
+      { id: 'out', type: 'output', position: { x: 1118, y: 22 } },
+      { id: 'env', type: 'adsr', params: { attack: 0.065, decay: 0.32, sustain: 0.68, release: 0.48 }, position: { x: 570, y: 442 } },
+      { id: 'drift', type: 'lfo', params: { rate: 0.43, depth: 0.55 }, position: { x: 844, y: 442 } },
+    ],
+    cables: [
+      { from: 'note', port: 'pitch', to: 'osc', input: 'pitch' },
+      { from: 'note', port: 'gate', to: 'env', input: 'gate' },
+      { from: 'osc', port: 'out', to: 'amp', input: 'audio' },
+      { from: 'env', port: 'out', to: 'amp', input: 'gain' },
+      { from: 'amp', port: 'out', to: 'pan', input: 'in' },
+      { from: 'drift', port: 'out', to: 'pan', input: 'param:pan' },
+      { from: 'pan', port: 'left', to: 'out', input: 'audio' },
+      { from: 'pan', port: 'right', to: 'out', input: 'right' },
+    ],
+  }) },
   ...physicalPresets(),
   { name: 'Macro Morph', patch: () => ({
     macros: [0.28],
@@ -475,9 +501,9 @@ function white(st) {
   st.rng = x;
   return x / 4294967296 * 2 - 1;
 }
-function newVoice(nodeCount) {
+function newVoice(nodeCount, slot) {
   return { active: false, keyDown: false, held: false, channel: 0, note: -1, velocity: 0,
-    age: 0, tail: 0, glide: 0,
+    age: 0, tail: 0, glide: 0, slot,
     stages: Array.from({ length: nodeCount }, newStage),
     signals: Array.from({ length: nodeCount }, () => ({})),
     lines: Array.from({ length: MODULAR_LINES }, () => new Float32Array(MODULAR_LINE_SAMPLES)) };
@@ -503,7 +529,7 @@ export function modular_set_patch(s, patch) {
       old.patch.cables.length === graph.patch.cables.length &&
       old.nodes.every((n, i) => n.id === graph.nodes[i].id && n.type === graph.nodes[i].type) &&
       old.patch.cables.every((c, i) => Object.keys(c).every(k => c[k] === graph.patch.cables[i][k]))) return;
-  s.voices = Array.from({ length: MAX_VOICES }, () => newVoice(graph.nodes.length));
+  s.voices = Array.from({ length: MAX_VOICES }, (_, slot) => newVoice(graph.nodes.length, slot));
 }
 
 export function modular_all_notes_off(s) {
@@ -927,13 +953,26 @@ function sampleNode(s, v, i) {
       break;
     }
     case 'delay': sig.out = st.memory; break;
-    case 'output': sig.out = read(v, n, 'audio') * parameter(v, n, 'level'); break;
+    case 'pan': {
+      const spread = s.graph.mono.mode ? 0 : (v.slot % 2 ? 1 : -1) * (1 - Math.floor(v.slot / 2) / 4);
+      const pan = clamp(parameter(v, n, 'pan') + spread * parameter(v, n, 'spread'), -1, 1);
+      const input = read(v, n, 'in');
+      sig.left = clamp(input * Math.sqrt((1 - pan) * 0.5), -1e6, 1e6);
+      sig.right = clamp(input * Math.sqrt((1 + pan) * 0.5), -1e6, 1e6);
+      break;
+    }
+    case 'output': {
+      const left = read(v, n, 'audio'), level = parameter(v, n, 'level');
+      sig.out = left * level;
+      sig.right = clamp(read(v, n, 'right', left) * level, -1e6, 1e6);
+      break;
+    }
   }
   // Bound every intermediate so a cascade of multipliers cannot overflow.
   sig.out = clamp(sig.out, -1e6, 1e6);
 }
 export function modular_render(s) {
-  let out = 0;
+  let out = 0, right = 0;
   const { nodes, order, delays, outputs, envelopes, mono } = s.graph;
   // Glide decays like the Synth instrument: about 95% of the way after the glide time.
   const glideCoef = mono.glide > 0 ? Math.exp(-1 / (mono.glide / 3 * s.sampleRate)) : 0;
@@ -947,20 +986,26 @@ export function modular_render(s) {
       v.glide *= glideCoef;
       if (Math.abs(v.glide) < 0.0012) v.glide = 0;
     }
-    let sample = 0;
-    for (const i of outputs) sample += v.signals[i].out;
+    let sample = 0, sampleRight = 0;
+    for (const i of outputs) {
+      sample += v.signals[i].out;
+      sampleRight += v.signals[i].right;
+    }
     if (!v.held) {
       v.tail++;
       const fade = Math.max(1, Math.round(RELEASE_FADE * s.sampleRate));
       if (envelopes.length === 0 || v.tail > MAX_RELEASE * s.sampleRate) {
         const elapsed = envelopes.length ? v.tail - MAX_RELEASE * s.sampleRate : v.tail;
-        sample *= clamp(1 - elapsed / fade, 0, 1);
+        const gain = clamp(1 - elapsed / fade, 0, 1);
+        sample *= gain;
+        sampleRight *= gain;
         if (elapsed >= fade) v.active = false;
       } else if (envelopes.every(i => v.stages[i].mode === 0 && !v.stages[i].lastGate)) {
         v.active = false;
       }
     }
     out += sample;
+    right += sampleRight;
   }
   if (s.meter && (s.meter.elapsed++, --s.meter.remaining === 0)) {
     measureSignals(s, meterVoice);
@@ -969,5 +1014,6 @@ export function modular_render(s) {
     s.meter.interval = s.meter.interval === 17 ? 15 : s.meter.interval + 1;
   }
   if (s.meter?.scope) captureScope(s.meter.scope, meterVoice);
-  s.out_l = s.out_r = Math.tanh(out);
+  s.out_l = Math.tanh(out);
+  s.out_r = Math.tanh(right);
 }

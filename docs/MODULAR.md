@@ -14,7 +14,7 @@ Use the checkboxes on module cards to select a group. **Duplicate selection** co
 
 On the Web, choose any module output in **Scope** to see the most recent 1024 samples from the first active voice, along with the current value and range. The output need not have a cable connected.
 
-Patches support up to 32 modules and eight voices. The first **MIDI / Note** module sets the voice mode: **Poly**, **Mono** (last-note priority; releasing a key returns to the one still held) or **Legato** (a new key while one is held keeps the envelopes running), with **glide** time and whether glide happens **Always** or only between overlapping notes. These three knobs are patch settings and take no cable. A structural edit resets the voices. Turning a knob or changing a macro keeps them running. Audio is mono per voice and goes to both stereo channels.
+Patches support up to 32 modules and eight voices. The first **MIDI / Note** module sets the voice mode: **Poly**, **Mono** (last-note priority; releasing a key returns to the one still held) or **Legato** (a new key while one is held keeps the envelopes running), with **glide** time and whether glide happens **Always** or only between overlapping notes. These three knobs are patch settings and take no cable. A structural edit resets the voices. Turning a knob or changing a macro keeps them running. Each cable carries one signal. Connect both Audio output inputs for stereo.
 
 ### Signal conventions
 
@@ -30,6 +30,8 @@ Patches support up to 32 modules and eight voices. The first **MIDI / Note** mod
 | Parameter input | The cable replaces the slider value in the parameter’s native units. Discrete parameters round to the nearest step. Unplugging restores the slider value. |
 | VCF cutoff CV | 1 adds two octaves to the cutoff, with a sample-rate-dependent limit. |
 | VCA gain | A linear gain multiplier. An unpatched input uses 1. |
+| Pan / Spread | **In** is a mono signal. **Pan** sets its position and **spread** distributes polyphonic voices across alternating positions. Patch **left** to Audio output's **audio** input and **right** to **right**. |
+| Audio output | **Audio** feeds the left channel. An unpatched **right** copies that signal, so existing mono patches play in both channels. |
 | CV Scale / Offset | Applies `input × scale + offset`. An unpatched input uses 0. |
 | Macro CV | Reads one of eight shared 0–1 macros and maps it from **from** to **to**. Reverse the endpoints to invert the response. **curve** changes the response between the endpoints. Use a separate Macro CV module per range. Name macros in the rack to identify them in the patch and in CLAP hosts. |
 | Unit Delay | Outputs the previous sample. The value stored at its input is limited to ±4. Every feedback loop needs a delay. |
@@ -46,7 +48,7 @@ Patches support up to 32 modules and eight voices. The first **MIDI / Note** mod
 
 ### Synth presets
 
-`src/presets/modular.js` rebuilds Synth presets from Modular modules: one VCO pair per unison copy, a VCO an octave down for the sub oscillator, VCO sync and PM for hard sync and FM, the same filter slope, drive, resonance curve and key tracking, exponential ADSRs scaled by velocity, LFO pitch, filter, pulse-width and amplitude modulation, the noise filter, and the voice mode and glide. A preset that uses anything else (wavetables, the arpeggiator, effects, the modulation matrix, tempo-synced LFOs or chip noise) is not converted, so a patch never sounds unlike its name. Remaining differences: Modular is mono, its LFO restarts with each voice, its oscillators start at fixed spaced phases instead of random ones, and performance controls (mod wheel, pitch-bend range) are not part of a patch.
+`src/presets/modular.js` rebuilds Synth presets from Modular modules: one VCO pair per unison copy, a VCO an octave down for the sub oscillator, VCO sync and PM for hard sync and FM, the same filter slope, drive, resonance curve and key tracking, exponential ADSRs scaled by velocity, LFO pitch, filter, pulse-width and amplitude modulation, the noise filter, and the voice mode and glide. A preset that uses anything else (wavetables, the arpeggiator, effects, the modulation matrix, tempo-synced LFOs or chip noise) is not converted, so a patch never sounds unlike its name. Remaining differences: these patches use mono output, the Modular LFO restarts with each voice, its oscillators start at fixed spaced phases instead of random ones, and performance controls (mod wheel, pitch-bend range) are not part of a patch.
 
 ## CLAP
 

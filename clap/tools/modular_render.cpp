@@ -24,6 +24,7 @@ int main(int argc, char **argv) {
         Macros macros;
         engine->graph = compile(patch, macros);
         const auto count = spec.at("samples").get<size_t>();
+        const size_t channel = spec.value("right", false) ? 1 : 0;
         std::vector<float> out(count);
         for (size_t n = 0; n < count; ++n) {
             for (const auto &note : spec.at("notes")) {
@@ -36,7 +37,7 @@ int main(int argc, char **argv) {
                         if (v.key_down && Engine::matches(v, 0, key, -1)) engine->release(v);
                 }
             }
-            out[n] = float(engine->sample(macros));
+            out[n] = float(engine->sample(macros)[channel]);
         }
         std::ofstream output(argv[2], std::ios::binary);
         output.write(reinterpret_cast<const char *>(out.data()), std::streamsize(out.size() * sizeof(float)));
