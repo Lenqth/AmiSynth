@@ -664,13 +664,27 @@ struct Engine {
             sig[0] = p[1] + (p[2] - p[1]) * std::pow(macros[size_t(p[0]) - 1], std::pow(4.0, p[3]));
             break;
         case Type::delay: sig[0] = st.memory; break;
-        case Type::output: sig[0] = read(v, n, 0) * p[0]; break;
+        case Type::pan: {
+            const int slot = int(&v - voices.data());
+            const double spread = graph.voice_mode ? 0 : (slot % 2 ? 1 : -1) * (1 - (slot / 2) / 4.0);
+            const double pan = std::clamp(p[0] + spread * p[1], -1.0, 1.0);
+            const double input = read(v, n, 0);
+            sig[0] = input * std::sqrt((1 - pan) * 0.5);
+            sig[1] = std::clamp(input * std::sqrt((1 + pan) * 0.5), -1e6, 1e6);
+            break;
+        }
+        case Type::output: {
+            const double left = read(v, n, 0);
+            sig[0] = left * p[0];
+            sig[1] = std::clamp(read(v, n, 1, left) * p[0], -1e6, 1e6);
+            break;
+        }
         }
         sig[0] = std::clamp(sig[0], -1e6, 1e6);
     }
 
-    double sample(const Macros &macros) {
-        double out = 0;
+    std::array<double, 2> sample(const Macros &macros) {
+        double out = 0, right = 0;
         if (graph.autonomous && !voices[0].active) {
             start(voices[0], 0, 60, -1, 1, false);
             voices[0].key_down = false;
@@ -688,14 +702,19 @@ struct Engine {
                 v.glide *= glide_coef;
                 if (std::abs(v.glide) < 0.0012) v.glide = 0;
             }
-            double value = 0;
-            for (int i = 0; i < graph.output_count; ++i) value += v.signals[graph.outputs[i]][0];
+            double value = 0, value_right = 0;
+            for (int i = 0; i < graph.output_count; ++i) {
+                value += v.signals[graph.outputs[i]][0];
+                value_right += v.signals[graph.outputs[i]][1];
+            }
             if (!v.held) {
                 ++v.tail;
                 const auto limit = graph.envelope_count ? uint64_t(10 * rate) : 0;
                 if (v.tail > limit) {
                     const double fade = std::max(1.0, std::round(0.005 * rate));
-                    value *= std::clamp(1 - double(v.tail - limit) / fade, 0.0, 1.0);
+                    const double gain = std::clamp(1 - double(v.tail - limit) / fade, 0.0, 1.0);
+                    value *= gain;
+                    value_right *= gain;
                     if (double(v.tail - limit) >= fade) v.active = false;
                 } else {
                     const auto last = graph.envelopes.begin() + graph.envelope_count;
@@ -705,6 +724,7 @@ struct Engine {
                 }
             }
             out += value;
+            right += value_right;
         }
         for (int i = 0; i < graph.clock_count; ++i) {
             const int index = graph.clocks[i];
@@ -712,7 +732,7 @@ struct Engine {
             const double phase = clock_phases[index] + params[0] * params[1] / (60 * rate);
             clock_phases[index] = phase - std::floor(phase);
         }
-        return std::tanh(out);
+        return {std::tanh(out), std::tanh(right)};
     }
 };
 

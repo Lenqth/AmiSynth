@@ -18,7 +18,7 @@ const notes = [
 ];
 const samples = 24000;
 
-function renderWeb(patch) {
+function renderWeb(patch, right = false) {
   const s = {};
   modular_init(s, rate);
   modular_set_patch(s, patch);
@@ -29,14 +29,14 @@ function renderWeb(patch) {
       if (note.off === n) modular_midi(s, 0x80, note.key, 0);
     }
     modular_render(s);
-    out[n] = s.out_l;
+    out[n] = right ? s.out_r : s.out_l;
   }
   return out;
 }
 
-function renderNative(patch, dir) {
+function renderNative(patch, dir, right = false) {
   const spec = join(dir, 'spec.json'), out = join(dir, 'out.f32');
-  writeFileSync(spec, JSON.stringify({ rate, samples, patch, notes }));
+  writeFileSync(spec, JSON.stringify({ rate, samples, patch, notes, right }));
   execFileSync(tool, [spec, out]);
   const bytes = readFileSync(out);
   return new Float32Array(bytes.buffer, bytes.byteOffset, bytes.length / 4);
@@ -65,7 +65,7 @@ const PATCHES = {
     { from: 'fold', port: 'out', to: 'shape', input: 'in' },
     { from: 'shape', port: 'out', to: 'out', input: 'audio' },
   ]),
-  'autonomous clock division, probability, and quantized steps': {
+  'autonomous stereo clock division, probability, and quantized steps': {
     nodes: [
       { id: 'clock', type: 'clock', params: { bpm: 300, pulses: 12, duty: 0.25 } },
       { id: 'divide', type: 'divider', params: { division: 3 } },
@@ -73,6 +73,7 @@ const PATCHES = {
       { id: 'scale', type: 'quantizer', params: { scale: 1 } },
       { id: 'osc', type: 'vco' },
       { id: 'amp', type: 'vca' },
+      { id: 'pan', type: 'pan' },
       { id: 'out', type: 'output' },
     ],
     cables: [
@@ -82,9 +83,21 @@ const PATCHES = {
       { from: 'scale', port: 'out', to: 'osc', input: 'pitch' },
       { from: 'seq', port: 'gate', to: 'amp', input: 'gain' },
       { from: 'osc', port: 'out', to: 'amp', input: 'audio' },
-      { from: 'amp', port: 'out', to: 'out', input: 'audio' },
+      { from: 'amp', port: 'out', to: 'pan', input: 'in' },
+      { from: 'clock', port: 'phase', to: 'pan', input: 'param:pan' },
+      { from: 'pan', port: 'left', to: 'out', input: 'audio' },
+      { from: 'pan', port: 'right', to: 'out', input: 'right' },
     ],
   },
+  'stereo pan and voice spread': voice([
+    { id: 'osc', type: 'vco' },
+    { id: 'pan', type: 'pan', params: { pan: 0.2, spread: 0.85 } },
+  ], [
+    { from: 'note', port: 'pitch', to: 'osc', input: 'pitch' },
+    { from: 'osc', port: 'out', to: 'pan', input: 'in' },
+    { from: 'pan', port: 'left', to: 'out', input: 'audio' },
+    { from: 'pan', port: 'right', to: 'out', input: 'right' },
+  ]),
   'filter modes and key tracking': voice([
     { id: 'osc', type: 'vco', params: { wave: 1 } },
     { id: 'lp', type: 'vcf', params: { mode: 0, keytrack: 1, resonance: 0.6, cutoff: 800 } },
@@ -235,6 +248,15 @@ for (const [name, patch] of Object.entries(PATCHES)) {
       }
       assert.ok(energy > 1e-3, `${name} is silent`);
       assert.ok(worst < 1e-4, `${name} differs by ${worst} at sample ${at}`);
+      const stereo = patch.cables.some(cable => cable.input === 'right' &&
+        patch.nodes.some(node => node.id === cable.to && node.type === 'output'));
+      if (stereo) {
+        const webRight = renderWeb(patch, true), nativeRight = renderNative(patch, dir, true);
+        assert.ok(webRight.some((value, i) => Math.abs(value - web[i]) > 0.01));
+        assert.ok(webRight.every((value, i) => Math.abs(value - nativeRight[i]) < 1e-4));
+      } else {
+        assert.deepEqual(renderWeb(patch, true), web);
+      }
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

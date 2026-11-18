@@ -259,9 +259,11 @@ clap_process_status CLAP_ABI process(const clap_plugin_t *p, const clap_process_
                 for (size_t m = 0; m < macros.size(); ++m) macros[m] = self.values[m].load();
             event = ++index < count ? events->get(events, index) : nullptr;
         }
-        const double sample = self.dsp.sample(macros);
-        if (out.data32) out.data32[0][frame] = out.data32[1][frame] = float(sample);
-        else out.data64[0][frame] = out.data64[1][frame] = sample;
+        const auto sample = self.dsp.sample(macros);
+        for (size_t channel = 0; channel < sample.size(); ++channel) {
+            if (out.data32) out.data32[channel][frame] = float(sample[channel]);
+            else out.data64[channel][frame] = sample[channel];
+        }
         for (auto &v : self.dsp.voices)
             if (!v.active && v.clap_note) self.end_voice(v, frame, block->out_events);
     }
