@@ -10,6 +10,8 @@ Modular is a polyphonic patchable synth available in the Web app and as **AmiSyn
 3. Choose a factory patch from **Preset**. **Vibrato Lead** uses LFO pitch modulation. **Feedback Bass** uses a Unit Delay in its feedback path and Macro 1 for filter cutoff. **Plucked String**, **Marimba** and **Church Bell** use the physical modules. The remaining patches are Synth presets of the same name rebuilt from Modular modules (see [Synth presets](#synth-presets)).
 4. **Save patch** and **Open patch** exchange portable JSON files. The app also restores the latest patch from browser storage. Module positions travel with the patch. Piano Roll share links include the patch. To export a sequence, select **Modular** as the Piano Roll melody instrument and choose WAV or MP3.
 
+Use the checkboxes on module cards to select a group. **Duplicate selection** copies the modules and cables within the group. **Save selection** writes the group to a fragment JSON file, and **Insert fragment** adds it to any open rack. **Undo** and **Redo** step through rack edits without changing the current macro values.
+
 Patches support up to 32 modules and eight voices. The first **MIDI / Note** module sets the voice mode: **Poly**, **Mono** (last-note priority; releasing a key returns to the one still held) or **Legato** (a new key while one is held keeps the envelopes running), with **glide** time and whether glide happens **Always** or only between overlapping notes. These three knobs are patch settings and take no cable. A structural edit resets the voices. Turning a knob or changing a macro keeps them running. Audio is mono per voice and goes to both stereo channels.
 
 ### Signal conventions
