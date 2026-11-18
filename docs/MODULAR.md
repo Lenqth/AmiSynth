@@ -31,12 +31,13 @@ Patches support up to 32 modules and eight voices. The first **MIDI / Note** mod
 | Unit Delay | Outputs the previous sample. The value stored at its input is limited to ±4. Every feedback loop needs a delay. |
 | Noise | White, or pink (Paul Kellet's filter). Each voice's noise is seeded from its note, identically in the Web and CLAP engines. |
 | Sample & Hold | Holds **in** (or new noise when unpatched) on each rising **trigger**, or at **rate** when the trigger is unpatched. |
+| Function Generator | A rising **trigger** restarts the envelope from zero. **rise** and **fall** are in seconds, and **curve** shapes the 0–1 output. **eoc** pulses for one sample at the end of the fall. In **Loop** mode, a high **run** starts or repeats cycles. Lowering **run** lets the current cycle finish. Unpatched trigger and run follow the voice's note gate. |
 | Slew / Glide, Envelope Follower | One-pole smoothing with separate rise and fall times; the follower smooths the input's magnitude. |
 | Multiply / Ring | `a × b × level`; an unpatched **b** is 1. |
 | Comb / Delay Line | Delay of 0.05–40 ms with damped feedback and a dry/wet mix. |
 | Pluck String | Karplus-Strong string: a rising **gate** plucks it at **pitch**; **excite** adds input to the loop. **decay** is the time to −60 dB while held, **release** after. |
 | Modal Resonator | Eight resonant modes from the Physical instrument's materials, struck by a rising **gate** and excited by **in**. |
-| Delay lines | Strings and comb filters share four preallocated lines per voice, so a patch can use four of them. A released voice stays alive while an ADSR, string or modal resonator still rings. |
+| Delay lines | Strings and comb filters share four preallocated lines per voice, so a patch can use four of them. A released voice stays alive while an ADSR, function generator, string or modal resonator is still active, up to the voice tail limit. |
 
 ### Synth presets
 
