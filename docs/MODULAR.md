@@ -29,7 +29,7 @@ Patches support up to 32 modules and eight voices. The first **MIDI / Note** mod
 | VCF cutoff CV | 1 adds two octaves to the cutoff, with a sample-rate-dependent limit. |
 | VCA gain | A linear gain multiplier. An unpatched input uses 1. |
 | CV Scale / Offset | Applies `input × scale + offset`. An unpatched input uses 0. |
-| Macro CV | Outputs one of eight shared 0–1 macro values per voice. |
+| Macro CV | Reads one of eight shared 0–1 macros and maps it from **from** to **to**. Reverse the endpoints to invert the response. **curve** changes the response between the endpoints. Use a separate Macro CV module per range. Name macros in the rack to identify them in the patch and in CLAP hosts. |
 | Unit Delay | Outputs the previous sample. The value stored at its input is limited to ±4. Every feedback loop needs a delay. |
 | Noise | White, or pink (Paul Kellet's filter). Each voice's noise is seeded from its note, identically in the Web and CLAP engines. |
 | Sample & Hold | Holds **in** (or new noise when unpatched) on each rising **trigger**, or at **rate** when the trigger is unpatched. |

@@ -567,8 +567,16 @@
               {#if def.fixed}<span aria-hidden="true"></span>{:else}{@render jack(n, input, 'in', key, true)}{/if}
               <label class="modular-param" class:driven={connected}>
                 <span>{key}</span>
-                <input aria-label="{n.id} {key}" type="range" min={def.min} max={def.max} step={def.step}
-                  value={n.params[key]} disabled={connected} oninput={(e) => knob(n.id, key, e.currentTarget.value)} />
+                {#if n.type === 'macro' && (key === 'from' || key === 'to')}
+                  <input aria-label="{n.id} {key}" type="number" min={def.min} max={def.max} step={def.step}
+                    value={n.params[key]} disabled={connected} onchange={(e) => {
+                      if (e.currentTarget.value !== '') knob(n.id, key, e.currentTarget.value);
+                      else e.currentTarget.value = String(n.params[key]);
+                    }} />
+                {:else}
+                  <input aria-label="{n.id} {key}" type="range" min={def.min} max={def.max} step={def.step}
+                    value={n.params[key]} disabled={connected} oninput={(e) => knob(n.id, key, e.currentTarget.value)} />
+                {/if}
                 <output>{def.choices ? def.choices[n.params[key] - def.min] : Number(n.params[key]).toFixed(def.step < 0.01 ? 3 : def.step < 1 ? 2 : 0)}</output>
               </label>
             </div>
@@ -626,8 +634,10 @@
   <h4>Macros</h4>
   <div class="macros">
     {#each Array(MODULAR_MACROS) as _, i}
-      <label>Macro {i + 1}
-        <input type="range" min="0" max="1" step="0.01" value={graph.macros[i]}
+      <label>
+        <input type="text" aria-label="Macro {i + 1} name" placeholder="Macro {i + 1}" value={graph.macroNames[i]}
+          onchange={(e) => commit({ ...graph, macroNames: graph.macroNames.with(i, e.currentTarget.value.trim()) })} />
+        <input type="range" aria-label={graph.macroNames[i] || 'Macro ' + (i + 1)} min="0" max="1" step="0.01" value={graph.macros[i]}
           oninput={(e) => commit({ ...graph, macros: graph.macros.with(i, Number(e.currentTarget.value)) }, { skipHistory: true })} />
       </label>
     {/each}

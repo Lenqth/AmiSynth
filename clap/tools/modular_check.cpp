@@ -50,9 +50,10 @@ struct Events {
     }};
 };
 
-int rescans = 0, loads = 0, dirty_calls = 0;
+int rescans = 0, info_rescans = 0, loads = 0, dirty_calls = 0;
 const clap_host_params_t host_params{[](const clap_host_t *, clap_param_rescan_flags f) {
-    if (f == CLAP_PARAM_RESCAN_VALUES) ++rescans;
+    if (f & CLAP_PARAM_RESCAN_VALUES) ++rescans;
+    if (f & CLAP_PARAM_RESCAN_INFO) ++info_rescans;
 }, [](const clap_host_t *, clap_id, clap_param_clear_flags) {}, [](const clap_host_t *) {}};
 const clap_host_preset_load_t host_presets{
     [](const clap_host_t *, uint32_t, const char *, const char *, int32_t, const char *) {},
@@ -144,7 +145,10 @@ int main(int argc, char **argv) {
     provider->destroy(provider);
     check(presets->from_location(p, CLAP_PRESET_DISCOVERY_LOCATION_PLUGIN, nullptr, "Feedback Bass"), "Factory preset failed");
     check(presets->from_location(p, CLAP_PRESET_DISCOVERY_LOCATION_FILE, argv[2], nullptr), "Web patch failed to load");
-    check(rescans == 2 && loads == 2 && dirty_calls == 2, "Host notifications missing");
+    check(rescans == 2 && info_rescans == 1 && loads == 2 && dirty_calls == 2, "Host notifications missing");
+    clap_param_info_t renamed{};
+    check(params->get_info(p, 0, &renamed) && renamed.id == 0 && std::strcmp(renamed.name, "Brightness") == 0,
+        "Renamed macro lost its label or automation ID");
 
     check(p->activate(p, 48000, 1, 128) && p->start_processing(p), "Cannot activate");
     clap_event_note_t on{{sizeof(on), 17, 0, CLAP_EVENT_NOTE_ON, 0}, 42, 0, 2, 69, 0.8};
