@@ -117,6 +117,13 @@ export const MODULAR_TYPES = Object.freeze({
     inputs: ['a', 'b'], outputs: ['out'], params: {
       level: { min: 0, max: 2, default: 1, step: 0.01 },
     } },
+  wavefolder: { label: 'Wavefolder / Shaper', category: 'Filters & Effects', keywords: 'wavefold distortion saturation harmonics',
+    inputs: ['in'], outputs: ['out'], params: {
+      drive: { min: 0, max: 16, default: 4, step: 0.01 },
+      bias: { min: -1, max: 1, default: 0, step: 0.01 },
+      mix: { min: 0, max: 1, default: 1, step: 0.01 },
+      shape: { min: 0, max: 1, default: 0, step: 1, choices: ['Fold', 'Soft clip'] },
+    } },
   vca: { label: 'VCA', category: 'Utilities', keywords: 'amplifier gain volume',
     inputs: ['audio', 'gain'], outputs: ['out'], params: {
       level: { min: 0, max: 2, default: 1, step: 0.01 },
@@ -229,6 +236,30 @@ export const MODULAR_PRESETS = [
     patch.cables.push({ from: 'vibrato', port: 'out', to: 'osc', input: 'fm' });
     return patch;
   } },
+  { name: 'Folded Reed', patch: () => ({
+    nodes: [
+      { id: 'note', type: 'midi', position: { x: 22, y: 22 } },
+      { id: 'osc', type: 'vco', params: { wave: 0, level: 0.7 }, position: { x: 296, y: 22 } },
+      { id: 'fold', type: 'wavefolder', params: { bias: 0.12, mix: 0.82 }, position: { x: 570, y: 22 } },
+      { id: 'filter', type: 'vcf', params: { cutoff: 3500, resonance: 0.19, keytrack: 0.4 }, position: { x: 844, y: 22 } },
+      { id: 'amp', type: 'vca', params: { level: 0.58 }, position: { x: 1118, y: 22 } },
+      { id: 'out', type: 'output', position: { x: 1392, y: 22 } },
+      { id: 'env', type: 'adsr', params: { attack: 0.025, decay: 0.21, sustain: 0.36, release: 0.18, curve: 1 }, position: { x: 296, y: 442 } },
+      { id: 'drive', type: 'cv', params: { scale: 6.5, offset: 1.25 }, position: { x: 570, y: 442 } },
+    ],
+    cables: [
+      { from: 'note', port: 'pitch', to: 'osc', input: 'pitch' },
+      { from: 'note', port: 'pitch', to: 'filter', input: 'pitch' },
+      { from: 'note', port: 'gate', to: 'env', input: 'gate' },
+      { from: 'env', port: 'out', to: 'drive', input: 'in' },
+      { from: 'drive', port: 'out', to: 'fold', input: 'param:drive' },
+      { from: 'osc', port: 'out', to: 'fold', input: 'in' },
+      { from: 'fold', port: 'out', to: 'filter', input: 'audio' },
+      { from: 'filter', port: 'out', to: 'amp', input: 'audio' },
+      { from: 'env', port: 'out', to: 'amp', input: 'gain' },
+      { from: 'amp', port: 'out', to: 'out', input: 'audio' },
+    ],
+  }) },
   { name: 'Feedback Bass', patch() {
     const patch = defaultModularPatch();
     patch.nodes.push(
@@ -748,6 +779,14 @@ function sampleNode(s, v, i) {
       break;
     }
     case 'ring': sig.out = read(v, n, 'a') * read(v, n, 'b', 1) * parameter(v, n, 'level'); break;
+    case 'wavefolder': {
+      const input = read(v, n, 'in');
+      const x = input * parameter(v, n, 'drive') + parameter(v, n, 'bias');
+      const period = x + 1 - 4 * Math.floor((x + 1) / 4);
+      const wet = parameter(v, n, 'shape') ? Math.tanh(x) : 1 - Math.abs(period - 2);
+      sig.out = input + (wet - input) * parameter(v, n, 'mix');
+      break;
+    }
     case 'comb': {
       const line = v.lines[n.line];
       const delay = clamp(parameter(v, n, 'time') * s.sampleRate / 1000, 1, MODULAR_LINE_SAMPLES - 2);
