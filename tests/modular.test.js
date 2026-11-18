@@ -9,6 +9,33 @@ test('modular default patch compiles and respects its dependency order', () => {
   for (const c of g.patch.cables) assert.ok(pos.get(c.from) < pos.get(c.to));
 });
 
+test('an autonomous rack clocks steps and rounds MIDI pitch without note input', () => {
+  const s = {};
+  modular_init(s, 1000);
+  modular_set_patch(s, {
+    nodes: [
+      { id: 'clock', type: 'clock', params: { bpm: 300, pulses: 2 } },
+      { id: 'seq', type: 'sequencer', params: { length: 2, step1: 60, step2: 61 } },
+      { id: 'scale', type: 'quantizer', params: { scale: 2 } },
+      { id: 'out', type: 'output' },
+    ],
+    cables: [
+      { from: 'clock', port: 'gate', to: 'seq', input: 'clock' },
+      { from: 'seq', port: 'cv', to: 'scale', input: 'pitch' },
+      { from: 'scale', port: 'out', to: 'out', input: 'audio' },
+    ],
+  });
+  const observed = [];
+  for (let i = 0; i < 240; i++) {
+    modular_render(s);
+    if ([20, 70, 120, 220].includes(i)) {
+      const [, sequence, scale] = s.voices[0].signals;
+      observed.push([sequence.cv, sequence.gate, scale.out]);
+    }
+  }
+  assert.deepEqual(observed, [[60, 1, 60], [60, 0, 60], [61, 1, 60], [60, 1, 60]]);
+});
+
 test('modular rejects cycles, duplicate input links, invalid ports, and malformed patches', () => {
   const p = defaultModularPatch();
   assert.throws(() => compileModularPatch({ ...p, cables: [...p.cables, { from: 'amp', port: 'out', to: 'osc', input: 'fm' }] }));

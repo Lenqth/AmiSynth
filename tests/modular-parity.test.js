@@ -65,6 +65,30 @@ const PATCHES = {
     { from: 'fold', port: 'out', to: 'shape', input: 'in' },
     { from: 'shape', port: 'out', to: 'out', input: 'audio' },
   ]),
+  'autonomous stereo clock division, probability, and quantized steps': {
+    nodes: [
+      { id: 'clock', type: 'clock', params: { bpm: 300, pulses: 12, duty: 0.25 } },
+      { id: 'divide', type: 'divider', params: { division: 3 } },
+      { id: 'seq', type: 'sequencer', params: { length: 3, step1: 48, step2: 51.4, step3: 55, probability: 0.7 } },
+      { id: 'scale', type: 'quantizer', params: { scale: 1 } },
+      { id: 'osc', type: 'vco' },
+      { id: 'amp', type: 'vca' },
+      { id: 'pan', type: 'pan' },
+      { id: 'out', type: 'output' },
+    ],
+    cables: [
+      { from: 'clock', port: 'gate', to: 'divide', input: 'clock' },
+      { from: 'divide', port: 'gate', to: 'seq', input: 'clock' },
+      { from: 'seq', port: 'cv', to: 'scale', input: 'pitch' },
+      { from: 'scale', port: 'out', to: 'osc', input: 'pitch' },
+      { from: 'seq', port: 'gate', to: 'amp', input: 'gain' },
+      { from: 'osc', port: 'out', to: 'amp', input: 'audio' },
+      { from: 'amp', port: 'out', to: 'pan', input: 'in' },
+      { from: 'clock', port: 'phase', to: 'pan', input: 'param:pan' },
+      { from: 'pan', port: 'left', to: 'out', input: 'audio' },
+      { from: 'pan', port: 'right', to: 'out', input: 'right' },
+    ],
+  },
   'stereo pan and voice spread': voice([
     { id: 'osc', type: 'vco' },
     { id: 'pan', type: 'pan', params: { pan: 0.2, spread: 0.85 } },
@@ -224,7 +248,9 @@ for (const [name, patch] of Object.entries(PATCHES)) {
       }
       assert.ok(energy > 1e-3, `${name} is silent`);
       assert.ok(worst < 1e-4, `${name} differs by ${worst} at sample ${at}`);
-      if (name === 'stereo pan and voice spread' || name === 'factory: Stereo Drift') {
+      const stereo = patch.cables.some(cable => cable.input === 'right' &&
+        patch.nodes.some(node => node.id === cable.to && node.type === 'output'));
+      if (stereo) {
         const webRight = renderWeb(patch, true), nativeRight = renderNative(patch, dir, true);
         assert.ok(webRight.some((value, i) => Math.abs(value - web[i]) > 0.01));
         assert.ok(webRight.every((value, i) => Math.abs(value - nativeRight[i]) < 1e-4));

@@ -38,6 +38,10 @@ Patches support up to 32 modules and eight voices. The first **MIDI / Note** mod
 | Noise | White, or pink (Paul Kellet's filter). Each voice's noise is seeded from its note, identically in the Web and CLAP engines. |
 | Sample & Hold | Holds **in** (or new noise when unpatched) on each rising **trigger**, or at **rate** when the trigger is unpatched. |
 | Function Generator | A rising **trigger** restarts the envelope from zero. **rise** and **fall** are in seconds, and **curve** shapes the 0–1 output. **eoc** pulses for one sample at the end of the fall. In **Loop** mode, a high **run** starts or repeats cycles. Lowering **run** lets the current cycle finish. Unpatched trigger and run follow the voice's note gate. |
+| Clock | Generates a shared **gate** pulse and a 0–1 **phase** ramp. Set **bpm**, **pulses** per beat and the fraction of each pulse spent high (**duty**). |
+| Clock Divider | Passes the first and every Nth **clock** pulse, keeping its width. Hold **reset** high to clear the count and suppress the output. |
+| Step Sequencer | Advances on rising **clock**, starting at step 1. **CV** holds the current step value. **Gate** follows the clock when that step passes the **probability** check. **Reset** returns to step 1 and suppresses the gate while high. |
+| Pitch Quantizer | Rounds MIDI note values to the closest note in the chosen **root** and **scale**, choosing the lower note on ties. |
 | Slew / Glide, Envelope Follower | One-pole smoothing with separate rise and fall times; the follower smooths the input's magnitude. |
 | Multiply / Ring | `a × b × level`; an unpatched **b** is 1. |
 | Wavefolder / Shaper | **Drive** amplifies the signal before **bias** shifts it. **Fold** reflects it at ±1, while **Soft clip** saturates it smoothly. **Mix** blends the result with the input. |
@@ -67,5 +71,7 @@ Developer checks: `tests/modular-parity.test.js` renders every module and factor
 `clap.state` stores the complete versioned JSON patch and current macro values. Existing Web patches with no version field are treated as version 1. Invalid or oversized loads leave the current patch intact. Patch compilation runs on the main thread, then publishes the result for the next audio block. Note events and macro automation apply at their sample offsets. The processing callback uses preallocated voice and graph storage.
 
 ## Current limits
+
+Clock uses the rack's own tempo. Patches that contain Clock and omit MIDI / Note run as a single voice without MIDI, as in **Clockwork Plucks**. With MIDI / Note present, playing a note starts a voice and its sequencer, while all voices read the same clock phase.
 
 Modular uses 12-TET and per-voice audio-rate signals. The Web DSP and native DSP share module definitions and factory patch data and have separate sample loops. Hosting external CLAP modules is a follow-up to the built-in engine.

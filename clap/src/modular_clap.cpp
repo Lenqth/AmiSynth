@@ -105,8 +105,10 @@ struct Instance {
         if ((middle.load() & dirty) == 0) return;
         front = middle.exchange(front) & ~dirty;
         dsp.graph = graphs[front];
-        if (applied_epoch != graph_epochs[front])
+        if (applied_epoch != graph_epochs[front]) {
             for (auto &v : dsp.voices) if (v.active) end_voice(v, 0, output);
+            dsp.clock_phases = {};
+        }
         applied_epoch = graph_epochs[front];
     }
 
@@ -190,6 +192,7 @@ struct Instance {
     void event(const clap_event_header_t *h, const clap_output_events_t *output) {
         if (!h || h->space_id != CLAP_CORE_EVENT_SPACE_ID) return;
         if (h->type == CLAP_EVENT_PARAM_VALUE) { param(h); return; }
+        if (dsp.graph.autonomous) return;
         if (h->type == CLAP_EVENT_MIDI && h->size >= sizeof(clap_event_midi_t)) {
             midi(*reinterpret_cast<const clap_event_midi_t *>(h), output);
         }
@@ -264,7 +267,8 @@ clap_process_status CLAP_ABI process(const clap_plugin_t *p, const clap_process_
         for (auto &v : self.dsp.voices)
             if (!v.active && v.clap_note) self.end_voice(v, frame, block->out_events);
     }
-    return std::any_of(self.dsp.voices.begin(), self.dsp.voices.end(), [](const Voice &v) { return v.active; })
+    return self.dsp.graph.clock_count > 0 ||
+        std::any_of(self.dsp.voices.begin(), self.dsp.voices.end(), [](const Voice &v) { return v.active; })
         ? CLAP_PROCESS_CONTINUE : CLAP_PROCESS_SLEEP;
 }
 
