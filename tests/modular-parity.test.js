@@ -47,6 +47,14 @@ const voice = (extra, cables) => ({
   cables,
 });
 const PATCHES = {
+  'looping function generator and end-of-cycle pulse': voice([
+    { id: 'fn', type: 'functionGen', params: { rise: 0.003, fall: 0.01, curve: 0.3, loop: 1 } },
+    { id: 'sum', type: 'mix' },
+  ], [
+    { from: 'fn', port: 'out', to: 'sum', input: 'a' },
+    { from: 'fn', port: 'eoc', to: 'sum', input: 'b' },
+    { from: 'sum', port: 'out', to: 'out', input: 'audio' },
+  ]),
   'stereo pan and voice spread': voice([
     { id: 'osc', type: 'vco' },
     { id: 'pan', type: 'pan', params: { pan: 0.2, spread: 0.85 } },
