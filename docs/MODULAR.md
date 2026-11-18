@@ -12,6 +12,8 @@ Modular is a polyphonic patchable synth available in the Web app and as **AmiSyn
 
 Use the checkboxes on module cards to select a group. **Duplicate selection** copies the modules and cables within the group. **Save selection** writes the group to a fragment JSON file, and **Insert fragment** adds it to any open rack. **Undo** and **Redo** step through rack edits without changing the current macro values.
 
+On the Web, choose any module output in **Scope** to see the most recent 1024 samples from the first active voice, along with the current value and range. The output need not have a cable connected.
+
 Patches support up to 32 modules and eight voices. The first **MIDI / Note** module sets the voice mode: **Poly**, **Mono** (last-note priority; releasing a key returns to the one still held) or **Legato** (a new key while one is held keeps the envelopes running), with **glide** time and whether glide happens **Always** or only between overlapping notes. These three knobs are patch settings and take no cable. A structural edit resets the voices. Turning a knob or changing a macro keeps them running. Audio is mono per voice and goes to both stereo channels.
 
 ### Signal conventions
