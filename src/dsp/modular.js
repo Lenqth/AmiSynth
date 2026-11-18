@@ -110,6 +110,13 @@ export const MODULAR_TYPES = Object.freeze({
     inputs: ['a', 'b'], outputs: ['out'], params: {
       level: { min: 0, max: 2, default: 1, step: 0.01 },
     } },
+  wavefolder: { label: 'Wavefolder / Shaper', category: 'Filters & Effects', keywords: 'wavefold distortion saturation harmonics',
+    inputs: ['in'], outputs: ['out'], params: {
+      drive: { min: 0, max: 16, default: 4, step: 0.01 },
+      bias: { min: -1, max: 1, default: 0, step: 0.01 },
+      mix: { min: 0, max: 1, default: 1, step: 0.01 },
+      shape: { min: 0, max: 1, default: 0, step: 1, choices: ['Fold', 'Soft clip'] },
+    } },
   vca: { label: 'VCA', category: 'Utilities', keywords: 'amplifier gain volume',
     inputs: ['audio', 'gain'], outputs: ['out'], params: {
       level: { min: 0, max: 2, default: 1, step: 0.01 },
@@ -700,6 +707,14 @@ function sampleNode(s, v, i) {
       break;
     }
     case 'ring': sig.out = read(v, n, 'a') * read(v, n, 'b', 1) * parameter(v, n, 'level'); break;
+    case 'wavefolder': {
+      const input = read(v, n, 'in');
+      const x = input * parameter(v, n, 'drive') + parameter(v, n, 'bias');
+      const period = x + 1 - 4 * Math.floor((x + 1) / 4);
+      const wet = parameter(v, n, 'shape') ? Math.tanh(x) : 1 - Math.abs(period - 2);
+      sig.out = input + (wet - input) * parameter(v, n, 'mix');
+      break;
+    }
     case 'comb': {
       const line = v.lines[n.line];
       const delay = clamp(parameter(v, n, 'time') * s.sampleRate / 1000, 1, MODULAR_LINE_SAMPLES - 2);

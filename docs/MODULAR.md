@@ -33,6 +33,7 @@ Patches support up to 32 modules and eight voices. The first **MIDI / Note** mod
 | Sample & Hold | Holds **in** (or new noise when unpatched) on each rising **trigger**, or at **rate** when the trigger is unpatched. |
 | Slew / Glide, Envelope Follower | One-pole smoothing with separate rise and fall times; the follower smooths the input's magnitude. |
 | Multiply / Ring | `a × b × level`; an unpatched **b** is 1. |
+| Wavefolder / Shaper | **Drive** amplifies the signal before **bias** shifts it. **Fold** reflects it at ±1, while **Soft clip** saturates it smoothly. **Mix** blends the result with the input. |
 | Comb / Delay Line | Delay of 0.05–40 ms with damped feedback and a dry/wet mix. |
 | Pluck String | Karplus-Strong string: a rising **gate** plucks it at **pitch**; **excite** adds input to the loop. **decay** is the time to −60 dB while held, **release** after. |
 | Modal Resonator | Eight resonant modes from the Physical instrument's materials, struck by a rising **gate** and excited by **in**. |

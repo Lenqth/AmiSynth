@@ -504,6 +504,14 @@ struct Engine {
             break;
         }
         case Type::ring: sig[0] = read(v, n, 0) * read(v, n, 1, 1) * p[0]; break;
+        case Type::wavefolder: {
+            const double input = read(v, n, 0);
+            const double x = input * p[0] + p[1];
+            const double period = x + 1 - 4 * std::floor((x + 1) / 4);
+            const double wet = p[3] ? std::tanh(x) : 1 - std::abs(period - 2);
+            sig[0] = input + (wet - input) * p[2];
+            break;
+        }
         case Type::comb: {
             auto &line = v.lines[size_t(n.line)];
             const double delay = std::clamp(p[0] * rate / 1000, 1.0, double(kLineSamples - 2));
