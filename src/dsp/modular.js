@@ -210,6 +210,30 @@ export const MODULAR_PRESETS = [
     patch.cables.push({ from: 'vibrato', port: 'out', to: 'osc', input: 'fm' });
     return patch;
   } },
+  { name: 'Folded Reed', patch: () => ({
+    nodes: [
+      { id: 'note', type: 'midi', position: { x: 22, y: 22 } },
+      { id: 'osc', type: 'vco', params: { wave: 0, level: 0.7 }, position: { x: 296, y: 22 } },
+      { id: 'fold', type: 'wavefolder', params: { bias: 0.12, mix: 0.82 }, position: { x: 570, y: 22 } },
+      { id: 'filter', type: 'vcf', params: { cutoff: 3500, resonance: 0.19, keytrack: 0.4 }, position: { x: 844, y: 22 } },
+      { id: 'amp', type: 'vca', params: { level: 0.58 }, position: { x: 1118, y: 22 } },
+      { id: 'out', type: 'output', position: { x: 1392, y: 22 } },
+      { id: 'env', type: 'adsr', params: { attack: 0.025, decay: 0.21, sustain: 0.36, release: 0.18, curve: 1 }, position: { x: 296, y: 442 } },
+      { id: 'drive', type: 'cv', params: { scale: 6.5, offset: 1.25 }, position: { x: 570, y: 442 } },
+    ],
+    cables: [
+      { from: 'note', port: 'pitch', to: 'osc', input: 'pitch' },
+      { from: 'note', port: 'pitch', to: 'filter', input: 'pitch' },
+      { from: 'note', port: 'gate', to: 'env', input: 'gate' },
+      { from: 'env', port: 'out', to: 'drive', input: 'in' },
+      { from: 'drive', port: 'out', to: 'fold', input: 'param:drive' },
+      { from: 'osc', port: 'out', to: 'fold', input: 'in' },
+      { from: 'fold', port: 'out', to: 'filter', input: 'audio' },
+      { from: 'filter', port: 'out', to: 'amp', input: 'audio' },
+      { from: 'env', port: 'out', to: 'amp', input: 'gain' },
+      { from: 'amp', port: 'out', to: 'out', input: 'audio' },
+    ],
+  }) },
   { name: 'Feedback Bass', patch() {
     const patch = defaultModularPatch();
     patch.nodes.push(
