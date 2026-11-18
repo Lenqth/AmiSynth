@@ -206,7 +206,7 @@ for (const [name, patch] of Object.entries(PATCHES)) {
       }
       assert.ok(energy > 1e-3, `${name} is silent`);
       assert.ok(worst < 1e-4, `${name} differs by ${worst} at sample ${at}`);
-      if (name === 'stereo pan and voice spread') {
+      if (name === 'stereo pan and voice spread' || name === 'factory: Stereo Drift') {
         const webRight = renderWeb(patch, true), nativeRight = renderNative(patch, dir, true);
         assert.ok(webRight.some((value, i) => Math.abs(value - web[i]) > 0.01));
         assert.ok(webRight.every((value, i) => Math.abs(value - nativeRight[i]) < 1e-4));

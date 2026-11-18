@@ -226,6 +226,27 @@ export const MODULAR_PRESETS = [
     );
     return patch;
   } },
+  { name: 'Stereo Drift', patch: () => ({
+    nodes: [
+      { id: 'note', type: 'midi', position: { x: 22, y: 22 } },
+      { id: 'osc', type: 'vco', params: { wave: 3, level: 0.52 }, position: { x: 296, y: 22 } },
+      { id: 'amp', type: 'vca', position: { x: 570, y: 22 } },
+      { id: 'pan', type: 'pan', params: { spread: 0.42 }, position: { x: 844, y: 22 } },
+      { id: 'out', type: 'output', position: { x: 1118, y: 22 } },
+      { id: 'env', type: 'adsr', params: { attack: 0.065, decay: 0.32, sustain: 0.68, release: 0.48 }, position: { x: 570, y: 442 } },
+      { id: 'drift', type: 'lfo', params: { rate: 0.43, depth: 0.55 }, position: { x: 844, y: 442 } },
+    ],
+    cables: [
+      { from: 'note', port: 'pitch', to: 'osc', input: 'pitch' },
+      { from: 'note', port: 'gate', to: 'env', input: 'gate' },
+      { from: 'osc', port: 'out', to: 'amp', input: 'audio' },
+      { from: 'env', port: 'out', to: 'amp', input: 'gain' },
+      { from: 'amp', port: 'out', to: 'pan', input: 'in' },
+      { from: 'drift', port: 'out', to: 'pan', input: 'param:pan' },
+      { from: 'pan', port: 'left', to: 'out', input: 'audio' },
+      { from: 'pan', port: 'right', to: 'out', input: 'right' },
+    ],
+  }) },
   ...physicalPresets(),
   ...MODULAR_SYNTH_PORTS,
 ];
