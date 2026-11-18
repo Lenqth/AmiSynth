@@ -47,6 +47,26 @@ const voice = (extra, cables) => ({
   cables,
 });
 const PATCHES = {
+  'autonomous clock division, probability, and quantized steps': {
+    nodes: [
+      { id: 'clock', type: 'clock', params: { bpm: 300, pulses: 12, duty: 0.25 } },
+      { id: 'divide', type: 'divider', params: { division: 3 } },
+      { id: 'seq', type: 'sequencer', params: { length: 3, step1: 48, step2: 51.4, step3: 55, probability: 0.7 } },
+      { id: 'scale', type: 'quantizer', params: { scale: 1 } },
+      { id: 'osc', type: 'vco' },
+      { id: 'amp', type: 'vca' },
+      { id: 'out', type: 'output' },
+    ],
+    cables: [
+      { from: 'clock', port: 'gate', to: 'divide', input: 'clock' },
+      { from: 'divide', port: 'gate', to: 'seq', input: 'clock' },
+      { from: 'seq', port: 'cv', to: 'scale', input: 'pitch' },
+      { from: 'scale', port: 'out', to: 'osc', input: 'pitch' },
+      { from: 'seq', port: 'gate', to: 'amp', input: 'gain' },
+      { from: 'osc', port: 'out', to: 'amp', input: 'audio' },
+      { from: 'amp', port: 'out', to: 'out', input: 'audio' },
+    ],
+  },
   'filter modes and key tracking': voice([
     { id: 'osc', type: 'vco', params: { wave: 1 } },
     { id: 'lp', type: 'vcf', params: { mode: 0, keytrack: 1, resonance: 0.6, cutoff: 800 } },

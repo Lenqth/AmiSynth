@@ -6,7 +6,7 @@ import { MODULAR_SYNTH_PORTS } from '../presets/modular.js';
 
 // Native storage limits per module (checked by scripts/gen-modular-clap.js).
 export const MODULAR_MAX_INPUTS = 4;
-export const MODULAR_MAX_PARAMS = 6;
+export const MODULAR_MAX_PARAMS = 10;
 export const MODULAR_MAX_OUTPUTS = 3;
 // Strings and comb filters share a fixed, preallocated delay-line pool per voice.
 export const MODULAR_LINES = 4;
@@ -90,6 +90,31 @@ export const MODULAR_TYPES = Object.freeze({
     inputs: [], outputs: ['out'], params: {
       index: { min: 1, max: 8, default: 1, step: 1 },
     } },
+  clock: { label: 'Clock', category: 'Modulation', keywords: 'tempo bpm pulse time sequencer',
+    inputs: [], outputs: ['gate', 'phase'], params: {
+      bpm: { min: 20, max: 300, default: 120, step: 0.1, fixed: true },
+      pulses: { min: 1, max: 16, default: 4, step: 1, fixed: true },
+      duty: { min: 0.01, max: 0.99, default: 0.5, step: 0.01, fixed: true },
+    } },
+  divider: { label: 'Clock Divider', category: 'Modulation', keywords: 'clock pulse divide rhythm',
+    inputs: ['clock', 'reset'], outputs: ['gate'], params: {
+      division: { min: 1, max: 32, default: 2, step: 1 },
+    } },
+  sequencer: { label: 'Step Sequencer', category: 'Modulation', keywords: 'step sequence pattern pitch gate cv probability',
+    inputs: ['clock', 'reset'], outputs: ['cv', 'gate'], params: {
+      length: { min: 1, max: 8, default: 8, step: 1 },
+      probability: { min: 0, max: 1, default: 1, step: 0.01 },
+      ...Object.fromEntries(Array.from({ length: 8 }, (_, i) => [
+        'step' + (i + 1), { min: -24, max: 127, default: 0, step: 0.01 },
+      ])),
+    } },
+  quantizer: { label: 'Pitch Quantizer', category: 'Utilities', keywords: 'scale tuning pitch chromatic major minor pentatonic',
+    inputs: ['pitch'], outputs: ['out'], params: {
+      root: { min: 0, max: 11, default: 0, step: 1,
+        choices: ['C', 'C♯', 'D', 'D♯', 'E', 'F', 'F♯', 'G', 'G♯', 'A', 'A♯', 'B'] },
+      scale: { min: 0, max: 4, default: 0, step: 1,
+        choices: ['Chromatic', 'Major', 'Natural minor', 'Major pentatonic', 'Minor pentatonic'] },
+    } },
   vcf: { label: 'VCF', category: 'Filters & Effects', keywords: 'filter lowpass highpass bandpass notch cutoff resonance keytrack',
     inputs: ['audio', 'cutoff', 'pitch'], outputs: ['out'], params: {
       cutoff: { min: 20, max: 18000, default: 2400, step: 1 },
@@ -142,6 +167,7 @@ export const MODULAR_TYPES = Object.freeze({
 const LINE_TYPES = new Set(['string', 'comb']);
 // Modules that ring on after their gate falls; a released voice lives until they are quiet.
 const RINGING_TYPES = new Set(['adsr', 'string', 'modal']);
+const QUANTIZER_SCALES = [0xfff, 0xab5, 0x5ad, 0x295, 0x4a9];
 
 const searchWords = text => text.toLowerCase().split(/[^a-z0-9&]+/).filter(Boolean);
 
@@ -222,6 +248,23 @@ export const MODULAR_PRESETS = [
     return patch;
   } },
   ...physicalPresets(),
+  { name: 'Clockwork Plucks', patch: () => ({
+    nodes: [
+      { id: 'clock', type: 'clock', params: { bpm: 112, pulses: 2, duty: 0.3 }, position: { x: 22, y: 22 } },
+      { id: 'seq', type: 'sequencer', params: { step1: 48, step2: 55, step3: 62, step4: 63, step5: 60,
+        step6: 58, step7: 55, step8: 51, probability: 0.9 }, position: { x: 296, y: 22 } },
+      { id: 'scale', type: 'quantizer', params: { scale: 2 }, position: { x: 570, y: 22 } },
+      { id: 'string', type: 'string', params: { decay: 0.4, release: 0.22 }, position: { x: 844, y: 22 } },
+      { id: 'out', type: 'output', position: { x: 1118, y: 22 } },
+    ],
+    cables: [
+      { from: 'clock', port: 'gate', to: 'seq', input: 'clock' },
+      { from: 'seq', port: 'cv', to: 'scale', input: 'pitch' },
+      { from: 'scale', port: 'out', to: 'string', input: 'pitch' },
+      { from: 'seq', port: 'gate', to: 'string', input: 'gate' },
+      { from: 'string', port: 'out', to: 'out', input: 'audio' },
+    ],
+  }) },
   ...MODULAR_SYNTH_PORTS,
 ];
 
@@ -314,9 +357,10 @@ export function compileModularPatch(raw) {
   const macros = Array.from({ length: MODULAR_MACROS }, (_, i) =>
     Number.isFinite(raw.macros?.[i]) ? clamp(raw.macros[i], 0, 1) : 0);
   const midi = nodes.find(n => n.type === 'midi');
+  const clocks = order.filter(i => nodes[i].type === 'clock');
   const mono = { mode: midi?.params.voices ?? 0, glide: midi?.params.glide ?? 0, legatoOnly: midi?.params.glideMode ?? 0 };
   return {
-    nodes, order, delays, outputs, envelopes, lineCount, mono,
+    nodes, order, delays, outputs, envelopes, lineCount, mono, clocks, autonomous: clocks.length > 0 && !midi,
     meterSources: [...new Map(raw.cables.map(c => {
       const key = c.from + '/' + c.port;
       return [key, { key, index: ids.get(c.from), port: c.port }];
@@ -415,6 +459,7 @@ export function modular_set_patch(s, patch) {
       old.nodes.every((n, i) => n.id === graph.nodes[i].id && n.type === graph.nodes[i].type) &&
       old.patch.cables.every((c, i) => Object.keys(c).every(k => c[k] === graph.patch.cables[i][k]))) return;
   s.voices = Array.from({ length: MAX_VOICES }, () => newVoice(graph.nodes.length));
+  s.clockPhases = new Float64Array(graph.nodes.length);
 }
 
 export function modular_all_notes_off(s) {
@@ -423,6 +468,7 @@ export function modular_all_notes_off(s) {
 }
 
 export function modular_midi(s, status, d1, d2) {
+  if (s.graph.autonomous) return;
   const op = status & 0xf0, channel = status & 0x0f;
   if (op === 0xe0) { s.bend[channel] = (((d2 << 7) | d1) - 8192) / 4096; return; }
   if (op === 0xb0) {
@@ -567,6 +613,40 @@ function sampleNode(s, v, i) {
     case 'midi':
       sig.pitch = v.note + v.glide + s.bend[v.channel]; sig.gate = v.held ? 1 : 0; sig.velocity = v.velocity;
       break;
+    case 'clock':
+      sig.phase = s.clockPhases[i];
+      sig.gate = Number(sig.phase < n.params.duty);
+      break;
+    case 'divider':
+    case 'sequencer': {
+      const high = read(v, n, 'clock') > 0;
+      const sequence = n.type === 'sequencer';
+      const length = parameter(v, n, sequence ? 'length' : 'division');
+      if (read(v, n, 'reset') > 0) {
+        st.mode = st.write = st.value = 0;
+      } else if (high && !st.ready) {
+        st.write = st.mode ? (st.write + 1) % length : 0;
+        st.mode = 1;
+        st.value = sequence ? Number((white(st) + 1) * 0.5 < parameter(v, n, 'probability')) : Number(st.write === 0);
+      }
+      st.ready = high;
+      sig.gate = high ? st.value : 0;
+      if (sequence) {
+        const step = Math.min(st.write, length - 1);
+        sig.cv = parameter(v, n, 'step' + (step + 1));
+      }
+      break;
+    }
+    case 'quantizer': {
+      const pitch = clamp(read(v, n, 'pitch', 60), 0, 127);
+      const root = parameter(v, n, 'root');
+      const mask = QUANTIZER_SCALES[parameter(v, n, 'scale')];
+      let lower = Math.floor(pitch), upper = Math.ceil(pitch);
+      while (lower >= 0 && !(mask & (1 << ((lower + 12 - root) % 12)))) lower--;
+      while (upper <= 127 && !(mask & (1 << ((upper + 12 - root) % 12)))) upper++;
+      sig.out = upper > 127 || (lower >= 0 && pitch - lower <= upper - pitch) ? lower : upper;
+      break;
+    }
     case 'vco': {
       const waveType = parameter(v, n, 'wave');
       const note = read(v, n, 'pitch', 69) + 12 * parameter(v, n, 'octave') + parameter(v, n, 'detune') / 100 + read(v, n, 'fm') * 12;
@@ -789,7 +869,8 @@ function sampleNode(s, v, i) {
 }
 export function modular_render(s) {
   let out = 0;
-  const { nodes, order, delays, outputs, envelopes, mono } = s.graph;
+  const { nodes, order, delays, outputs, envelopes, mono, clocks, autonomous } = s.graph;
+  if (autonomous && !s.voices[0].active) startVoice(s, s.voices[0], 0, 60, 1);
   // Glide decays like the Synth instrument: about 95% of the way after the glide time.
   const glideCoef = mono.glide > 0 ? Math.exp(-1 / (mono.glide / 3 * s.sampleRate)) : 0;
   let meterVoice;
@@ -816,6 +897,11 @@ export function modular_render(s) {
       }
     }
     out += sample;
+  }
+  for (const i of clocks) {
+    const { bpm, pulses } = nodes[i].params;
+    const phase = s.clockPhases[i] + bpm * pulses / (60 * s.sampleRate);
+    s.clockPhases[i] = phase - Math.floor(phase);
   }
   if (s.meter && (s.meter.elapsed++, --s.meter.remaining === 0)) {
     measureSignals(s, meterVoice);

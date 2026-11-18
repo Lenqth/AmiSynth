@@ -45,8 +45,10 @@ struct Node {
 };
 struct Graph {
     std::array<Node, kNodes> nodes{};
-    std::array<int, kNodes> order{}, delays{}, outputs{}, envelopes{};
+    std::array<int, kNodes> order{}, delays{}, outputs{}, envelopes{}, clocks{};
     int size = 0, delay_count = 0, output_count = 0, envelope_count = 0, line_count = 0;
+    int clock_count = 0;
+    bool autonomous = false;
     // From the first MIDI / Note module: 0 poly, 1 mono, 2 legato; glide in seconds.
     int voice_mode = 0;
     double glide = 0;
@@ -86,6 +88,7 @@ inline Graph compile(Json &patch, Macros &macros) {
         }
         if (node.type == Type::output) graph.outputs[graph.output_count++] = int(ids.size());
         if (node.type == Type::delay) graph.delays[graph.delay_count++] = int(ids.size());
+        if (node.type == Type::clock) graph.clocks[graph.clock_count++] = int(ids.size());
         ids.push_back(id);
         specs.push_back(spec);
         const auto params = n.find("params");
@@ -170,8 +173,10 @@ inline Graph compile(Json &patch, Macros &macros) {
             audible.push_back(link.node);
         }
     }
+    graph.autonomous = graph.clock_count != 0;
     for (int i = 0; i < graph.size; ++i) {
         if (graph.nodes[i].type != Type::midi) continue;
+        graph.autonomous = false;
         graph.voice_mode = int(graph.nodes[i].knobs[0]);
         graph.glide = graph.nodes[i].knobs[1];
         graph.glide_legato_only = graph.nodes[i].knobs[2] != 0;
@@ -222,6 +227,7 @@ struct Engine {
     std::array<Voice, 8> voices{};
     std::array<double, 16> bend{};
     std::array<bool, 16> sustain{};
+    std::array<double, kNodes> clock_phases{};
     uint64_t clock = 0;
     // Held keys in Mono and Legato, most recent last.
     struct Held { int16_t channel, key; int32_t id; double velocity; bool clap_note; };
@@ -232,10 +238,11 @@ struct Engine {
     // temporary, which would put hundreds of kilobytes on the stack.
     void reset() {
         for (auto &v : voices) { v.active = v.key_down = v.held = v.clap_note = false; v.tail = 0; }
-        bend = {}; sustain = {}; clock = 0; held_count = 0; last_key = -1;
+        bend = {}; sustain = {}; clock_phases = {}; clock = 0; held_count = 0; last_key = -1;
     }
 
     NoteEnd note_on(int channel, int key, int32_t id, double velocity, bool clap_note) {
+        if (graph.autonomous) return {};
         if (graph.voice_mode) return mono_note_on(channel, key, id, velocity, clap_note);
         auto chosen = voices.begin();
         for (auto it = voices.begin(); it != voices.end(); ++it) {
@@ -374,6 +381,40 @@ struct Engine {
         case Type::midi:
             sig = {v.key + v.glide + bend[v.channel], v.held ? 1.0 : 0.0, v.velocity};
             break;
+        case Type::clock:
+            sig[0] = clock_phases[i] < p[2] ? 1 : 0;
+            sig[1] = clock_phases[i];
+            break;
+        case Type::divider:
+        case Type::sequencer: {
+            const bool high = read(v, n, 0) > 0;
+            const bool sequence = n.type == Type::sequencer;
+            const int length = int(p[0]);
+            if (read(v, n, 1) > 0) {
+                st.mode = st.write = 0;
+                st.value = 0;
+            } else if (high && !st.ready) {
+                st.write = st.mode ? (st.write + 1) % length : 0;
+                st.mode = 1;
+                st.value = sequence ? (white(st) + 1) * 0.5 < p[1] : st.write == 0;
+            }
+            st.ready = high;
+            if (sequence) {
+                sig[0] = p[2 + std::min(st.write, length - 1)];
+                sig[1] = high ? st.value : 0;
+            } else sig[0] = high ? st.value : 0;
+            break;
+        }
+        case Type::quantizer: {
+            constexpr int scales[] = {0xfff, 0xab5, 0x5ad, 0x295, 0x4a9};
+            const double pitch = std::clamp(read(v, n, 0, 60), 0.0, 127.0);
+            const int root = int(p[0]), mask = scales[int(p[1])];
+            int lower = int(std::floor(pitch)), upper = int(std::ceil(pitch));
+            while (lower >= 0 && !(mask & (1 << ((lower + 12 - root) % 12)))) --lower;
+            while (upper <= 127 && !(mask & (1 << ((upper + 12 - root) % 12)))) ++upper;
+            sig[0] = upper > 127 || (lower >= 0 && pitch - lower <= upper - pitch) ? lower : upper;
+            break;
+        }
         case Type::vco: {
             const double note = read(v, n, 0, 69) + 12 * p[1] + p[2] / 100 + read(v, n, 1) * 12;
             const double step = std::clamp(440 * std::exp2((note - 69) / 12), 0.01, rate * 0.45) / rate;
@@ -585,6 +626,10 @@ struct Engine {
 
     double sample(const Macros &macros) {
         double out = 0;
+        if (graph.autonomous && !voices[0].active) {
+            start(voices[0], 0, 60, -1, 1, false);
+            voices[0].key_down = false;
+        }
         // Glide decays like the Synth instrument: about 95% of the way after the glide time.
         const double glide_coef = graph.glide > 0 ? std::exp(-1 / (graph.glide / 3 * rate)) : 0;
         for (auto &v : voices) {
@@ -615,6 +660,12 @@ struct Engine {
                 }
             }
             out += value;
+        }
+        for (int i = 0; i < graph.clock_count; ++i) {
+            const int index = graph.clocks[i];
+            const auto &params = graph.nodes[index].knobs;
+            const double phase = clock_phases[index] + params[0] * params[1] / (60 * rate);
+            clock_phases[index] = phase - std::floor(phase);
         }
         return std::tanh(out);
     }
