@@ -184,7 +184,20 @@ inline Graph compile(Json &patch, Macros &macros) {
             if ((*m)[i].is_number()) macros[i] = std::clamp((*m)[i].get<double>(), 0.0, 1.0);
         }
     }
-    patch = {{"version", 1}, {"nodes", std::move(nodes)}, {"cables", std::move(cables)}, {"macros", macros}};
+    std::array<std::string, kMacroCount> macro_names{};
+    if (const auto names = patch.find("macroNames"); names != patch.end() && names->is_array()) {
+        for (size_t i = 0; i < std::min(names->size(), macro_names.size()); ++i) {
+            if (!(*names)[i].is_string()) continue;
+            const auto &name = (*names)[i].get_ref<const std::string &>();
+            size_t characters = 0, bytes = 0;
+            for (; bytes < name.size(); ++bytes) {
+                if ((static_cast<unsigned char>(name[bytes]) & 0xc0) != 0x80 && characters++ == 24) break;
+            }
+            macro_names[i] = name.substr(0, bytes);
+        }
+    }
+    patch = {{"version", 1}, {"nodes", std::move(nodes)}, {"cables", std::move(cables)},
+             {"macros", macros}, {"macroNames", macro_names}};
     return graph;
 }
 
@@ -526,6 +539,14 @@ struct Engine {
             break;
         }
         case Type::ring: sig[0] = read(v, n, 0) * read(v, n, 1, 1) * p[0]; break;
+        case Type::wavefolder: {
+            const double input = read(v, n, 0);
+            const double x = input * p[0] + p[1];
+            const double period = x + 1 - 4 * std::floor((x + 1) / 4);
+            const double wet = p[3] ? std::tanh(x) : 1 - std::abs(period - 2);
+            sig[0] = input + (wet - input) * p[2];
+            break;
+        }
         case Type::comb: {
             auto &line = v.lines[size_t(n.line)];
             const double delay = std::clamp(p[0] * rate / 1000, 1.0, double(kLineSamples - 2));
@@ -598,7 +619,9 @@ struct Engine {
             sig[0] = read(v, n, 0) * p[0] + read(v, n, 1) * p[1] + read(v, n, 2) * p[2] + read(v, n, 3) * p[3];
             break;
         case Type::cv: sig[0] = read(v, n, 0) * p[0] + p[1]; break;
-        case Type::macro: sig[0] = macros[size_t(p[0]) - 1]; break;
+        case Type::macro:
+            sig[0] = p[1] + (p[2] - p[1]) * std::pow(macros[size_t(p[0]) - 1], std::pow(4.0, p[3]));
+            break;
         case Type::delay: sig[0] = st.memory; break;
         case Type::pan: {
             const int slot = int(&v - voices.data());

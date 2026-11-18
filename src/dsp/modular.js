@@ -96,6 +96,9 @@ export const MODULAR_TYPES = Object.freeze({
   macro: { label: 'Macro CV', category: 'Modulation', keywords: 'automation daw knob',
     inputs: [], outputs: ['out'], params: {
       index: { min: 1, max: 8, default: 1, step: 1 },
+      from: { min: -24000, max: 24000, default: 0, step: 0.01 },
+      to: { min: -24000, max: 24000, default: 1, step: 0.01 },
+      curve: { min: -1, max: 1, default: 0, step: 0.01 },
     } },
   vcf: { label: 'VCF', category: 'Filters & Effects', keywords: 'filter lowpass highpass bandpass notch cutoff resonance keytrack',
     inputs: ['audio', 'cutoff', 'pitch'], outputs: ['out'], params: {
@@ -116,6 +119,13 @@ export const MODULAR_TYPES = Object.freeze({
   ring: { label: 'Multiply / Ring', category: 'Filters & Effects', keywords: 'ring modulator multiplier am product',
     inputs: ['a', 'b'], outputs: ['out'], params: {
       level: { min: 0, max: 2, default: 1, step: 0.01 },
+    } },
+  wavefolder: { label: 'Wavefolder / Shaper', category: 'Filters & Effects', keywords: 'wavefold distortion saturation harmonics',
+    inputs: ['in'], outputs: ['out'], params: {
+      drive: { min: 0, max: 16, default: 4, step: 0.01 },
+      bias: { min: -1, max: 1, default: 0, step: 0.01 },
+      mix: { min: 0, max: 1, default: 1, step: 0.01 },
+      shape: { min: 0, max: 1, default: 0, step: 1, choices: ['Fold', 'Soft clip'] },
     } },
   vca: { label: 'VCA', category: 'Utilities', keywords: 'amplifier gain volume',
     inputs: ['audio', 'gain'], outputs: ['out'], params: {
@@ -234,6 +244,30 @@ export const MODULAR_PRESETS = [
     patch.cables.push({ from: 'vibrato', port: 'out', to: 'osc', input: 'fm' });
     return patch;
   } },
+  { name: 'Folded Reed', patch: () => ({
+    nodes: [
+      { id: 'note', type: 'midi', position: { x: 22, y: 22 } },
+      { id: 'osc', type: 'vco', params: { wave: 0, level: 0.7 }, position: { x: 296, y: 22 } },
+      { id: 'fold', type: 'wavefolder', params: { bias: 0.12, mix: 0.82 }, position: { x: 570, y: 22 } },
+      { id: 'filter', type: 'vcf', params: { cutoff: 3500, resonance: 0.19, keytrack: 0.4 }, position: { x: 844, y: 22 } },
+      { id: 'amp', type: 'vca', params: { level: 0.58 }, position: { x: 1118, y: 22 } },
+      { id: 'out', type: 'output', position: { x: 1392, y: 22 } },
+      { id: 'env', type: 'adsr', params: { attack: 0.025, decay: 0.21, sustain: 0.36, release: 0.18, curve: 1 }, position: { x: 296, y: 442 } },
+      { id: 'drive', type: 'cv', params: { scale: 6.5, offset: 1.25 }, position: { x: 570, y: 442 } },
+    ],
+    cables: [
+      { from: 'note', port: 'pitch', to: 'osc', input: 'pitch' },
+      { from: 'note', port: 'pitch', to: 'filter', input: 'pitch' },
+      { from: 'note', port: 'gate', to: 'env', input: 'gate' },
+      { from: 'env', port: 'out', to: 'drive', input: 'in' },
+      { from: 'drive', port: 'out', to: 'fold', input: 'param:drive' },
+      { from: 'osc', port: 'out', to: 'fold', input: 'in' },
+      { from: 'fold', port: 'out', to: 'filter', input: 'audio' },
+      { from: 'filter', port: 'out', to: 'amp', input: 'audio' },
+      { from: 'env', port: 'out', to: 'amp', input: 'gain' },
+      { from: 'amp', port: 'out', to: 'out', input: 'audio' },
+    ],
+  }) },
   { name: 'Feedback Bass', patch() {
     const patch = defaultModularPatch();
     patch.nodes.push(
@@ -274,6 +308,31 @@ export const MODULAR_PRESETS = [
     ],
   }) },
   ...physicalPresets(),
+  { name: 'Macro Morph', patch: () => ({
+    macros: [0.28],
+    macroNames: ['Tone'],
+    nodes: [
+      { id: 'note', type: 'midi', position: { x: 22, y: 22 } },
+      { id: 'osc', type: 'vco', params: { wave: 1, level: 0.37 }, position: { x: 296, y: 22 } },
+      { id: 'filter', type: 'vcf', params: { slope: 1, keytrack: 0.35 }, position: { x: 570, y: 22 } },
+      { id: 'amp', type: 'vca', position: { x: 844, y: 22 } },
+      { id: 'out', type: 'output', position: { x: 1118, y: 22 } },
+      { id: 'env', type: 'adsr', params: { attack: 0.02, decay: 0.24, sustain: 0.68, release: 0.27 }, position: { x: 570, y: 442 } },
+      { id: 'cutoff', type: 'macro', params: { index: 1, from: 380, to: 6400, curve: 0.45 }, position: { x: 22, y: 442 } },
+      { id: 'resonance', type: 'macro', params: { index: 1, from: 0.53, to: 0.12, curve: -0.35 }, position: { x: 296, y: 442 } },
+    ],
+    cables: [
+      { from: 'note', port: 'pitch', to: 'osc', input: 'pitch' },
+      { from: 'note', port: 'pitch', to: 'filter', input: 'pitch' },
+      { from: 'note', port: 'gate', to: 'env', input: 'gate' },
+      { from: 'osc', port: 'out', to: 'filter', input: 'audio' },
+      { from: 'cutoff', port: 'out', to: 'filter', input: 'param:cutoff' },
+      { from: 'resonance', port: 'out', to: 'filter', input: 'param:resonance' },
+      { from: 'filter', port: 'out', to: 'amp', input: 'audio' },
+      { from: 'env', port: 'out', to: 'amp', input: 'gain' },
+      { from: 'amp', port: 'out', to: 'out', input: 'audio' },
+    ],
+  }) },
   ...MODULAR_SYNTH_PORTS,
 ];
 
@@ -365,6 +424,10 @@ export function compileModularPatch(raw) {
   const envelopes = [...audible].filter(i => RINGING_TYPES.has(nodes[i].type));
   const macros = Array.from({ length: MODULAR_MACROS }, (_, i) =>
     Number.isFinite(raw.macros?.[i]) ? clamp(raw.macros[i], 0, 1) : 0);
+  const macroNames = Array.from({ length: MODULAR_MACROS }, (_, i) => {
+    const name = Array.isArray(raw.macroNames) ? raw.macroNames[i] : '';
+    return typeof name === 'string' ? [...name].slice(0, 24).join('') : '';
+  });
   const midi = nodes.find(n => n.type === 'midi');
   const mono = { mode: midi?.params.voices ?? 0, glide: midi?.params.glide ?? 0, legatoOnly: midi?.params.glideMode ?? 0 };
   return {
@@ -373,7 +436,7 @@ export function compileModularPatch(raw) {
       const key = c.from + '/' + c.port;
       return [key, { key, index: ids.get(c.from), port: c.port }];
     })).values()],
-    patch: { version: 1, macros, nodes: nodes.map(({ id, type, params }, i) => {
+    patch: { version: 1, macros, macroNames, nodes: nodes.map(({ id, type, params }, i) => {
       const position = raw.nodes[i].position;
       return Number.isFinite(position?.x) && Number.isFinite(position?.y)
         ? { id, type, params, position: {
@@ -574,6 +637,21 @@ export function modular_meter_enable(s, enabled) {
     direction: new Int8Array(count),
     turns: new Uint32Array(count),
   } : null;
+  if (enabled) modular_scope_select(s, s.scopeKey);
+}
+
+export function modular_scope_select(s, key) {
+  s.scopeKey = key;
+  if (!s.meter) return;
+  const [id, port] = typeof key === 'string' ? key.split('/') : [];
+  const index = s.graph.nodes.findIndex(n => n.id === id && MODULAR_TYPES[n.type].outputs.includes(port));
+  s.meter.scope = index < 0 ? null : { key, index, port, samples: new Float32Array(1024), write: 0, count: 0 };
+}
+
+function captureScope(scope, voice) {
+  scope.samples[scope.write] = voice ? voice.signals[scope.index][scope.port] : 0;
+  scope.write = (scope.write + 1) % scope.samples.length;
+  scope.count = Math.min(scope.count + 1, scope.samples.length);
 }
 
 // One entry per cable source since the last snapshot: span is the peak-to-peak
@@ -587,6 +665,12 @@ export function modular_meter_snapshot(s) {
     level: Math.max(Math.abs(low[i]), Math.abs(high[i])),
     rate: seconds > 0 ? turns[i] / 2 / seconds : 0,
   });
+  const scope = s.meter.scope;
+  if (scope?.count) {
+    const start = (scope.write - scope.count + scope.samples.length) % scope.samples.length;
+    const waveform = Array.from({ length: scope.count }, (_, i) => scope.samples[(start + i) % scope.samples.length]);
+    signals.push({ key: scope.key, waveform, seconds: (scope.count - 1) / s.sampleRate });
+  }
   low.fill(Infinity);
   high.fill(-Infinity);
   turns.fill(0);
@@ -774,6 +858,14 @@ function sampleNode(s, v, i) {
       break;
     }
     case 'ring': sig.out = read(v, n, 'a') * read(v, n, 'b', 1) * parameter(v, n, 'level'); break;
+    case 'wavefolder': {
+      const input = read(v, n, 'in');
+      const x = input * parameter(v, n, 'drive') + parameter(v, n, 'bias');
+      const period = x + 1 - 4 * Math.floor((x + 1) / 4);
+      const wet = parameter(v, n, 'shape') ? Math.tanh(x) : 1 - Math.abs(period - 2);
+      sig.out = input + (wet - input) * parameter(v, n, 'mix');
+      break;
+    }
     case 'comb': {
       const line = v.lines[n.line];
       const delay = clamp(parameter(v, n, 'time') * s.sampleRate / 1000, 1, MODULAR_LINE_SAMPLES - 2);
@@ -854,7 +946,12 @@ function sampleNode(s, v, i) {
         read(v, n, 'c') * parameter(v, n, 'c') + read(v, n, 'd') * parameter(v, n, 'd');
       break;
     case 'cv': sig.out = read(v, n, 'in') * parameter(v, n, 'scale') + parameter(v, n, 'offset'); break;
-    case 'macro': sig.out = s.graph.patch.macros[parameter(v, n, 'index') - 1]; break;
+    case 'macro': {
+      const value = s.graph.patch.macros[parameter(v, n, 'index') - 1];
+      const from = parameter(v, n, 'from'), to = parameter(v, n, 'to');
+      sig.out = from + (to - from) * Math.pow(value, Math.pow(4, parameter(v, n, 'curve')));
+      break;
+    }
     case 'delay': sig.out = st.memory; break;
     case 'pan': {
       const spread = s.graph.mono.mode ? 0 : (v.slot % 2 ? 1 : -1) * (1 - Math.floor(v.slot / 2) / 4);
@@ -916,6 +1013,7 @@ export function modular_render(s) {
     s.meter.remaining = s.meter.interval;
     s.meter.interval = s.meter.interval === 17 ? 15 : s.meter.interval + 1;
   }
+  if (s.meter?.scope) captureScope(s.meter.scope, meterVoice);
   s.out_l = Math.tanh(out);
   s.out_r = Math.tanh(right);
 }

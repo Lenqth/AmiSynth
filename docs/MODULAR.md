@@ -12,6 +12,8 @@ Modular is a polyphonic patchable synth available in the Web app and as **AmiSyn
 
 Use the checkboxes on module cards to select a group. **Duplicate selection** copies the modules and cables within the group. **Save selection** writes the group to a fragment JSON file, and **Insert fragment** adds it to any open rack. **Undo** and **Redo** step through rack edits without changing the current macro values.
 
+On the Web, choose any module output in **Scope** to see the most recent 1024 samples from the first active voice, along with the current value and range. The output need not have a cable connected.
+
 Patches support up to 32 modules and eight voices. The first **MIDI / Note** module sets the voice mode: **Poly**, **Mono** (last-note priority; releasing a key returns to the one still held) or **Legato** (a new key while one is held keeps the envelopes running), with **glide** time and whether glide happens **Always** or only between overlapping notes. These three knobs are patch settings and take no cable. A structural edit resets the voices. Turning a knob or changing a macro keeps them running. Each cable carries one signal. Connect both Audio output inputs for stereo.
 
 ### Signal conventions
@@ -31,13 +33,14 @@ Patches support up to 32 modules and eight voices. The first **MIDI / Note** mod
 | Pan / Spread | **In** is a mono signal. **Pan** sets its position and **spread** distributes polyphonic voices across alternating positions. Patch **left** to Audio output's **audio** input and **right** to **right**. |
 | Audio output | **Audio** feeds the left channel. An unpatched **right** copies that signal, so existing mono patches play in both channels. |
 | CV Scale / Offset | Applies `input × scale + offset`. An unpatched input uses 0. |
-| Macro CV | Outputs one of eight shared 0–1 macro values per voice. |
+| Macro CV | Reads one of eight shared 0–1 macros and maps it from **from** to **to**. Reverse the endpoints to invert the response. **curve** changes the response between the endpoints. Use a separate Macro CV module per range. Name macros in the rack to identify them in the patch and in CLAP hosts. |
 | Unit Delay | Outputs the previous sample. The value stored at its input is limited to ±4. Every feedback loop needs a delay. |
 | Noise | White, or pink (Paul Kellet's filter). Each voice's noise is seeded from its note, identically in the Web and CLAP engines. |
 | Sample & Hold | Holds **in** (or new noise when unpatched) on each rising **trigger**, or at **rate** when the trigger is unpatched. |
 | Function Generator | A rising **trigger** restarts the envelope from zero. **rise** and **fall** are in seconds, and **curve** shapes the 0–1 output. **eoc** pulses for one sample at the end of the fall. In **Loop** mode, a high **run** starts or repeats cycles. Lowering **run** lets the current cycle finish. Unpatched trigger and run follow the voice's note gate. |
 | Slew / Glide, Envelope Follower | One-pole smoothing with separate rise and fall times; the follower smooths the input's magnitude. |
 | Multiply / Ring | `a × b × level`; an unpatched **b** is 1. |
+| Wavefolder / Shaper | **Drive** amplifies the signal before **bias** shifts it. **Fold** reflects it at ±1, while **Soft clip** saturates it smoothly. **Mix** blends the result with the input. |
 | Comb / Delay Line | Delay of 0.05–40 ms with damped feedback and a dry/wet mix. |
 | Pluck String | Karplus-Strong string: a rising **gate** plucks it at **pitch**; **excite** adds input to the loop. **decay** is the time to −60 dB while held, **release** after. |
 | Modal Resonator | Eight resonant modes from the Physical instrument's materials, struck by a rising **gate** and excited by **in**. |

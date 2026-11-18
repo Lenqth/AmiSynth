@@ -46,6 +46,7 @@ struct Instance {
     static Instance &get(const clap_plugin_t *p) { return *static_cast<Instance *>(p->plugin_data); }
 
     bool load(const std::string &text, bool edit = false, uint32_t macro_mask = (1u << kMacroCount) - 1) {
+        bool renamed = false;
         try {
             // Bound nesting separately from byte size before JSON builds a tree.
             auto next = Json::parse(text, [](int depth, Json::parse_event_t, Json &) {
@@ -54,9 +55,11 @@ struct Instance {
             });
             Macros macros;
             const auto graph = compile(next, macros);
+            renamed = !patch.contains("macroNames") || next["macroNames"] != patch["macroNames"];
             // Moving modules and turning knobs preserve running voices and their DSP memory.
             const auto topology = [](Json value) {
                 value.erase("macros");
+                value.erase("macroNames");
                 for (auto &node : value["nodes"]) { node.erase("params"); node.erase("position"); }
                 return value;
             };
@@ -79,7 +82,7 @@ struct Instance {
         } catch (...) { return false; }
 
         if (const auto *params = static_cast<const clap_host_params_t *>(host->get_extension(host, CLAP_EXT_PARAMS))) {
-            params->rescan(host, CLAP_PARAM_RESCAN_VALUES);
+            params->rescan(host, CLAP_PARAM_RESCAN_VALUES | (renamed ? CLAP_PARAM_RESCAN_INFO : 0));
             if (gui_macro_changes.load()) params->request_flush(host);
         }
         host->request_process(host);
@@ -296,12 +299,17 @@ const clap_plugin_state_t kState{save_state, load_state};
 
 const clap_plugin_params_t kParams{
     [](const clap_plugin_t *) -> uint32_t { return kMacroCount; },
-    [](const clap_plugin_t *, uint32_t index, clap_param_info_t *info) {
+    [](const clap_plugin_t *p, uint32_t index, clap_param_info_t *info) {
         if (index >= kMacroCount) return false;
         *info = {};
         info->id = index;
         info->flags = CLAP_PARAM_IS_AUTOMATABLE | CLAP_PARAM_REQUIRES_PROCESS;
         std::snprintf(info->name, sizeof(info->name), "Macro %u", unsigned(index + 1));
+        const auto &patch = Instance::get(p).patch;
+        if (const auto names = patch.find("macroNames"); names != patch.end()) {
+            const auto &name = (*names)[index].get_ref<const std::string &>();
+            if (!name.empty()) std::snprintf(info->name, sizeof(info->name), "%s", name.c_str());
+        }
         info->max_value = 1;
         return true;
     },

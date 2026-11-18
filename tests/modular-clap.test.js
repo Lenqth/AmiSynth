@@ -31,6 +31,7 @@ const webPatch = compileModularPatch({
     { from: 'sum', port: 'out', to: 'memory', input: 'in' },
   ],
   macros: [0.15],
+  macroNames: ['Brightness', '明るさ'],
 }).patch;
 
 test('Modular CLAP loads Web patches, plays and automates at exact offsets, and restores variable-length state', {
