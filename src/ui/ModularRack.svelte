@@ -26,6 +26,11 @@
   let viewHeight = $state(0);
   let zoom = $state(1);
   let file = $state();
+  let fragmentFile = $state();
+  let marked = $state([]);
+  let past = $state.raw([]);
+  let future = $state.raw([]);
+  let lastEdit = null;
   let positions = $state({});
   let observer;
   const graph = $derived(compileModularPatch(patch).patch);
@@ -203,14 +208,85 @@
 
   function commit(next, options) {
     try {
-      onchange(compileModularPatch(next).patch, options);
+      const normalized = compileModularPatch(next).patch;
+      if (JSON.stringify(normalized) === JSON.stringify(graph)) return false;
+      if (!options?.skipHistory) {
+        const now = performance.now();
+        if (!options?.gesture || lastEdit?.key !== options.gesture || now - lastEdit.time > 400)
+          past = [...past.slice(-49), graph];
+        lastEdit = options?.gesture ? { key: options.gesture, time: now } : null;
+        future = [];
+      }
+      onchange(normalized, options);
       error = '';
-    } catch (e) { error = e.message; }
+      return true;
+    } catch (e) { error = e.message; return false; }
+  }
+
+  function history(redo) {
+    const source = redo ? future : past;
+    if (!source.length) return;
+    const before = graph;
+    const next = source.at(-1);
+    // Host automation owns the current macro values, independent of rack edits.
+    commit({ ...next, macros: before.macros }, { skipHistory: true });
+    if (redo) {
+      past = [...past, before];
+      future = future.slice(0, -1);
+    } else {
+      future = [...future, before];
+      past = past.slice(0, -1);
+    }
+    marked = [];
+    lastEdit = null;
+  }
+
+  function toggleMarked(id) {
+    marked = marked.includes(id) ? marked.filter(item => item !== id) : [...marked, id];
+  }
+
+  function fragment() {
+    return {
+      format: 'amisynth-modular-fragment',
+      version: 1,
+      nodes: cards.filter(c => marked.includes(c.node.id)).map(c => ({
+        ...c.node, position: { x: c.x, y: c.y },
+      })),
+      cables: graph.cables.filter(c => marked.includes(c.from) && marked.includes(c.to)),
+    };
+  }
+
+  function insertFragment(part, x, y) {
+    if (part?.format !== 'amisynth-modular-fragment' || part.version !== 1 ||
+        !Array.isArray(part.nodes) || !part.nodes.length || !Array.isArray(part.cables) ||
+        nodes.length + part.nodes.length > 32)
+      throw new Error('Invalid fragment or the rack would exceed 32 modules');
+    const ids = new Map();
+    for (const node of part.nodes) {
+      if (typeof node?.id !== 'string' || ids.has(node.id) ||
+          !Number.isFinite(node.position?.x) || !Number.isFinite(node.position?.y))
+        throw new Error('Invalid fragment module');
+      ids.set(node.id, 'module_' + Array.from(crypto.getRandomValues(new Uint8Array(8)), n => n.toString(16).padStart(2, '0')).join(''));
+    }
+    const minX = Math.min(...part.nodes.map(n => n.position.x));
+    const minY = Math.min(...part.nodes.map(n => n.position.y));
+    const inserted = part.nodes.map(n => ({ ...n, id: ids.get(n.id),
+      position: boundedPoint(x + n.position.x - minX, y + n.position.y - minY) }));
+    const cables = part.cables.map(c => ({ ...c, from: ids.get(c?.from), to: ids.get(c?.to) }));
+    if (commit({ ...graph, nodes: [...nodes, ...inserted], cables: [...graph.cables, ...cables] }))
+      marked = inserted.map(n => n.id);
+  }
+
+  function duplicateFragment() {
+    const part = fragment();
+    insertFragment(part, Math.min(...part.nodes.map(n => n.position.x)) + 30,
+      Math.min(...part.nodes.map(n => n.position.y)) + 46);
   }
 
   function replace(next) {
     drag = selected = moving = null;
     foreground = '';
+    marked = [];
     commit(next);
   }
 
@@ -241,11 +317,13 @@
   function remove(id) {
     drag = selected = moving = null;
     closeMenu();
+    marked = marked.filter(item => item !== id);
     commit({ ...graph, nodes: nodes.filter(n => n.id !== id), cables: graph.cables.filter(c => c.from !== id && c.to !== id) });
   }
 
   function knob(id, key, value) {
-    commit({ ...graph, nodes: nodes.map(n => n.id === id ? { ...n, params: { ...n.params, [key]: Number(value) } } : n) });
+    commit({ ...graph, nodes: nodes.map(n => n.id === id ? { ...n, params: { ...n.params, [key]: Number(value) } } : n) },
+      { gesture: id + '/' + key });
   }
 
   function connect(a, b) {
@@ -369,11 +447,11 @@
     return `M ${a.x} ${a.y} C ${a.x + slack} ${a.y}, ${b.x - slack} ${b.y}, ${b.x} ${b.y}`;
   }
 
-  function download() {
-    const url = URL.createObjectURL(new Blob([JSON.stringify(graph, null, 2) + '\n'], { type: 'application/json' }));
+  function download(value = graph, name = 'amisynth.modular.json') {
+    const url = URL.createObjectURL(new Blob([JSON.stringify(value, null, 2) + '\n'], { type: 'application/json' }));
     const link = document.createElement('a');
     link.href = url;
-    link.download = 'amisynth.modular.json';
+    link.download = name;
     link.click();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
@@ -386,6 +464,16 @@
     if (selectedFile.size > MODULAR_PATCH_BYTES) { error = 'Patch file is larger than 64 KiB'; return; }
     try { replace(JSON.parse(await selectedFile.text())); }
     catch (e) { error = e.message; }
+  }
+
+  async function uploadFragment(e) {
+    const file = e.currentTarget.files?.[0];
+    e.currentTarget.value = '';
+    if (!file) return;
+    try {
+      if (file.size > MODULAR_PATCH_BYTES) throw new Error('Fragment file is larger than 64 KiB');
+      insertFragment(JSON.parse(await file.text()), viewport.scrollLeft / zoom + pad, viewport.scrollTop / zoom + pad);
+    } catch (e) { error = e.message; }
   }
 </script>
 
@@ -426,9 +514,15 @@
       </select>
     </label>
     {#if signalSource}<label class="signal-toggle"><input type="checkbox" bind:checked={showSignals} /> Cable activity</label>{/if}
-    <button onclick={download}>Save patch</button>
+    <button onclick={() => download()}>Save patch</button>
     <button onclick={() => file.click()}>Open patch</button>
     <input type="file" accept=".json,application/json" hidden bind:this={file} onchange={upload} />
+    <button disabled={!past.length} onclick={() => history(false)}>Undo</button>
+    <button disabled={!future.length} onclick={() => history(true)}>Redo</button>
+    <button disabled={!marked.length || nodes.length + marked.length > 32} onclick={duplicateFragment}>Duplicate selection</button>
+    <button disabled={!marked.length} onclick={() => download(fragment(), 'amisynth.modular-fragment.json')}>Save selection</button>
+    <button onclick={() => fragmentFile.click()}>Insert fragment</button>
+    <input type="file" accept=".json,application/json" hidden bind:this={fragmentFile} onchange={uploadFragment} />
     <div class="zoom-controls" role="group" aria-label="Zoom">
       <button title="Zoom out" aria-label="Zoom out" disabled={zoom <= zoomMin} onclick={() => zoomTo(zoom / 1.25)}>−</button>
       <button class="zoom-level" title="Reset zoom to 100%" aria-label="Reset zoom (now {Math.round(zoom * 100)}%)" onclick={() => zoomTo(1)}>{Math.round(zoom * 100)}%</button>
@@ -464,7 +558,8 @@
             </button>
             <button class="node-action" title="Remove module" aria-label="Remove {n.id}" disabled={n.type === 'output' && outputCount === 1} onclick={() => remove(n.id)}>×</button>
           </header>
-          <small class="muted">{n.id}</small>
+          <label class="muted"><input type="checkbox" checked={marked.includes(n.id)} onchange={() => toggleMarked(n.id)}
+            aria-label="Select {n.id}" /> <small>{n.id}</small></label>
           {#each Object.entries(MODULAR_TYPES[n.type].params) as [key, def]}
             {@const input = modularParamInput(key)}
             {@const connected = wiredInputs.has(jackKey(n.id, input, 'in'))}
@@ -543,7 +638,7 @@
         <input type="text" aria-label="Macro {i + 1} name" placeholder="Macro {i + 1}" value={graph.macroNames[i]}
           onchange={(e) => commit({ ...graph, macroNames: graph.macroNames.with(i, e.currentTarget.value.trim()) })} />
         <input type="range" aria-label={graph.macroNames[i] || 'Macro ' + (i + 1)} min="0" max="1" step="0.01" value={graph.macros[i]}
-          oninput={(e) => commit({ ...graph, macros: graph.macros.with(i, Number(e.currentTarget.value)) })} />
+          oninput={(e) => commit({ ...graph, macros: graph.macros.with(i, Number(e.currentTarget.value)) }, { skipHistory: true })} />
       </label>
     {/each}
   </div>
