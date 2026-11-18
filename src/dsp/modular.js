@@ -204,6 +204,25 @@ export const MODULAR_MAX_TAIL = MAX_RELEASE + RELEASE_FADE;
 
 export const MODULAR_PRESETS = [
   { name: 'Subtractive', patch: defaultModularPatch },
+  { name: 'Falling Glass', patch: () => ({
+    nodes: [
+      { id: 'note', type: 'midi', position: { x: 22, y: 22 } },
+      { id: 'osc', type: 'vco', params: { wave: 0, level: 0.68 }, position: { x: 296, y: 22 } },
+      { id: 'shape', type: 'functionGen', params: { rise: 0.003, fall: 0.33, curve: 0.35 }, position: { x: 296, y: 442 } },
+      { id: 'sweep', type: 'cv', params: { scale: 0.18 }, position: { x: 570, y: 442 } },
+      { id: 'amp', type: 'vca', position: { x: 570, y: 22 } },
+      { id: 'out', type: 'output', position: { x: 844, y: 22 } },
+    ],
+    cables: [
+      { from: 'note', port: 'pitch', to: 'osc', input: 'pitch' },
+      { from: 'note', port: 'gate', to: 'shape', input: 'trigger' },
+      { from: 'shape', port: 'out', to: 'sweep', input: 'in' },
+      { from: 'sweep', port: 'out', to: 'osc', input: 'fm' },
+      { from: 'shape', port: 'out', to: 'amp', input: 'gain' },
+      { from: 'osc', port: 'out', to: 'amp', input: 'audio' },
+      { from: 'amp', port: 'out', to: 'out', input: 'audio' },
+    ],
+  }) },
   { name: 'Vibrato Lead', patch() {
     const patch = defaultModularPatch();
     patch.nodes.push({ id: 'vibrato', type: 'lfo', params: { rate: 5.2, depth: 0.035 } });
