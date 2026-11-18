@@ -522,6 +522,21 @@ export function modular_meter_enable(s, enabled) {
     direction: new Int8Array(count),
     turns: new Uint32Array(count),
   } : null;
+  if (enabled) modular_scope_select(s, s.scopeKey);
+}
+
+export function modular_scope_select(s, key) {
+  s.scopeKey = key;
+  if (!s.meter) return;
+  const [id, port] = typeof key === 'string' ? key.split('/') : [];
+  const index = s.graph.nodes.findIndex(n => n.id === id && MODULAR_TYPES[n.type].outputs.includes(port));
+  s.meter.scope = index < 0 ? null : { key, index, port, samples: new Float32Array(1024), write: 0, count: 0 };
+}
+
+function captureScope(scope, voice) {
+  scope.samples[scope.write] = voice ? voice.signals[scope.index][scope.port] : 0;
+  scope.write = (scope.write + 1) % scope.samples.length;
+  scope.count = Math.min(scope.count + 1, scope.samples.length);
 }
 
 // One entry per cable source since the last snapshot: span is the peak-to-peak
@@ -535,6 +550,12 @@ export function modular_meter_snapshot(s) {
     level: Math.max(Math.abs(low[i]), Math.abs(high[i])),
     rate: seconds > 0 ? turns[i] / 2 / seconds : 0,
   });
+  const scope = s.meter.scope;
+  if (scope?.count) {
+    const start = (scope.write - scope.count + scope.samples.length) % scope.samples.length;
+    const waveform = Array.from({ length: scope.count }, (_, i) => scope.samples[(start + i) % scope.samples.length]);
+    signals.push({ key: scope.key, waveform, seconds: (scope.count - 1) / s.sampleRate });
+  }
   low.fill(Infinity);
   high.fill(-Infinity);
   turns.fill(0);
@@ -823,5 +844,6 @@ export function modular_render(s) {
     s.meter.remaining = s.meter.interval;
     s.meter.interval = s.meter.interval === 17 ? 15 : s.meter.interval + 1;
   }
+  if (s.meter?.scope) captureScope(s.meter.scope, meterVoice);
   s.out_l = s.out_r = Math.tanh(out);
 }

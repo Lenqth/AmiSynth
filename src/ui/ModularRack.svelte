@@ -7,6 +7,8 @@
 
   let { patch = defaultModularPatch(), onchange = () => {}, signalSource = null } = $props();
   let showSignals = $state(false);
+  let probe = $state('');
+  let trace = $state(null);
   // Smoothed cable activity per source key: swing and level (0..1), dash period and offset.
   let flow = $state({});
   let menu = $state(null);
@@ -30,6 +32,19 @@
   let observer;
   const graph = $derived(compileModularPatch(patch).patch);
   const nodes = $derived(graph.nodes);
+  const probes = $derived(nodes.flatMap(n => MODULAR_TYPES[n.type].outputs.map(port => ({
+    key: n.id + '/' + port, label: n.id + '.' + port,
+  }))));
+  const scope = $derived(probes.some(item => item.key === probe) ? probe : '');
+  const scopePlot = $derived.by(() => {
+    if (!trace?.waveform.length) return null;
+    const samples = trace.waveform;
+    const min = Math.min(...samples), max = Math.max(...samples);
+    const lower = Math.min(0, min), span = Math.max(0.01, max - lower, -lower);
+    const y = value => 72 - (value - lower) * 64 / span;
+    const points = samples.map((value, i) => `${4 + i * 312 / Math.max(1, samples.length - 1)},${y(value)}`).join(' ');
+    return { points, zero: y(0), last: samples.at(-1), min, max, ms: trace.seconds * 1000 };
+  });
   const cardWidth = 224;
   const columnPitch = 274;
   const rowPitch = 420;
@@ -78,9 +93,14 @@
   });
 
   $effect(() => {
-    if (!showSignals || !signalSource) return;
+    const source = scope;
+    if ((!showSignals && !source) || !signalSource) return;
     let targets = {};
-    signalSource.setModularSignals(signals => targets = Object.fromEntries(signals.map(signal => [signal.key, signal])));
+    signalSource.setModularSignals(signals => {
+      targets = Object.fromEntries(signals.filter(signal => !signal.waveform).map(signal => [signal.key, signal]));
+      trace = signals.find(signal => signal.waveform && signal.key === source) ?? null;
+    }, source);
+    if (!showSignals) return () => { signalSource.setModularSignals(null); trace = null; };
     const still = matchMedia('(prefers-reduced-motion: reduce)').matches;
     let previous = performance.now();
     let frame = requestAnimationFrame(function step(now) {
@@ -106,6 +126,7 @@
       cancelAnimationFrame(frame);
       signalSource.setModularSignals(null);
       flow = {};
+      trace = null;
     };
   });
 
@@ -425,7 +446,12 @@
         {#each MODULAR_PRESETS as preset, i}<option value={i}>{preset.name}</option>{/each}
       </select>
     </label>
-    {#if signalSource}<label class="signal-toggle"><input type="checkbox" bind:checked={showSignals} /> Cable activity</label>{/if}
+    {#if signalSource}
+      <label class="signal-toggle"><input type="checkbox" bind:checked={showSignals} /> Cable activity</label>
+      <label>Scope <select bind:value={probe}><option value="">Off</option>
+        {#each probes as item (item.key)}<option value={item.key}>{item.label}</option>{/each}
+      </select></label>
+    {/if}
     <button onclick={download}>Save patch</button>
     <button onclick={() => file.click()}>Open patch</button>
     <input type="file" accept=".json,application/json" hidden bind:this={file} onchange={upload} />
@@ -436,6 +462,18 @@
       <button title="Fit all modules in view" onclick={zoomToFit}>Fit</button>
     </div>
   </div>
+  {#if scope}
+    <div class="scope-panel" aria-label="Signal scope">
+      <svg viewBox="0 0 320 80" role="img" aria-label="Signal waveform">
+        {#if scopePlot}
+          <line x1="4" x2="316" y1={scopePlot.zero} y2={scopePlot.zero} stroke="currentColor" opacity="0.35" />
+          <polyline points={scopePlot.points} fill="none" stroke="currentColor" />
+        {/if}
+      </svg>
+      {#if scopePlot}<small>Value {scopePlot.last.toFixed(3)} · Min {scopePlot.min.toFixed(3)} · Max {scopePlot.max.toFixed(3)} · {scopePlot.ms.toFixed(1)} ms</small>
+      {:else}<small>Waiting for signal</small>{/if}
+    </div>
+  {/if}
   <p class="muted hint">Right-click the rack to add a module. Drag either jack to connect. Click a connected input to unplug it. Ctrl + wheel zooms.</p>
   {#if error}<p role="alert" class="error">{error}</p>{/if}
   <p class="muted selection" role="status">
@@ -608,5 +646,7 @@
   .modular-cable { display:flex; align-items:center; gap:0.4rem; border:1px solid; border-radius:6px; padding:0.15rem 0.35rem }
   .macros label { display:grid; gap:0.35rem; font-size:0.8rem }
   .macros input { width:6rem }
+  .scope-panel { width:min(100%, 320px); margin:0.5rem 0; }
+  .scope-panel svg { display:block; width:100%; background:var(--panel, #172033); color:#71c7ff; }
   h4 { margin:0.8rem 0 0.5rem }
 </style>
