@@ -2,7 +2,7 @@
   import { onMount, tick } from 'svelte';
   import {
     MODULAR_MACROS, MODULAR_MODAL_FIELDS, MODULAR_MODES, MODULAR_PATCH_BYTES, MODULAR_POSITION_MAX, MODULAR_PRESETS, MODULAR_TYPES,
-    compileModularPatch, defaultModularPatch, modularMaterialTable, modularParamInput, searchModularTypes,
+    compileModularPatch, defaultModularPatch, modularMaterialTable, modularParamInput, modularPresetIndex, searchModularTypes,
   } from '../dsp/modular.js';
 
   let { patch = defaultModularPatch(), onchange = () => {}, signalSource = null } = $props();
@@ -36,6 +36,7 @@
   let positions = $state({});
   let observer;
   const graph = $derived(compileModularPatch(patch).patch);
+  const presetIndex = $derived(modularPresetIndex(graph));
   const nodes = $derived(graph.nodes);
   let modalId = $state('');
   let modeRows = $state([]);
@@ -547,11 +548,11 @@
       </select>
     </label>
     <label>Preset
-      <select onchange={(e) => {
-        if (e.currentTarget.value !== '') replace(MODULAR_PRESETS[Number(e.currentTarget.value)].patch());
-        e.currentTarget.value = '';
+      <select value={presetIndex} onchange={(e) => {
+        const preset = MODULAR_PRESETS[Number(e.currentTarget.value)];
+        if (preset) replace(preset.patch());
       }}>
-        <option value="">Load…</option>
+        <option value={-1} disabled>Custom</option>
         {#each MODULAR_PRESETS as preset, i}<option value={i}>{preset.name}</option>{/each}
       </select>
     </label>

@@ -549,6 +549,21 @@ export function safeModularPatch(raw) {
   catch { return defaultModularPatch(); }
 }
 
+function modularPresetSignature(patch) {
+  // Layout changes should not mark a factory sound as edited.
+  const nodes = patch.nodes.map(({ position, ...node }) => node);
+  return JSON.stringify({ ...patch, nodes });
+}
+
+let factoryPresetIndices;
+/** Match an already normalized patch to the factory list, or return -1 for Custom. */
+export function modularPresetIndex(patch) {
+  factoryPresetIndices ??= new Map(MODULAR_PRESETS.map((preset, index) => [
+    modularPresetSignature(compileModularPatch(preset.patch()).patch), index,
+  ]));
+  return factoryPresetIndices.get(modularPresetSignature(patch)) ?? -1;
+}
+
 const MAX_VOICES = 8;
 const TAU = Math.PI * 2;
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
