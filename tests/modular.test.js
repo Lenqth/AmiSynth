@@ -80,6 +80,38 @@ test('factory rhythm patches wait for a key and Patch Beat restarts on the next 
   assert.equal(signal(steps, 'cv'), 1);
 });
 
+test('Beat Grid routes one pulse to any selected lanes, wraps and restarts', () => {
+  const patch = MODULAR_PRESETS.find(preset => preset.name === 'Four Lane Beat').patch();
+  const clock = patch.nodes.find(node => node.id === 'clock');
+  clock.params = { bpm: 300, pulses: 2 };
+  const index = patch.nodes.findIndex(node => node.id === 'grid');
+  patch.nodes[index].params.length = 3;
+  const s = {};
+  modular_init(s, 1000);
+  modular_set_patch(s, patch);
+  const state = () => ['a', 'b', 'c', 'd'].map(lane => s.voices[0].signals[index][lane]);
+  const frames = count => { for (let i = 0; i < count; i++) modular_render(s); };
+  modular_midi(s, 0x90, 60, 100);
+  frames(21);
+  assert.deepEqual(state(), [1, 0, 1, 0]);
+  frames(50);
+  assert.deepEqual(state(), [0, 0, 0, 0]);
+  frames(50);
+  assert.deepEqual(state(), [0, 0, 0, 1]);
+  frames(100);
+  assert.deepEqual(state(), [0, 1, 1, 0]);
+  frames(100);
+  assert.deepEqual(state(), [1, 0, 1, 0]);
+  frames(100);
+  assert.deepEqual(state(), [0, 0, 0, 1]);
+  modular_midi(s, 0x80, 60, 0);
+  frames(1);
+  assert.deepEqual(state(), [0, 0, 0, 0]);
+  modular_midi(s, 0x90, 60, 100);
+  frames(1);
+  assert.deepEqual(state(), [1, 0, 1, 0]);
+});
+
 test('a custom resonance table sets the audible frequency and survives patch serialization', () => {
   const modalTable = [{ ratio: 2.5, gain: 0.8, decay: 0.75 }];
   const patch = {

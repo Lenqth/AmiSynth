@@ -1,6 +1,7 @@
 <script>
   import { onMount, tick } from 'svelte';
   import {
+    BEAT_GRID_LANES, BEAT_GRID_STEPS,
     MODULAR_MACROS, MODULAR_MODAL_FIELDS, MODULAR_MODES, MODULAR_PATCH_BYTES, MODULAR_POSITION_MAX, MODULAR_PRESETS, MODULAR_TYPES,
     compileModularPatch, defaultModularPatch, modularMaterialTable, modularParamInput, modularPresetIndex, searchModularTypes,
   } from '../dsp/modular.js';
@@ -364,9 +365,9 @@
     commit({ ...graph, nodes: nodes.filter(n => n.id !== id), cables: graph.cables.filter(c => c.from !== id && c.to !== id) });
   }
 
-  function knob(id, key, value) {
+  function knob(id, key, value, group = true) {
     commit({ ...graph, nodes: nodes.map(n => n.id === id ? { ...n, params: { ...n.params, [key]: Number(value) } } : n) },
-      { gesture: id + '/' + key });
+      group ? { gesture: id + '/' + key } : undefined);
   }
 
   function connect(a, b) {
@@ -656,7 +657,29 @@
             <button type="button" class="resonance-button" aria-label="Edit resonance table for {n.id}"
               aria-expanded={modalId === n.id} onclick={() => editModes(n)}>{n.modalTable ? 'Edit custom resonance' : 'Edit resonance'}</button>
           {/if}
-          {#each Object.entries(MODULAR_TYPES[n.type].params) as [key, def]}
+          {#if n.type === 'beatGrid'}
+            <table class="beat-grid" aria-label="Beat Grid {n.id}">
+              <thead>
+                <tr><th scope="col">Out</th>
+                  {#each BEAT_GRID_STEPS as key, step}<th scope="col">{step + 1}</th>{/each}
+                </tr>
+              </thead>
+              <tbody>
+                {#each BEAT_GRID_LANES as lane, row}
+                  <tr><th scope="row">{lane.toUpperCase()}</th>
+                    {#each BEAT_GRID_STEPS as key, step}
+                      {@const on = (n.params[key] & (1 << row)) !== 0}
+                      <td><button type="button" class:enabled={on} aria-pressed={on}
+                        aria-label="{n.id} output {lane.toUpperCase()}, step {step + 1}"
+                        disabled={step >= n.params.length}
+                        onclick={() => knob(n.id, key, n.params[key] ^ (1 << row), false)}></button></td>
+                    {/each}
+                  </tr>
+                {/each}
+              </tbody>
+            </table>
+          {/if}
+          {#each Object.entries(MODULAR_TYPES[n.type].params).filter(([, def]) => !def.gridStep) as [key, def]}
             {@const input = modularParamInput(key)}
             {@const connected = wiredInputs.has(jackKey(n.id, input, 'in'))}
             <div class="parameter-row">
@@ -818,5 +841,10 @@
   .modal-editor input { width:6rem; }
   .modal-actions { display:flex; flex-wrap:wrap; gap:0.4rem; }
   .resonance-button { margin:0.25rem 0; }
+  .beat-grid { width:100%; border-spacing:0.1rem; margin:0.35rem 0; font-size:0.7rem; text-align:center }
+  .beat-grid th, .beat-grid td { padding:0; }
+  .beat-grid button { box-sizing:border-box; width:100%; min-width:1.05rem; height:1.15rem; padding:0; border-radius:0.2rem }
+  .beat-grid button.enabled { background:var(--accent, #71c7ff); border-color:var(--accent, #71c7ff) }
+  .beat-grid button:disabled { opacity:0.3 }
   h4 { margin:0.8rem 0 0.5rem }
 </style>

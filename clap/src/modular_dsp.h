@@ -487,13 +487,29 @@ struct Engine {
             sig[0] = clock_phases[i] < p[2] ? 1 : 0;
             sig[1] = clock_phases[i];
             break;
-        case Type::beatGrid: {
+        case Type::gatedClock: {
             const bool run = read(v, n, 0, v.key_down) > 0;
             sig[0] = run && st.phase < p[2] ? 1 : 0;
             sig[1] = run ? st.phase : 0;
             sig[2] = run ? 0 : 1;
             const double phase = st.phase + p[0] * p[1] / (60 * rate);
             st.phase = run ? phase - std::floor(phase) : 0;
+            break;
+        }
+        case Type::beatGrid: {
+            const bool high = read(v, n, 0) > 0;
+            const bool reset = read(v, n, 1) > 0;
+            const int length = int(p[0]);
+            if (reset) {
+                st.mode = st.write = 0;
+            } else if (high && !st.ready) {
+                st.write = st.mode ? (st.write + 1) % length : 0;
+                st.mode = 1;
+            }
+            st.ready = high;
+            const int step = std::min(st.write, length - 1);
+            const int lanes = high && st.mode ? int(p[1 + step]) : 0;
+            for (size_t lane = 0; lane < sig.size(); ++lane) sig[lane] = (lanes >> lane) & 1;
             break;
         }
         case Type::divider:
