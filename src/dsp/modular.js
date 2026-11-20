@@ -146,6 +146,12 @@ export const MODULAR_TYPES = Object.freeze({
     inputs: ['clock', 'reset'], outputs: ['gate'], params: {
       division: { min: 1, max: 32, default: 2, step: 1 },
     } },
+  beatGrid: { label: 'Beat Grid', category: 'Modulation', keywords: 'tempo bpm pulse time rhythm held gate sequencer',
+    inputs: ['run'], outputs: ['gate', 'phase', 'reset'], params: {
+      bpm: { min: 20, max: 300, default: 120, step: 0.1 },
+      pulses: { min: 1, max: 16, default: 2, step: 1 },
+      duty: { min: 0.01, max: 0.99, default: 0.5, step: 0.01 },
+    } },
   sequencer: { label: 'Step Sequencer', category: 'Modulation', keywords: 'step sequence pattern pitch gate cv probability',
     inputs: ['clock', 'reset'], outputs: ['cv', 'gate'], params: {
       length: { min: 1, max: 8, default: 8, step: 1 },
@@ -448,18 +454,21 @@ export const MODULAR_PRESETS = [
   }) },
   { name: 'Clockwork Plucks', patch: () => ({
     nodes: [
-      { id: 'clock', type: 'clock', params: { bpm: 112, pulses: 4, duty: 0.6 }, position: { x: 22, y: 22 } },
-      { id: 'divide', type: 'divider', params: { division: 2 }, position: { x: 296, y: 22 } },
+      { id: 'note', type: 'midi', params: { voices: 2 }, position: { x: 22, y: 22 } },
+      { id: 'beat', type: 'beatGrid', params: { bpm: 112, pulses: 4, duty: 0.6 }, position: { x: 296, y: 22 } },
+      { id: 'divide', type: 'divider', params: { division: 2 }, position: { x: 570, y: 22 } },
       { id: 'seq', type: 'sequencer',
         params: { step1: 48, step2: 55, step3: 61.7, step4: 63,
           step5: 60, step6: 58, step7: 55, step8: 51, probability: 0.9 },
-        position: { x: 570, y: 22 } },
-      { id: 'scale', type: 'quantizer', params: { scale: 2 }, position: { x: 844, y: 22 } },
-      { id: 'string', type: 'string', params: { decay: 0.4, release: 0.22 }, position: { x: 1118, y: 22 } },
-      { id: 'out', type: 'output', position: { x: 1392, y: 22 } },
+        position: { x: 844, y: 22 } },
+      { id: 'scale', type: 'quantizer', params: { scale: 2 }, position: { x: 1118, y: 22 } },
+      { id: 'string', type: 'string', params: { decay: 0.4, release: 0.22 }, position: { x: 1392, y: 22 } },
+      { id: 'out', type: 'output', position: { x: 1666, y: 22 } },
     ],
     cables: [
-      { from: 'clock', port: 'gate', to: 'divide', input: 'clock' },
+      { from: 'beat', port: 'gate', to: 'divide', input: 'clock' },
+      { from: 'beat', port: 'reset', to: 'divide', input: 'reset' },
+      { from: 'beat', port: 'reset', to: 'seq', input: 'reset' },
       { from: 'divide', port: 'gate', to: 'seq', input: 'clock' },
       { from: 'seq', port: 'cv', to: 'scale', input: 'pitch' },
       { from: 'scale', port: 'out', to: 'string', input: 'pitch' },
@@ -530,18 +539,22 @@ function physicalPresets() {
 }
 
 function drumPattern(bpm, patterns) {
-  const nodes = [{ id: 'clock', type: 'clock', params: { bpm, pulses: 2 }, position: { x: 22, y: 22 } }];
+  const nodes = [
+    { id: 'note', type: 'midi', params: { voices: 2 }, position: { x: 22, y: 22 } },
+    { id: 'beat', type: 'beatGrid', params: { bpm }, position: { x: 296, y: 22 } },
+  ];
   const cables = [];
   for (const [row, { id, params, steps, chokedBy }] of patterns.entries()) {
     const y = 22 + row * 454;
     nodes.push(
-      { id: id + '_steps', type: 'sequencer', position: { x: 296, y },
+      { id: id + '_steps', type: 'sequencer', position: { x: 570, y },
         params: { length: steps.length, ...Object.fromEntries(steps.map((value, i) => ['step' + (i + 1), value])) } },
-      { id: id + '_trigger', type: 'ring', position: { x: 570, y } },
-      { id, type: 'drumVoice', params, position: { x: 844, y } },
+      { id: id + '_trigger', type: 'ring', position: { x: 844, y } },
+      { id, type: 'drumVoice', params, position: { x: 1118, y } },
     );
     cables.push(
-      { from: 'clock', port: 'gate', to: id + '_steps', input: 'clock' },
+      { from: 'beat', port: 'gate', to: id + '_steps', input: 'clock' },
+      { from: 'beat', port: 'reset', to: id + '_steps', input: 'reset' },
       { from: id + '_steps', port: 'cv', to: id + '_trigger', input: 'a' },
       { from: id + '_steps', port: 'gate', to: id + '_trigger', input: 'b' },
       { from: id + '_trigger', port: 'out', to: id, input: 'trigger' },
@@ -551,8 +564,8 @@ function drumPattern(bpm, patterns) {
     if (chokedBy) cables.push({ from: chokedBy + '_trigger', port: 'out', to: id, input: 'choke' });
   }
   nodes.push(
-    { id: 'mix', type: 'mix4', params: { a: 0.78, b: 0.66, c: 0.5 }, position: { x: 1118, y: 22 } },
-    { id: 'out', type: 'output', position: { x: 1392, y: 22 } },
+    { id: 'mix', type: 'mix4', params: { a: 0.78, b: 0.66, c: 0.5 }, position: { x: 1392, y: 22 } },
+    { id: 'out', type: 'output', position: { x: 1666, y: 22 } },
   );
   cables.push({ from: 'mix', port: 'out', to: 'out', input: 'audio' });
   return { nodes, cables };
@@ -985,6 +998,15 @@ function sampleNode(s, v, i) {
       sig.phase = s.clockPhases[i];
       sig.gate = Number(sig.phase < n.params.duty);
       break;
+    case 'beatGrid': {
+      const run = read(v, n, 'run', Number(v.keyDown)) > 0;
+      sig.gate = Number(run && st.phase < parameter(v, n, 'duty'));
+      sig.phase = run ? st.phase : 0;
+      sig.reset = Number(!run);
+      const phase = st.phase + parameter(v, n, 'bpm') * parameter(v, n, 'pulses') / (60 * s.sampleRate);
+      st.phase = run ? phase - Math.floor(phase) : 0;
+      break;
+    }
     case 'divider':
     case 'sequencer': {
       const high = read(v, n, 'clock') > 0;

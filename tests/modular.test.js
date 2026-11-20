@@ -36,6 +36,50 @@ test('an autonomous rack clocks steps and rounds MIDI pitch without note input',
   assert.deepEqual(observed, [[60, 1, 60], [60, 0, 60], [61, 1, 60], [60, 1, 60]]);
 });
 
+test('factory rhythm patches wait for a key and Patch Beat restarts on the next press', () => {
+  for (const preset of MODULAR_PRESETS) {
+    assert.ok(!preset.patch().nodes.some(node => node.type === 'clock'), preset.name);
+  }
+  const patch = MODULAR_PRESETS.find(preset => preset.name === 'Patch Beat').patch();
+  const s = {};
+  modular_init(s, 1000);
+  modular_set_patch(s, patch);
+  const beat = patch.nodes.findIndex(node => node.id === 'beat');
+  const steps = patch.nodes.findIndex(node => node.id === 'kick_steps');
+  const signal = (node, port) => s.voices[0].signals[node][port];
+  const render = count => { for (let i = 0; i < count; i++) modular_render(s); };
+
+  for (let i = 0; i < 600; i++) {
+    modular_render(s);
+    assert.equal(s.out_l, 0);
+  }
+  modular_midi(s, 0x90, 60, 100);
+  render(1);
+  assert.equal(signal(beat, 'gate'), 1);
+  assert.equal(signal(steps, 'cv'), 1);
+  render(274);
+  assert.equal(signal(steps, 'cv'), 0);
+  const phase = signal(beat, 'phase');
+
+  modular_midi(s, 0x90, 64, 100);
+  render(1);
+  assert.ok(signal(beat, 'phase') > phase, 'a legato key must not restart the beat');
+  modular_midi(s, 0xb0, 64, 127);
+  modular_midi(s, 0x80, 64, 0);
+  render(1);
+  assert.equal(signal(beat, 'gate'), 1, 'one key is still down');
+  modular_midi(s, 0x80, 60, 0);
+  render(1);
+  assert.equal(signal(beat, 'gate'), 0);
+  assert.equal(signal(beat, 'phase'), 0);
+  assert.equal(signal(beat, 'reset'), 1);
+
+  modular_midi(s, 0x90, 67, 100);
+  render(1);
+  assert.equal(signal(beat, 'gate'), 1);
+  assert.equal(signal(steps, 'cv'), 1);
+});
+
 test('a custom resonance table sets the audible frequency and survives patch serialization', () => {
   const modalTable = [{ ratio: 2.5, gain: 0.8, decay: 0.75 }];
   const patch = {

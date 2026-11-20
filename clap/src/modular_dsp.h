@@ -487,6 +487,15 @@ struct Engine {
             sig[0] = clock_phases[i] < p[2] ? 1 : 0;
             sig[1] = clock_phases[i];
             break;
+        case Type::beatGrid: {
+            const bool run = read(v, n, 0, v.key_down) > 0;
+            sig[0] = run && st.phase < p[2] ? 1 : 0;
+            sig[1] = run ? st.phase : 0;
+            sig[2] = run ? 0 : 1;
+            const double phase = st.phase + p[0] * p[1] / (60 * rate);
+            st.phase = run ? phase - std::floor(phase) : 0;
+            break;
+        }
         case Type::divider:
         case Type::sequencer: {
             const bool high = read(v, n, 0) > 0;
