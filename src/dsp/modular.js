@@ -81,6 +81,14 @@ export const MODULAR_TYPES = Object.freeze({
       brightness: { min: 0, max: 1, default: 0.5, step: 0.01 },
       level: { min: 0, max: 1, default: 0.5, step: 0.01 },
     } },
+  bowed: { label: 'Bowed String', category: 'Physical', keywords: 'bow violin cello friction waveguide bowed string',
+    inputs: ['pitch', 'gate', 'bow'], outputs: ['out'], params: {
+      speed: { min: 0, max: 1, default: 0.42, step: 0.01 },
+      pressure: { min: 0.5, max: 8, default: 3, step: 0.01 },
+      position: { min: 0.08, max: 0.42, default: 0.14, step: 0.001 },
+      damping: { min: 0, max: 0.9, default: 0.27, step: 0.01 },
+      level: { min: 0, max: 1, default: 0.65, step: 0.01 },
+    } },
   lfo: { label: 'LFO', category: 'Modulation', keywords: 'low frequency oscillator vibrato tremolo wobble',
     inputs: [], outputs: ['out'], params: {
       rate: { min: 0.01, max: 30, default: 2, step: 0.01 },
@@ -213,7 +221,7 @@ export const MODULAR_TYPES = Object.freeze({
 
 const LINE_TYPES = new Set(['string', 'comb']);
 // Modules that ring on after their gate falls; a released voice lives until they are quiet.
-const RINGING_TYPES = new Set(['adsr', 'functionGen', 'string', 'modal']);
+const RINGING_TYPES = new Set(['adsr', 'functionGen', 'string', 'modal', 'bowed']);
 const QUANTIZER_SCALES = [0xfff, 0xab5, 0x5ad, 0x295, 0x4a9];
 
 const searchWords = text => text.toLowerCase().split(/[^a-z0-9&]+/).filter(Boolean);
@@ -358,6 +366,29 @@ export const MODULAR_PRESETS = [
       { from: 'pan', port: 'right', to: 'out', input: 'right' },
     ],
   }) },
+  { name: 'Bow Grain', patch: bowGrain },
+  { name: 'Low Bow Cello', patch() {
+    const patch = bowGrain({ speed: 0.38, pressure: 3.5, position: 0.2, damping: 0.39 },
+      { cutoff: 1750, resonance: 0.35 });
+    patch.nodes[0].params = { voices: 2, glide: 0.065, glideMode: 1 };
+    patch.nodes.push({ id: 'octave', type: 'cv', params: { offset: -12 }, position: { x: 22, y: 442 } });
+    patch.cables[0] = { from: 'octave', port: 'out', to: 'bow', input: 'pitch' };
+    patch.cables.push({ from: 'note', port: 'pitch', to: 'octave', input: 'in' });
+    return patch;
+  } },
+  { name: 'Shivering Bow', patch() {
+    const patch = bowGrain({ speed: 0.33, position: 0.12, damping: 0.2 },
+      { cutoff: 4400, resonance: 0.32 });
+    patch.nodes.push(
+      { id: 'shake', type: 'lfo', params: { rate: 5.7 }, position: { x: 22, y: 442 } },
+      { id: 'pressure', type: 'cv', params: { scale: 0.48, offset: 3.2 }, position: { x: 296, y: 442 } },
+    );
+    patch.cables.push(
+      { from: 'shake', port: 'out', to: 'pressure', input: 'in' },
+      { from: 'pressure', port: 'out', to: 'bow', input: 'param:pressure' },
+    );
+    return patch;
+  } },
   ...physicalPresets(),
   { name: 'Twin Glass', patch: () => ({
     nodes: [
@@ -428,6 +459,24 @@ export const MODULAR_PRESETS = [
   ...MODULAR_SYNTH_PORTS,
 ];
 
+function bowGrain(bow = {}, body = { cutoff: 3200, resonance: 0.23 }) {
+  return {
+    nodes: [
+      { id: 'note', type: 'midi', position: { x: 22, y: 22 } },
+      { id: 'bow', type: 'bowed', params: bow, position: { x: 296, y: 22 } },
+      { id: 'body', type: 'vcf', params: body, position: { x: 570, y: 22 } },
+      { id: 'out', type: 'output', position: { x: 844, y: 22 } },
+    ],
+    cables: [
+      { from: 'note', port: 'pitch', to: 'bow', input: 'pitch' },
+      { from: 'note', port: 'gate', to: 'bow', input: 'gate' },
+      { from: 'note', port: 'velocity', to: 'bow', input: 'bow' },
+      { from: 'bow', port: 'out', to: 'body', input: 'audio' },
+      { from: 'body', port: 'out', to: 'out', input: 'audio' },
+    ],
+  };
+}
+
 // Patches for the physical modules. The Synth ports follow (src/presets/modular.js).
 function physicalPresets() {
   // nodes: { id: [type, params] }; cables: 'from.port > to.input'
@@ -478,8 +527,12 @@ export function compileModularPatch(raw) {
   });
   if (!nodes.some((n) => n.type === 'output')) throw new Error('An audio output is required');
   let lineCount = 0;
-  for (const n of nodes) n.line = LINE_TYPES.has(n.type) ? lineCount++ : -1;
-  if (lineCount > MODULAR_LINES) throw new Error(`Use at most ${MODULAR_LINES} strings or comb filters`);
+  for (const n of nodes) {
+    const lines = n.type === 'bowed' ? 2 : Number(LINE_TYPES.has(n.type));
+    n.line = lines ? lineCount : -1;
+    lineCount += lines;
+  }
+  if (lineCount > MODULAR_LINES) throw new Error(`Use at most ${MODULAR_LINES} delay lines; each Bowed String uses two`);
   const adjacency = nodes.map(() => []);
   const degree = nodes.map(() => 0);
   for (const cable of raw.cables) {
@@ -1036,6 +1089,31 @@ function sampleNode(s, v, i) {
       st.amp = Math.max(Math.abs(y), st.amp * 0.9995);
       st.mode = st.amp > 1e-4 ? 1 : 0;
       sig.out = y * parameter(v, n, 'level');
+      break;
+    }
+    case 'bowed': {
+      const gate = read(v, n, 'gate', Number(v.held)) >= 0.5;
+      const target = gate ? parameter(v, n, 'speed') * clamp(read(v, n, 'bow', 1), 0, 1) : 0;
+      st.env += (target - st.env) * (1 - Math.exp(-1 / (s.sampleRate * (gate ? 0.015 : 0.008))));
+      const hz = clamp(440 * Math.pow(2, (read(v, n, 'pitch', 69) - 69) / 12),
+        s.sampleRate / (2 * (MODULAR_LINE_SAMPLES - 2)), s.sampleRate * 0.2);
+      const halfPeriod = 0.5 * s.sampleRate / hz;
+      const position = parameter(v, n, 'position'), damping = parameter(v, n, 'damping');
+      const bridge = v.lines[n.line], nut = v.lines[n.line + 1];
+      const bridgeOut = lineRead(bridge, st.write, Math.max(1, halfPeriod * position));
+      const nutOut = lineRead(nut, st.write, Math.max(1, halfPeriod * (1 - position)));
+      st.prev += (bridgeOut - st.prev) * (1 - damping);
+      const reflectedBridge = -0.95 * st.prev, reflectedNut = -0.995 * nutOut;
+      const relative = st.env - reflectedBridge - reflectedNut;
+      const friction = st.env > 1e-5 ? Math.min(1, Math.pow(0.75 + Math.abs(relative * parameter(v, n, 'pressure')), -4)) : 0;
+      const bow = relative * friction;
+      bridge[st.write] = clamp(reflectedNut + bow, -4, 4);
+      nut[st.write] = clamp(reflectedBridge + bow, -4, 4);
+      st.write = (st.write + 1) & MASK;
+      st.amp = Math.max(Math.abs(bridgeOut), st.amp * 0.9995);
+      st.lastGate = gate;
+      st.mode = st.env > 1e-5 || st.amp > 1e-4 ? 1 : 0;
+      sig.out = bridgeOut * parameter(v, n, 'level');
       break;
     }
     case 'modal': {

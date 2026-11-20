@@ -85,9 +85,11 @@ inline Graph compile(Json &patch, Macros &macros) {
             throw std::invalid_argument("Invalid module");
         auto &node = graph.nodes[ids.size()];
         node.type = spec->type;
-        if (node.type == Type::string || node.type == Type::comb) {
-            if (graph.line_count == int(kLines)) throw std::invalid_argument("Too many delay lines");
-            node.line = graph.line_count++;
+        const int lines = node.type == Type::bowed ? 2 : int(node.type == Type::string || node.type == Type::comb);
+        if (lines) {
+            if (graph.line_count + lines > int(kLines)) throw std::invalid_argument("Too many delay lines");
+            node.line = graph.line_count;
+            graph.line_count += lines;
         }
         if (node.type == Type::output) graph.outputs[graph.output_count++] = int(ids.size());
         if (node.type == Type::delay) graph.delays[graph.delay_count++] = int(ids.size());
@@ -193,7 +195,8 @@ inline Graph compile(Json &patch, Macros &macros) {
         const int index = audible[i];
         // Modules that ring on after their gate falls keep a released voice alive until quiet.
         const auto type = graph.nodes[index].type;
-        if (type == Type::adsr || type == Type::functionGen || type == Type::string || type == Type::modal)
+        if (type == Type::adsr || type == Type::functionGen || type == Type::string ||
+            type == Type::modal || type == Type::bowed)
             graph.envelopes[graph.envelope_count++] = index;
         for (auto link : graph.nodes[index].links) {
             if (link.node < 0 || seen[link.node]) continue;
@@ -650,6 +653,30 @@ struct Engine {
             st.amp = std::max(std::abs(y), st.amp * 0.9995);
             st.mode = st.amp > 1e-4 ? 1 : 0;
             sig[0] = y * p[3];
+            break;
+        }
+        case Type::bowed: {
+            const bool gate = read(v, n, 1, v.held) >= 0.5;
+            const double target = gate ? p[0] * std::clamp(read(v, n, 2, 1), 0.0, 1.0) : 0;
+            st.env += (target - st.env) * lag(gate ? 0.015 : 0.008);
+            const double hz = std::clamp(440 * std::pow(2.0, (read(v, n, 0, 69) - 69) / 12),
+                rate / (2 * (kLineSamples - 2)), rate * 0.2);
+            const double half_period = 0.5 * rate / hz;
+            auto &bridge = v.lines[size_t(n.line)], &nut = v.lines[size_t(n.line + 1)];
+            const double bridge_out = line_read(bridge, st.write, std::max(1.0, half_period * p[2]));
+            const double nut_out = line_read(nut, st.write, std::max(1.0, half_period * (1 - p[2])));
+            st.prev += (bridge_out - st.prev) * (1 - p[3]);
+            const double reflected_bridge = -0.95 * st.prev, reflected_nut = -0.995 * nut_out;
+            const double relative = st.env - reflected_bridge - reflected_nut;
+            const double friction = st.env > 1e-5 ? std::min(1.0, std::pow(0.75 + std::abs(relative * p[1]), -4)) : 0;
+            const double bow = relative * friction;
+            bridge[st.write] = float(std::clamp(reflected_nut + bow, -4.0, 4.0));
+            nut[st.write] = float(std::clamp(reflected_bridge + bow, -4.0, 4.0));
+            st.write = (st.write + 1) & kLineMask;
+            st.amp = std::max(std::abs(bridge_out), st.amp * 0.9995);
+            st.gate = gate;
+            st.mode = st.env > 1e-5 || st.amp > 1e-4 ? 1 : 0;
+            sig[0] = bridge_out * p[4];
             break;
         }
         case Type::modal: {

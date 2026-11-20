@@ -45,6 +45,7 @@ Patches support up to 32 modules and eight voices. The first **MIDI / Note** mod
 | Slew / Glide, Envelope Follower | One-pole smoothing with separate rise and fall times; the follower smooths the input's magnitude. |
 | Multiply / Ring | `a × b × level`; an unpatched **b** is 1. |
 | Wavefolder / Shaper | **Drive** amplifies the signal before **bias** shifts it. **Fold** reflects it at ±1, while **Soft clip** saturates it smoothly. **Mix** blends the result with the input. |
+| Bowed String | Two string sections and a nonlinear bow contact sustain a note while **gate** is high. Patch velocity or CV into **bow** to scale the bow speed. **Pressure**, **position**, and **damping** change the response. It rings after note-off and uses two of the four available delay lines. Try **Bow Grain**. |
 | Comb / Delay Line | Delay of 0.05–40 ms with damped feedback and a dry/wet mix. |
 | Pluck String | Karplus-Strong string: a rising **gate** plucks it at **pitch**; **excite** adds input to the loop. **decay** is the time to −60 dB while held, **release** after. |
 | Modal Resonator | Uses a built-in material or a custom table of up to eight resonant modes. A rising **gate** strikes it and **in** adds continuous excitation. |
