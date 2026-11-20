@@ -39,7 +39,7 @@ Patches support up to 32 modules and eight voices. The first **MIDI / Note** mod
 | Sample & Hold | Holds **in** (or new noise when unpatched) on each rising **trigger**, or at **rate** when the trigger is unpatched. |
 | Function Generator | A rising **trigger** restarts the envelope from zero. **rise** and **fall** are in seconds, and **curve** shapes the 0–1 output. **eoc** pulses for one sample at the end of the fall. In **Loop** mode, a high **run** starts or repeats cycles. Lowering **run** lets the current cycle finish. Unpatched trigger and run follow the voice's note gate. |
 | Clock | Generates a shared **gate** pulse and a 0–1 **phase** ramp. Set **bpm**, **pulses** per beat and the fraction of each pulse spent high (**duty**). |
-| Beat Grid | Emits **gate** pulses and a **phase** ramp while a key is physically held, or while a connected **run** signal is positive. It starts with a pulse, resets its phase when released, and holds **reset** high while stopped. Connect that output to the sequencer's **reset** input to restart at step 1. |
+| Gated Clock | Emits **gate** pulses and a **phase** ramp while a key is physically held, or while a connected **run** signal is positive. It starts with a pulse, resets its phase when released, and holds **reset** high while stopped. Connect that output to the sequencer's **reset** input to restart at step 1. |
 | Clock Divider | Passes the first and every Nth **clock** pulse, keeping its width. Hold **reset** high to clear the count and suppress the output. |
 | Step Sequencer | Advances on rising **clock**, starting at step 1. **CV** holds the current step value. **Gate** follows the clock when that step passes the **probability** check. **Reset** returns to step 1 and suppresses the gate while high. |
 | Drum Voice | A rising **trigger** starts a kick, snare, clap, closed hat, open hat, or tom. **Velocity** scales the hit and a high **choke** cuts its tail. **Tune** shifts the selected sound in semitones; **decay** scales its tail time. Hold a note in **Patch Beat** to play the percussion pattern. |
@@ -81,7 +81,7 @@ Developer checks: `tests/modular-parity.test.js` renders every module and factor
 
 ## Current limits
 
-The factory rhythm patches use Beat Grid and a single legato voice. Hold any key to play **Patch Beat**, **Choked Hats**, **Clap and Toms**, or **Clockwork Plucks**. Overlapping notes keep the pattern running. Releasing all keys stops new hits and lets existing tails decay. The next key starts from step 1.
+The factory rhythm patches use Gated Clock and a single legato voice. Hold any key to play **Patch Beat**, **Choked Hats**, **Clap and Toms**, or **Clockwork Plucks**. Overlapping notes keep the pattern running. Releasing all keys stops new hits and lets existing tails decay. The next key starts from step 1.
 
 Clock is available when building a free-running rack. Patches that contain Clock and omit MIDI / Note run as a single voice without MIDI. With MIDI / Note present, playing a note starts a voice and its sequencer, while all voices read the same clock phase.
 

@@ -146,7 +146,7 @@ export const MODULAR_TYPES = Object.freeze({
     inputs: ['clock', 'reset'], outputs: ['gate'], params: {
       division: { min: 1, max: 32, default: 2, step: 1 },
     } },
-  beatGrid: { label: 'Beat Grid', category: 'Modulation', keywords: 'tempo bpm pulse time rhythm held gate sequencer',
+  beatGrid: { label: 'Gated Clock', category: 'Modulation', keywords: 'tempo bpm pulse time rhythm held gate sequencer beat grid',
     inputs: ['run'], outputs: ['gate', 'phase', 'reset'], params: {
       bpm: { min: 20, max: 300, default: 120, step: 0.1 },
       pulses: { min: 1, max: 16, default: 2, step: 1 },
