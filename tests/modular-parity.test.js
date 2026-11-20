@@ -227,6 +227,13 @@ for (const [mode, glideMode] of [[1, 0], [2, 1], [2, 0]]) {
   patch.nodes.find(n => n.type === 'midi').params = { voices: mode, glide: 0.08, glideMode };
   PATCHES[`${['', 'mono', 'legato'][mode]} voice with glide mode ${glideMode}`] = patch;
 }
+for (const [sound, name] of [[0, 'kick'], [1, 'snare'], [2, 'clap'], [3, 'closed hat'], [4, 'open hat'], [5, 'tom']]) {
+  PATCHES['drum voice: ' + name] = voice([{ id: 'drum', type: 'drumVoice', params: { sound } }], [
+    { from: 'note', port: 'gate', to: 'drum', input: 'trigger' },
+    { from: 'note', port: 'velocity', to: 'drum', input: 'velocity' },
+    { from: 'drum', port: 'out', to: 'out', input: 'audio' },
+  ]);
+}
 for (const preset of MODULAR_PRESETS) PATCHES['factory: ' + preset.name] = preset.patch();
 
 test('the parity patches use every module type', () => {

@@ -167,6 +167,7 @@ inline Graph compile(Json &patch, Macros &macros) {
         const auto type = graph.nodes[index].type;
         if (type == Type::adsr || type == Type::functionGen || type == Type::string || type == Type::modal)
             graph.envelopes[graph.envelope_count++] = index;
+        if (type == Type::drumVoice) graph.envelopes[graph.envelope_count++] = index;
         for (auto link : graph.nodes[index].links) {
             if (link.node < 0 || seen[link.node]) continue;
             seen[link.node] = true;
@@ -377,6 +378,63 @@ struct Engine {
         return 0;
     }
 
+    double sample_drum(const Voice &v, const Node &n, Stage &st, const std::array<double, kMaxParams> &p) {
+        const bool trigger = read(v, n, 0, v.held) > 0;
+        const bool choke = read(v, n, 2) > 0;
+        if (trigger && !st.gate && !choke) {
+            st.write = int(p[0]);
+            st.value = std::clamp(read(v, n, 1, v.velocity), 0.0, 1.0);
+            st.env = st.value > 0 ? 1 : 0;
+            st.phase = st.p0 = st.prev = st.ic1 = 0;
+            st.y1.fill(0);
+        }
+        st.gate = trigger;
+        st.mode = st.env > 1e-4 ? 1 : 0;
+        if (!st.mode) return 0;
+        const int sound = st.write;
+        const double t = st.p0, tone = p[3], base_hz = kDrumPitch[sound] * std::pow(2.0, p[1] / 12);
+        const double noise = white(st);
+        const double corner = sound == 2 ? base_hz : 900 + 3200 * tone;
+        st.prev += (noise - st.prev) * lag(1 / (2 * kPi * corner));
+        st.ic1 += (st.prev - st.ic1) * lag(1 / (2 * kPi * (sound == 2 ? base_hz * 0.48 : 420)));
+        const double band = st.prev - st.ic1;
+        double sample;
+        if (sound == 3 || sound == 4) {
+            constexpr size_t oscillators = sizeof(kHatRatios) / sizeof(kHatRatios[0]);
+            static_assert(oscillators <= kModes, "Hat oscillator state capacity");
+            double metal = 0;
+            for (size_t i = 0; i < oscillators; ++i) {
+                const double phase = st.y1[i] + std::min(0.45, base_hz * kHatRatios[i] / rate);
+                st.y1[i] = phase - std::floor(phase);
+                metal += st.y1[i] < 0.5 ? 1 : -1;
+            }
+            sample = 0.55 * (noise - st.prev) + (0.12 + 0.38 * tone) * metal / oscillators;
+        } else if (sound == 2) {
+            const double burst_age = t < 0.024 ? std::fmod(t, 0.012) : t - 0.024;
+            sample = band * (0.38 + std::exp(-burst_age / 0.0025) * (1.2 + tone));
+        } else {
+            const double bend = sound == 0 ? 2.6 : sound == 5 ? 0.58 : 0.16;
+            const double hz = base_hz * (1 + bend * std::exp(-t / (sound == 0 ? 0.014 : 0.021)));
+            const double phase = st.phase + std::min(0.45, hz / rate);
+            st.phase = phase - std::floor(phase);
+            const double sine = std::sin(2 * kPi * st.phase);
+            if (sound == 1) {
+                const double secondary = st.y1[0] + std::min(0.45, hz * 1.46 / rate);
+                st.y1[0] = secondary - std::floor(secondary);
+                const double body = (0.72 * sine + 0.28 * std::sin(2 * kPi * st.y1[0])) * std::exp(-t / 0.05);
+                sample = body * (0.68 - 0.35 * tone) + band * (0.68 + 0.55 * tone);
+            } else {
+                const double click = (noise - st.prev) * tone * std::exp(-t / 0.0035);
+                sample = sound == 0 ? std::tanh(1.9 * sine + 0.5 * click) : 0.9 * sine + 0.38 * click;
+            }
+        }
+        const double out = sample * st.env * st.value * p[4];
+        const double t60 = choke ? 0.018 : p[2] * kDrumDecay[sound];
+        st.env *= std::exp(-kLn1000 / (rate * t60));
+        st.p0 += 1 / rate;
+        return out;
+    }
+
     void sample_node(Voice &v, int i, const Macros &macros) {
         const auto &n = graph.nodes[i];
         auto p = n.knobs;
@@ -579,6 +637,7 @@ struct Engine {
             sig[0] = st.value * p[2];
             break;
         }
+        case Type::drumVoice: sig[0] = sample_drum(v, n, st, p); break;
         case Type::ring: sig[0] = read(v, n, 0) * read(v, n, 1, 1) * p[0]; break;
         case Type::wavefolder: {
             const double input = read(v, n, 0);

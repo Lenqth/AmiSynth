@@ -1,7 +1,8 @@
 // Keep native module IDs, port names, knob ranges and factory patches in sync with Web.
 import { writeFileSync } from 'node:fs';
+import { HAT_RATIOS } from '../src/dsp/drums.js';
 import {
-  MODULAR_LINE_SAMPLES, MODULAR_LINES, MODULAR_MACROS, MODULAR_MATERIALS, MODULAR_MAX_INPUTS, MODULAR_MAX_OUTPUTS,
+  MODULAR_DRUM_DECAY, MODULAR_DRUM_PITCH, MODULAR_LINE_SAMPLES, MODULAR_LINES, MODULAR_MACROS, MODULAR_MATERIALS, MODULAR_MAX_INPUTS, MODULAR_MAX_OUTPUTS,
   MODULAR_MAX_PARAMS, MODULAR_MODES, MODULAR_PATCH_BYTES, MODULAR_POSITION_MAX, MODULAR_PRESETS, MODULAR_TYPES,
 } from '../src/dsp/modular.js';
 
@@ -36,4 +37,7 @@ ${materials.join('\n')}
 const Preset kPresets[] = {
 ${presets.join('\n')}
 };
+constexpr double kDrumPitch[] = ${list(MODULAR_DRUM_PITCH)};
+constexpr double kDrumDecay[] = ${list(MODULAR_DRUM_DECAY)};
+constexpr double kHatRatios[] = ${list(HAT_RATIOS)};
 `);

@@ -385,3 +385,34 @@ test('a pulse wave has no DC offset at any width', () => {
   for (let i = 0; i < 48000; i++) { modular_render(s); sum += s.out_l; }
   assert.ok(Math.abs(sum / 48000) < 0.002);
 });
+
+test('a Drum Voice rings after its trigger falls and a choke input cuts its tail', () => {
+  const patch = {
+    nodes: [
+      { id: 'midi', type: 'midi' }, { id: 'choke', type: 'macro' },
+      { id: 'hat', type: 'drumVoice', params: { sound: 4 } }, { id: 'out', type: 'output' },
+    ],
+    cables: [
+      { from: 'midi', port: 'gate', to: 'hat', input: 'trigger' },
+      { from: 'choke', port: 'out', to: 'hat', input: 'choke' },
+      { from: 'hat', port: 'out', to: 'out', input: 'audio' },
+    ],
+  };
+  function tailEnergy(choked) {
+    const s = {};
+    modular_init(s, 48000);
+    modular_set_patch(s, patch);
+    modular_midi(s, 0x90, 69, 127);
+    let energy = 0;
+    for (let i = 0; i < 6000; i++) {
+      if (i === 240) modular_midi(s, 0x80, 69, 0);
+      if (i === 2400 && choked) modular_set_patch(s, { ...patch, macros: [1] });
+      modular_render(s);
+      if (i >= 4800) energy += s.out_l ** 2;
+    }
+    return energy;
+  }
+  const open = tailEnergy(false);
+  assert.ok(open > 0.01);
+  assert.ok(tailEnergy(true) < open / 100);
+});

@@ -2,6 +2,7 @@
 // All cables carry a per-voice, audio-rate scalar. A Unit Delay breaks a feedback loop.
 // The native CLAP engine (clap/src/modular_dsp.h) mirrors every module; keep the two in step.
 import { MATERIALS } from './phys.js';
+import { HAT_RATIOS } from './drums.js';
 import { MODULAR_SYNTH_PORTS } from '../presets/modular.js';
 
 // Native storage limits per module (checked by scripts/gen-modular-clap.js).
@@ -14,7 +15,9 @@ export const MODULAR_LINE_SAMPLES = 4096;
 export const MODULAR_MODES = 8;
 export const MODULAR_MATERIALS = MATERIALS;
 
-export const MODULAR_CATEGORIES = ['Sources', 'Physical', 'Filters & Effects', 'Modulation', 'Utilities', 'Input & Output'];
+export const MODULAR_CATEGORIES = ['Sources', 'Physical', 'Drums', 'Filters & Effects', 'Modulation', 'Utilities', 'Input & Output'];
+export const MODULAR_DRUM_PITCH = [52, 180, 1100, 205.3, 205.3, 105];
+export const MODULAR_DRUM_DECAY = [1, 0.8, 0.85, 0.2, 1.8, 0.9];
 
 export const MODULAR_TYPES = Object.freeze({
   // The first MIDI / Note module's knobs set how notes reach voices. They are patch settings,
@@ -124,6 +127,14 @@ export const MODULAR_TYPES = Object.freeze({
         choices: ['C', 'C♯', 'D', 'D♯', 'E', 'F', 'F♯', 'G', 'G♯', 'A', 'A♯', 'B'] },
       scale: { min: 0, max: 4, default: 0, step: 1,
         choices: ['Chromatic', 'Major', 'Natural minor', 'Major pentatonic', 'Minor pentatonic'] },
+    } },
+  drumVoice: { label: 'Drum Voice', category: 'Drums', keywords: 'percussion kick snare clap hihat hi-hat closed open tom choke',
+    inputs: ['trigger', 'velocity', 'choke'], outputs: ['out'], params: {
+      sound: { min: 0, max: 5, default: 0, step: 1, choices: ['Kick', 'Snare', 'Clap', 'Closed Hat', 'Open Hat', 'Tom'] },
+      tune: { min: -24, max: 24, default: 0, step: 0.1 },
+      decay: { min: 0.025, max: 2.5, default: 0.25, step: 0.001 },
+      tone: { min: 0, max: 1, default: 0.5, step: 0.01 },
+      level: { min: 0, max: 1, default: 0.65, step: 0.01 },
     } },
   vcf: { label: 'VCF', category: 'Filters & Effects', keywords: 'filter lowpass highpass bandpass notch cutoff resonance keytrack',
     inputs: ['audio', 'cutoff', 'pitch'], outputs: ['out'], params: {
@@ -380,8 +391,46 @@ export const MODULAR_PRESETS = [
       { from: 'string', port: 'out', to: 'out', input: 'audio' },
     ],
   }) },
+  { name: 'Patch Beat', patch: drumPattern },
   ...MODULAR_SYNTH_PORTS,
 ];
+
+function drumPattern() {
+  const nodes = [{ id: 'clock', type: 'clock', params: { bpm: 114, pulses: 2 }, position: { x: 22, y: 22 } }];
+  const cables = [];
+  const patterns = [
+    { id: 'kick', sound: 0, level: 0.75, steps: [1, 0, 0, 1, 1, 0, 0, 0] },
+    { id: 'snare', sound: 1, level: 0.67, steps: [0, 0, 1, 0, 0, 0, 1, 0] },
+    { id: 'hat', sound: 3, level: 0.38, steps: [0.65, 0.35, 0.5, 0.3, 0.65, 0.35, 0.5, 0.5] },
+  ];
+  for (const [row, { id, sound, level, steps }] of patterns.entries()) {
+    const y = 22 + row * 454;
+    nodes.push(
+      { id: id + '_steps', type: 'sequencer', position: { x: 296, y },
+        params: Object.fromEntries(steps.map((value, i) => ['step' + (i + 1), value])) },
+      { id: id + '_trigger', type: 'ring', position: { x: 570, y } },
+      { id, type: 'drumVoice', params: { sound, level }, position: { x: 844, y } },
+    );
+    cables.push(
+      { from: 'clock', port: 'gate', to: id + '_steps', input: 'clock' },
+      { from: id + '_steps', port: 'cv', to: id + '_trigger', input: 'a' },
+      { from: id + '_steps', port: 'gate', to: id + '_trigger', input: 'b' },
+      { from: id + '_trigger', port: 'out', to: id, input: 'trigger' },
+      { from: id + '_steps', port: 'cv', to: id, input: 'velocity' },
+    );
+  }
+  nodes.push(
+    { id: 'mix', type: 'mix4', params: { a: 0.78, b: 0.66, c: 0.5 }, position: { x: 1118, y: 22 } },
+    { id: 'out', type: 'output', position: { x: 1392, y: 22 } },
+  );
+  cables.push(
+    { from: 'kick', port: 'out', to: 'mix', input: 'a' },
+    { from: 'snare', port: 'out', to: 'mix', input: 'b' },
+    { from: 'hat', port: 'out', to: 'mix', input: 'c' },
+    { from: 'mix', port: 'out', to: 'out', input: 'audio' },
+  );
+  return { nodes, cables };
+}
 
 // Patches for the physical modules. The Synth ports follow (src/presets/modular.js).
 function physicalPresets() {
@@ -468,7 +517,7 @@ export function compileModularPatch(raw) {
   const outputs = order.filter(i => nodes[i].type === 'output');
   const audible = new Set(outputs);
   for (const i of audible) for (const link of Object.values(nodes[i].links)) audible.add(link.index);
-  const envelopes = [...audible].filter(i => RINGING_TYPES.has(nodes[i].type));
+  const envelopes = [...audible].filter(i => RINGING_TYPES.has(nodes[i].type) || nodes[i].type === 'drumVoice');
   const macros = Array.from({ length: MODULAR_MACROS }, (_, i) =>
     Number.isFinite(raw.macros?.[i]) ? clamp(raw.macros[i], 0, 1) : 0);
   const macroNames = Array.from({ length: MODULAR_MACROS }, (_, i) => {
@@ -747,6 +796,62 @@ function measureSignals(s, voice) {
   }
 }
 
+function sampleDrum(s, v, n, st) {
+  const trigger = read(v, n, 'trigger', Number(v.held)) > 0;
+  const choke = read(v, n, 'choke') > 0;
+  if (trigger && !st.lastGate && !choke) {
+    st.write = parameter(v, n, 'sound');
+    st.value = clamp(read(v, n, 'velocity', v.velocity), 0, 1);
+    st.env = st.value > 0 ? 1 : 0;
+    st.phase = st.p0 = st.prev = st.ic1 = 0;
+    st.y1.fill(0);
+  }
+  st.lastGate = trigger;
+  st.mode = st.env > 1e-4 ? 1 : 0;
+  if (!st.mode) return 0;
+  const sound = st.write, t = st.p0, sr = s.sampleRate;
+  const tone = parameter(v, n, 'tone');
+  const baseHz = MODULAR_DRUM_PITCH[sound] * Math.pow(2, parameter(v, n, 'tune') / 12);
+  const noise = white(st);
+  const corner = sound === 2 ? baseHz : 900 + 3200 * tone;
+  st.prev += (noise - st.prev) * lag(1 / (TAU * corner), sr);
+  st.ic1 += (st.prev - st.ic1) * lag(1 / (TAU * (sound === 2 ? baseHz * 0.48 : 420)), sr);
+  const band = st.prev - st.ic1;
+  let sample;
+  if (sound === 3 || sound === 4) {
+    let metal = 0;
+    for (let i = 0; i < HAT_RATIOS.length; i++) {
+      const phase = st.y1[i] + Math.min(0.45, baseHz * HAT_RATIOS[i] / sr);
+      st.y1[i] = phase - Math.floor(phase);
+      metal += st.y1[i] < 0.5 ? 1 : -1;
+    }
+    sample = 0.55 * (noise - st.prev) + (0.12 + 0.38 * tone) * metal / HAT_RATIOS.length;
+  } else if (sound === 2) {
+    const burstAge = t < 0.024 ? t % 0.012 : t - 0.024;
+    sample = band * (0.38 + Math.exp(-burstAge / 0.0025) * (1.2 + tone));
+  } else {
+    const bend = sound === 0 ? 2.6 : sound === 5 ? 0.58 : 0.16;
+    const hz = baseHz * (1 + bend * Math.exp(-t / (sound === 0 ? 0.014 : 0.021)));
+    const phase = st.phase + Math.min(0.45, hz / sr);
+    st.phase = phase - Math.floor(phase);
+    const sine = Math.sin(TAU * st.phase);
+    if (sound === 1) {
+      const secondary = st.y1[0] + Math.min(0.45, hz * 1.46 / sr);
+      st.y1[0] = secondary - Math.floor(secondary);
+      const body = (0.72 * sine + 0.28 * Math.sin(TAU * st.y1[0])) * Math.exp(-t / 0.05);
+      sample = body * (0.68 - 0.35 * tone) + band * (0.68 + 0.55 * tone);
+    } else {
+      const click = (noise - st.prev) * tone * Math.exp(-t / 0.0035);
+      sample = sound === 0 ? Math.tanh(1.9 * sine + 0.5 * click) : 0.9 * sine + 0.38 * click;
+    }
+  }
+  const out = sample * st.env * st.value * parameter(v, n, 'level');
+  const t60 = choke ? 0.018 : parameter(v, n, 'decay') * MODULAR_DRUM_DECAY[sound];
+  st.env *= Math.exp(-LN1000 / (sr * t60));
+  st.p0 += 1 / sr;
+  return out;
+}
+
 function sampleNode(s, v, i) {
   const n = s.graph.nodes[i], st = v.stages[i], sig = v.signals[i];
   switch (n.type) {
@@ -941,6 +1046,7 @@ function sampleNode(s, v, i) {
       sig.out = st.value * parameter(v, n, 'gain');
       break;
     }
+    case 'drumVoice': sig.out = sampleDrum(s, v, n, st); break;
     case 'ring': sig.out = read(v, n, 'a') * read(v, n, 'b', 1) * parameter(v, n, 'level'); break;
     case 'wavefolder': {
       const input = read(v, n, 'in');
