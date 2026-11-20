@@ -436,6 +436,28 @@ test('a pulse wave has no DC offset at any width', () => {
   assert.ok(Math.abs(sum / 48000) < 0.002);
 });
 
+test('the Reed Pipe sustains the played pitch and finishes its release', () => {
+  const patch = MODULAR_PRESETS.find(preset => preset.name === 'Velvet Reed').patch();
+  const s = {};
+  modular_init(s, 48000);
+  modular_set_patch(s, patch);
+  modular_midi(s, 0x90, 57, 100);
+  let previous = 0, crossings = 0, peak = 0;
+  for (let i = 0; i < 24000; i++) {
+    modular_render(s);
+    if (i >= 12000) {
+      if (previous < 0 && s.out_l >= 0) crossings++;
+      peak = Math.max(peak, Math.abs(s.out_l));
+    }
+    previous = s.out_l;
+  }
+  assert.ok(peak > 0.1);
+  assert.ok(Math.abs(crossings * 4 - 220) <= 4);
+  modular_midi(s, 0x80, 57, 0);
+  for (let i = 0; i < 48000; i++) modular_render(s);
+  assert.ok(s.voices.every(voice => !voice.active));
+});
+
 test('a Drum Voice rings after its trigger falls and a choke input cuts its tail', () => {
   const patch = {
     nodes: [

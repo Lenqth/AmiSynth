@@ -41,8 +41,10 @@ function normalizeModalTable(table) {
 }
 
 export const MODULAR_CATEGORIES = ['Sources', 'Physical', 'Drums', 'Filters & Effects', 'Modulation', 'Utilities', 'Input & Output'];
-export const MODULAR_DRUM_PITCH = [52, 180, 1100, 205.3, 205.3, 105];
-export const MODULAR_DRUM_DECAY = [1, 0.8, 0.85, 0.2, 1.8, 0.9];
+export const MODULAR_DRUM_PITCH = [52, 180, 1100, 205.3, 205.3, 105, 840, 540, 5100, 160, 248];
+export const MODULAR_DRUM_DECAY = [1, 0.8, 0.85, 0.2, 1.8, 0.9, 0.3, 1.05, 0.65, 5.3, 4.2];
+const DRUM_SOUNDS = ['Kick', 'Snare', 'Clap', 'Closed Hat', 'Open Hat', 'Tom',
+  'Rimshot', 'Cowbell', 'Shaker', 'Crash', 'Ride'];
 
 export const MODULAR_TYPES = Object.freeze({
   // The first MIDI / Note module's knobs set how notes reach voices. They are patch settings,
@@ -91,6 +93,15 @@ export const MODULAR_TYPES = Object.freeze({
       position: { min: 0.08, max: 0.42, default: 0.14, step: 0.001 },
       damping: { min: 0, max: 0.9, default: 0.27, step: 0.01 },
       level: { min: 0, max: 1, default: 0.65, step: 0.01 },
+    } },
+  reedPipe: { label: 'Reed Pipe', category: 'Physical', keywords: 'winds clarinet reed breath bore waveguide',
+    inputs: ['pitch', 'gate', 'breath'], outputs: ['out'], params: {
+      pressure: { min: 0, max: 1, default: 0.56, step: 0.01 },
+      embouchure: { min: 0, max: 1, default: 0.5, step: 0.01 },
+      brightness: { min: 0, max: 1, default: 0.55, step: 0.01 },
+      attack: { min: 0.005, max: 0.4, default: 0.045, step: 0.001 },
+      noise: { min: 0, max: 1, default: 0.16, step: 0.01 },
+      level: { min: 0, max: 1, default: 0.62, step: 0.01 },
     } },
   lfo: { label: 'LFO', category: 'Modulation', keywords: 'low frequency oscillator vibrato tremolo wobble',
     inputs: [], outputs: ['out'], params: {
@@ -161,9 +172,9 @@ export const MODULAR_TYPES = Object.freeze({
       scale: { min: 0, max: 4, default: 0, step: 1,
         choices: ['Chromatic', 'Major', 'Natural minor', 'Major pentatonic', 'Minor pentatonic'] },
     } },
-  drumVoice: { label: 'Drum Voice', category: 'Drums', keywords: 'percussion kick snare clap hihat hi-hat closed open tom choke',
+  drumVoice: { label: 'Drum Voice', category: 'Drums', keywords: 'percussion kick snare clap hihat hi-hat closed open tom choke rimshot cowbell shaker crash ride cymbal',
     inputs: ['trigger', 'velocity', 'choke'], outputs: ['out'], params: {
-      sound: { min: 0, max: 5, default: 0, step: 1, choices: ['Kick', 'Snare', 'Clap', 'Closed Hat', 'Open Hat', 'Tom'] },
+      sound: { min: 0, max: DRUM_SOUNDS.length - 1, default: 0, step: 1, choices: DRUM_SOUNDS },
       tune: { min: -24, max: 24, default: 0, step: 0.1 },
       decay: { min: 0.025, max: 2.5, default: 0.25, step: 0.001 },
       tone: { min: 0, max: 1, default: 0.5, step: 0.01 },
@@ -230,9 +241,9 @@ export const MODULAR_TYPES = Object.freeze({
     } },
 });
 
-const LINE_TYPES = new Set(['string', 'comb']);
+const LINE_TYPES = new Set(['string', 'comb', 'reedPipe']);
 // Modules that ring on after their gate falls; a released voice lives until they are quiet.
-const RINGING_TYPES = new Set(['adsr', 'functionGen', 'string', 'modal', 'bowed']);
+const RINGING_TYPES = new Set(['adsr', 'functionGen', 'string', 'modal', 'bowed', 'reedPipe']);
 const QUANTIZER_SCALES = [0xfff, 0xab5, 0x5ad, 0x295, 0x4a9];
 
 const searchWords = text => text.toLowerCase().split(/[^a-z0-9&]+/).filter(Boolean);
@@ -401,6 +412,11 @@ export const MODULAR_PRESETS = [
     return patch;
   } },
   ...physicalPresets(),
+  { name: 'Velvet Reed', patch: velvetReed },
+  { name: 'Cowbell and Shaker', patch: () => percussionLayer('bell', { sound: 7, level: 0.7 },
+    'shaker', { sound: 8, level: 0.48 }) },
+  { name: 'Rim and Cymbal', patch: () => percussionLayer('rim', { sound: 6, level: 0.7 },
+    'ride', { sound: 10, decay: 0.44, level: 0.62 }) },
   { name: 'Twin Glass', patch: () => ({
     nodes: [
       { id: 'note', type: 'midi', position: { x: 22, y: 22 } },
@@ -485,6 +501,43 @@ export const MODULAR_PRESETS = [
   ]) },
   ...MODULAR_SYNTH_PORTS,
 ];
+
+function velvetReed() {
+  return {
+    nodes: [
+      { id: 'note', type: 'midi', params: { voices: 2 }, position: { x: 22, y: 22 } },
+      { id: 'pressure', type: 'macro', params: { from: 0.42, to: 0.95 }, position: { x: 22, y: 442 } },
+      { id: 'reed', type: 'reedPipe', params: { brightness: 0.43, attack: 0.034 }, position: { x: 296, y: 22 } },
+      { id: 'out', type: 'output', position: { x: 570, y: 22 } },
+    ],
+    cables: [
+      { from: 'note', port: 'pitch', to: 'reed', input: 'pitch' },
+      { from: 'note', port: 'gate', to: 'reed', input: 'gate' },
+      { from: 'pressure', port: 'out', to: 'reed', input: 'breath' },
+      { from: 'reed', port: 'out', to: 'out', input: 'audio' },
+    ],
+    macros: [0.52], macroNames: ['Breath'],
+  };
+}
+
+function percussionLayer(first, firstParams, second, secondParams) {
+  const nodes = [{ id: 'note', type: 'midi', position: { x: 22, y: 22 } }];
+  const cables = [];
+  for (const [row, [id, params]] of [[first, firstParams], [second, secondParams]].entries()) {
+    nodes.push({ id, type: 'drumVoice', params, position: { x: 296, y: 22 + row * 420 } });
+    cables.push(
+      { from: 'note', port: 'gate', to: id, input: 'trigger' },
+      { from: 'note', port: 'velocity', to: id, input: 'velocity' },
+      { from: id, port: 'out', to: 'mix', input: 'ab'[row] },
+    );
+  }
+  nodes.push(
+    { id: 'mix', type: 'mix', params: { a: 0.72, b: 0.66 }, position: { x: 570, y: 22 } },
+    { id: 'out', type: 'output', position: { x: 844, y: 22 } },
+  );
+  cables.push({ from: 'mix', port: 'out', to: 'out', input: 'audio' });
+  return { nodes, cables };
+}
 
 function bowGrain(bow = {}, body = { cutoff: 3200, resonance: 0.23 }) {
   return {
@@ -926,7 +979,7 @@ function sampleDrum(s, v, n, st) {
     st.write = parameter(v, n, 'sound');
     st.value = clamp(read(v, n, 'velocity', v.velocity), 0, 1);
     st.env = st.value > 0 ? 1 : 0;
-    st.phase = st.p0 = st.prev = st.ic1 = 0;
+    st.phase = st.p0 = st.prev = st.ic1 = st.ic2 = st.ic3 = 0;
     st.y1.fill(0);
   }
   st.lastGate = trigger;
@@ -936,24 +989,37 @@ function sampleDrum(s, v, n, st) {
   const tone = parameter(v, n, 'tone');
   const baseHz = MODULAR_DRUM_PITCH[sound] * Math.pow(2, parameter(v, n, 'tune') / 12);
   const noise = white(st);
-  const corner = sound === 2 ? baseHz : 900 + 3200 * tone;
+  const corner = sound === 2 || sound === 8 ? baseHz : 900 + 3200 * tone;
   st.prev += (noise - st.prev) * lag(1 / (TAU * corner), sr);
   st.ic1 += (st.prev - st.ic1) * lag(1 / (TAU * (sound === 2 ? baseHz * 0.48 : 420)), sr);
   const band = st.prev - st.ic1;
   let sample;
-  if (sound === 3 || sound === 4) {
+  if (sound === 3 || sound === 4 || sound >= 9) {
     let metal = 0;
     for (let i = 0; i < HAT_RATIOS.length; i++) {
       const phase = st.y1[i] + Math.min(0.45, baseHz * HAT_RATIOS[i] / sr);
       st.y1[i] = phase - Math.floor(phase);
       metal += st.y1[i] < 0.5 ? 1 : -1;
     }
-    sample = 0.55 * (noise - st.prev) + (0.12 + 0.38 * tone) * metal / HAT_RATIOS.length;
+    const noiseMix = sound === 9 ? 0.86 : sound === 10 ? 0.29 : 0.55;
+    const metalMix = sound === 10 ? 0.32 + 0.42 * tone : 0.12 + 0.38 * tone;
+    sample = noiseMix * (noise - st.prev) + metalMix * metal / HAT_RATIOS.length;
   } else if (sound === 2) {
     const burstAge = t < 0.024 ? t % 0.012 : t - 0.024;
     sample = band * (0.38 + Math.exp(-burstAge / 0.0025) * (1.2 + tone));
+  } else if (sound === 7) {
+    const phase1 = st.y1[0] + Math.min(0.45, baseHz / sr);
+    const phase2 = st.y1[1] + Math.min(0.45, baseHz * 1.48 / sr);
+    st.y1[0] = phase1 - Math.floor(phase1);
+    st.y1[1] = phase2 - Math.floor(phase2);
+    const metal = (st.y1[0] < 0.5 ? 0.5 : -0.5) + (st.y1[1] < 0.5 ? 0.5 : -0.5);
+    st.ic2 += (metal - st.ic2) * lag(1 / (TAU * (2 + tone) * baseHz), sr);
+    st.ic3 += (st.ic2 - st.ic3) * lag(1 / (TAU * baseHz * 0.8), sr);
+    sample = (st.ic2 - st.ic3) * (0.58 + 0.42 * Math.exp(-t / 0.019));
+  } else if (sound === 8) {
+    sample = (0.3 * (noise - st.prev) + band * (0.68 + 0.45 * tone)) * (1 - Math.exp(-t / 0.009));
   } else {
-    const bend = sound === 0 ? 2.6 : sound === 5 ? 0.58 : 0.16;
+    const bend = sound === 0 ? 2.6 : sound === 5 ? 0.58 : sound === 6 ? 0 : 0.16;
     const hz = baseHz * (1 + bend * Math.exp(-t / (sound === 0 ? 0.014 : 0.021)));
     const phase = st.phase + Math.min(0.45, hz / sr);
     st.phase = phase - Math.floor(phase);
@@ -963,6 +1029,11 @@ function sampleDrum(s, v, n, st) {
       st.y1[0] = secondary - Math.floor(secondary);
       const body = (0.72 * sine + 0.28 * Math.sin(TAU * st.y1[0])) * Math.exp(-t / 0.05);
       sample = body * (0.68 - 0.35 * tone) + band * (0.68 + 0.55 * tone);
+    } else if (sound === 6) {
+      const secondary = st.y1[0] + Math.min(0.45, hz * 0.27 / sr);
+      st.y1[0] = secondary - Math.floor(secondary);
+      const click = (noise - st.prev) * tone * Math.exp(-t / 0.0025);
+      sample = Math.tanh(1.4 * sine + 0.45 * Math.sin(TAU * st.y1[0]) + 0.65 * click);
     } else {
       const click = (noise - st.prev) * tone * Math.exp(-t / 0.0035);
       sample = sound === 0 ? Math.tanh(1.9 * sine + 0.5 * click) : 0.9 * sine + 0.38 * click;
@@ -1242,6 +1313,42 @@ function sampleNode(s, v, i) {
       st.lastGate = gate;
       st.mode = st.env > 1e-5 || st.amp > 1e-4 ? 1 : 0;
       sig.out = bridgeOut * parameter(v, n, 'level');
+      break;
+    }
+    case 'reedPipe': {
+      const line = v.lines[n.line];
+      const gate = read(v, n, 'gate', Number(v.held)) >= 0.5;
+      const breath = clamp(read(v, n, 'breath', 1), 0, 1) * parameter(v, n, 'pressure');
+      st.env += ((gate ? breath : 0) - st.env) * lag(gate ? parameter(v, n, 'attack') : 0.018, s.sampleRate);
+      const hz = clamp(440 * Math.pow(2, (read(v, n, 'pitch', 69) - 69) / 12),
+        s.sampleRate / (2 * (MODULAR_LINE_SAMPLES - 2)), s.sampleRate * 0.2);
+      const brightness = parameter(v, n, 'brightness');
+      if (st.key[0] !== hz || st.key[1] !== brightness) {
+        // An inverting bell reflection makes the bore half a period long.
+        st.key[0] = hz; st.key[1] = brightness;
+        const w = TAU * hz / s.sampleRate;
+        const damping = Math.exp(-TAU * Math.max(1100 + 1800 * brightness, 5 * hz) / s.sampleRate);
+        const phaseDelay = Math.atan2(damping * Math.sin(w), 1 - damping * Math.cos(w)) / w;
+        st.a1[0] = damping;
+        st.a2[0] = Math.max(1, s.sampleRate * 0.5 / hz - phaseDelay);
+      }
+      const bore = lineRead(line, st.write, st.a2[0]);
+      st.prev += (bore - st.prev) * (1 - st.a1[0]);
+      const stiffness = 0.2 + 0.25 * parameter(v, n, 'embouchure');
+      const noise = white(st), air = parameter(v, n, 'noise');
+      const pressure = st.env * (0.52 + 0.16 * st.env) / stiffness * (1 + 0.07 * air * noise);
+      const delta = -0.95 * st.prev - pressure;
+      // Pressure closes the reed; the bounded opening feeds the returning wave.
+      const opening = clamp(0.7 - stiffness * delta, -1, 1);
+      line[st.write] = clamp(pressure + delta * opening, -2, 2);
+      st.write = (st.write + 1) & MASK;
+      st.ic1 += (bore - st.ic1) * lag(1 / (TAU * 22), s.sampleRate);
+      st.ic2 += (noise - st.ic2) * lag(1 / (TAU * 1400), s.sampleRate);
+      const ringing = bore - st.ic1;
+      st.amp = Math.max(Math.abs(ringing), st.amp * 0.9995);
+      st.lastGate = gate;
+      st.mode = st.env > 1e-5 || st.amp > 1e-4 ? 1 : 0;
+      sig.out = (ringing + (noise - st.ic2) * st.env * air * 0.07) * parameter(v, n, 'level');
       break;
     }
     case 'modal': {
