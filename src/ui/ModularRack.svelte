@@ -369,6 +369,29 @@
       { gesture: id + '/' + key });
   }
 
+  function setNumeric(input, current, min, max, integer, apply) {
+    const entered = input.valueAsNumber;
+    let value = current;
+    if (Number.isFinite(entered)) {
+      value = Math.min(max, Math.max(min, entered));
+      if (integer) value = Math.round(value);
+    }
+    input.value = String(value);
+    if (value !== current) apply(value);
+  }
+
+  function numericKey(event, current) {
+    if (event.key !== 'Enter' && event.key !== 'Escape') return;
+    event.preventDefault();
+    event.stopPropagation();
+    if (event.key === 'Escape') event.currentTarget.value = String(current);
+    event.currentTarget.blur();
+  }
+
+  function setMacro(index, value) {
+    commit({ ...graph, macros: graph.macros.with(index, Number(value)) }, { skipHistory: true });
+  }
+
   function connect(a, b) {
     if (!a || !b || a.dir === b.dir) return;
     const [output, input] = a.dir === 'out' ? [a, b] : [b, a];
@@ -520,6 +543,13 @@
   }
 </script>
 
+{#snippet numericValue(label, current, min, max, step, disabled, apply)}
+  <input class="param-number" type="number" aria-label={label + ' value'} {min} {max}
+    step={step >= 1 ? 1 : 'any'} value={current} {disabled}
+    onchange={(e) => setNumeric(e.currentTarget, current, min, max, step >= 1, apply)}
+    onkeydown={(e) => numericKey(e, current)} />
+{/snippet}
+
 <svelte:window onpointerdown={outsideMenu} onkeydown={escape} />
 
 {#snippet jack(n, port, dir, label, parameter = false)}
@@ -659,23 +689,26 @@
           {#each Object.entries(MODULAR_TYPES[n.type].params) as [key, def]}
             {@const input = modularParamInput(key)}
             {@const connected = wiredInputs.has(jackKey(n.id, input, 'in'))}
+            {@const customMaterial = key === 'material' && !!n.modalTable}
+            {@const disabled = connected || customMaterial}
+            {@const label = n.id + ' ' + key}
             <div class="parameter-row">
               {#if def.fixed}<span aria-hidden="true"></span>{:else}{@render jack(n, input, 'in', key, true)}{/if}
-              <label class="modular-param" class:driven={connected}>
+              <div class="modular-param" class:driven={connected}>
                 <span>{key}</span>
-                {#if n.type === 'macro' && (key === 'from' || key === 'to')}
-                  <input aria-label="{n.id} {key}" type="number" min={def.min} max={def.max} step={def.step}
-                    value={n.params[key]} disabled={connected} onchange={(e) => {
-                      if (e.currentTarget.value !== '') knob(n.id, key, e.currentTarget.value);
-                      else e.currentTarget.value = String(n.params[key]);
-                    }} />
-                {:else}
-                  <input aria-label="{n.id} {key}" type="range" min={def.min} max={def.max} step={def.step}
-                    value={n.params[key]} disabled={connected || (key === 'material' && !!n.modalTable)}
-                    oninput={(e) => knob(n.id, key, e.currentTarget.value)} />
-                {/if}
-                <output>{key === 'material' && n.modalTable ? 'Custom' : def.choices ? def.choices[n.params[key] - def.min] : Number(n.params[key]).toFixed(def.step < 0.01 ? 3 : def.step < 1 ? 2 : 0)}</output>
-              </label>
+                <div class="param-controls">
+                  {#if !(n.type === 'macro' && (key === 'from' || key === 'to'))}
+                    <input aria-label={label} type="range" min={def.min} max={def.max} step={def.step}
+                      value={n.params[key]} {disabled} oninput={(e) => knob(n.id, key, e.currentTarget.value)} />
+                  {/if}
+                  {#if def.choices}
+                    <output>{customMaterial ? 'Custom' : def.choices[n.params[key] - def.min]}</output>
+                  {:else}
+                    {@render numericValue(label, n.params[key], def.min, def.max, def.step, disabled,
+                      (value) => knob(n.id, key, value))}
+                  {/if}
+                </div>
+              </div>
             </div>
           {/each}
           <div class="jacks">
@@ -731,12 +764,16 @@
   <h4>Macros</h4>
   <div class="macros">
     {#each Array(MODULAR_MACROS) as _, i}
-      <label>
+      {@const label = graph.macroNames[i] || 'Macro ' + (i + 1)}
+      <div class="macro-control">
         <input type="text" aria-label="Macro {i + 1} name" placeholder="Macro {i + 1}" value={graph.macroNames[i]}
           onchange={(e) => commit({ ...graph, macroNames: graph.macroNames.with(i, e.currentTarget.value.trim()) })} />
-        <input type="range" aria-label={graph.macroNames[i] || 'Macro ' + (i + 1)} min="0" max="1" step="0.01" value={graph.macros[i]}
-          oninput={(e) => commit({ ...graph, macros: graph.macros.with(i, Number(e.currentTarget.value)) }, { skipHistory: true })} />
-      </label>
+        <div class="param-controls">
+          <input type="range" aria-label={label} min="0" max="1" step="0.01" value={graph.macros[i]}
+            oninput={(e) => setMacro(i, e.currentTarget.value)} />
+          {@render numericValue(label, graph.macros[i], 0, 1, 0.01, false, (value) => setMacro(i, value))}
+        </div>
+      </div>
     {/each}
   </div>
   {#if menu}
@@ -792,9 +829,11 @@
   .jack.parameter { width:22px; min-height:28px; }
   .modular-param.driven { opacity:0.45 }
   .modular-module small,.modular-cable code { overflow-wrap:anywhere }
-  .modular-param { display:grid; grid-template-columns:1fr auto; gap:0.15rem; margin:0.25rem 0 }
-  .modular-param input { grid-column:1; width:100%; min-width:0; margin:0 }
-  .modular-param output { grid-column:2; font-variant-numeric:tabular-nums }
+  .modular-param { display:grid; gap:0.15rem; margin:0.25rem 0; min-width:0 }
+  .param-controls { display:flex; align-items:center; gap:0.3rem; min-width:0 }
+  .param-controls input[type="range"] { flex:1; min-width:0; width:100%; margin:0 }
+  .param-controls output { font-variant-numeric:tabular-nums }
+  .param-number { box-sizing:border-box; width:5.4rem; min-width:0; font-variant-numeric:tabular-nums }
   .jacks { display:grid; grid-template-columns:1fr 1fr; gap:2px; margin:0 -0.7rem; padding-top:0.45rem }
   .jack-column { display:grid; min-width:0; gap:2px; align-content:start }
   .jack { display:flex; align-items:center; gap:0.35rem; min-height:25px; touch-action:none; padding:2px 5px; border:0; background:transparent; font-size:0.76rem }
@@ -808,8 +847,8 @@
   .wires .signal-glow { stroke-linecap:round }
   .wires .signal-flow { stroke:#fff }
   .modular-cable { display:flex; align-items:center; gap:0.4rem; border:1px solid; border-radius:6px; padding:0.15rem 0.35rem }
-  .macros label { display:grid; gap:0.35rem; font-size:0.8rem }
-  .macros input { width:6rem }
+  .macro-control { display:grid; gap:0.35rem; width:11rem; font-size:0.8rem }
+  .macro-control > input { box-sizing:border-box; width:100%; min-width:0 }
   .scope-panel { width:min(100%, 320px); margin:0.5rem 0; }
   .scope-panel svg { display:block; width:100%; background:var(--panel, #172033); color:#71c7ff; }
   .modal-editor { margin:0.6rem 0; padding:0.7rem; border:1px solid var(--border, #34405a); overflow-x:auto; }
