@@ -341,21 +341,29 @@ export const MODULAR_PRESETS = [
       { from: 'pan', port: 'right', to: 'out', input: 'right' },
     ],
   }) },
-  { name: 'Bow Grain', patch: () => ({
-    nodes: [
-      { id: 'note', type: 'midi', position: { x: 22, y: 22 } },
-      { id: 'bow', type: 'bowed', position: { x: 296, y: 22 } },
-      { id: 'body', type: 'vcf', params: { cutoff: 3200, resonance: 0.23 }, position: { x: 570, y: 22 } },
-      { id: 'out', type: 'output', position: { x: 844, y: 22 } },
-    ],
-    cables: [
-      { from: 'note', port: 'pitch', to: 'bow', input: 'pitch' },
-      { from: 'note', port: 'gate', to: 'bow', input: 'gate' },
-      { from: 'note', port: 'velocity', to: 'bow', input: 'bow' },
-      { from: 'bow', port: 'out', to: 'body', input: 'audio' },
-      { from: 'body', port: 'out', to: 'out', input: 'audio' },
-    ],
-  }) },
+  { name: 'Bow Grain', patch: bowGrain },
+  { name: 'Low Bow Cello', patch() {
+    const patch = bowGrain({ speed: 0.38, pressure: 3.5, position: 0.2, damping: 0.39 },
+      { cutoff: 1750, resonance: 0.35 });
+    patch.nodes[0].params = { voices: 2, glide: 0.065, glideMode: 1 };
+    patch.nodes.push({ id: 'octave', type: 'cv', params: { offset: -12 }, position: { x: 22, y: 442 } });
+    patch.cables[0] = { from: 'octave', port: 'out', to: 'bow', input: 'pitch' };
+    patch.cables.push({ from: 'note', port: 'pitch', to: 'octave', input: 'in' });
+    return patch;
+  } },
+  { name: 'Shivering Bow', patch() {
+    const patch = bowGrain({ speed: 0.33, position: 0.12, damping: 0.2 },
+      { cutoff: 4400, resonance: 0.32 });
+    patch.nodes.push(
+      { id: 'shake', type: 'lfo', params: { rate: 5.7 }, position: { x: 22, y: 442 } },
+      { id: 'pressure', type: 'cv', params: { scale: 0.48, offset: 3.2 }, position: { x: 296, y: 442 } },
+    );
+    patch.cables.push(
+      { from: 'shake', port: 'out', to: 'pressure', input: 'in' },
+      { from: 'pressure', port: 'out', to: 'bow', input: 'param:pressure' },
+    );
+    return patch;
+  } },
   ...physicalPresets(),
   { name: 'Macro Morph', patch: () => ({
     macros: [0.28],
@@ -405,6 +413,24 @@ export const MODULAR_PRESETS = [
   }) },
   ...MODULAR_SYNTH_PORTS,
 ];
+
+function bowGrain(bow = {}, body = { cutoff: 3200, resonance: 0.23 }) {
+  return {
+    nodes: [
+      { id: 'note', type: 'midi', position: { x: 22, y: 22 } },
+      { id: 'bow', type: 'bowed', params: bow, position: { x: 296, y: 22 } },
+      { id: 'body', type: 'vcf', params: body, position: { x: 570, y: 22 } },
+      { id: 'out', type: 'output', position: { x: 844, y: 22 } },
+    ],
+    cables: [
+      { from: 'note', port: 'pitch', to: 'bow', input: 'pitch' },
+      { from: 'note', port: 'gate', to: 'bow', input: 'gate' },
+      { from: 'note', port: 'velocity', to: 'bow', input: 'bow' },
+      { from: 'bow', port: 'out', to: 'body', input: 'audio' },
+      { from: 'body', port: 'out', to: 'out', input: 'audio' },
+    ],
+  };
+}
 
 // Patches for the physical modules. The Synth ports follow (src/presets/modular.js).
 function physicalPresets() {
