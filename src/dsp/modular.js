@@ -391,46 +391,24 @@ export const MODULAR_PRESETS = [
       { from: 'string', port: 'out', to: 'out', input: 'audio' },
     ],
   }) },
-  { name: 'Patch Beat', patch: drumPattern },
+  { name: 'Patch Beat', patch: () => drumPattern(114, [
+    { id: 'kick', params: { sound: 0, level: 0.75 }, steps: [1, 0, 0, 1, 1, 0, 0, 0] },
+    { id: 'snare', params: { sound: 1, level: 0.67 }, steps: [0, 0, 1, 0, 0, 0, 1, 0] },
+    { id: 'hat', params: { sound: 3, level: 0.38 }, steps: [0.65, 0.35, 0.5, 0.3, 0.65, 0.35, 0.5, 0.5] },
+  ]) },
+  { name: 'Choked Hats', patch: () => drumPattern(126, [
+    { id: 'closed', params: { sound: 3, level: 0.5 }, steps: [0.8, 0, 0.65, 0, 0.8, 0, 0.65, 0] },
+    { id: 'open', params: { sound: 4, decay: 0.55, level: 0.62 }, chokedBy: 'closed',
+      steps: [0, 0.8, 0, 0.6, 0, 0.8, 0, 0.67] },
+    { id: 'kick', params: { sound: 0, level: 0.62 }, steps: [1, 0, 0, 0, 0.85, 0, 0, 0] },
+  ]) },
+  { name: 'Clap and Toms', patch: () => drumPattern(106, [
+    { id: 'low', params: { sound: 5, tune: -7, level: 0.72 }, steps: [1, 0, 0, 0.55, 0.85, 0, 0, 0] },
+    { id: 'clap', params: { sound: 2, level: 0.78 }, steps: [0, 0, 0.9, 0, 0, 0, 1, 0] },
+    { id: 'high', params: { sound: 5, tune: 7, decay: 0.19, level: 0.6 }, steps: [0, 0.58, 0, 0, 0, 0.62, 0, 0.85] },
+  ]) },
   ...MODULAR_SYNTH_PORTS,
 ];
-
-function drumPattern() {
-  const nodes = [{ id: 'clock', type: 'clock', params: { bpm: 114, pulses: 2 }, position: { x: 22, y: 22 } }];
-  const cables = [];
-  const patterns = [
-    { id: 'kick', sound: 0, level: 0.75, steps: [1, 0, 0, 1, 1, 0, 0, 0] },
-    { id: 'snare', sound: 1, level: 0.67, steps: [0, 0, 1, 0, 0, 0, 1, 0] },
-    { id: 'hat', sound: 3, level: 0.38, steps: [0.65, 0.35, 0.5, 0.3, 0.65, 0.35, 0.5, 0.5] },
-  ];
-  for (const [row, { id, sound, level, steps }] of patterns.entries()) {
-    const y = 22 + row * 454;
-    nodes.push(
-      { id: id + '_steps', type: 'sequencer', position: { x: 296, y },
-        params: Object.fromEntries(steps.map((value, i) => ['step' + (i + 1), value])) },
-      { id: id + '_trigger', type: 'ring', position: { x: 570, y } },
-      { id, type: 'drumVoice', params: { sound, level }, position: { x: 844, y } },
-    );
-    cables.push(
-      { from: 'clock', port: 'gate', to: id + '_steps', input: 'clock' },
-      { from: id + '_steps', port: 'cv', to: id + '_trigger', input: 'a' },
-      { from: id + '_steps', port: 'gate', to: id + '_trigger', input: 'b' },
-      { from: id + '_trigger', port: 'out', to: id, input: 'trigger' },
-      { from: id + '_steps', port: 'cv', to: id, input: 'velocity' },
-    );
-  }
-  nodes.push(
-    { id: 'mix', type: 'mix4', params: { a: 0.78, b: 0.66, c: 0.5 }, position: { x: 1118, y: 22 } },
-    { id: 'out', type: 'output', position: { x: 1392, y: 22 } },
-  );
-  cables.push(
-    { from: 'kick', port: 'out', to: 'mix', input: 'a' },
-    { from: 'snare', port: 'out', to: 'mix', input: 'b' },
-    { from: 'hat', port: 'out', to: 'mix', input: 'c' },
-    { from: 'mix', port: 'out', to: 'out', input: 'audio' },
-  );
-  return { nodes, cables };
-}
 
 // Patches for the physical modules. The Synth ports follow (src/presets/modular.js).
 function physicalPresets() {
@@ -455,6 +433,35 @@ function physicalPresets() {
       bell: ['modal', { material: 4, decay: 6, release: 4, brightness: 0.7, level: 0.45 }],
     }, 'note.pitch > bell.pitch', 'note.gate > bell.gate', 'bell.out > out.audio') },
   ];
+}
+
+function drumPattern(bpm, patterns) {
+  const nodes = [{ id: 'clock', type: 'clock', params: { bpm, pulses: 2 }, position: { x: 22, y: 22 } }];
+  const cables = [];
+  for (const [row, { id, params, steps, chokedBy }] of patterns.entries()) {
+    const y = 22 + row * 454;
+    nodes.push(
+      { id: id + '_steps', type: 'sequencer', position: { x: 296, y },
+        params: { length: steps.length, ...Object.fromEntries(steps.map((value, i) => ['step' + (i + 1), value])) } },
+      { id: id + '_trigger', type: 'ring', position: { x: 570, y } },
+      { id, type: 'drumVoice', params, position: { x: 844, y } },
+    );
+    cables.push(
+      { from: 'clock', port: 'gate', to: id + '_steps', input: 'clock' },
+      { from: id + '_steps', port: 'cv', to: id + '_trigger', input: 'a' },
+      { from: id + '_steps', port: 'gate', to: id + '_trigger', input: 'b' },
+      { from: id + '_trigger', port: 'out', to: id, input: 'trigger' },
+      { from: id + '_steps', port: 'cv', to: id, input: 'velocity' },
+      { from: id, port: 'out', to: 'mix', input: 'abcd'[row] },
+    );
+    if (chokedBy) cables.push({ from: chokedBy + '_trigger', port: 'out', to: id, input: 'choke' });
+  }
+  nodes.push(
+    { id: 'mix', type: 'mix4', params: { a: 0.78, b: 0.66, c: 0.5 }, position: { x: 1118, y: 22 } },
+    { id: 'out', type: 'output', position: { x: 1392, y: 22 } },
+  );
+  cables.push({ from: 'mix', port: 'out', to: 'out', input: 'audio' });
+  return { nodes, cables };
 }
 
 /** Validate and normalize a portable patch before publishing it to the DSP. */
