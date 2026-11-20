@@ -10,7 +10,7 @@ export const MODULAR_MAX_INPUTS = 4;
 export const MODULAR_MAX_PARAMS = 10;
 export const MODULAR_MAX_OUTPUTS = 4;
 export const BEAT_GRID_LANES = ['a', 'b', 'c', 'd'];
-export const BEAT_GRID_STEPS = Array.from({ length: 8 }, (_, i) => 'step' + (i + 1));
+export const BEAT_GRID_MAX_STEPS = 32;
 // Strings and comb filters share a fixed, preallocated delay-line pool per voice.
 export const MODULAR_LINES = 4;
 export const MODULAR_LINE_SAMPLES = 4096;
@@ -156,10 +156,7 @@ export const MODULAR_TYPES = Object.freeze({
     } },
   beatGrid: { label: 'Beat Grid', category: 'Modulation', keywords: 'step trigger pattern rhythm drum clock router matrix',
     inputs: ['clock', 'reset'], outputs: BEAT_GRID_LANES, params: {
-      length: { min: 1, max: BEAT_GRID_STEPS.length, default: BEAT_GRID_STEPS.length, step: 1 },
-      ...Object.fromEntries(BEAT_GRID_STEPS.map(key => [
-        key, { min: 0, max: (1 << BEAT_GRID_LANES.length) - 1, default: 0, step: 1, fixed: true, gridStep: true },
-      ])),
+      length: { min: 1, max: BEAT_GRID_MAX_STEPS, default: 8, step: 1, fixed: true },
     } },
   sequencer: { label: 'Step Sequencer', category: 'Modulation', keywords: 'step sequence pattern pitch gate cv probability',
     inputs: ['clock', 'reset'], outputs: ['cv', 'gate'], params: {
@@ -552,8 +549,7 @@ function fourLaneBeat() {
   const nodes = [
     { id: 'note', type: 'midi', params: { voices: 2 }, position: { x: 22, y: 22 } },
     { id: 'clock', type: 'gatedClock', params: { bpm: 118 }, position: { x: 296, y: 22 } },
-    { id: 'grid', type: 'beatGrid', params: { step1: 5, step2: 8, step3: 6, step4: 1, step5: 5,
-      step6: 8, step7: 6, step8: 4 }, position: { x: 570, y: 22 } },
+    { id: 'grid', type: 'beatGrid', grid: [5, 8, 6, 1, 5, 8, 6, 4], position: { x: 570, y: 22 } },
     { id: 'mix', type: 'mix4', params: { a: 0.8, b: 0.7, c: 0.5, d: 0.5 }, position: { x: 1118, y: 22 } },
     { id: 'out', type: 'output', position: { x: 1392, y: 22 } },
   ];
@@ -629,7 +625,11 @@ export function compileModularPatch(raw) {
       if (def.step >= 1) params[key] = Math.round(params[key]);
     }
     const modalTable = n.type === 'modal' && n.modalTable !== undefined ? normalizeModalTable(n.modalTable) : undefined;
-    return { id: n.id, type: n.type, params, modalTable, links: {}, paramLinks: {} };
+    const grid = n.type === 'beatGrid' ? Array.from({ length: BEAT_GRID_MAX_STEPS }, (_, i) => {
+      const value = Array.isArray(n.grid) ? n.grid[i] : n.params?.['step' + (i + 1)];
+      return Number.isFinite(value) ? Math.round(clamp(value, 0, (1 << BEAT_GRID_LANES.length) - 1)) : 0;
+    }) : undefined;
+    return { id: n.id, type: n.type, params, modalTable, grid, links: {}, paramLinks: {} };
   });
   if (!nodes.some((n) => n.type === 'output')) throw new Error('An audio output is required');
   let lineCount = 0;
@@ -689,9 +689,9 @@ export function compileModularPatch(raw) {
       const key = c.from + '/' + c.port;
       return [key, { key, index: ids.get(c.from), port: c.port }];
     })).values()],
-    patch: { version: 1, macros, macroNames, nodes: nodes.map(({ id, type, params, modalTable }, i) => {
+    patch: { version: 1, macros, macroNames, nodes: nodes.map(({ id, type, params, modalTable, grid }, i) => {
       const position = raw.nodes[i].position;
-      const saved = { id, type, params, ...(modalTable ? { modalTable } : {}) };
+      const saved = { id, type, params, ...(modalTable ? { modalTable } : {}), ...(grid ? { grid } : {}) };
       return Number.isFinite(position?.x) && Number.isFinite(position?.y)
         ? { ...saved, position: {
           x: Math.round(clamp(position.x, 0, MODULAR_POSITION_MAX)),
@@ -1056,7 +1056,7 @@ function sampleNode(s, v, i) {
       }
       st.ready = high;
       const step = Math.min(st.write, length - 1);
-      const lanes = high && st.mode ? n.params[BEAT_GRID_STEPS[step]] : 0;
+      const lanes = high && st.mode ? n.grid[step] : 0;
       for (let lane = 0; lane < BEAT_GRID_LANES.length; lane++)
         sig[BEAT_GRID_LANES[lane]] = (lanes >> lane) & 1;
       break;

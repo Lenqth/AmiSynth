@@ -40,6 +40,7 @@ struct Node {
     // Signal inputs occupy the first kMaxInputs slots, parameter inputs the rest.
     std::array<Link, kMaxInputs + kMaxParams> links{};
     std::array<const Param *, kMaxParams> specs{};
+    std::array<uint8_t, kBeatGridMaxSteps> grid{};
     Material custom_material{};
     std::array<double, kModes> modal_decay{};
     bool custom_modal = false;
@@ -109,6 +110,21 @@ inline Graph compile(Json &patch, Macros &macros) {
             normalized[p.name] = value;
         }
         Json saved{{"id", id}, {"type", type}, {"params", std::move(normalized)}};
+        if (node.type == Type::beatGrid) {
+            const auto pattern = n.find("grid");
+            const bool has_grid = pattern != n.end() && pattern->is_array();
+            constexpr double max_mask = (1 << kMaxOutputs) - 1;
+            for (size_t step = 0; step < node.grid.size(); ++step) {
+                const auto *value = has_grid && step < pattern->size() ? &(*pattern)[step] : nullptr;
+                if (!has_grid && params != n.end() && params->is_object()) {
+                    const auto legacy = params->find("step" + std::to_string(step + 1));
+                    if (legacy != params->end()) value = &*legacy;
+                }
+                if (value && value->is_number())
+                    node.grid[step] = uint8_t(std::floor(std::clamp(value->get<double>(), 0.0, max_mask) + 0.5));
+            }
+            saved["grid"] = node.grid;
+        }
         if (const auto table = n.find("modalTable"); node.type == Type::modal && table != n.end()) {
             if (!table->is_array() || table->empty() || table->size() > kModes)
                 throw std::invalid_argument("Invalid resonance table size");
@@ -508,7 +524,7 @@ struct Engine {
             }
             st.ready = high;
             const int step = std::min(st.write, length - 1);
-            const int lanes = high && st.mode ? int(p[1 + step]) : 0;
+            const int lanes = high && st.mode ? n.grid[step] : 0;
             for (size_t lane = 0; lane < sig.size(); ++lane) sig[lane] = (lanes >> lane) & 1;
             break;
         }

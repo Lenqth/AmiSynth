@@ -236,8 +236,11 @@ for (const [sound, name] of [[0, 'kick'], [1, 'snare'], [2, 'clap'], [3, 'closed
 }
 for (const preset of MODULAR_PRESETS) PATCHES['factory: ' + preset.name] = preset.patch();
 const fastGrid = MODULAR_PRESETS.find(preset => preset.name === 'Four Lane Beat').patch();
-fastGrid.nodes.find(node => node.type === 'gatedClock').params = { bpm: 300, pulses: 4 };
-PATCHES['Beat Grid exercises all four output lanes'] = fastGrid;
+fastGrid.nodes.find(node => node.type === 'gatedClock').params = { bpm: 300, pulses: 8 };
+const longGrid = fastGrid.nodes.find(node => node.type === 'beatGrid');
+longGrid.params = { length: 12 };
+longGrid.grid.push(0, 0, 0, 9);
+PATCHES['Beat Grid exercises four output lanes and columns beyond eight'] = fastGrid;
 
 test('the parity patches use every module type', () => {
   const used = new Set(Object.values(PATCHES).flatMap(p => p.nodes.map(n => n.type)));

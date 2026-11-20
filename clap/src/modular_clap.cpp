@@ -60,7 +60,11 @@ struct Instance {
             const auto topology = [](Json value) {
                 value.erase("macros");
                 value.erase("macroNames");
-                for (auto &node : value["nodes"]) { node.erase("params"); node.erase("position"); }
+                for (auto &node : value["nodes"]) {
+                    node.erase("params");
+                    node.erase("position");
+                    node.erase("grid");
+                }
                 return value;
             };
             const bool reset = !edit || topology(next) != topology(patch);
