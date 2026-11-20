@@ -2,7 +2,7 @@
 import { writeFileSync } from 'node:fs';
 import {
   MODULAR_LINE_SAMPLES, MODULAR_LINES, MODULAR_MACROS, MODULAR_MATERIALS, MODULAR_MAX_INPUTS, MODULAR_MAX_OUTPUTS,
-  MODULAR_MAX_PARAMS, MODULAR_MODES, MODULAR_PATCH_BYTES, MODULAR_POSITION_MAX, MODULAR_PRESETS, MODULAR_TYPES,
+  MODULAR_MAX_PARAMS, MODULAR_MODAL_FIELDS, MODULAR_MODES, MODULAR_PATCH_BYTES, MODULAR_POSITION_MAX, MODULAR_PRESETS, MODULAR_TYPES,
 } from '../src/dsp/modular.js';
 
 const json = JSON.stringify;
@@ -27,6 +27,10 @@ constexpr size_t kPatchBytes = ${MODULAR_PATCH_BYTES};
 constexpr double kPositionMax = ${MODULAR_POSITION_MAX};
 constexpr size_t kMaxInputs = ${MODULAR_MAX_INPUTS}, kMaxParams = ${MODULAR_MAX_PARAMS}, kMaxOutputs = ${MODULAR_MAX_OUTPUTS};
 constexpr size_t kLines = ${MODULAR_LINES}, kLineSamples = ${MODULAR_LINE_SAMPLES}, kModes = ${MODULAR_MODES};
+${Object.entries(MODULAR_MODAL_FIELDS).map(([key, { min, max }]) => {
+  const field = key[0].toUpperCase() + key.slice(1);
+  return `constexpr double kModal${field}Min = ${min}, kModal${field}Max = ${max};`;
+}).join('\n')}
 const Spec kSpecs[] = {
 ${specs.join('\n')}
 };

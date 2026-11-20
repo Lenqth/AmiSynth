@@ -47,8 +47,14 @@ Patches support up to 32 modules and eight voices. The first **MIDI / Note** mod
 | Wavefolder / Shaper | **Drive** amplifies the signal before **bias** shifts it. **Fold** reflects it at ±1, while **Soft clip** saturates it smoothly. **Mix** blends the result with the input. |
 | Comb / Delay Line | Delay of 0.05–40 ms with damped feedback and a dry/wet mix. |
 | Pluck String | Karplus-Strong string: a rising **gate** plucks it at **pitch**; **excite** adds input to the loop. **decay** is the time to −60 dB while held, **release** after. |
-| Modal Resonator | Eight resonant modes from the Physical instrument's materials, struck by a rising **gate** and excited by **in**. |
+| Modal Resonator | Uses a built-in material or a custom table of up to eight resonant modes. A rising **gate** strikes it and **in** adds continuous excitation. |
 | Delay lines | Strings and comb filters share four preallocated lines per voice, so a patch can use four of them. A released voice stays alive while an ADSR, function generator, string or modal resonator is still active, up to the voice tail limit. |
+
+### Custom resonance tables
+
+On a Modal Resonator, choose **Edit resonance**. The table starts with a copy of the selected material; **Copy selected material** restores that starting point in the editor. Add or remove modes and set each mode's frequency ratio, gain and decay multiplier. A ratio of 2 sounds an octave above the pitch input. Gain 0 silences a mode. A decay multiplier of 1 keeps the decay set by the module's Decay, Release and Brightness controls. Modes above 45% of the sample rate are skipped.
+
+Choose **Apply table** to use the draft, or **Use built-in material** to return to the original material knob and its CV input. Applying or removing a table is a structural edit and ends current voices. Tables are part of the patch JSON and CLAP project state. To reuse a table in another rack, select its module and use **Save selection**. **Twin Glass** demonstrates two close frequencies that beat against each other.
 
 ### Synth presets
 

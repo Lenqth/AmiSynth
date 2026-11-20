@@ -1,8 +1,8 @@
 <script>
   import { onMount, tick } from 'svelte';
   import {
-    MODULAR_MACROS, MODULAR_PATCH_BYTES, MODULAR_POSITION_MAX, MODULAR_PRESETS, MODULAR_TYPES,
-    compileModularPatch, defaultModularPatch, modularParamInput, searchModularTypes,
+    MODULAR_MACROS, MODULAR_MODAL_FIELDS, MODULAR_MODES, MODULAR_PATCH_BYTES, MODULAR_POSITION_MAX, MODULAR_PRESETS, MODULAR_TYPES,
+    compileModularPatch, defaultModularPatch, modularMaterialTable, modularParamInput, searchModularTypes,
   } from '../dsp/modular.js';
 
   let { patch = defaultModularPatch(), onchange = () => {}, signalSource = null } = $props();
@@ -37,6 +37,11 @@
   let observer;
   const graph = $derived(compileModularPatch(patch).patch);
   const nodes = $derived(graph.nodes);
+  let modalId = $state('');
+  let modeRows = $state([]);
+  let modalEditor = $state();
+  const editedModal = $derived(nodes.find(n => n.id === modalId && n.type === 'modal'));
+  const modeFields = Object.entries(MODULAR_MODAL_FIELDS);
   const probes = $derived(nodes.flatMap(n => MODULAR_TYPES[n.type].outputs.map(port => ({
     key: n.id + '/' + port, label: n.id + '.' + port,
   }))));
@@ -259,6 +264,7 @@
       past = past.slice(0, -1);
     }
     marked = [];
+    modalId = '';
     lastEdit = null;
   }
 
@@ -308,10 +314,11 @@
     drag = selected = moving = null;
     foreground = '';
     marked = [];
+    modalId = '';
     commit(next);
   }
 
-  function add(type, preferred, params = {}) {
+  function add(type, preferred, params = {}, modalTable) {
     if (nodes.length >= 32) return;
     // Embedded offline pages do not always expose randomUUID (secure-context API).
     const id = 'module_' + Array.from(crypto.getRandomValues(new Uint8Array(4)), n => n.toString(16).padStart(2, '0')).join('');
@@ -326,19 +333,33 @@
         break;
       }
     }
-    commit({ ...graph, nodes: [...nodes, { id, type, params, position }] });
+    commit({ ...graph, nodes: [...nodes, { id, type, params, position, modalTable }] });
     foreground = id;
     closeMenu();
   }
 
   function duplicate(card, position = boundedPoint(card.x + 30, card.y + 46)) {
-    add(card.node.type, position, { ...card.node.params });
+    add(card.node.type, position, { ...card.node.params }, card.node.modalTable);
+  }
+
+  async function editModes(node) {
+    modalId = node.id;
+    modeRows = node.modalTable?.map(row => ({ ...row })) ?? modularMaterialTable(node.params.material);
+    await tick();
+    modalEditor?.scrollIntoView({ block: 'nearest' });
+    modalEditor?.querySelector('input')?.focus({ preventScroll: true });
+  }
+
+  function setModalTable(modalTable) {
+    const next = { ...graph, nodes: nodes.map(n => n.id === modalId ? { ...n, modalTable } : n) };
+    if (commit(next) || JSON.stringify(modalTable) === JSON.stringify(editedModal?.modalTable)) modalId = '';
   }
 
   function remove(id) {
     drag = selected = moving = null;
     closeMenu();
     marked = marked.filter(item => item !== id);
+    if (modalId === id) modalId = '';
     commit({ ...graph, nodes: nodes.filter(n => n.id !== id), cables: graph.cables.filter(c => c.from !== id && c.to !== id) });
   }
 
@@ -570,6 +591,38 @@
   {/if}
   <p class="muted hint">Right-click the rack to add a module. Drag either jack to connect. Click a connected input to unplug it. Ctrl + wheel zooms.</p>
   {#if error}<p role="alert" class="error">{error}</p>{/if}
+  {#if editedModal}
+    <form class="modal-editor" aria-label="Resonance table for {modalId}" bind:this={modalEditor}
+      onsubmit={(event) => { event.preventDefault(); setModalTable($state.snapshot(modeRows)); }}>
+      <h4>Resonance table · {modalId}</h4>
+      <table>
+        <thead><tr><th scope="col">Mode</th>
+          {#each modeFields as [, field]}<th scope="col">{field.label}</th>{/each}
+          <th scope="col">Remove</th>
+        </tr></thead>
+        <tbody>
+          {#each modeRows as row, i (row)}
+            <tr><th scope="row">{i + 1}</th>
+              {#each modeFields as [key, field]}
+                <td><input type="number" step="any" min={field.min} max={field.max} required
+                  aria-label="Mode {i + 1} {field.label}" bind:value={row[key]} /></td>
+              {/each}
+              <td><button type="button" disabled={modeRows.length === 1} aria-label="Remove mode {i + 1}"
+                onclick={() => modeRows = modeRows.filter((_, index) => index !== i)}>×</button></td>
+            </tr>
+          {/each}
+        </tbody>
+      </table>
+      <div class="modal-actions">
+        <button type="button" disabled={modeRows.length >= MODULAR_MODES}
+          onclick={() => modeRows = [...modeRows, { ratio: 1, gain: 0.25, decay: 1 }]}>Add mode</button>
+        <button type="button" onclick={() => modeRows = modularMaterialTable(editedModal.params.material)}>Copy selected material</button>
+        <button type="submit">Apply table</button>
+        <button type="button" disabled={!editedModal.modalTable} onclick={() => setModalTable(undefined)}>Use built-in material</button>
+        <button type="button" onclick={() => modalId = ''}>Cancel</button>
+      </div>
+    </form>
+  {/if}
   <p class="muted selection" role="status">
     {#if selected}Selected {selected.dir === 'out' ? 'output' : 'input'} {selected.id}.{selected.port.replace('param:', '')}. Choose {selected.dir === 'out' ? 'an input' : 'an output'}.{/if}
   </p>
@@ -598,6 +651,10 @@
           </header>
           <label class="muted"><input type="checkbox" checked={marked.includes(n.id)} onchange={() => toggleMarked(n.id)}
             aria-label="Select {n.id}" /> <small>{n.id}</small></label>
+          {#if n.type === 'modal'}
+            <button type="button" class="resonance-button" aria-label="Edit resonance table for {n.id}"
+              aria-expanded={modalId === n.id} onclick={() => editModes(n)}>{n.modalTable ? 'Edit custom resonance' : 'Edit resonance'}</button>
+          {/if}
           {#each Object.entries(MODULAR_TYPES[n.type].params) as [key, def]}
             {@const input = modularParamInput(key)}
             {@const connected = wiredInputs.has(jackKey(n.id, input, 'in'))}
@@ -613,9 +670,10 @@
                     }} />
                 {:else}
                   <input aria-label="{n.id} {key}" type="range" min={def.min} max={def.max} step={def.step}
-                    value={n.params[key]} disabled={connected} oninput={(e) => knob(n.id, key, e.currentTarget.value)} />
+                    value={n.params[key]} disabled={connected || (key === 'material' && !!n.modalTable)}
+                    oninput={(e) => knob(n.id, key, e.currentTarget.value)} />
                 {/if}
-                <output>{def.choices ? def.choices[n.params[key] - def.min] : Number(n.params[key]).toFixed(def.step < 0.01 ? 3 : def.step < 1 ? 2 : 0)}</output>
+                <output>{key === 'material' && n.modalTable ? 'Custom' : def.choices ? def.choices[n.params[key] - def.min] : Number(n.params[key]).toFixed(def.step < 0.01 ? 3 : def.step < 1 ? 2 : 0)}</output>
               </label>
             </div>
           {/each}
@@ -753,5 +811,11 @@
   .macros input { width:6rem }
   .scope-panel { width:min(100%, 320px); margin:0.5rem 0; }
   .scope-panel svg { display:block; width:100%; background:var(--panel, #172033); color:#71c7ff; }
+  .modal-editor { margin:0.6rem 0; padding:0.7rem; border:1px solid var(--border, #34405a); overflow-x:auto; }
+  .modal-editor h4 { margin:0 0 0.5rem; }
+  .modal-editor table { border-spacing:0.35rem; text-align:left; }
+  .modal-editor input { width:6rem; }
+  .modal-actions { display:flex; flex-wrap:wrap; gap:0.4rem; }
+  .resonance-button { margin:0.25rem 0; }
   h4 { margin:0.8rem 0 0.5rem }
 </style>
