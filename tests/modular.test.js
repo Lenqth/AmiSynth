@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { MODULAR_TYPES, compileModularPatch, searchModularTypes, defaultModularPatch, modular_init, modular_meter_enable, modular_meter_snapshot, modular_midi, modular_render, modular_set_patch, safeModularPatch } from '../src/dsp/modular.js';
+import { MODULAR_PRESETS, MODULAR_TYPES, compileModularPatch, searchModularTypes, defaultModularPatch, modular_init, modular_meter_enable, modular_meter_snapshot, modular_midi, modularPresetIndex, modular_render, modular_set_patch, safeModularPatch } from '../src/dsp/modular.js';
 import { renderPattern } from '../src/lib/render.js';
 
 test('modular default patch compiles and respects its dependency order', () => {
@@ -406,6 +406,21 @@ test('Synth presets convert to Modular patches that fit the rack, or name what M
     assert.ok(compileModularPatch(patch).nodes.length <= 32, preset.name);
   }
   assert.throws(() => modularFromSynth({ fx_delay_on: 1 }), /fx_delay_on/);
+});
+
+test('the factory preset match survives layout changes and returns when a sound edit is undone', () => {
+  const index = MODULAR_PRESETS.findIndex(preset => preset.name === 'Feedback Bass');
+  const patch = compileModularPatch(MODULAR_PRESETS[index].patch()).patch;
+  const saved = JSON.parse(JSON.stringify(patch));
+  saved.nodes[0].position = { x: 300, y: 400 };
+  const selection = () => modularPresetIndex(compileModularPatch(saved).patch);
+  assert.equal(selection(), index);
+  saved.macros[0] = 0.42;
+  assert.equal(selection(), -1);
+  saved.macros[0] = patch.macros[0];
+  assert.equal(selection(), index);
+  saved.cables.pop();
+  assert.equal(selection(), -1);
 });
 
 test('a pulse wave has no DC offset at any width', () => {
