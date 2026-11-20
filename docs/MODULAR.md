@@ -41,6 +41,7 @@ Patches support up to 32 modules and eight voices. The first **MIDI / Note** mod
 | Clock | Generates a shared **gate** pulse and a 0–1 **phase** ramp. Set **bpm**, **pulses** per beat and the fraction of each pulse spent high (**duty**). |
 | Clock Divider | Passes the first and every Nth **clock** pulse, keeping its width. Hold **reset** high to clear the count and suppress the output. |
 | Step Sequencer | Advances on rising **clock**, starting at step 1. **CV** holds the current step value. **Gate** follows the clock when that step passes the **probability** check. **Reset** returns to step 1 and suppresses the gate while high. |
+| Drum Voice | A rising **trigger** starts a kick, snare, clap, closed hat, open hat, or tom. **Velocity** scales the hit and a high **choke** cuts its tail. **Tune** shifts the selected sound in semitones; **decay** scales its tail time. Try **Patch Beat** for a rack that sequences its own percussion. |
 | Pitch Quantizer | Rounds MIDI note values to the closest note in the chosen **root** and **scale**, choosing the lower note on ties. |
 | Slew / Glide, Envelope Follower | One-pole smoothing with separate rise and fall times; the follower smooths the input's magnitude. |
 | Multiply / Ring | `a × b × level`; an unpatched **b** is 1. |

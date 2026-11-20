@@ -47,7 +47,7 @@ export const NOTE_COWBELL = 56;
 export const NOTE_SHAKER = 70;
 
 // Classic 808-style cymbal oscillator ratios (205.3, 304.4, 369.6, 522.7, 540, 800 Hz / 205.3)
-const HAT_RATIOS = [1, 1.4827, 1.8003, 2.546, 2.6303, 3.8967];
+export const HAT_RATIOS = [1, 1.4827, 1.8003, 2.546, 2.6303, 3.8967];
 /** triangle partials (ratio, level) */
 const TRI_RATIOS = [1, 2.05, 3.13, 4.27, 5.4];
 const TRI_LEVELS = [1, 0.7, 0.55, 0.45, 0.35];
