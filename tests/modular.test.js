@@ -284,12 +284,16 @@ test('a struck modal resonator rings on after note-off and then frees its voice'
   assert.ok(s.voices.every(v => !v.active));
 });
 
-test('strings and comb filters share four delay lines per voice', () => {
+test('bowed strings, plucked strings and comb filters share four delay lines per voice', () => {
   const patch = { nodes: [{ id: 'out', type: 'output' }], cables: [] };
   for (let i = 0; i < 4; i++) patch.nodes.push({ id: 'line' + i, type: i % 2 ? 'comb' : 'string' });
   assert.equal(compileModularPatch(patch).lineCount, 4);
   patch.nodes.push({ id: 'line4', type: 'comb' });
   assert.throws(() => compileModularPatch(patch), /at most 4/);
+  patch.nodes.splice(1, 2, { id: 'bow', type: 'bowed' });
+  assert.throws(() => compileModularPatch(patch), /at most 4/);
+  patch.nodes.pop();
+  assert.equal(compileModularPatch(patch).lineCount, 4);
 });
 
 test('patches saved before filter modes keep a 12 dB lowpass without key tracking or drive', () => {

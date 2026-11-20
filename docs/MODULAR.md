@@ -47,8 +47,9 @@ Patches support up to 32 modules and eight voices. The first **MIDI / Note** mod
 | Wavefolder / Shaper | **Drive** amplifies the signal before **bias** shifts it. **Fold** reflects it at ±1, while **Soft clip** saturates it smoothly. **Mix** blends the result with the input. |
 | Comb / Delay Line | Delay of 0.05–40 ms with damped feedback and a dry/wet mix. |
 | Pluck String | Karplus-Strong string: a rising **gate** plucks it at **pitch**; **excite** adds input to the loop. **decay** is the time to −60 dB while held, **release** after. |
+| Bowed String | Two string sections and a nonlinear bow contact sustain a note while **gate** is high. Patch velocity or a CV into **bow** to scale the bow speed. **Pressure**, **position**, and **damping** change the response. Try the **Bow Grain** preset. |
 | Modal Resonator | Eight resonant modes from the Physical instrument's materials, struck by a rising **gate** and excited by **in**. |
-| Delay lines | Strings and comb filters share four preallocated lines per voice, so a patch can use four of them. A released voice stays alive while an ADSR, function generator, string or modal resonator is still active, up to the voice tail limit. |
+| Delay lines | Pluck String and Comb use one line each. Bowed String uses two. A patch has four preallocated lines per voice. A released voice stays alive while an audible envelope or physical resonator is still active, up to the voice tail limit. |
 
 ### Synth presets
 
