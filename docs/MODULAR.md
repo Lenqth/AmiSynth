@@ -26,6 +26,7 @@ Type an exact value next to a numeric slider or macro. Press Enter or leave the 
 | VCO FM | 1 adds one octave. VCO pitch and FM run at audio rate. |
 | VCO PM | Phase modulation in radians, as the Synth instrument's FM index. |
 | VCO sync | The **sync** output is 1 on the sample where the cycle restarts. Patched into another VCO's **sync** input, it restarts that oscillator (hard sync). |
+| Wavetable Oscillator | Select a **bank** and sweep **position** from 0 to 1 to blend its frames. **Pitch**, **FM**, **PM** and rising **sync** control the oscillator. **Voices** sets 1–7 copies, **detune** is their total pitch spread in cents, and **spread** sets their stereo width. Use **out** for mono, or patch **left** and **right** to separate channels. |
 | VCO pw, phase | Pulse width for the square wave, which has no DC offset at any width. **phase** is where each note's cycle starts. |
 | VCF | Lowpass, highpass, bandpass or notch; 12 or 24 dB (a Butterworth stage before the resonant one); drive soft-clips the input. Key tracking follows the **pitch** input relative to middle C. |
 | ADSR curve | **Linear**, or **Exponential**: decay and release fall to −60 dB in their time, as in the Synth instrument. |
@@ -56,6 +57,10 @@ Type an exact value next to a numeric slider or macro. Press Enter or leave the 
 | Pluck String | Karplus-Strong string: a rising **gate** plucks it at **pitch**; **excite** adds input to the loop. **decay** is the time to −60 dB while held, **release** after. |
 | Modal Resonator | Uses a built-in material or a custom table of up to eight resonant modes. A rising **gate** strikes it and **in** adds continuous excitation. |
 | Delay lines | Strings and comb filters share four preallocated lines per voice, so a patch can use four of them. A released voice stays alive while an ADSR, function generator, string or modal resonator is still active, up to the voice tail limit. |
+
+### Wavetable presets
+
+Try **Vowel Halo** for an LFO sweep through the Vocal Formants bank or **Digital Pulse** for a short envelope sweep through the Digital bank. Both demonstrate stereo unison.
 
 ### Custom resonance tables
 

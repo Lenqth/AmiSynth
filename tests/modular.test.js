@@ -523,6 +523,37 @@ test('the factory preset match survives layout changes and returns when a sound 
   assert.equal(selection(), -1);
 });
 
+test('Wavetable position changes the sound and unison spread separates the stereo channels', () => {
+  function render(position, spread) {
+    const s = {};
+    modular_init(s, 48000);
+    modular_set_patch(s, {
+      nodes: [
+        { id: 'osc', type: 'wavetable', params: { bank: 0, voices: 3, position, spread } },
+        { id: 'out', type: 'output' },
+      ],
+      cables: [
+        { from: 'osc', port: 'left', to: 'out', input: 'audio' },
+        { from: 'osc', port: 'right', to: 'out', input: 'right' },
+      ],
+    });
+    modular_midi(s, 0x90, 60, 100);
+    const left = [], right = [];
+    for (let i = 0; i < 4800; i++) {
+      modular_render(s);
+      left.push(s.out_l);
+      right.push(s.out_r);
+    }
+    return { left, right };
+  }
+  const sine = render(0, 0);
+  const square = render(1, 0);
+  assert.deepEqual(sine.left, sine.right);
+  assert.ok(square.left.some((value, i) => Math.abs(value - sine.left[i]) > 0.1));
+  const stereo = render(0, 1);
+  assert.ok(stereo.left.some((value, i) => Math.abs(value - stereo.right[i]) > 0.1));
+});
+
 test('a pulse wave has no DC offset at any width', () => {
   const s = {};
   modular_init(s, 48000);

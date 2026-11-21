@@ -5,6 +5,7 @@
 #include <cmath>
 #include <cstdint>
 #include <initializer_list>
+#include <mutex>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -27,6 +28,7 @@ struct Material { double ratios[8], gains[8]; };
 
 constexpr size_t kNodes = 32;
 constexpr double kPi = 3.14159265358979323846;
+#include "modular_wavetable.h"
 constexpr double kLn1000 = 6.907755278982137; // a T60 decay falls by a factor of 1000
 constexpr int kLineMask = int(kLineSamples) - 1;
 static_assert((kLineSamples & (kLineSamples - 1)) == 0, "Delay lines are a power of two");
@@ -46,6 +48,7 @@ struct Node {
     bool custom_modal = false;
     bool modulated = false;
     int line = -1; // Delay-line slot for strings and comb filters.
+    const float *wavetable = nullptr;
 };
 struct Graph {
     std::array<Node, kNodes> nodes{};
@@ -252,6 +255,10 @@ inline Graph compile(Json &patch, Macros &macros) {
     }
     patch = {{"version", 1}, {"nodes", std::move(nodes)}, {"cables", std::move(cables)},
              {"macros", macros}, {"macroNames", macro_names}};
+    for (int i = 0; i < graph.size; ++i) {
+        auto &node = graph.nodes[i];
+        if (node.type == Type::wavetable) node.wavetable = wavetable_bank(size_t(node.knobs[0]));
+    }
     return graph;
 }
 
@@ -606,6 +613,37 @@ struct Engine {
             const double next = st.phase + step;
             sig[1] = next >= 1 ? 1 : 0;
             st.phase = std::fmod(next, 1.0);
+            break;
+        }
+        case Type::wavetable: {
+            const bool sync = read(v, n, 3) > 0;
+            if (!st.ready || (sync && !st.gate)) {
+                for (size_t copy = 0; copy < 7; ++copy) {
+                    const double phase = p[7] + copy * 0.6180339887498949;
+                    st.y1[copy] = phase - std::floor(phase);
+                }
+                st.ready = true;
+            }
+            st.gate = sync;
+            const double note = read(v, n, 0, 69) + 12 * (p[2] + read(v, n, 1));
+            const double pm = read(v, n, 2) / (2 * kPi);
+            const int copies = int(p[4]);
+            double mono = 0, left = 0, right = 0;
+            for (int copy = 0; copy < copies; ++copy) {
+                const double offset = copies == 1 ? 0 : 2.0 * copy / (copies - 1) - 1;
+                const double hz = 440 * std::exp2((note - 69 + offset * p[5] / 200) / 12);
+                const double inc = std::clamp(hz / rate, 0.01 / rate, 0.45);
+                const double sample = wavetable_sample(n.wavetable, st.y1[copy], inc, p[1], pm);
+                const double phase = st.y1[copy] + inc;
+                st.y1[copy] = phase < 1 ? phase : phase - 1;
+                mono += sample;
+                left += sample * std::sqrt(1 - offset * p[6]);
+                right += sample * std::sqrt(1 + offset * p[6]);
+            }
+            const double gain = p[3] / copies;
+            sig[0] = mono * gain;
+            sig[1] = left * gain;
+            sig[2] = right * gain;
             break;
         }
         case Type::lfo:

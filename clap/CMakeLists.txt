@@ -97,6 +97,7 @@ add_custom_command(
   DEPENDS "${MODULAR_GENERATOR}" "${MODULAR_WEB_DSP}" "${CMAKE_CURRENT_SOURCE_DIR}/../src/dsp/phys.js"
   "${CMAKE_CURRENT_SOURCE_DIR}/../src/presets/modular.js" "${CMAKE_CURRENT_SOURCE_DIR}/../src/presets/synth.js" "${CMAKE_CURRENT_SOURCE_DIR}/../src/dsp/params.js"
   "${CMAKE_CURRENT_SOURCE_DIR}/../src/dsp/drums.js"
+  "${CMAKE_CURRENT_SOURCE_DIR}/../src/dsp/wavetable.js"
   VERBATIM)
 
 target_sources(AmiSynth PRIVATE src/modular_clap.cpp "${MODULAR_CATALOG}")
@@ -129,6 +130,7 @@ if(WIN32)
       "${CMAKE_CURRENT_SOURCE_DIR}/../src/dsp/modular.js"
       "${CMAKE_CURRENT_SOURCE_DIR}/../src/dsp/phys.js"
       "${CMAKE_CURRENT_SOURCE_DIR}/../src/dsp/drums.js"
+      "${CMAKE_CURRENT_SOURCE_DIR}/../src/dsp/wavetable.js"
       "${CMAKE_CURRENT_SOURCE_DIR}/../src/presets/modular.js"
       "${CMAKE_CURRENT_SOURCE_DIR}/../src/presets/synth.js"
       "${CMAKE_CURRENT_SOURCE_DIR}/../src/dsp/params.js"

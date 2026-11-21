@@ -47,6 +47,17 @@ const voice = (extra, cables) => ({
   cables,
 });
 const PATCHES = {
+  'wavetable sync, FM, and phase modulation': voice([
+    { id: 'sync', type: 'vco', params: { wave: 0, octave: -1 } },
+    { id: 'table', type: 'wavetable', params: { bank: 1, position: 0.67, octave: 1, phase: 0.15 } },
+  ], [
+    { from: 'note', port: 'pitch', to: 'sync', input: 'pitch' },
+    { from: 'note', port: 'pitch', to: 'table', input: 'pitch' },
+    { from: 'sync', port: 'sync', to: 'table', input: 'sync' },
+    { from: 'sync', port: 'out', to: 'table', input: 'fm' },
+    { from: 'sync', port: 'out', to: 'table', input: 'pm' },
+    { from: 'table', port: 'out', to: 'out', input: 'audio' },
+  ]),
   'looping function generator and end-of-cycle pulse': voice([
     { id: 'fn', type: 'functionGen', params: { rise: 0.003, fall: 0.01, curve: 0.3, loop: 1 } },
     { id: 'sum', type: 'mix' },
