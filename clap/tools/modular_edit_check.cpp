@@ -183,6 +183,17 @@ int main(int argc, char **argv) {
                       }
                     }
                   }
+                  choose(presets.findIndex(preset => preset.name === 'Wine Glass (Modular)'));
+                  const material = () => document.querySelector('select[aria-label="resonator material"]');
+                  await wait(() => material()?.selectedOptions[0]?.text === 'Wine Glass', 'material dropdown');
+                  const shortWidth = material().getBoundingClientRect().width;
+                  const longChoice = Array.from(material().options).find(option => option.text === 'Harmonic (string-like)');
+                  material().value = longChoice.value;
+                  material().dispatchEvent(new Event('change', { bubbles: true }));
+                  await wait(async () => (await state()).nodes.find(n => n.id === 'resonator')?.params.material ===
+                    Number(longChoice.value), 'select a long material name');
+                  if (Math.abs(material().getBoundingClientRect().width - shortWidth) > 0.1)
+                    throw Error('Material selector width changed with the selected label');
                   choose(0);
                   await wait(async ()=>(await state()).nodes.length===6,'restore initial rack');
                   const selector = document.querySelector('select');

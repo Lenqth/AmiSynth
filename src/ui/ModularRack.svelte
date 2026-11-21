@@ -760,18 +760,26 @@
               {#if def.fixed}<span aria-hidden="true"></span>{:else}{@render jack(n, input, 'in', key, true)}{/if}
               <div class="modular-param" class:driven={connected}>
                 <span>{key}</span>
-                <div class="param-controls">
-                  {#if !(n.type === 'macro' && (key === 'from' || key === 'to'))}
-                    <input aria-label={label} type="range" min={def.min} max={def.max} step={def.step}
-                      value={n.params[key]} {disabled} oninput={(e) => knob(n.id, key, e.currentTarget.value)} />
-                  {/if}
-                  {#if def.choices}
-                    <output>{customMaterial ? 'Custom' : def.choices[n.params[key] - def.min]}</output>
-                  {:else}
+                {#if def.choices}
+                  <select class="param-choice" aria-label={label}
+                    title={customMaterial ? 'Custom' : def.choices[n.params[key] - def.min]}
+                    value={customMaterial ? 'custom' : n.params[key]} {disabled}
+                    onchange={(e) => knob(n.id, key, e.currentTarget.value)}>
+                    {#if customMaterial}<option value="custom" disabled>Custom</option>{/if}
+                    {#each def.choices as choice, index}
+                      <option value={def.min + index}>{choice}</option>
+                    {/each}
+                  </select>
+                {:else}
+                  <div class="param-controls">
+                    {#if !(n.type === 'macro' && (key === 'from' || key === 'to'))}
+                      <input aria-label={label} type="range" min={def.min} max={def.max} step={def.step}
+                        value={n.params[key]} {disabled} oninput={(e) => knob(n.id, key, e.currentTarget.value)} />
+                    {/if}
                     {@render numericValue(label, n.params[key], def.min, def.max, def.step, disabled,
                       (value) => knob(n.id, key, value))}
-                  {/if}
-                </div>
+                  </div>
+                {/if}
               </div>
             </div>
           {/each}
@@ -896,7 +904,7 @@
   .modular-param { display:grid; gap:0.15rem; margin:0.25rem 0; min-width:0 }
   .param-controls { display:flex; align-items:center; gap:0.3rem; min-width:0 }
   .param-controls input[type="range"] { flex:1; min-width:0; width:100%; margin:0 }
-  .param-controls output { font-variant-numeric:tabular-nums }
+  .param-choice { box-sizing:border-box; width:100%; min-width:0; max-width:100%; text-overflow:ellipsis }
   .param-number { box-sizing:border-box; width:5.4rem; min-width:0; font-variant-numeric:tabular-nums }
   .jacks { display:grid; grid-template-columns:1fr 1fr; gap:2px; margin:0 -0.7rem; padding-top:0.45rem }
   .jack-column { display:grid; min-width:0; gap:2px; align-content:start }
