@@ -36,6 +36,106 @@ test('an autonomous rack clocks steps and rounds MIDI pitch without note input',
   assert.deepEqual(observed, [[60, 1, 60], [60, 0, 60], [61, 1, 60], [60, 1, 60]]);
 });
 
+test('factory rhythm patches wait for a key and Patch Beat restarts on the next press', () => {
+  for (const preset of MODULAR_PRESETS) {
+    assert.ok(!preset.patch().nodes.some(node => node.type === 'clock'), preset.name);
+  }
+  const patch = MODULAR_PRESETS.find(preset => preset.name === 'Patch Beat').patch();
+  const s = {};
+  modular_init(s, 1000);
+  modular_set_patch(s, patch);
+  const beat = patch.nodes.findIndex(node => node.id === 'beat');
+  const steps = patch.nodes.findIndex(node => node.id === 'kick_steps');
+  const signal = (node, port) => s.voices[0].signals[node][port];
+  const render = count => { for (let i = 0; i < count; i++) modular_render(s); };
+
+  for (let i = 0; i < 600; i++) {
+    modular_render(s);
+    assert.equal(s.out_l, 0);
+  }
+  modular_midi(s, 0x90, 60, 100);
+  render(1);
+  assert.equal(signal(beat, 'gate'), 1);
+  assert.equal(signal(steps, 'cv'), 1);
+  render(274);
+  assert.equal(signal(steps, 'cv'), 0);
+  const phase = signal(beat, 'phase');
+
+  modular_midi(s, 0x90, 64, 100);
+  render(1);
+  assert.ok(signal(beat, 'phase') > phase, 'a legato key must not restart the beat');
+  modular_midi(s, 0xb0, 64, 127);
+  modular_midi(s, 0x80, 64, 0);
+  render(1);
+  assert.equal(signal(beat, 'gate'), 1, 'one key is still down');
+  modular_midi(s, 0x80, 60, 0);
+  render(1);
+  assert.equal(signal(beat, 'gate'), 0);
+  assert.equal(signal(beat, 'phase'), 0);
+  assert.equal(signal(beat, 'reset'), 1);
+
+  modular_midi(s, 0x90, 67, 100);
+  render(1);
+  assert.equal(signal(beat, 'gate'), 1);
+  assert.equal(signal(steps, 'cv'), 1);
+});
+
+test('Beat Grid routes one pulse to any selected lanes, wraps and restarts', () => {
+  const patch = MODULAR_PRESETS.find(preset => preset.name === 'Four Lane Beat').patch();
+  const clock = patch.nodes.find(node => node.id === 'clock');
+  clock.params = { bpm: 300, pulses: 2 };
+  const index = patch.nodes.findIndex(node => node.id === 'grid');
+  patch.nodes[index].params = { length: 3 };
+  const s = {};
+  modular_init(s, 1000);
+  modular_set_patch(s, patch);
+  const state = () => ['a', 'b', 'c', 'd'].map(lane => s.voices[0].signals[index][lane]);
+  const frames = count => { for (let i = 0; i < count; i++) modular_render(s); };
+  modular_midi(s, 0x90, 60, 100);
+  frames(21);
+  assert.deepEqual(state(), [1, 0, 1, 0]);
+  frames(50);
+  assert.deepEqual(state(), [0, 0, 0, 0]);
+  frames(50);
+  assert.deepEqual(state(), [0, 0, 0, 1]);
+  frames(100);
+  assert.deepEqual(state(), [0, 1, 1, 0]);
+  frames(100);
+  assert.deepEqual(state(), [1, 0, 1, 0]);
+  frames(100);
+  assert.deepEqual(state(), [0, 0, 0, 1]);
+  modular_midi(s, 0x80, 60, 0);
+  frames(1);
+  assert.deepEqual(state(), [0, 0, 0, 0]);
+  modular_midi(s, 0x90, 60, 100);
+  frames(1);
+  assert.deepEqual(state(), [1, 0, 1, 0]);
+});
+
+test('Beat Grid plays column 32 and keeps its cells when the loop gets shorter', () => {
+  const patch = MODULAR_PRESETS.find(preset => preset.name === 'Four Lane Beat').patch();
+  patch.nodes.find(node => node.type === 'gatedClock').params = { bpm: 300, pulses: 2 };
+  const index = patch.nodes.findIndex(node => node.id === 'grid');
+  const grid = patch.nodes[index];
+  grid.params = { length: 32 };
+  grid.grid = Array(32).fill(0);
+  grid.grid[31] = 8;
+  const s = {};
+  modular_init(s, 1000);
+  modular_set_patch(s, patch);
+  modular_midi(s, 0x90, 60, 100);
+  const voice = s.voices[0];
+  for (let i = 0; i < 3121; i++) modular_render(s);
+  assert.equal(voice.signals[index].d, 1);
+  grid.params.length = 4;
+  modular_set_patch(s, patch);
+  assert.equal(s.voices[0], voice);
+  const saved = JSON.parse(JSON.stringify(s.graph.patch));
+  assert.equal(saved.nodes[index].grid[31], 8);
+  saved.nodes[index].params.length = 32;
+  assert.equal(compileModularPatch(saved).patch.nodes[index].grid[31], 8);
+});
+
 test('a custom resonance table sets the audible frequency and survives patch serialization', () => {
   const modalTable = [{ ratio: 2.5, gain: 0.8, decay: 0.75 }];
   const patch = {

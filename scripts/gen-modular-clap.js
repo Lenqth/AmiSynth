@@ -1,6 +1,7 @@
 // Keep native module IDs, port names, knob ranges and factory patches in sync with Web.
 import { writeFileSync } from 'node:fs';
 import { HAT_RATIOS } from '../src/dsp/drums.js';
+import { BEAT_GRID_MAX_STEPS } from '../src/dsp/modular.js';
 import { MODULAR_DRUM_DECAY, MODULAR_DRUM_PITCH } from '../src/dsp/modular.js';
 import {
   MODULAR_LINE_SAMPLES, MODULAR_LINES, MODULAR_MACROS, MODULAR_MATERIALS, MODULAR_MAX_INPUTS, MODULAR_MAX_OUTPUTS,
@@ -28,6 +29,7 @@ constexpr size_t kMacroCount = ${MODULAR_MACROS};
 constexpr size_t kPatchBytes = ${MODULAR_PATCH_BYTES};
 constexpr double kPositionMax = ${MODULAR_POSITION_MAX};
 constexpr size_t kMaxInputs = ${MODULAR_MAX_INPUTS}, kMaxParams = ${MODULAR_MAX_PARAMS}, kMaxOutputs = ${MODULAR_MAX_OUTPUTS};
+constexpr size_t kBeatGridMaxSteps = ${BEAT_GRID_MAX_STEPS};
 constexpr size_t kLines = ${MODULAR_LINES}, kLineSamples = ${MODULAR_LINE_SAMPLES}, kModes = ${MODULAR_MODES};
 ${Object.entries(MODULAR_MODAL_FIELDS).map(([key, { min, max }]) => {
   const field = key[0].toUpperCase() + key.slice(1);

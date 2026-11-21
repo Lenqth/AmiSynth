@@ -23,6 +23,7 @@ const webPatch = compileModularPatch({
     { id: 'macro', type: 'macro', position: { x: 180, y: 43 } }, { id: 'memory', type: 'delay' },
     { id: 'sum', type: 'mix', params: { a: 1, b: 0.1 } }, { id: 'out', type: 'output' },
     { id: 'custom', type: 'modal', modalTable: [{ ratio: 1.003, gain: 0.7, decay: 1.2 }] },
+    { id: 'grid', type: 'beatGrid', params: { length: 32 }, grid: [...Array(31).fill(0), 9] },
   ],
   cables: [
     { from: 'macro', port: 'out', to: 'sum', input: 'a' },

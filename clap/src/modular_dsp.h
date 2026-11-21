@@ -40,6 +40,7 @@ struct Node {
     // Signal inputs occupy the first kMaxInputs slots, parameter inputs the rest.
     std::array<Link, kMaxInputs + kMaxParams> links{};
     std::array<const Param *, kMaxParams> specs{};
+    std::array<uint8_t, kBeatGridMaxSteps> grid{};
     Material custom_material{};
     std::array<double, kModes> modal_decay{};
     bool custom_modal = false;
@@ -109,6 +110,21 @@ inline Graph compile(Json &patch, Macros &macros) {
             normalized[p.name] = value;
         }
         Json saved{{"id", id}, {"type", type}, {"params", std::move(normalized)}};
+        if (node.type == Type::beatGrid) {
+            const auto pattern = n.find("grid");
+            const bool has_grid = pattern != n.end() && pattern->is_array();
+            constexpr double max_mask = (1 << kMaxOutputs) - 1;
+            for (size_t step = 0; step < node.grid.size(); ++step) {
+                const auto *value = has_grid && step < pattern->size() ? &(*pattern)[step] : nullptr;
+                if (!has_grid && params != n.end() && params->is_object()) {
+                    const auto legacy = params->find("step" + std::to_string(step + 1));
+                    if (legacy != params->end()) value = &*legacy;
+                }
+                if (value && value->is_number())
+                    node.grid[step] = uint8_t(std::floor(std::clamp(value->get<double>(), 0.0, max_mask) + 0.5));
+            }
+            saved["grid"] = node.grid;
+        }
         if (const auto table = n.find("modalTable"); node.type == Type::modal && table != n.end()) {
             if (!table->is_array() || table->empty() || table->size() > kModes)
                 throw std::invalid_argument("Invalid resonance table size");
@@ -487,6 +503,31 @@ struct Engine {
             sig[0] = clock_phases[i] < p[2] ? 1 : 0;
             sig[1] = clock_phases[i];
             break;
+        case Type::gatedClock: {
+            const bool run = read(v, n, 0, v.key_down) > 0;
+            sig[0] = run && st.phase < p[2] ? 1 : 0;
+            sig[1] = run ? st.phase : 0;
+            sig[2] = run ? 0 : 1;
+            const double phase = st.phase + p[0] * p[1] / (60 * rate);
+            st.phase = run ? phase - std::floor(phase) : 0;
+            break;
+        }
+        case Type::beatGrid: {
+            const bool high = read(v, n, 0) > 0;
+            const bool reset = read(v, n, 1) > 0;
+            const int length = int(p[0]);
+            if (reset) {
+                st.mode = st.write = 0;
+            } else if (high && !st.ready) {
+                st.write = st.mode ? (st.write + 1) % length : 0;
+                st.mode = 1;
+            }
+            st.ready = high;
+            const int step = std::min(st.write, length - 1);
+            const int lanes = high && st.mode ? n.grid[step] : 0;
+            for (size_t lane = 0; lane < sig.size(); ++lane) sig[lane] = (lanes >> lane) & 1;
+            break;
+        }
         case Type::divider:
         case Type::sequencer: {
             const bool high = read(v, n, 0) > 0;

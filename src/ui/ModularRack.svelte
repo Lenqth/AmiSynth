@@ -1,6 +1,7 @@
 <script>
   import { onMount, tick } from 'svelte';
   import {
+    BEAT_GRID_LANES, BEAT_GRID_MAX_STEPS,
     MODULAR_MACROS, MODULAR_MODAL_FIELDS, MODULAR_MODES, MODULAR_PATCH_BYTES, MODULAR_POSITION_MAX, MODULAR_PRESETS, MODULAR_TYPES,
     compileModularPatch, defaultModularPatch, modularMaterialTable, modularParamInput, modularPresetIndex, searchModularTypes,
   } from '../dsp/modular.js';
@@ -319,7 +320,7 @@
     commit(next);
   }
 
-  function add(type, preferred, params = {}, modalTable) {
+  function add(type, preferred, { params = {}, modalTable, grid } = {}) {
     if (nodes.length >= 32) return;
     // Embedded offline pages do not always expose randomUUID (secure-context API).
     const id = 'module_' + Array.from(crypto.getRandomValues(new Uint8Array(4)), n => n.toString(16).padStart(2, '0')).join('');
@@ -334,13 +335,25 @@
         break;
       }
     }
-    commit({ ...graph, nodes: [...nodes, { id, type, params, position, modalTable }] });
+    commit({ ...graph, nodes: [...nodes, { id, type, params, position, modalTable, grid }] });
     foreground = id;
     closeMenu();
   }
 
   function duplicate(card, position = boundedPoint(card.x + 30, card.y + 46)) {
-    add(card.node.type, position, { ...card.node.params }, card.node.modalTable);
+    add(card.node.type, position, card.node);
+  }
+
+  function toggleGridCell(node, step, row) {
+    const grid = node.grid.with(step, node.grid[step] ^ (1 << row));
+    commit({ ...graph, nodes: nodes.map(n => n.id === node.id ? { ...n, grid } : n) });
+  }
+
+  function setGridLength(node, input) {
+    const entered = input.valueAsNumber;
+    const length = Number.isFinite(entered) ? Math.min(BEAT_GRID_MAX_STEPS, Math.max(1, Math.round(entered))) : node.params.length;
+    input.value = String(length);
+    if (length !== node.params.length) knob(node.id, 'length', length);
   }
 
   async function editModes(node) {
@@ -656,7 +669,36 @@
             <button type="button" class="resonance-button" aria-label="Edit resonance table for {n.id}"
               aria-expanded={modalId === n.id} onclick={() => editModes(n)}>{n.modalTable ? 'Edit custom resonance' : 'Edit resonance'}</button>
           {/if}
-          {#each Object.entries(MODULAR_TYPES[n.type].params) as [key, def]}
+          {#if n.type === 'beatGrid'}
+            {@const steps = Array.from({ length: n.params.length }, (_, index) => index)}
+            <label class="grid-length">Steps
+              <input type="number" min="1" max={BEAT_GRID_MAX_STEPS} step="1" value={n.params.length}
+                aria-label="{n.id} steps" onchange={(e) => setGridLength(n, e.currentTarget)}
+                onkeydown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); }} />
+            </label>
+            <div class="grid-scroll" role="region" aria-label="{n.id} pattern">
+              <table class="beat-grid" aria-label="Beat Grid {n.id}">
+                <thead>
+                  <tr><th scope="col">Out</th>
+                    {#each steps as step (step)}<th scope="col">{step + 1}</th>{/each}
+                  </tr>
+                </thead>
+                <tbody>
+                  {#each BEAT_GRID_LANES as lane, row}
+                    <tr><th scope="row">{lane.toUpperCase()}</th>
+                      {#each steps as step (step)}
+                        {@const on = (n.grid[step] & (1 << row)) !== 0}
+                        <td><button type="button" class:enabled={on} aria-pressed={on}
+                          aria-label="{n.id} output {lane.toUpperCase()}, step {step + 1}"
+                          onclick={() => toggleGridCell(n, step, row)}></button></td>
+                      {/each}
+                    </tr>
+                  {/each}
+                </tbody>
+              </table>
+            </div>
+          {/if}
+          {#each Object.entries(MODULAR_TYPES[n.type].params).filter(([key]) => n.type !== 'beatGrid' || key !== 'length') as [key, def]}
             {@const input = modularParamInput(key)}
             {@const connected = wiredInputs.has(jackKey(n.id, input, 'in'))}
             <div class="parameter-row">
@@ -818,5 +860,13 @@
   .modal-editor input { width:6rem; }
   .modal-actions { display:flex; flex-wrap:wrap; gap:0.4rem; }
   .resonance-button { margin:0.25rem 0; }
+  .grid-length { display:flex; gap:0.35rem; align-items:center; margin-top:0.25rem }
+  .grid-length input { width:4rem }
+  .grid-scroll { overflow-x:auto; max-width:100%; }
+  .beat-grid { width:100%; border-spacing:0.1rem; margin:0.35rem 0; font-size:0.7rem; text-align:center }
+  .beat-grid th, .beat-grid td { padding:0; }
+  .beat-grid th:first-child { position:sticky; left:0; background:var(--panel, #172033); }
+  .beat-grid button { box-sizing:border-box; width:100%; min-width:1.05rem; height:1.15rem; padding:0; border-radius:0.2rem }
+  .beat-grid button.enabled { background:var(--accent, #71c7ff); border-color:var(--accent, #71c7ff) }
   h4 { margin:0.8rem 0 0.5rem }
 </style>
