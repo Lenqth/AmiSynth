@@ -23,6 +23,8 @@ const SUPPORTED = new Set([
   'filter_env_attack_ms', 'filter_env_decay_ms', 'filter_env_sustain', 'filter_env_release_ms',
   'amp_attack_ms', 'amp_decay_ms', 'amp_sustain', 'amp_release_ms', 'amp_velocity_amount',
   'lfo_waveform', 'lfo_rate_hz', 'lfo_pitch_cents', 'lfo_filter_oct', 'voice_count', 'glide_ms',
+  'osc1_wt_bank', 'osc1_wt_position', 'osc2_wt_bank', 'osc2_wt_position',
+  'wt_position_lfo', 'wt_position_filter_env', 'wt_position_amp_env',
   'unison_voices', 'unison_detune_cents', 'unison_side_level', 'unison_detune_curve', 'master_volume_db',
   'voice_mode', 'glide_mode', 'lfo_amp', 'lfo_pulse_width', 'noise_filter_mode', 'noise_filter_hz',
   // Left out: performance controls and stereo.
@@ -43,7 +45,8 @@ export function modularFromSynth(params) {
   const p = { ...DEFAULTS, ...params };
   for (const [key, value] of Object.entries(params))
     if (!SUPPORTED.has(key) && value !== DEFAULTS[key]) throw new Error(`Modular cannot play ${key}`);
-  if (!(p.osc1_waveform in VCO_WAVE) || !(p.osc2_waveform in VCO_WAVE)) throw new Error('Modular cannot play wavetables');
+  if (![p.osc1_waveform, p.osc2_waveform].every(wave => wave === 4 || wave in VCO_WAVE))
+    throw new Error('Modular cannot play this oscillator waveform');
   if (!(p.lfo_waveform in LFO_WAVES)) throw new Error('Modular cannot play this LFO waveform');
 
   const nodes = [], cables = [], rows = [0, 0, 0, 0, 0, 0];
@@ -91,7 +94,9 @@ export function modularFromSynth(params) {
   env('aenv', 'amp');
   wire('note', 'gate', 'aenv', 'gate');
   let lfo = null;
-  const needsLfo = p.lfo_pitch_cents !== 0 || p.lfo_filter_oct !== 0 || p.lfo_amp !== 0 || p.lfo_pulse_width !== 0;
+  const usesTables = p.osc1_waveform === 4 || p.osc2_waveform === 4;
+  const needsLfo = p.lfo_pitch_cents !== 0 || p.lfo_filter_oct !== 0 || p.lfo_amp !== 0 ||
+    p.lfo_pulse_width !== 0 || (usesTables && p.wt_position_lfo !== 0);
   if (needsLfo && LFO_WAVES[p.lfo_waveform] === 'sample-and-hold') lfo = node('lfo', 'sh', { rate: p.lfo_rate_hz }, 0);
   else if (needsLfo) lfo = node('lfo', 'lfo', { rate: p.lfo_rate_hz, depth: 1, wave: p.lfo_waveform }, 0);
 
@@ -119,6 +124,26 @@ export function modularFromSynth(params) {
   const pwm = (base, id) => lfo && p.lfo_pulse_width ? scale(id, lfo, 'out', p.lfo_pulse_width, base, 0) : null;
   const pwm1 = p.osc1_waveform === 1 ? pwm(p.osc1_pulse_width, 'pwm') : null;
   const pwm2 = p.osc2_waveform === 1 ? pwm(p.osc2_pulse_width, 'pwm2') : null;
+  const tableModulation = usesTables ? [
+    [lfo, p.wt_position_lfo], ['fenv', p.wt_position_filter_env], ['aenv', p.wt_position_amp_env],
+  ].filter(([source, depth]) => source && depth).map(([source, depth], index) =>
+    [scale('wt_depth' + index, source, 'out', depth, 0, 2), 'out', 1]) : [];
+  const positionMod = tableModulation.length > 1 ? sum('wt_position', tableModulation, 2) : tableModulation[0]?.[0];
+  const wavePosition = [1, 2].map(i => positionMod && p['osc' + i + '_waveform'] === 4
+    ? scale('wt_scan' + i, positionMod, 'out', 1, p['osc' + i + '_wt_position'], 2) : null);
+  function oscillator(id, index, cents, phase) {
+    const prefix = 'osc' + index + '_';
+    const waveform = p[prefix + 'waveform'];
+    const { octave, detune } = tune(cents);
+    if (waveform === 4) {
+      node(id, 'wavetable', { bank: p[prefix + 'wt_bank'], position: p[prefix + 'wt_position'],
+        octave, tune: detune, level: 1, phase }, 1);
+      if (wavePosition[index - 1]) wire(wavePosition[index - 1], 'out', id, 'param:position');
+      return id;
+    }
+    return node(id, 'vco', { wave: VCO_WAVE[waveform], octave, detune, level: 1,
+      pw: p[prefix + 'pulse_width'], phase: Math.round(phase * 100) / 100 }, 1);
+  }
   for (let u = 0; u < copies; u++) {
     // Copies spread over +/- detune/2, bunched toward the centre by the curve.
     const pos = copies > 1 ? u / (copies - 1) - 0.5 : 0;
@@ -126,11 +151,9 @@ export function modularFromSynth(params) {
       ? (pos < 0 ? -0.5 : 0.5) * Math.pow(Math.abs(2 * pos), 1 + 2 * p.unison_detune_curve) : pos;
     const spread = bunched * p.unison_detune_cents;
     const suffix = copies > 1 ? String(u + 1) : '';
-    const o1 = node('osc' + suffix, 'vco', { wave: VCO_WAVE[p.osc1_waveform], ...tune(spread), level: 1,
-      pw: p.osc1_pulse_width, phase: Math.round(spaced(START[p.osc1_waveform], u) * 100) / 100 }, 1);
-    const o2 = node('osc2' + (suffix ? '_' + suffix : ''), 'vco', { wave: VCO_WAVE[p.osc2_waveform],
-      ...tune(spread + p.osc2_transpose_cents + p.osc2_detune_cents), level: 1, pw: p.osc2_pulse_width,
-      phase: Math.round(spaced(START[p.osc2_waveform] + 0.37, u) * 100) / 100 }, 1);
+    const o1 = oscillator('osc' + suffix, 1, spread, spaced(START[p.osc1_waveform] ?? 0, u));
+    const o2 = oscillator('osc2' + (suffix ? '_' + suffix : ''), 2,
+      spread + p.osc2_transpose_cents + p.osc2_detune_cents, spaced((START[p.osc2_waveform] ?? 0) + 0.37, u));
     wire('note', 'pitch', o1, 'pitch');
     wire('note', 'pitch', o2, 'pitch');
     if (vibrato) wire(vibrato, 'out', o1, 'fm');
@@ -198,10 +221,12 @@ export function modularFromSynth(params) {
   wire(gain, 'out', 'amp', 'gain');
   node('out', 'output', { level: 1 }, 5);
   wire('amp', 'out', 'out', 'audio');
+  if (nodes.length > 32 || cables.length > 128) throw new Error('Modular cannot play this preset within the rack limits');
   return { nodes, cables };
 }
 
 /** Synth presets whose sound Modular reproduces, by name. */
 export const MODULAR_SYNTH_PORTS = SYNTH_PRESETS.filter(preset => {
   try { modularFromSynth(preset.params); return true; } catch { return false; }
-}).map(preset => ({ name: preset.name, patch: () => modularFromSynth(preset.params) }));
+}).map(preset => ({ name: preset.name, category: preset.category, description: preset.description,
+  source: 'Synth', patch: () => modularFromSynth(preset.params) }));

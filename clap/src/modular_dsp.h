@@ -269,7 +269,7 @@ struct Stage {
     int mode = 0, write = 0;
     bool gate = false, ready = false;
     std::array<double, kModes> y1{}, y2{}, a1{}, a2{}, b{};
-    std::array<double, 4> key{NAN, NAN, NAN, NAN};
+    std::array<double, 5> key{NAN, NAN, NAN, NAN, NAN};
 };
 using Line = std::array<float, kLineSamples>;
 
@@ -482,7 +482,9 @@ struct Engine {
             sample = (0.3 * (noise - st.prev) + band * (0.68 + 0.45 * tone)) * (1 - std::exp(-t / 0.009));
         } else {
             const double bend = sound == 0 ? 2.6 : sound == 5 ? 0.58 : sound == 6 ? 0 : 0.16;
-            const double hz = base_hz * (1 + bend * std::exp(-t / (sound == 0 ? 0.014 : 0.021)));
+            const double hz = sound == 0 && p[5] >= 0
+                ? base_hz * std::exp2(p[5] * std::exp(-t / p[6]))
+                : base_hz * (1 + bend * std::exp(-t / (sound == 0 ? 0.014 : 0.021)));
             const double phase = st.phase + std::min(0.45, hz / rate);
             st.phase = phase - std::floor(phase);
             const double sine = std::sin(2 * kPi * st.phase);
@@ -625,16 +627,18 @@ struct Engine {
                 st.ready = true;
             }
             st.gate = sync;
-            const double note = read(v, n, 0, 69) + 12 * (p[2] + read(v, n, 1));
+            const double note = read(v, n, 0, 69) + p[8] / 100 + 12 * (p[2] + read(v, n, 1));
             const double pm = read(v, n, 2) / (2 * kPi);
             const int copies = int(p[4]);
             double mono = 0, left = 0, right = 0;
+            sig[3] = 0;
             for (int copy = 0; copy < copies; ++copy) {
                 const double offset = copies == 1 ? 0 : 2.0 * copy / (copies - 1) - 1;
                 const double hz = 440 * std::exp2((note - 69 + offset * p[5] / 200) / 12);
                 const double inc = std::clamp(hz / rate, 0.01 / rate, 0.45);
                 const double sample = wavetable_sample(n.wavetable, st.y1[copy], inc, p[1], pm);
                 const double phase = st.y1[copy] + inc;
+                if (copy == 0 && phase >= 1) sig[3] = 1;
                 st.y1[copy] = phase < 1 ? phase : phase - 1;
                 mono += sample;
                 left += sample * std::sqrt(1 - offset * p[6]);
@@ -873,13 +877,13 @@ struct Engine {
         }
         case Type::modal: {
             const bool gate = read(v, n, 2, 1) >= 0.5;
-            const double strike = gate && !st.gate ? 1 : 0;
+            const bool hit = gate && !st.gate;
             st.gate = gate;
             const double material = n.custom_modal ? -1 : p[0];
             const double t60 = gate ? p[1] : std::min(p[1], p[2]), brightness = p[3];
             const double hz = 440 * std::pow(2.0, (read(v, n, 1, 69) - 69) / 12);
-            if (st.key[0] != hz || st.key[1] != material || st.key[2] != t60 || st.key[3] != brightness) {
-                st.key = {hz, material, t60, brightness};
+            if (st.key[0] != hz || st.key[1] != material || st.key[2] != t60 || st.key[3] != brightness || st.key[4] != p[6]) {
+                st.key = {hz, material, t60, brightness, p[6]};
                 const auto &mat = n.custom_modal ? n.custom_material : kMaterials[size_t(material)];
                 for (size_t k = 0; k < kModes; ++k) {
                     const double ratio = mat.ratios[k], f = hz * ratio;
@@ -889,8 +893,20 @@ struct Engine {
                         std::max(0.25, 1 + (1 - brightness) * 4 * (ratio - 1));
                     const double r = std::exp(-kLn1000 / (t * rate));
                     const double w = 2 * kPi * f / rate;
-                    st.a1[k] = 2 * r * std::cos(w); st.a2[k] = r * r; st.b[k] = mat.gains[k] * std::sin(w);
+                    const double strike_gain = p[6] == 0 ? 1 : 0.3 + 0.7 * std::abs(std::sin(kPi * (k + 1) * p[6]));
+                    st.a1[k] = 2 * r * std::cos(w); st.a2[k] = r * r; st.b[k] = strike_gain * mat.gains[k] * std::sin(w);
                 }
+            }
+            if (hit) {
+                st.value = std::clamp(read(v, n, 3, 1), 0.0, 1.0);
+                st.write = 0;
+                const double contact = 0.6 - 0.56 * p[5] * (0.7 + 0.3 * st.value);
+                st.p0 = p[5] >= 1 ? 1 : std::clamp(std::round(rate * contact / std::max(1.0, hz)), 2.0, 4096.0);
+            }
+            double strike = 0;
+            if (st.write < st.p0) {
+                strike = st.p0 == 1 ? st.value : st.value * (1 - std::cos(2 * kPi * st.write / st.p0)) / st.p0;
+                ++st.write;
             }
             const double x = read(v, n, 0) + strike;
             double sum = 0;
@@ -899,7 +915,7 @@ struct Engine {
                 st.y2[k] = st.y1[k]; st.y1[k] = y; sum += y;
             }
             st.amp = std::max(std::abs(sum), st.amp * 0.9995);
-            st.mode = st.amp > 1e-4 ? 1 : 0;
+            st.mode = st.write < st.p0 || st.amp > 1e-4 ? 1 : 0;
             sig[0] = std::clamp(sum * p[4], -16.0, 16.0);
             break;
         }

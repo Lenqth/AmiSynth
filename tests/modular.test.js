@@ -2,11 +2,33 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { MODULAR_PRESETS, MODULAR_TYPES, compileModularPatch, searchModularTypes, defaultModularPatch, modular_init, modular_meter_enable, modular_meter_snapshot, modular_midi, modularPresetIndex, modular_render, modular_set_patch, safeModularPatch } from '../src/dsp/modular.js';
 import { renderPattern } from '../src/lib/render.js';
+import { modularCardBounds, modularCardsOverlap, modularRackPoint, searchModularPresets } from '../src/dsp/modular.js';
 
 test('modular default patch compiles and respects its dependency order', () => {
   const g = compileModularPatch(defaultModularPatch());
   const pos = new Map(g.order.map((index, order) => [g.nodes[index].id, order]));
   for (const c of g.patch.cables) assert.ok(pos.get(c.from) < pos.get(c.to));
+});
+
+test('factory rack card bounds do not overlap', () => {
+  for (const preset of [{ name: 'Initial rack', patch: defaultModularPatch }, ...MODULAR_PRESETS]) {
+    const { nodes } = compileModularPatch(preset.patch()).patch;
+    const boxes = nodes.map((node, i) => modularCardBounds(node, modularRackPoint(node, i)));
+    for (let i = 0; i < boxes.length; i++) {
+      for (let j = i + 1; j < boxes.length; j++) {
+        assert.ok(!modularCardsOverlap(boxes[i], boxes[j]), `${preset.name}: ${nodes[i].id} overlaps ${nodes[j].id}`);
+      }
+    }
+  }
+});
+
+test('preset search matches names, source, genre and tags without changing catalog indices', () => {
+  const matched = searchModularPresets('physical wine', 'Mallets');
+  assert.deepEqual(matched.map(item => item.preset.name), ['Wine Glass (Modular)']);
+  assert.equal(MODULAR_PRESETS[matched[0].index], matched[0].preset);
+  assert.ok(searchModularPresets('hip hop 808', 'Rhythm').some(item => item.preset.name === '808-ish Groove'));
+  assert.ok(searchModularPresets('synth vowel', 'Pad').some(item => item.preset.name === 'Vowel Choir Pad'));
+  assert.equal(searchModularPresets('physical wine', 'Bass').length, 0);
 });
 
 test('an autonomous rack clocks steps and rounds MIDI pitch without note input', () => {
