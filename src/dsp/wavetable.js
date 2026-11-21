@@ -198,10 +198,7 @@ function wt_render_table(dst, harm, gain) {
   for (let i = 0; i < WT_SIZE; i++) wt_data[dst + i] = fft_re[i] * gain;
 }
 
-/** Build every frame and mip level of a bank (no-op when it is already built). */
-export function wt_build(bank) {
-  if (wt_ready[bank]) return;
-  if (!wt_data) wt_data = new Float64Array(WT_BANKS * BANK_LEN);
+function wt_frame(bank, frame) {
   if (!tw_ready) {
     for (let i = 0; i < WT_SIZE / 2; i++) {
       tw_cos[i] = Math.cos((TWO_PI * i) / WT_SIZE);
@@ -209,9 +206,22 @@ export function wt_build(bank) {
     }
     tw_ready = 1;
   }
+  if (bank === 4) wt_digital_spectrum(frame);
+  else wt_spectrum(bank, frame);
+}
+
+/** Snapshot the shared harmonic recipe for native table generation. */
+export function wt_frame_spectrum(bank, frame) {
+  wt_frame(bank, frame);
+  return { cos: spec_b.slice(1), sin: spec_a.slice(1) };
+}
+
+/** Build every frame and mip level of a bank (no-op when it is already built). */
+export function wt_build(bank) {
+  if (wt_ready[bank]) return;
+  if (!wt_data) wt_data = new Float64Array(WT_BANKS * BANK_LEN);
   for (let f = 0; f < WT_FRAMES; f++) {
-    if (bank === 4) wt_digital_spectrum(f);
-    else wt_spectrum(bank, f);
+    wt_frame(bank, f);
     const base = bank * BANK_LEN + f * FRAME_LEN;
     // mip 0 first: its peak sets the gain of the whole frame
     wt_render_table(base, WT_MAX_HARM, 1);
@@ -268,13 +278,11 @@ export function wt_mip_fade(inc, m) {
 }
 
 /**
- * One sample of a wavetable oscillator. o is an osc_init() object (phase / inc / wrapped, like
- * osc_process, so hard sync and FM work the same). bank 0..WT_BANKS-1 (built), pos 0..1, pm in cycles.
+ * Read a sample without advancing phase. The bank must be built, pos is 0..1, and pm is in cycles.
  */
-export function wt_process(o, bank, pos, pm) {
-  let t = o.phase + pm;
+export function wt_sample(phase, dt, bank, pos, pm) {
+  let t = phase + pm;
   t -= Math.floor(t);
-  const dt = o.inc;
   const m = wt_mip(dt);
   const fp = pos * (WT_FRAMES - 1);
   let f0 = Math.floor(fp);
@@ -298,11 +306,17 @@ export function wt_process(o, bank, pos, pm) {
     a += w * (a2 - a);
     b += w * (b2 - b);
   }
-  o.phase += dt;
+  return a + ff * (b - a);
+}
+
+/** Read one sample and advance an osc_init() object so hard sync and FM work as in osc_process. */
+export function wt_process(o, bank, pos, pm) {
+  const sample = wt_sample(o.phase, o.inc, bank, pos, pm);
+  o.phase += o.inc;
   o.wrapped = 0;
   if (o.phase >= 1) {
     o.phase -= 1;
     o.wrapped = 1;
   }
-  return a + ff * (b - a);
+  return sample;
 }

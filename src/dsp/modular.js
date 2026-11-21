@@ -3,6 +3,7 @@
 // The native CLAP engine (clap/src/modular_dsp.h) mirrors every module; keep the two in step.
 import { MATERIALS } from './phys.js';
 import { HAT_RATIOS } from './drums.js';
+import { WT_BANK_NAMES, wt_build, wt_sample } from './wavetable.js';
 import { MODULAR_SYNTH_PORTS } from '../presets/modular.js';
 
 // Native storage limits per module (checked by scripts/gen-modular-clap.js).
@@ -68,6 +69,17 @@ export const MODULAR_TYPES = Object.freeze({
     inputs: [], outputs: ['out'], params: {
       color: { min: 0, max: 1, default: 0, step: 1, choices: ['White', 'Pink'] },
       level: { min: 0, max: 1, default: 0.5, step: 0.01 },
+    } },
+  wavetable: { label: 'Wavetable Oscillator', category: 'Sources', keywords: 'wavetable morph unison stereo oscillator fm pm sync',
+    inputs: ['pitch', 'fm', 'pm', 'sync'], outputs: ['out', 'left', 'right'], params: {
+      bank: { min: 0, max: WT_BANK_NAMES.length - 1, default: 0, step: 1, choices: WT_BANK_NAMES, fixed: true },
+      position: { min: 0, max: 1, default: 0.35, step: 0.001 },
+      octave: { min: -3, max: 3, default: 0, step: 1 },
+      level: { min: 0, max: 1, default: 0.48, step: 0.01 },
+      voices: { min: 1, max: 7, default: 1, step: 1 },
+      detune: { min: 0, max: 65, default: 18, step: 0.1 },
+      spread: { min: 0, max: 1, default: 0.75, step: 0.01 },
+      phase: { min: 0, max: 1, default: 0, step: 0.001 },
     } },
   string: { label: 'Pluck String', category: 'Physical', keywords: 'karplus strong guitar harp pluck physical model delay',
     inputs: ['pitch', 'gate', 'excite'], outputs: ['out'], params: {
@@ -280,6 +292,33 @@ export function defaultModularPatch() {
   };
 }
 
+function wavetablePatch(osc, env, mod, amount, offset) {
+  return {
+    nodes: [
+      { id: 'note', type: 'midi', position: { x: 22, y: 22 } },
+      { id: 'osc', type: 'wavetable', params: osc, position: { x: 296, y: 22 } },
+      { id: 'left', type: 'vca', position: { x: 570, y: 22 } },
+      { id: 'right', type: 'vca', position: { x: 570, y: 442 } },
+      { id: 'out', type: 'output', position: { x: 844, y: 22 } },
+      { id: 'env', type: 'adsr', params: env, position: { x: 22, y: 442 } },
+      { id: 'scan', type: 'cv', params: { scale: amount, offset }, position: { x: 296, y: 442 } },
+      ...(mod ? [{ id: 'motion', type: 'lfo', params: mod, position: { x: 22, y: 862 } }] : []),
+    ],
+    cables: [
+      { from: 'note', port: 'pitch', to: 'osc', input: 'pitch' },
+      { from: 'note', port: 'gate', to: 'env', input: 'gate' },
+      { from: mod ? 'motion' : 'env', port: 'out', to: 'scan', input: 'in' },
+      { from: 'scan', port: 'out', to: 'osc', input: 'param:position' },
+      { from: 'osc', port: 'left', to: 'left', input: 'audio' },
+      { from: 'osc', port: 'right', to: 'right', input: 'audio' },
+      { from: 'env', port: 'out', to: 'left', input: 'gain' },
+      { from: 'env', port: 'out', to: 'right', input: 'gain' },
+      { from: 'left', port: 'out', to: 'out', input: 'audio' },
+      { from: 'right', port: 'out', to: 'out', input: 'right' },
+    ],
+  };
+}
+
 export const MODULAR_MACROS = 8;
 export const MODULAR_PATCH_BYTES = 64 * 1024;
 export const MODULAR_POSITION_MAX = 8192;
@@ -289,6 +328,10 @@ export const MODULAR_MAX_TAIL = MAX_RELEASE + RELEASE_FADE;
 
 export const MODULAR_PRESETS = [
   { name: 'Subtractive', patch: defaultModularPatch },
+  { name: 'Vowel Halo', patch: () => wavetablePatch({ bank: 2, voices: 5, detune: 23, spread: 0.92 },
+    { attack: 0.18, decay: 0.27, sustain: 0.72, release: 0.52 }, { rate: 0.72 }, 0.41, 0.52) },
+  { name: 'Digital Pulse', patch: () => wavetablePatch({ bank: 4, voices: 3, detune: 11, spread: 0.61, octave: -1 },
+    { attack: 0.004, decay: 0.2, sustain: 0.22, release: 0.13, curve: 1 }, null, 0.77, 0.09) },
   { name: 'Falling Glass', patch: () => ({
     nodes: [
       { id: 'note', type: 'midi', position: { x: 22, y: 22 } },
@@ -741,6 +784,7 @@ export function modular_init(s, sampleRate) {
 
 export function modular_set_patch(s, patch) {
   const graph = compileModularPatch(patch);
+  for (const node of graph.nodes) if (node.type === 'wavetable') wt_build(node.params.bank);
   const old = s.graph;
   s.graph = graph;
   if (s.meter) modular_meter_enable(s, true);
@@ -1045,6 +1089,37 @@ function sampleNode(s, v, i) {
       const next = st.phase + dt;
       sig.sync = next >= 1 ? 1 : 0;
       st.phase = next % 1;
+      break;
+    }
+    case 'wavetable': {
+      const sync = read(v, n, 'sync') > 0;
+      if (!st.ready || (sync && !st.lastGate)) {
+        const start = parameter(v, n, 'phase');
+        for (let copy = 0; copy < 7; copy++) {
+          const phase = start + copy * 0.6180339887498949;
+          st.y1[copy] = phase - Math.floor(phase);
+        }
+        st.ready = true;
+      }
+      st.lastGate = sync;
+      const note = read(v, n, 'pitch', 69) + 12 * (parameter(v, n, 'octave') + read(v, n, 'fm'));
+      const position = parameter(v, n, 'position'), voices = parameter(v, n, 'voices');
+      const detune = parameter(v, n, 'detune'), spread = parameter(v, n, 'spread');
+      const pm = read(v, n, 'pm') / TAU;
+      let left = 0, right = 0, mono = 0;
+      for (let copy = 0; copy < voices; copy++) {
+        const offset = voices === 1 ? 0 : 2 * copy / (voices - 1) - 1;
+        const hz = 440 * Math.pow(2, (note - 69 + offset * detune / 200) / 12);
+        const inc = clamp(hz / s.sampleRate, 0.01 / s.sampleRate, 0.45);
+        const sample = wt_sample(st.y1[copy], inc, n.params.bank, position, pm);
+        const phase = st.y1[copy] + inc;
+        st.y1[copy] = phase < 1 ? phase : phase - 1;
+        mono += sample;
+        left += sample * Math.sqrt(1 - offset * spread);
+        right += sample * Math.sqrt(1 + offset * spread);
+      }
+      const gain = parameter(v, n, 'level') / voices;
+      sig.out = mono * gain; sig.left = left * gain; sig.right = right * gain;
       break;
     }
     case 'lfo': {
