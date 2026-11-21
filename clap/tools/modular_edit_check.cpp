@@ -95,6 +95,12 @@ int main(int argc, char **argv) {
                     finished = true; passed = args[0].value("ok", false);
                     std::cout << args[0].dump() << '\n'; return std::string("{}");
                 }
+                if (args[0].value("action", "") == "smoke-presets") {
+                    Json presets = Json::array();
+                    for (const auto &preset : kPresets)
+                        presets.push_back({{"name", preset.name}, {"nodes", Json::parse(preset.patch).at("nodes")}});
+                    return presets.dump();
+                }
                 ++reads;
                 return self.editor_message(request);
             }, [] {}, true);
@@ -143,6 +149,42 @@ int main(int argc, char **argv) {
                   const wait = async (test, label) => { for (let i=0;i<100;i++) { if (await test()) return; await new Promise(r=>setTimeout(r,50)); } throw Error('UI update timed out: '+label); };
                   const state = async () => (await window.amisynthBridge({action:'read'})).patch;
                   await wait(()=>document.querySelectorAll('[data-module]').length === 6,'initial rack');
+                  const picker = document.querySelector('[data-preset-picker]');
+                  const presetSearch = document.querySelector('[data-preset-search]');
+                  const choose = index => {
+                    picker.value = String(index);
+                    picker.dispatchEvent(new Event('change', { bubbles: true }));
+                  };
+                  const presets = await window.amisynthBridge({action:'smoke-presets'});
+                  presetSearch.value = 'physical wine';
+                  presetSearch.dispatchEvent(new Event('input', { bubbles: true }));
+                  await wait(() => Array.from(picker.options).some(option => option.text === 'Wine Glass (Modular)') &&
+                    !Array.from(picker.options).some(option => option.text === 'Digital Pulse'), 'preset search');
+                  if (picker.selectedOptions[0].text !== presets[0].name) throw Error('Search lost the current preset');
+                  presetSearch.value = '';
+                  presetSearch.dispatchEvent(new Event('input', { bubbles: true }));
+                  await wait(() => picker.options.length === presets.length + 1, 'clear preset search');
+                  for (const [index, preset] of presets.entries()) {
+                    choose(index);
+                    await wait(() => {
+                      const cards = Array.from(document.querySelectorAll('[data-module]'));
+                      return picker.value === String(index) && cards.length === preset.nodes.length &&
+                        cards.every((card, i) => card.dataset.module === preset.nodes[i].id &&
+                          card.offsetLeft === preset.nodes[i].position.x && card.offsetTop === preset.nodes[i].position.y);
+                    }, 'render preset ' + preset.name);
+                    const cards = Array.from(document.querySelectorAll('[data-module]'));
+                    const rects = cards.map(card => card.getBoundingClientRect());
+                    for (let i = 0; i < rects.length; i++) {
+                      for (let j = i + 1; j < rects.length; j++) {
+                        const a = rects[i], b = rects[j];
+                        if (a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom)
+                          throw Error(preset.name + ': ' + cards[i].dataset.module + ' overlaps ' + cards[j].dataset.module +
+                            ' by ' + (Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top)) + ' px');
+                      }
+                    }
+                  }
+                  choose(0);
+                  await wait(async ()=>(await state()).nodes.length===6,'restore initial rack');
                   const selector = document.querySelector('select');
                   selector.value='lfo'; selector.dispatchEvent(new Event('change',{bubbles:true}));
                   await wait(async ()=>(await state()).nodes.length===7,'add module; randomUUID='+typeof crypto.randomUUID);
@@ -163,7 +205,7 @@ int main(int argc, char **argv) {
                   await wait(()=>document.querySelectorAll('[data-modular-menu] [role=menuitem]').length===1,'search filter');
                   search.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true}));
                   await wait(async ()=>(await state()).nodes.some(n=>n.type==='string'),'add from search');
-                  await window.amisynthBridge({action:'smoke-result',ok:true,nodes:7,cutoff:1700});
+                  await window.amisynthBridge({action:'smoke-result',ok:true,presets:presets.length,nodes:7,cutoff:1700});
                 })().catch(e=>window.amisynthBridge({action:'smoke-result',ok:false,error:e.message}));
             )JS");
             check(pump([&] { return finished; }) && passed, "Editor UI interactions failed");

@@ -5,6 +5,9 @@ import { MATERIALS } from './phys.js';
 import { HAT_RATIOS } from './drums.js';
 import { WT_BANK_NAMES, wt_build, wt_sample } from './wavetable.js';
 import { MODULAR_SYNTH_PORTS } from '../presets/modular.js';
+import { PHYS_PRESETS } from '../presets/phys.js';
+import { DRUM_PRESETS } from '../presets/drums.js';
+import { DRUM_PARAMS, PHYS_PARAMS, defaultValues } from './params.js';
 
 // Native storage limits per module (checked by scripts/gen-modular-clap.js).
 export const MODULAR_MAX_INPUTS = 4;
@@ -75,7 +78,7 @@ export const MODULAR_TYPES = Object.freeze({
       level: { min: 0, max: 1, default: 0.5, step: 0.01 },
     } },
   wavetable: { label: 'Wavetable Oscillator', category: 'Sources', keywords: 'wavetable morph unison stereo oscillator fm pm sync',
-    inputs: ['pitch', 'fm', 'pm', 'sync'], outputs: ['out', 'left', 'right'], params: {
+    inputs: ['pitch', 'fm', 'pm', 'sync'], outputs: ['out', 'left', 'right', 'sync'], params: {
       bank: { min: 0, max: WT_BANK_NAMES.length - 1, default: 0, step: 1, choices: WT_BANK_NAMES, fixed: true },
       position: { min: 0, max: 1, default: 0.35, step: 0.001 },
       octave: { min: -3, max: 3, default: 0, step: 1 },
@@ -84,6 +87,7 @@ export const MODULAR_TYPES = Object.freeze({
       detune: { min: 0, max: 65, default: 18, step: 0.1 },
       spread: { min: 0, max: 1, default: 0.75, step: 0.01 },
       phase: { min: 0, max: 1, default: 0, step: 0.001 },
+      tune: { min: -1200, max: 1200, default: 0, step: 1 },
     } },
   string: { label: 'Pluck String', category: 'Physical', keywords: 'karplus strong guitar harp pluck physical model delay',
     inputs: ['pitch', 'gate', 'excite'], outputs: ['out'], params: {
@@ -93,12 +97,14 @@ export const MODULAR_TYPES = Object.freeze({
       level: { min: 0, max: 1, default: 0.6, step: 0.01 },
     } },
   modal: { label: 'Modal Resonator', category: 'Physical', keywords: 'bell marimba glass gong mallet physical model resonance',
-    inputs: ['in', 'pitch', 'gate'], outputs: ['out'], params: {
+    inputs: ['in', 'pitch', 'gate', 'velocity'], outputs: ['out'], params: {
       material: { min: 0, max: MATERIALS.length - 1, default: 0, step: 1, choices: MATERIALS.map(m => m.name) },
       decay: { min: 0.05, max: 10, default: 1.2, step: 0.01 },
       release: { min: 0.01, max: 10, default: 0.4, step: 0.01 },
       brightness: { min: 0, max: 1, default: 0.5, step: 0.01 },
       level: { min: 0, max: 1, default: 0.5, step: 0.01 },
+      hardness: { min: 0, max: 1, default: 1, step: 0.001 },
+      strikePosition: { min: 0, max: 0.5, default: 0, step: 0.001 },
     } },
   bowed: { label: 'Bowed String', category: 'Physical', keywords: 'bow violin cello friction waveguide bowed string',
     inputs: ['pitch', 'gate', 'bow'], outputs: ['out'], params: {
@@ -203,6 +209,8 @@ export const MODULAR_TYPES = Object.freeze({
       decay: { min: 0.025, max: 2.5, default: 0.25, step: 0.001 },
       tone: { min: 0, max: 1, default: 0.5, step: 0.01 },
       level: { min: 0, max: 1, default: 0.65, step: 0.01 },
+      kickSweep: { min: -1, max: 6, default: -1, step: 0.01 },
+      kickSweepTime: { min: 0.002, max: 0.3, default: 0.035, step: 0.001 },
     } },
   vcf: { label: 'VCF', category: 'Filters & Effects', keywords: 'filter lowpass highpass bandpass notch cutoff resonance keytrack',
     inputs: ['audio', 'cutoff', 'pitch'], outputs: ['out'], params: {
@@ -345,11 +353,58 @@ function wavetablePatch(osc, env, mod, amount, offset) {
 export const MODULAR_MACROS = 8;
 export const MODULAR_PATCH_BYTES = 64 * 1024;
 export const MODULAR_POSITION_MAX = 8192;
+export const MODULAR_RACK = { width: 224, column: 274, row: 420, pad: 22 };
+const DEFAULT_RACK_SLOTS = { note: [0, 0], osc: [1, 0], filter: [2, 0], amp: [3, 0], out: [4, 0], env: [2, 1] };
+
+export function modularRackPoint(node, index) {
+  if (node.position) return node.position;
+  const [column, row] = Object.hasOwn(DEFAULT_RACK_SLOTS, node.id)
+    ? DEFAULT_RACK_SLOTS[node.id] : [index % 5, 1 + Math.floor(index / 5)];
+  const rowOffset = node.id === 'env' ? modularCardHeight('vcf') + 18 : row * MODULAR_RACK.row;
+  return { x: MODULAR_RACK.pad + column * MODULAR_RACK.column, y: MODULAR_RACK.pad + rowOffset };
+}
+
+function modularCardHeight(type) {
+  const def = MODULAR_TYPES[type];
+  const controls = type === 'beatGrid' ? 185 : 74 * Object.keys(def.params).length;
+  return 110 + controls + 32 * Math.max(def.inputs.length, def.outputs.length) + (type === 'modal' ? 36 : 0);
+}
+
+/** Conservative space for the card header, knob rows, jack rows, and custom editors. */
+export function modularCardBounds(node, position) {
+  return { ...position, width: MODULAR_RACK.width, height: modularCardHeight(node.type) };
+}
+
+export function modularCardsOverlap(a, b, gap = 0) {
+  return a.x < b.x + b.width + gap && b.x < a.x + a.width + gap &&
+    a.y < b.y + b.height + gap && b.y < a.y + a.height + gap;
+}
+
+function layoutFactoryPatch(patch) {
+  const positions = patch.nodes.map(modularRackPoint);
+  const order = patch.nodes.map((_, i) => i).sort((a, b) => positions[a].y - positions[b].y);
+  const placed = [];
+  for (const i of order) {
+    const point = { ...positions[i] };
+    const box = modularCardBounds(patch.nodes[i], point);
+    let blockers;
+    while ((blockers = placed.filter(other => modularCardsOverlap(box, other, 18))).length) {
+      box.y = Math.max(...blockers.map(other => other.y + other.height + 18));
+      if (box.y > MODULAR_POSITION_MAX) {
+        box.x = Math.max(...placed.map(other => other.x)) + MODULAR_RACK.column;
+        box.y = point.y;
+      }
+    }
+    positions[i] = { x: box.x, y: box.y };
+    placed.push(box);
+  }
+  return { ...patch, nodes: patch.nodes.map((node, i) => ({ ...node, position: positions[i] })) };
+}
 const MAX_RELEASE = 10;
 const RELEASE_FADE = 0.005;
 export const MODULAR_MAX_TAIL = MAX_RELEASE + RELEASE_FADE;
 
-export const MODULAR_PRESETS = [
+const FACTORY_PATCHES = [
   { name: 'Subtractive', patch: defaultModularPatch },
   { name: 'Vowel Halo', patch: () => wavetablePatch({ bank: 2, voices: 5, detune: 23, spread: 0.92 },
     { attack: 0.18, decay: 0.27, sustain: 0.72, release: 0.52 }, { rate: 0.72 }, 0.41, 0.52) },
@@ -467,6 +522,11 @@ export const MODULAR_PRESETS = [
     return patch;
   } },
   ...physicalPresets(),
+  ...['Wine Glass', 'Kalimba'].map(name => ({
+    name: name + ' (Modular)', category: 'Mallets', source: 'Physical',
+    description: PHYS_PRESETS.find(preset => preset.name === name).description,
+    patch: () => modalPresetFromPhysical(name),
+  })),
   { name: 'Velvet Reed', patch: velvetReed },
   { name: 'Cowbell and Shaker', patch: () => percussionLayer('bell', { sound: 7, level: 0.7 },
     'shaker', { sound: 8, level: 0.48 }) },
@@ -558,8 +618,40 @@ export const MODULAR_PRESETS = [
     { id: 'high', params: { sound: 5, tune: 7, decay: 0.19, level: 0.6 }, steps: [0, 0.58, 0, 0, 0, 0.62, 0, 0.85] },
   ]) },
   { name: 'Four Lane Beat', patch: fourLaneBeat },
+  { name: '808-ish Groove', category: 'Rhythm', source: 'Drums', tags: '808 hip hop electronic',
+    description: 'Kick, snare and hats modeled on the 808-ish kit',
+    patch: drumPreset808 },
   ...MODULAR_SYNTH_PORTS,
 ];
+
+const MANUAL_CATEGORIES = {
+  Basic: ['Subtractive', 'Macro Morph'],
+  Bass: ['Feedback Bass', 'Digital Pulse'],
+  Lead: ['Vibrato Lead', 'Folded Reed'],
+  Pad: ['Vowel Halo', 'Stereo Drift'],
+  Strings: ['Bow Grain', 'Low Bow Cello', 'Shivering Bow', 'Plucked String'],
+  Mallets: ['Marimba', 'Church Bell', 'Twin Glass', 'Falling Glass'],
+  Winds: ['Velvet Reed'],
+  Sequence: ['Clockwork Plucks'],
+  Percussion: ['Cowbell and Shaker', 'Rim and Cymbal'],
+  Rhythm: ['Patch Beat', 'Choked Hats', 'Clap and Toms', 'Four Lane Beat'],
+};
+const manualCategories = new Map(Object.entries(MANUAL_CATEGORIES).flatMap(([category, names]) =>
+  names.map(name => [name, category])));
+export const MODULAR_PRESETS = FACTORY_PATCHES.map(({ patch, ...metadata }) => ({
+  ...metadata,
+  category: metadata.category ?? manualCategories.get(metadata.name) ?? 'Other',
+  patch: () => layoutFactoryPatch(patch()),
+}));
+
+export function searchModularPresets(query, category = '') {
+  const words = searchWords(query);
+  return MODULAR_PRESETS.flatMap((preset, index) => {
+    if (category && preset.category !== category) return [];
+    const text = searchWords([preset.name, preset.category, preset.source, preset.description, preset.tags].join(' '));
+    return words.every(word => text.some(token => token.startsWith(word))) ? [{ preset, index }] : [];
+  });
+}
 
 function velvetReed() {
   return {
@@ -639,6 +731,43 @@ function physicalPresets() {
       bell: ['modal', { material: 4, decay: 6, release: 4, brightness: 0.7, level: 0.45 }],
     }, 'note.pitch > bell.pitch', 'note.gate > bell.gate', 'bell.out > out.audio') },
   ];
+}
+
+function modalPresetFromPhysical(name) {
+  const source = PHYS_PRESETS.find(preset => preset.name === name);
+  const p = { ...defaultValues(PHYS_PARAMS), ...source.params };
+  return {
+    nodes: [
+      { id: 'note', type: 'midi', position: { x: 22, y: 22 } },
+      { id: 'resonator', type: 'modal', params: {
+        material: p.modal_material, decay: p.modal_decay_ms / 1000, release: p.phys_release_ms / 1000,
+        brightness: 1 - p.modal_high_damping, hardness: p.modal_hardness, strikePosition: p.modal_strike_position,
+        level: Math.min(1, 10 ** (p.phys_volume_db / 20)),
+      }, position: { x: 296, y: 22 } },
+      { id: 'out', type: 'output', position: { x: 570, y: 22 } },
+    ],
+    cables: [
+      { from: 'note', port: 'pitch', to: 'resonator', input: 'pitch' },
+      { from: 'note', port: 'gate', to: 'resonator', input: 'gate' },
+      { from: 'note', port: 'velocity', to: 'resonator', input: 'velocity' },
+      { from: 'resonator', port: 'out', to: 'out', input: 'audio' },
+    ],
+  };
+}
+
+function drumPreset808() {
+  const p = { ...defaultValues(DRUM_PARAMS), ...DRUM_PRESETS.find(preset => preset.name === '808-ish').params };
+  const part = (key, sound) => ({
+    sound, tune: 12 * Math.log2(p[key + '_pitch_hz'] / MODULAR_DRUM_PITCH[sound]),
+    decay: p[key + '_decay_ms'] / 1000 / MODULAR_DRUM_DECAY[sound], tone: p[key + '_tone'],
+    level: Math.min(1, 10 ** ((p[key + '_level_db'] + p.drum_master_volume_db) / 20)),
+  });
+  return drumPattern(108, [
+    { id: 'kick', params: { ...part('kick', 0), kickSweep: p.kick_sweep_oct, kickSweepTime: p.kick_sweep_ms / 1000 },
+      steps: [1, 0, 0, 0.82, 0.9, 0, 0, 0] },
+    { id: 'snare', params: part('snare', 1), steps: [0, 0, 0.91, 0, 0, 0, 0.95, 0] },
+    { id: 'hat', params: part('closed_hat', 3), steps: [0.65, 0.41, 0.54, 0.32, 0.7, 0.38, 0.58, 0.44] },
+  ]);
 }
 
 function fourLaneBeat() {
@@ -1114,7 +1243,9 @@ function sampleDrum(s, v, n, st) {
     sample = (0.3 * (noise - st.prev) + band * (0.68 + 0.45 * tone)) * (1 - Math.exp(-t / 0.009));
   } else {
     const bend = sound === 0 ? 2.6 : sound === 5 ? 0.58 : sound === 6 ? 0 : 0.16;
-    const hz = baseHz * (1 + bend * Math.exp(-t / (sound === 0 ? 0.014 : 0.021)));
+    const sweep = sound === 0 ? parameter(v, n, 'kickSweep') : -1;
+    const hz = sweep >= 0 ? baseHz * 2 ** (sweep * Math.exp(-t / parameter(v, n, 'kickSweepTime')))
+      : baseHz * (1 + bend * Math.exp(-t / (sound === 0 ? 0.014 : 0.021)));
     const phase = st.phase + Math.min(0.45, hz / sr);
     st.phase = phase - Math.floor(phase);
     const sine = Math.sin(TAU * st.phase);
@@ -1249,17 +1380,20 @@ function sampleNode(s, v, i) {
         st.ready = true;
       }
       st.lastGate = sync;
-      const note = read(v, n, 'pitch', 69) + 12 * (parameter(v, n, 'octave') + read(v, n, 'fm'));
+      const note = read(v, n, 'pitch', 69) + parameter(v, n, 'tune') / 100 +
+        12 * (parameter(v, n, 'octave') + read(v, n, 'fm'));
       const position = parameter(v, n, 'position'), voices = parameter(v, n, 'voices');
       const detune = parameter(v, n, 'detune'), spread = parameter(v, n, 'spread');
       const pm = read(v, n, 'pm') / TAU;
       let left = 0, right = 0, mono = 0;
+      sig.sync = 0;
       for (let copy = 0; copy < voices; copy++) {
         const offset = voices === 1 ? 0 : 2 * copy / (voices - 1) - 1;
         const hz = 440 * Math.pow(2, (note - 69 + offset * detune / 200) / 12);
         const inc = clamp(hz / s.sampleRate, 0.01 / s.sampleRate, 0.45);
         const sample = wt_sample(st.y1[copy], inc, n.params.bank, position, pm);
         const phase = st.y1[copy] + inc;
+        if (copy === 0 && phase >= 1) sig.sync = 1;
         st.y1[copy] = phase < 1 ? phase : phase - 1;
         mono += sample;
         left += sample * Math.sqrt(1 - offset * spread);
@@ -1504,16 +1638,18 @@ function sampleNode(s, v, i) {
     }
     case 'modal': {
       const gate = read(v, n, 'gate', 1) >= 0.5;
-      const strike = gate && !st.lastGate ? 1 : 0;
+      const hit = gate && !st.lastGate;
       st.lastGate = gate;
       const material = n.modalTable ? -1 : parameter(v, n, 'material');
       const decay = parameter(v, n, 'decay');
       const t60 = gate ? decay : Math.min(decay, parameter(v, n, 'release'));
       const brightness = parameter(v, n, 'brightness');
       const hz = 440 * Math.pow(2, (read(v, n, 'pitch', 69) - 69) / 12);
+      const strikePosition = parameter(v, n, 'strikePosition');
       const key = st.key;
-      if (key[0] !== hz || key[1] !== material || key[2] !== t60 || key[3] !== brightness) {
+      if (key[0] !== hz || key[1] !== material || key[2] !== t60 || key[3] !== brightness || key[4] !== strikePosition) {
         key[0] = hz; key[1] = material; key[2] = t60; key[3] = brightness;
+        key[4] = strikePosition;
         const mat = MATERIALS[material];
         for (let k = 0; k < MODULAR_MODES; k++) {
           const mode = n.modalTable?.[k];
@@ -1524,8 +1660,21 @@ function sampleNode(s, v, i) {
           const t = t60 * (mode?.decay ?? 1) / Math.max(0.25, 1 + (1 - brightness) * 4 * (ratio - 1));
           const r = Math.exp(-LN1000 / (t * s.sampleRate));
           const w = TAU * f / s.sampleRate;
-          st.a1[k] = 2 * r * Math.cos(w); st.a2[k] = r * r; st.b[k] = (mode?.gain ?? mat.gains[k]) * Math.sin(w);
+          const strikeGain = strikePosition === 0 ? 1 : 0.3 + 0.7 * Math.abs(Math.sin(Math.PI * (k + 1) * strikePosition));
+          st.a1[k] = 2 * r * Math.cos(w); st.a2[k] = r * r; st.b[k] = strikeGain * (mode?.gain ?? mat.gains[k]) * Math.sin(w);
         }
+      }
+      if (hit) {
+        const hardness = parameter(v, n, 'hardness');
+        st.value = clamp(read(v, n, 'velocity', 1), 0, 1);
+        st.write = 0;
+        const contact = 0.6 - 0.56 * hardness * (0.7 + 0.3 * st.value);
+        st.p0 = hardness >= 1 ? 1 : clamp(Math.round(s.sampleRate * contact / Math.max(1, hz)), 2, 4096);
+      }
+      let strike = 0;
+      if (st.write < st.p0) {
+        strike = st.p0 === 1 ? st.value : st.value * (1 - Math.cos(TAU * st.write / st.p0)) / st.p0;
+        st.write++;
       }
       const x = read(v, n, 'in') + strike;
       let sum = 0;
@@ -1534,7 +1683,7 @@ function sampleNode(s, v, i) {
         st.y2[k] = st.y1[k]; st.y1[k] = y; sum += y;
       }
       st.amp = Math.max(Math.abs(sum), st.amp * 0.9995);
-      st.mode = st.amp > 1e-4 ? 1 : 0;
+      st.mode = st.write < st.p0 || st.amp > 1e-4 ? 1 : 0;
       sig.out = clamp(sum * parameter(v, n, 'level'), -16, 16);
       break;
     }

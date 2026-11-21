@@ -3,7 +3,8 @@
   import {
     BEAT_GRID_LANES, BEAT_GRID_MAX_STEPS,
     MODULAR_MACROS, MODULAR_MODAL_FIELDS, MODULAR_MODES, MODULAR_PATCH_BYTES, MODULAR_POSITION_MAX, MODULAR_PRESETS, MODULAR_TYPES,
-    compileModularPatch, defaultModularPatch, modularMaterialTable, modularParamInput, modularPresetIndex, searchModularTypes,
+    MODULAR_RACK, compileModularPatch, defaultModularPatch, modularCardBounds, modularMaterialTable,
+    modularParamInput, modularPresetIndex, modularRackPoint, searchModularPresets, searchModularTypes,
   } from '../dsp/modular.js';
 
   let { patch = defaultModularPatch(), onchange = () => {}, signalSource = null } = $props();
@@ -38,6 +39,14 @@
   let observer;
   const graph = $derived(compileModularPatch(patch).patch);
   const presetIndex = $derived(modularPresetIndex(graph));
+  let presetQuery = $state('');
+  let presetCategory = $state('');
+  const presetCategories = [...new Set(MODULAR_PRESETS.map(preset => preset.category))].sort();
+  const presetMatches = $derived(searchModularPresets(presetQuery, presetCategory));
+  const presetGroups = $derived(presetCategories.map(category => ({
+    category, presets: presetMatches.filter(item => item.preset.category === category),
+  })).filter(group => group.presets.length));
+  const currentOutsideFilter = $derived(presetIndex >= 0 && !presetMatches.some(item => item.index === presetIndex));
   const nodes = $derived(graph.nodes);
   let modalId = $state('');
   let modeRows = $state([]);
@@ -57,20 +66,14 @@
     const points = samples.map((value, i) => `${4 + i * 312 / Math.max(1, samples.length - 1)},${y(value)}`).join(' ');
     return { points, zero: y(0), last: samples.at(-1), min, max, ms: trace.seconds * 1000 };
   });
-  const cardWidth = 224;
-  const columnPitch = 274;
-  const rowPitch = 420;
-  const pad = 22;
+  const { width: cardWidth, column: columnPitch, row: rowPitch, pad } = MODULAR_RACK;
   const anchor = (column, row) => ({ x: pad + column * columnPitch, y: pad + row * rowPitch });
-  const defaultSlots = { note: [0, 0], osc: [1, 0], filter: [2, 0], amp: [3, 0], out: [4, 0], env: [2, 1] };
   const cards = $derived(nodes.map((node, index) => {
-    const defaultSlot = Object.hasOwn(defaultSlots, node.id) ? defaultSlots[node.id] : null;
-    const fallback = defaultSlot ? anchor(...defaultSlot) : anchor(index % 5, 1 + Math.floor(index / 5));
-    const point = moving?.id === node.id ? moving.point : node.position ?? fallback;
+    const point = moving?.id === node.id ? moving.point : modularRackPoint(node, index);
     return { node, ...point };
   }));
   const rackWidth = $derived(Math.max(5 * columnPitch - 10, ...cards.map(c => c.x + cardWidth + 100)));
-  const rackHeight = $derived(Math.max(420, ...cards.map(c => c.y + rowPitch)));
+  const rackHeight = $derived(Math.max(rowPitch, ...cards.map(c => c.y + modularCardBounds(c.node, c).height + pad)));
   // Fill the viewport with canvas when zoomed out.
   const stageWidth = $derived(Math.max(rackWidth, viewWidth / zoom));
   const stageHeight = $derived(Math.max(rackHeight, viewHeight / zoom));
@@ -590,13 +593,32 @@
         {/each}
       </select>
     </label>
+    <label>Search presets
+      <input data-preset-search type="search" placeholder="Name, genre, source…" bind:value={presetQuery} />
+    </label>
+    <label>Preset genre
+      <select bind:value={presetCategory}>
+        <option value="">All genres</option>
+        {#each presetCategories as category}<option value={category}>{category}</option>{/each}
+      </select>
+    </label>
     <label>Preset
-      <select value={presetIndex} onchange={(e) => {
+      <select data-preset-picker value={presetIndex} onchange={(e) => {
         const preset = MODULAR_PRESETS[Number(e.currentTarget.value)];
         if (preset) replace(preset.patch());
       }}>
         <option value={-1} disabled>Custom</option>
-        {#each MODULAR_PRESETS as preset, i}<option value={i}>{preset.name}</option>{/each}
+        {#if currentOutsideFilter}
+          <optgroup label="Current preset">
+            <option value={presetIndex}>{MODULAR_PRESETS[presetIndex].name}</option>
+          </optgroup>
+        {/if}
+        {#each presetGroups as group (group.category)}
+          <optgroup label={group.category}>
+            {#each group.presets as { preset, index } (index)}<option value={index}>{preset.name}</option>{/each}
+          </optgroup>
+        {/each}
+        {#if !presetMatches.length}<option disabled>No matching presets</option>{/if}
       </select>
     </label>
     {#if signalSource}
