@@ -51,6 +51,7 @@ Type an exact value next to a numeric slider or macro. Press Enter or leave the 
 | Multiply / Ring | `a × b × level`; an unpatched **b** is 1. |
 | Wavefolder / Shaper | **Drive** amplifies the signal before **bias** shifts it. **Fold** reflects it at ±1, while **Soft clip** saturates it smoothly. **Mix** blends the result with the input. |
 | Bowed String | Two string sections and a nonlinear bow contact sustain a note while **gate** is high. Patch velocity or CV into **bow** to scale the bow speed. **Pressure**, **position**, and **damping** change the response. It rings after note-off and uses two of the four available delay lines. Try **Bow Grain**. |
+| Reed Pipe | A clarinet-style reed and bore sustain a tone while **gate** is high. **Pitch** tunes the bore; **breath** scales **pressure** from 0 to 1. **Embouchure** changes the reed stiffness. The module uses one of the four delay lines. Try **Velvet Reed** and its **Breath** macro. |
 | Comb / Delay Line | Delay of 0.05–40 ms with damped feedback and a dry/wet mix. |
 | Pluck String | Karplus-Strong string: a rising **gate** plucks it at **pitch**; **excite** adds input to the loop. **decay** is the time to −60 dB while held, **release** after. |
 | Modal Resonator | Uses a built-in material or a custom table of up to eight resonant modes. A rising **gate** strikes it and **in** adds continuous excitation. |
@@ -61,6 +62,10 @@ Type an exact value next to a numeric slider or macro. Press Enter or leave the 
 On a Modal Resonator, choose **Edit resonance**. The table starts with a copy of the selected material; **Copy selected material** restores that starting point in the editor. Add or remove modes and set each mode's frequency ratio, gain and decay multiplier. A ratio of 2 sounds an octave above the pitch input. Gain 0 silences a mode. A decay multiplier of 1 keeps the decay set by the module's Decay, Release and Brightness controls. Modes above 45% of the sample rate are skipped.
 
 Choose **Apply table** to use the draft, or **Use built-in material** to return to the original material knob and its CV input. Applying or removing a table is a structural edit and ends current voices. Tables are part of the patch JSON and CLAP project state. To reuse a table in another rack, select its module and use **Save selection**. **Twin Glass** demonstrates two close frequencies that beat against each other.
+
+### Percussion layers
+
+Drum Voice also offers **Rimshot**, **Cowbell**, **Shaker**, **Crash**, and **Ride**. The **Cowbell and Shaker** and **Rim and Cymbal** patches trigger two Drum Voice modules from the same note and route them through a mixer. Set their **Tune**, **Tone**, or **Decay** individually.
 
 ### Synth presets
 

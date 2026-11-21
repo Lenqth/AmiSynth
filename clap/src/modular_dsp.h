@@ -86,7 +86,8 @@ inline Graph compile(Json &patch, Macros &macros) {
             throw std::invalid_argument("Invalid module");
         auto &node = graph.nodes[ids.size()];
         node.type = spec->type;
-        const int lines = node.type == Type::bowed ? 2 : int(node.type == Type::string || node.type == Type::comb);
+        const int lines = node.type == Type::bowed ? 2 :
+            int(node.type == Type::string || node.type == Type::comb || node.type == Type::reedPipe);
         if (lines) {
             if (graph.line_count + lines > int(kLines)) throw std::invalid_argument("Too many delay lines");
             node.line = graph.line_count;
@@ -212,7 +213,7 @@ inline Graph compile(Json &patch, Macros &macros) {
         // Modules that ring on after their gate falls keep a released voice alive until quiet.
         const auto type = graph.nodes[index].type;
         if (type == Type::adsr || type == Type::functionGen || type == Type::string ||
-            type == Type::modal || type == Type::bowed)
+            type == Type::modal || type == Type::bowed || type == Type::reedPipe)
             graph.envelopes[graph.envelope_count++] = index;
         if (type == Type::drumVoice) graph.envelopes[graph.envelope_count++] = index;
         for (auto link : graph.nodes[index].links) {
@@ -432,7 +433,7 @@ struct Engine {
             st.write = int(p[0]);
             st.value = std::clamp(read(v, n, 1, v.velocity), 0.0, 1.0);
             st.env = st.value > 0 ? 1 : 0;
-            st.phase = st.p0 = st.prev = st.ic1 = 0;
+            st.phase = st.p0 = st.prev = st.ic1 = st.ic2 = st.ic3 = 0;
             st.y1.fill(0);
         }
         st.gate = trigger;
@@ -441,12 +442,12 @@ struct Engine {
         const int sound = st.write;
         const double t = st.p0, tone = p[3], base_hz = kDrumPitch[sound] * std::pow(2.0, p[1] / 12);
         const double noise = white(st);
-        const double corner = sound == 2 ? base_hz : 900 + 3200 * tone;
+        const double corner = sound == 2 || sound == 8 ? base_hz : 900 + 3200 * tone;
         st.prev += (noise - st.prev) * lag(1 / (2 * kPi * corner));
         st.ic1 += (st.prev - st.ic1) * lag(1 / (2 * kPi * (sound == 2 ? base_hz * 0.48 : 420)));
         const double band = st.prev - st.ic1;
         double sample;
-        if (sound == 3 || sound == 4) {
+        if (sound == 3 || sound == 4 || sound >= 9) {
             constexpr size_t oscillators = sizeof(kHatRatios) / sizeof(kHatRatios[0]);
             static_assert(oscillators <= kModes, "Hat oscillator state capacity");
             double metal = 0;
@@ -455,12 +456,25 @@ struct Engine {
                 st.y1[i] = phase - std::floor(phase);
                 metal += st.y1[i] < 0.5 ? 1 : -1;
             }
-            sample = 0.55 * (noise - st.prev) + (0.12 + 0.38 * tone) * metal / oscillators;
+            const double noise_mix = sound == 9 ? 0.86 : sound == 10 ? 0.29 : 0.55;
+            const double metal_mix = sound == 10 ? 0.32 + 0.42 * tone : 0.12 + 0.38 * tone;
+            sample = noise_mix * (noise - st.prev) + metal_mix * metal / oscillators;
         } else if (sound == 2) {
             const double burst_age = t < 0.024 ? std::fmod(t, 0.012) : t - 0.024;
             sample = band * (0.38 + std::exp(-burst_age / 0.0025) * (1.2 + tone));
+        } else if (sound == 7) {
+            const double phase1 = st.y1[0] + std::min(0.45, base_hz / rate);
+            const double phase2 = st.y1[1] + std::min(0.45, base_hz * 1.48 / rate);
+            st.y1[0] = phase1 - std::floor(phase1);
+            st.y1[1] = phase2 - std::floor(phase2);
+            const double metal = (st.y1[0] < 0.5 ? 0.5 : -0.5) + (st.y1[1] < 0.5 ? 0.5 : -0.5);
+            st.ic2 += (metal - st.ic2) * lag(1 / (2 * kPi * (2 + tone) * base_hz));
+            st.ic3 += (st.ic2 - st.ic3) * lag(1 / (2 * kPi * base_hz * 0.8));
+            sample = (st.ic2 - st.ic3) * (0.58 + 0.42 * std::exp(-t / 0.019));
+        } else if (sound == 8) {
+            sample = (0.3 * (noise - st.prev) + band * (0.68 + 0.45 * tone)) * (1 - std::exp(-t / 0.009));
         } else {
-            const double bend = sound == 0 ? 2.6 : sound == 5 ? 0.58 : 0.16;
+            const double bend = sound == 0 ? 2.6 : sound == 5 ? 0.58 : sound == 6 ? 0 : 0.16;
             const double hz = base_hz * (1 + bend * std::exp(-t / (sound == 0 ? 0.014 : 0.021)));
             const double phase = st.phase + std::min(0.45, hz / rate);
             st.phase = phase - std::floor(phase);
@@ -470,6 +484,11 @@ struct Engine {
                 st.y1[0] = secondary - std::floor(secondary);
                 const double body = (0.72 * sine + 0.28 * std::sin(2 * kPi * st.y1[0])) * std::exp(-t / 0.05);
                 sample = body * (0.68 - 0.35 * tone) + band * (0.68 + 0.55 * tone);
+            } else if (sound == 6) {
+                const double secondary = st.y1[0] + std::min(0.45, hz * 0.27 / rate);
+                st.y1[0] = secondary - std::floor(secondary);
+                const double click = (noise - st.prev) * tone * std::exp(-t / 0.0025);
+                sample = std::tanh(1.4 * sine + 0.45 * std::sin(2 * kPi * st.y1[0]) + 0.65 * click);
             } else {
                 const double click = (noise - st.prev) * tone * std::exp(-t / 0.0035);
                 sample = sound == 0 ? std::tanh(1.9 * sine + 0.5 * click) : 0.9 * sine + 0.38 * click;
@@ -777,6 +796,41 @@ struct Engine {
             st.gate = gate;
             st.mode = st.env > 1e-5 || st.amp > 1e-4 ? 1 : 0;
             sig[0] = bridge_out * p[4];
+            break;
+        }
+        case Type::reedPipe: {
+            auto &line = v.lines[size_t(n.line)];
+            const bool gate = read(v, n, 1, v.held) >= 0.5;
+            const double breath = std::clamp(read(v, n, 2, 1), 0.0, 1.0) * p[0];
+            st.env += ((gate ? breath : 0) - st.env) * lag(gate ? p[3] : 0.018);
+            const double hz = std::clamp(440 * std::pow(2.0, (read(v, n, 0, 69) - 69) / 12),
+                rate / (2 * (kLineSamples - 2)), rate * 0.2);
+            if (st.key[0] != hz || st.key[1] != p[2]) {
+                // Compensate the reflection filter's phase delay at the fundamental.
+                st.key[0] = hz;
+                st.key[1] = p[2];
+                const double w = 2 * kPi * hz / rate;
+                const double damping = std::exp(-2 * kPi * std::max(1100 + 1800 * p[2], 5 * hz) / rate);
+                const double phase_delay = std::atan2(damping * std::sin(w), 1 - damping * std::cos(w)) / w;
+                st.a1[0] = damping;
+                st.a2[0] = std::max(1.0, rate * 0.5 / hz - phase_delay);
+            }
+            const double bore = line_read(line, st.write, st.a2[0]);
+            st.prev += (bore - st.prev) * (1 - st.a1[0]);
+            const double stiffness = 0.2 + 0.25 * p[1];
+            const double noise = white(st);
+            const double pressure = st.env * (0.52 + 0.16 * st.env) / stiffness * (1 + 0.07 * p[4] * noise);
+            const double delta = -0.95 * st.prev - pressure;
+            const double opening = std::clamp(0.7 - stiffness * delta, -1.0, 1.0);
+            line[st.write] = float(std::clamp(pressure + delta * opening, -2.0, 2.0));
+            st.write = (st.write + 1) & kLineMask;
+            st.ic1 += (bore - st.ic1) * lag(1 / (2 * kPi * 22));
+            st.ic2 += (noise - st.ic2) * lag(1 / (2 * kPi * 1400));
+            const double ringing = bore - st.ic1;
+            st.amp = std::max(std::abs(ringing), st.amp * 0.9995);
+            st.gate = gate;
+            st.mode = st.env > 1e-5 || st.amp > 1e-4 ? 1 : 0;
+            sig[0] = (ringing + (noise - st.ic2) * st.env * p[4] * 0.07) * p[5];
             break;
         }
         case Type::modal: {
