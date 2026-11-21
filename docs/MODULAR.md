@@ -18,6 +18,8 @@ Patches support up to 32 modules and eight voices. The first **MIDI / Note** mod
 
 ### Signal conventions
 
+Type an exact value next to a numeric slider or macro. Press Enter or leave the field to apply it, or press Escape to cancel. Values stay within the control's range. A parameter driven by a cable can be edited again after unplugging it.
+
 | Port or module | Meaning |
 | --- | --- |
 | MIDI / Note | Pitch is a MIDI note number, gate is 0 or 1, and velocity is 0–1. |
