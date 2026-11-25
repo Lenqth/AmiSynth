@@ -18,13 +18,13 @@ const notes = [
 ];
 const samples = 24000;
 
-function renderWeb(patch, right = false, midi = [], transport = []) {
+function renderWeb(patch, right = false, midi = [], transport = [], list = notes) {
   const s = {};
   modular_init(s, rate);
   modular_set_patch(s, patch);
   const out = new Float32Array(samples);
   for (let n = 0; n < samples; n++) {
-    for (const note of notes) {
+    for (const note of list) {
       if (note.on === n) modular_midi(s, 0x90, note.key, note.velocity);
       if (note.off === n) modular_midi(s, 0x80, note.key, 0);
     }
@@ -36,9 +36,9 @@ function renderWeb(patch, right = false, midi = [], transport = []) {
   return out;
 }
 
-function renderNative(patch, dir, right = false, midi = [], expressions = [], transport = []) {
+function renderNative(patch, dir, right = false, midi = [], expressions = [], transport = [], list = notes) {
   const spec = join(dir, 'spec.json'), out = join(dir, 'out.f32');
-  writeFileSync(spec, JSON.stringify({ rate, samples, patch, notes, right, midi, expressions, transport }));
+  writeFileSync(spec, JSON.stringify({ rate, samples, patch, notes: list, right, midi, expressions, transport }));
   execFileSync(tool, [spec, out]);
   const bytes = readFileSync(out);
   return new Float32Array(bytes.buffer, bytes.byteOffset, bytes.length / 4);
@@ -327,6 +327,80 @@ TRANSPORT[HOST_CLOCKS] = [
   { at: 19000, bpm: 180, playing: true, beat: 0 },
 ];
 
+const HOST_LFOS = 'host-synced LFOs follow tempo and position and run free while stopped';
+PATCHES[HOST_LFOS] = voice([
+  { id: 'osc', type: 'vco', params: { wave: 1 } },
+  { id: 'sum', type: 'mix', params: { a: 1, b: 1 } },
+  { id: 'vib', type: 'lfo', params: { rate: 3, depth: 0.2, wave: 0, sync: 1, beats: 9 } },
+  { id: 'trem', type: 'lfo', params: { rate: 2, depth: 0.5, wave: 4, sync: 1, beats: 6 } },
+  { id: 'gain', type: 'cv', params: { scale: 1, offset: 0.5 } },
+  { id: 'amp', type: 'vca' },
+], [
+  { from: 'note', port: 'pitch', to: 'sum', input: 'a' },
+  { from: 'vib', port: 'out', to: 'sum', input: 'b' },
+  { from: 'sum', port: 'out', to: 'osc', input: 'pitch' },
+  { from: 'trem', port: 'out', to: 'gain', input: 'in' },
+  { from: 'osc', port: 'out', to: 'amp', input: 'audio' },
+  { from: 'gain', port: 'out', to: 'amp', input: 'gain' },
+  { from: 'amp', port: 'out', to: 'out', input: 'audio' },
+]);
+TRANSPORT[HOST_LFOS] = TRANSPORT[HOST_CLOCKS];
+
+// Arpeggiator patches: a plucked VCO with a short envelope, so each step is audible.
+const arpVoice = midi => ({
+  nodes: [
+    { id: 'note', type: 'midi', params: midi },
+    { id: 'out', type: 'output' },
+    { id: 'osc', type: 'vco', params: { wave: 1 } },
+    { id: 'env', type: 'adsr', params: { attack: 0.001, decay: 0.05, sustain: 0.5, release: 0.01 } },
+    { id: 'amp', type: 'vca' },
+  ],
+  cables: [
+    { from: 'note', port: 'pitch', to: 'osc', input: 'pitch' },
+    { from: 'note', port: 'gate', to: 'env', input: 'gate' },
+    { from: 'osc', port: 'out', to: 'amp', input: 'audio' },
+    { from: 'env', port: 'out', to: 'amp', input: 'gain' },
+    { from: 'amp', port: 'out', to: 'out', input: 'audio' },
+  ],
+});
+const ARP_TRANSPORT = [
+  { at: 0, bpm: 200, playing: true, beat: 1.3 },
+  { at: 9000, bpm: 200, playing: true, beat: 1.3 + 9000 * 200 / 60 / rate },
+  { at: 12000, bpm: 200, playing: true, beat: 0.5 },  // a loop back
+  { at: 19000, bpm: 260, playing: false, beat: 0 },   // stopped: runs on at the tempo
+];
+const ARPS = {
+  'arpeggiator Up over 2 octaves with swing and a 5-step pattern': [{ arp: 1, arpRate: 5, arpOctaves: 2, arpGate: 0.6, arpSwing: 62, arpSteps: 5, arpPattern: 0xfffb }, ARP_TRANSPORT],
+  'arpeggiator Random on a Legato voice, Every Bar, gate 1': [{ voices: 2, glide: 0.02, arp: 4, arpRate: 6, arpOctaves: 3, arpGate: 1, arpRetrigger: 2 }, [{ at: 0, bpm: 300, playing: false, beat: 0 }]],
+  'arpeggiator Chord stabs with New Chord': [{ arp: 6, arpRate: 1, arpGate: 0.45, arpSteps: 3, arpPattern: 0b101, arpRetrigger: 1 }, ARP_TRANSPORT],
+  'arpeggiator Up-Down with Free Run': [{ arp: 3, arpRate: 4, arpOctaves: 2, arpGate: 0.5, arpRetrigger: 3 }, ARP_TRANSPORT],
+  'arpeggiator Down on a Mono voice': [{ voices: 1, arp: 2, arpRate: 3, arpOctaves: 4, arpGate: 0.8 }, [{ at: 0, bpm: 170, playing: true, beat: 7.9 }]],
+  'arpeggiator As Played': [{ arp: 5, arpRate: 2, arpOctaves: 2, arpGate: 0.3, arpSwing: 75 }, [{ at: 0, bpm: 150, playing: true, beat: 0 }]],
+};
+for (const [name, [midi, transport]] of Object.entries(ARPS)) {
+  PATCHES[name] = arpVoice(midi);
+  TRANSPORT[name] = transport;
+}
+
+// GM Drum Kit patches play their own notes: every kind of hit, hat and triangle chokes and a
+// retriggered kick.
+const NOTES = {};
+const hits = keys => keys.map(([key, on, velocity = 100]) => ({ key, velocity, on, off: on + 500 }));
+const drumKit = (params, cables) => ({
+  nodes: [{ id: 'note', type: 'midi' }, { id: 'out', type: 'output', params: { level: 1 } }, { id: 'kit', type: 'drumKit', params }],
+  cables: [{ from: 'kit', port: 'left', to: 'out', input: 'audio' }, { from: 'kit', port: 'right', to: 'out', input: 'right' }, ...cables],
+});
+const KIT_808 = 'GM Drum Kit: 808 kit, chokes and retriggers';
+PATCHES[KIT_808] = drumKit({ kit: 1 }, []);
+NOTES[KIT_808] = hits([[36, 0], [42, 1000, 70], [46, 1500], [42, 4000], [38, 5000], [39, 6000, 127], [45, 7000], [37, 8000],
+  [56, 9000], [70, 10000], [36, 11000, 40], [49, 12000], [51, 16000], [35, 18000]]);
+const KIT_PERC = 'GM Drum Kit: Latin percussion, tuned and shortened, velocity from a cable';
+PATCHES[KIT_PERC] = drumKit({ kit: 4, tune: 2, decay: 0.7, level: 0.8 }, [{ from: 'vel', port: 'out', to: 'kit', input: 'velocity' },
+  { from: 'note', port: 'velocity', to: 'vel', input: 'in' }]);
+PATCHES[KIT_PERC].nodes.push({ id: 'vel', type: 'cv', params: { scale: 0.5, offset: 0.4 } });
+NOTES[KIT_PERC] = hits([[54, 0], [62, 1000], [66, 2000], [67, 3000], [76, 4000], [81, 5000], [80, 7000], [58, 8000],
+  [72, 9000], [74, 10000], [79, 11000], [53, 12000], [44, 13000], [60, 14000], [71, 15000], [73, 16000], [78, 17000], [55, 18000]]);
+
 const PATCH_FX = 'patch effects: echo (free and host-synced ping-pong), chorus and reverb on the voice sum';
 PATCHES[PATCH_FX] = {
   nodes: [
@@ -375,7 +449,8 @@ for (const [name, patch] of Object.entries(PATCHES)) {
     try {
       const midi = MIDI[name] ?? [];
       const transport = TRANSPORT[name] ?? [];
-      const web = renderWeb(patch, false, midi, transport), native = renderNative(patch, dir, false, midi, [], transport);
+      const list = NOTES[name] ?? notes;
+      const web = renderWeb(patch, false, midi, transport, list), native = renderNative(patch, dir, false, midi, [], transport, list);
       assert.equal(native.length, web.length);
       let worst = 0, at = 0, energy = 0;
       for (let i = 0; i < web.length; i++) {
@@ -389,11 +464,14 @@ for (const [name, patch] of Object.entries(PATCHES)) {
       const stereo = patch.nodes.some(node => node.type === 'fxOutput') || patch.cables.some(cable => cable.input === 'right' &&
         patch.nodes.some(node => node.id === cable.to && node.type === 'output'));
       if (stereo) {
-        const webRight = renderWeb(patch, true, midi, transport), nativeRight = renderNative(patch, dir, true, midi, [], transport);
-        assert.ok(webRight.some((value, i) => Math.abs(value - web[i]) > 0.01));
+        const webRight = renderWeb(patch, true, midi, transport, list), nativeRight = renderNative(patch, dir, true, midi, [], transport, list);
+        // A mono source through a plain Echo stays mono; reverb, chorus and ping-pong widen it.
+        const widens = patch.cables.some(cable => cable.input === 'right' && patch.nodes.some(node =>
+          node.id === cable.to && node.type === 'output')) || patch.nodes.some(node => node.type === 'pan' || node.type === 'reverb' || node.type === 'chorus' || (node.type === 'echo' && node.params?.pingPong));
+        if (widens) assert.ok(webRight.some((value, i) => Math.abs(value - web[i]) > 1e-3), `${name} plays the same in both channels`);
         assert.ok(webRight.every((value, i) => Math.abs(value - nativeRight[i]) < 1e-4));
       } else {
-        assert.deepEqual(renderWeb(patch, true, midi, transport), web);
+        assert.deepEqual(renderWeb(patch, true, midi, transport, list), web);
       }
     } finally {
       rmSync(dir, { recursive: true, force: true });

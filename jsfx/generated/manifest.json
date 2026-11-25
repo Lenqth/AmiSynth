@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "contentId": "05ebbf4da53fb2fec573d8bc42cec0553d594043435d69942759867380fc21f7",
+  "contentId": "0ce16e3208fae9c24231e2fae5663e51ab04bf34c5e7fd76e784990f7048a503",
   "presets": {
     "synth": [
       "Init",
@@ -308,7 +308,7 @@
     {
       "source": "jsfx/generated/modular.json",
       "installedPath": "Scripts/AmiSynth/generated/modular.json",
-      "sha256": "68335877c0ebc75db691f2dd0d68e536c1c7d96b3b593a2a8930b823c67e39a9"
+      "sha256": "d0a9362eea2317ee1703ecd9fa753753a5601fa1fce395cbb903b0495eb47ebd"
     }
   ]
 }

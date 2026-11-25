@@ -32,10 +32,14 @@ int main(int argc, char **argv) {
         for (size_t n = 0; n < count; ++n) {
             for (const auto &note : spec.at("notes")) {
                 const int key = note.at("key").get<int>();
-                if (note.at("on").get<size_t>() == n)
-                    engine->note_on(0, key, -1, note.at("velocity").get<double>() / 127, false);
+                const bool arp = engine->graph.arp.mode > 0;
+                if (note.at("on").get<size_t>() == n) {
+                    if (arp) engine->arp_key_on(0, key, note.at("velocity").get<double>() / 127);
+                    else engine->note_on(0, key, -1, note.at("velocity").get<double>() / 127, false);
+                }
                 if (note.contains("off") && note.at("off").get<size_t>() == n) {
-                    if (engine->graph.voice_mode) engine->mono_note_off(0, key);
+                    if (arp) engine->arp_key_off(0, key);
+                    else if (engine->graph.voice_mode) engine->mono_note_off(0, key);
                     else for (auto &v : engine->voices)
                         if (v.key_down && Engine::matches(v, 0, key, -1)) engine->release(v);
                 }

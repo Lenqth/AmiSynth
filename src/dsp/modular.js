@@ -1,17 +1,16 @@
 // AmiSynth Modular: a small, independent, serializable graph DSP (no Web Audio dependencies).
 // All cables carry a per-voice, audio-rate scalar. A Unit Delay breaks a feedback loop.
 // The native CLAP engine (clap/src/modular_dsp.h) mirrors every module; keep the two in step.
-import { MATERIALS } from './phys.js';
+import { BRASS_MIN_DRIVE, BRASS_MULTS, BRASS_NOTE0, BRASS_SHARP, MATERIALS } from './phys.js';
 import { HAT_RATIOS } from './drums.js';
 import { WT_BANK_NAMES, wt_build, wt_sample } from './wavetable.js';
-import { MODULAR_SYNTH_PORTS } from '../presets/modular.js';
-import { PHYS_PRESETS } from '../presets/phys.js';
+import { MODULAR_DRUM_PORTS, MODULAR_PHYSICAL_PORTS, MODULAR_SYNTH_PORTS } from '../presets/modular.js';
 import { DRUM_PRESETS } from '../presets/drums.js';
-import { DRUM_PARAMS, PHYS_PARAMS, defaultValues } from './params.js';
+import { DRUM_PARAMS, GM_DRUM_VARIANTS, defaultValues } from './params.js';
 
 // Native storage limits per module (checked by scripts/gen-modular-clap.js).
 export const MODULAR_MAX_INPUTS = 4;
-export const MODULAR_MAX_PARAMS = 10;
+export const MODULAR_MAX_PARAMS = 16;
 export const MODULAR_MAX_OUTPUTS = 8;
 export const BEAT_GRID_LANES = ['a', 'b', 'c', 'd'];
 export const BEAT_GRID_MAX_STEPS = 32;
@@ -65,6 +64,15 @@ export const MODULAR_TYPES = Object.freeze({
       glideMode: { min: 0, max: 1, default: 0, step: 1, choices: ['Always', 'Legato only'], fixed: true },
       bendRange: { min: 0, max: 48, default: 2, step: 1, fixed: true },
       cc: { min: 0, max: 127, default: 74, step: 1, fixed: true },
+      arp: { min: 0, max: 6, default: 0, step: 1, choices: ['Off', 'Up', 'Down', 'Up-Down', 'Random', 'As Played', 'Chord'], fixed: true },
+      arpRate: { min: 0, max: 6, default: 4, step: 1, choices: ['1/4', '1/8', '1/8 triplet', '1/8 dotted', '1/16', '1/16 triplet', '1/32'], fixed: true },
+      arpOctaves: { min: 1, max: 4, default: 1, step: 1, fixed: true },
+      arpGate: { min: 0.05, max: 1, default: 0.5, step: 0.001, fixed: true },
+      arpSwing: { min: 50, max: 75, default: 50, step: 0.1, fixed: true },
+      arpSteps: { min: 1, max: 16, default: 16, step: 1, fixed: true },
+      // Bit i switches step i + 1 on.
+      arpPattern: { min: 0, max: 65535, default: 65535, step: 1, fixed: true },
+      arpRetrigger: { min: 0, max: 3, default: 0, step: 1, choices: ['First Key', 'New Chord', 'Every Bar', 'Free Run'], fixed: true },
     } },
   vco: { label: 'VCO', category: 'Sources', keywords: 'oscillator saw square pulse sine triangle tone sync fm pm',
     // The sync output is 1 for the sample where the cycle restarts; patch it into another VCO's sync.
@@ -80,6 +88,13 @@ export const MODULAR_TYPES = Object.freeze({
   noise: { label: 'Noise', category: 'Sources', keywords: 'white pink random hiss breath',
     inputs: [], outputs: ['out'], params: {
       color: { min: 0, max: 1, default: 0, step: 1, choices: ['White', 'Pink'] },
+      level: { min: 0, max: 1, default: 0.5, step: 0.01 },
+    } },
+  synthNoise: { label: 'Synth Noise', category: 'Sources',
+    keywords: 'chip lfsr 8-bit metallic sample hold rotor helicopter claps applause shot gunshot rain sound effect noise',
+    inputs: ['pitch'], outputs: ['out'], params: {
+      type: { min: 0, max: 6, default: 0, step: 1, choices: ['Chip Long', 'Chip Short', 'Sample & Hold', 'Rotor', 'Crowd Claps', 'Shot', 'Rain'] },
+      clock: { min: -4, max: 4, default: 0, step: 0.01 },
       level: { min: 0, max: 1, default: 0.5, step: 0.01 },
     } },
   wavetable: { label: 'Wavetable Oscillator', category: 'Sources', keywords: 'wavetable morph unison stereo oscillator fm pm sync',
@@ -100,6 +115,94 @@ export const MODULAR_TYPES = Object.freeze({
       release: { min: 0.01, max: 10, default: 0.3, step: 0.01 },
       brightness: { min: 0, max: 1, default: 0.6, step: 0.01 },
       level: { min: 0, max: 1, default: 0.6, step: 0.01 },
+    } },
+  physString: { label: 'Physical String', category: 'Physical',
+    keywords: 'karplus strong guitar bass harp harpsichord koto pick damping hammer physical model',
+    inputs: ['pitch', 'gate', 'velocity'], outputs: ['out'], params: {
+      excitation: { min: 0, max: 1, default: 0, step: 1, choices: ['Pluck', 'Strike'] },
+      decay: { min: 0.1, max: 20, default: 3, step: 0.01 },
+      release: { min: 0.01, max: 10, default: 0.3, step: 0.01 },
+      damping: { min: 0, max: 1, default: 0.35, step: 0.001 },
+      pick: { min: 0.02, max: 0.5, default: 0.13, step: 0.001 },
+      brightness: { min: 0, max: 1, default: 0.7, step: 0.001 },
+      level: { min: 0, max: 1, default: 0.6, step: 0.01 },
+      sawari: { min: 0, max: 1, default: 0, step: 0.001 },
+      plectrum: { min: 0, max: 1, default: 0, step: 0.001 },
+      hardness: { min: 0, max: 1, default: 0.7, step: 0.001 },
+      body: { min: 0, max: 1, default: 0, step: 0.001 },
+      contact: { min: 0, max: 2, default: 1, step: 0.001 },
+    } },
+  physBowed: { label: 'Physical Bowed String', category: 'Physical',
+    keywords: 'violin viola cello contrabass fiddle bow friction waveguide body physical model',
+    inputs: ['pitch', 'bow'], outputs: ['out'], params: {
+      speed: { min: 0, max: 1, default: 0.55, step: 0.001 },
+      pressure: { min: 0, max: 1, default: 0.45, step: 0.001 },
+      position: { min: 0.02, max: 0.5, default: 0.127, step: 0.001 },
+      brightness: { min: 0, max: 1, default: 0.6, step: 0.001 },
+      level: { min: 0, max: 1, default: 0.6, step: 0.01 },
+    } },
+  physWind: { label: 'Physical Wind', category: 'Physical',
+    keywords: 'clarinet flute saxophone oboe bassoon accordion harmonica reed jet breath bore physical model',
+    inputs: ['pitch', 'breath'], outputs: ['out'], params: {
+      type: { min: 0, max: 4, default: 0, step: 1, choices: ['Clarinet', 'Flute', 'Saxophone', 'Double Reed', 'Free Reed'] },
+      pressure: { min: 0, max: 1, default: 0.6, step: 0.001 },
+      noise: { min: 0, max: 1, default: 0.15, step: 0.001 },
+      embouchure: { min: 0, max: 1, default: 0.5, step: 0.001 },
+      musette: { min: 0, max: 50, default: 0, step: 0.1 },
+      level: { min: 0, max: 1, default: 0.6, step: 0.01 },
+    } },
+  physBrass: { label: 'Physical Brass', category: 'Physical',
+    keywords: 'trumpet trombone tuba horn flugelhorn lip buzz bell bore physical model',
+    inputs: ['pitch', 'breath', 'velocity'], outputs: ['out'], params: {
+      pressure: { min: 0, max: 1, default: 0.6, step: 0.001 },
+      lip: { min: 0, max: 1, default: 0.5, step: 0.001 },
+      bell: { min: 0, max: 1, default: 0.5, step: 0.001 },
+      attack: { min: 0.001, max: 2, default: 0.04, step: 0.001 },
+      velocity: { min: 0, max: 1, default: 0.8, step: 0.001 },
+      level: { min: 0, max: 1, default: 0.6, step: 0.01 },
+    } },
+  physPiano: { label: 'Physical Piano', category: 'Physical',
+    keywords: 'piano grand upright stiff string hammer felt unison inharmonic physical model',
+    inputs: ['pitch', 'gate', 'velocity'], outputs: ['out'], params: {
+      hardness: { min: 0, max: 1, default: 0.5, step: 0.001 },
+      position: { min: 0.02, max: 0.5, default: 0.12, step: 0.001 },
+      decay: { min: 0.2, max: 30, default: 8, step: 0.01 },
+      release: { min: 0.01, max: 20, default: 0.4, step: 0.01 },
+      damping: { min: 0, max: 1, default: 0.25, step: 0.001 },
+      inharmonicity: { min: 0, max: 1, default: 0.35, step: 0.001 },
+      detune: { min: 0, max: 10, default: 1.2, step: 0.01 },
+      level: { min: 0, max: 1, default: 0.6, step: 0.01 },
+    } },
+  physMesh: { label: 'Physical Mesh', category: 'Physical',
+    keywords: 'drum membrane tom timpani taiko plate mesh mallet waveguide physical model',
+    inputs: ['pitch', 'gate', 'velocity'], outputs: ['out'], params: {
+      shape: { min: 0, max: 1, default: 0, step: 1, choices: ['Circular drum', 'Square plate'] },
+      size: { min: 6, max: 16, default: 12, step: 1 },
+      decay: { min: 0.05, max: 10, default: 0.9, step: 0.01 },
+      release: { min: 0.01, max: 10, default: 0.9, step: 0.01 },
+      highDamping: { min: 0, max: 1, default: 0.3, step: 0.001 },
+      strikeX: { min: 0, max: 1, default: 0.3, step: 0.001 },
+      strikeY: { min: 0, max: 1, default: 0.42, step: 0.001 },
+      hardness: { min: 0, max: 1, default: 0.5, step: 0.001 },
+      level: { min: 0, max: 1, default: 0.6, step: 0.01 },
+    } },
+  physOrgan: { label: 'Physical Organ', category: 'Physical',
+    keywords: 'tonewheel drawbar hammond organ percussion click physical model',
+    inputs: ['pitch', 'gate'], outputs: ['out'], params: {
+      d16: { min: 0, max: 8, default: 8, step: 1 },
+      d513: { min: 0, max: 8, default: 8, step: 1 },
+      d8: { min: 0, max: 8, default: 8, step: 1 },
+      d4: { min: 0, max: 8, default: 0, step: 1 },
+      d223: { min: 0, max: 8, default: 0, step: 1 },
+      d2: { min: 0, max: 8, default: 0, step: 1 },
+      d135: { min: 0, max: 8, default: 0, step: 1 },
+      d113: { min: 0, max: 8, default: 0, step: 1 },
+      d1: { min: 0, max: 8, default: 0, step: 1 },
+      percussion: { min: 0, max: 2, default: 0, step: 1, choices: ['Off', 'Second', 'Third'] },
+      percDecay: { min: 0.05, max: 3, default: 0.3, step: 0.01 },
+      percLevel: { min: 0, max: 1, default: 0.6, step: 0.001 },
+      click: { min: 0, max: 1, default: 0.3, step: 0.001 },
+      level: { min: 0, max: 2, default: 1, step: 0.01 },
     } },
   modal: { label: 'Modal Resonator', category: 'Physical', keywords: 'bell marimba glass gong mallet physical model resonance',
     inputs: ['in', 'pitch', 'gate', 'velocity'], outputs: ['out'], params: {
@@ -132,7 +235,10 @@ export const MODULAR_TYPES = Object.freeze({
     inputs: [], outputs: ['out'], params: {
       rate: { min: 0.01, max: 30, default: 2, step: 0.01 },
       depth: { min: 0, max: 1, default: 1, step: 0.01 },
-      wave: { min: 0, max: 1, default: 0, step: 1, choices: ['Sine', 'Triangle'] },
+      wave: { min: 0, max: 4, default: 0, step: 1, choices: ['Sine', 'Triangle', 'Saw Down', 'Square', 'Duck'] },
+      sync: { min: 0, max: 1, default: 0, step: 1, choices: ['Free', 'Host'], fixed: true },
+      beats: { min: 0, max: 15, default: 6, step: 1, choices: ['4 bars', '2 bars', '1/1', '1/2', '1/2 dotted', '1/2 triplet',
+        '1/4', '1/4 dotted', '1/4 triplet', '1/8', '1/8 dotted', '1/8 triplet', '1/16', '1/16 dotted', '1/16 triplet', '1/32'], fixed: true },
     } },
   adsr: { label: 'ADSR', category: 'Modulation', keywords: 'envelope attack decay sustain release eg',
     inputs: ['gate'], outputs: ['out'], params: {
@@ -222,6 +328,14 @@ export const MODULAR_TYPES = Object.freeze({
       kickSweep: { min: -1, max: 6, default: -1, step: 0.01 },
       kickSweepTime: { min: 0.002, max: 0.3, default: 0.035, step: 0.001 },
     } },
+  // The Drums instrument's kits: the key picks the GM percussion part, as on MIDI channel 10.
+  drumKit: { label: 'GM Drum Kit', category: 'Drums', keywords: 'drums percussion gm kit channel 10 kick snare hat tom cymbal conga cowbell',
+    inputs: ['key', 'trigger', 'velocity'], outputs: ['out', 'left', 'right'], params: {
+      kit: { min: 0, max: DRUM_PRESETS.length - 1, default: 0, step: 1, choices: DRUM_PRESETS.map(kit => kit.name), fixed: true },
+      tune: { min: -24, max: 24, default: 0, step: 0.1 },
+      decay: { min: 0.1, max: 4, default: 1, step: 0.01 },
+      level: { min: 0, max: 1, default: 1, step: 0.01 },
+    } },
   vcf: { label: 'VCF', category: 'Filters & Effects', keywords: 'filter lowpass highpass bandpass notch cutoff resonance keytrack',
     inputs: ['audio', 'cutoff', 'pitch'], outputs: ['out'], params: {
       cutoff: { min: 20, max: 18000, default: 2400, step: 1 },
@@ -287,7 +401,8 @@ export const MODULAR_TYPES = Object.freeze({
     inputs: ['left', 'right'], outputs: ['left', 'right'], params: {
       time: { min: 1, max: 2000, default: 375, step: 1, fixed: true },
       sync: { min: 0, max: 1, default: 0, step: 1, choices: ['Free', 'Host'], fixed: true },
-      beats: { min: 0, max: 6, default: 3, step: 1, choices: ['1/16', '1/8', 'Dotted 1/8', '1/4', 'Dotted 1/4', '1/2', '1 bar'], fixed: true },
+      beats: { min: 0, max: 13, default: 3, step: 1, choices: ['1/16', '1/8', 'Dotted 1/8', '1/4', 'Dotted 1/4', '1/2', '1 bar',
+        '1/32', '1/16 triplet', 'Dotted 1/16', '1/8 triplet', '1/4 triplet', '1/2 triplet', 'Dotted 1/2'], fixed: true },
       feedback: { min: 0, max: 0.95, default: 0.4, step: 0.01, fixed: true },
       damping: { min: 0, max: 1, default: 0.3, step: 0.01, fixed: true },
       pingPong: { min: 0, max: 1, default: 0, step: 1, choices: ['Off', 'On'], fixed: true },
@@ -308,6 +423,32 @@ export const MODULAR_TYPES = Object.freeze({
       width: { min: 0, max: 1, default: 1, step: 0.01, fixed: true },
       mix: { min: 0, max: 1, default: 0.3, step: 0.01, fixed: true },
     } },
+  guitarAmp: { label: 'Guitar Amp', category: 'Patch Effects', global: true,
+    keywords: 'amp amplifier overdrive distortion crunch cabinet guitar bass effect fx',
+    inputs: ['left', 'right'], outputs: ['left', 'right'], params: {
+      type: { min: 0, max: 3, default: 1, step: 1, choices: ['Clean', 'Crunch', 'Overdrive', 'Distortion'], fixed: true },
+      gain: { min: 0, max: 1, default: 0.5, step: 0.001, fixed: true },
+      tone: { min: 0, max: 1, default: 0.5, step: 0.001, fixed: true },
+      level: { min: -24, max: 12, default: 0, step: 0.1, fixed: true },
+    } },
+  rotary: { label: 'Rotary Speaker', category: 'Patch Effects', global: true,
+    keywords: 'leslie rotary speaker horn drum organ doppler tremolo effect fx',
+    inputs: ['left', 'right'], outputs: ['left', 'right'], params: {
+      speed: { min: 0, max: 1, default: 0, step: 1, choices: ['Slow', 'Fast'], fixed: true },
+      mix: { min: 0, max: 1, default: 1, step: 0.001, fixed: true },
+    } },
+  sympathetic: { label: 'Sympathetic Strings', category: 'Patch Effects', global: true,
+    keywords: 'sitar sympathetic strings resonance tarab drone shimmer effect fx',
+    inputs: ['left', 'right'], outputs: ['left', 'right'], params: {
+      root: { min: 0, max: 104, default: 60, step: 1, fixed: true },
+      decay: { min: 0.2, max: 10, default: 3.5, step: 0.01, fixed: true },
+      mix: { min: 0, max: 1, default: 0.5, step: 0.001, fixed: true },
+    } },
+  soundboard: { label: 'Soundboard', category: 'Patch Effects', global: true,
+    keywords: 'piano soundboard body resonance bridge wood effect fx',
+    inputs: ['left', 'right'], outputs: ['left', 'right'], params: {
+      body: { min: 0, max: 1, default: 0.6, step: 0.001, fixed: true },
+    } },
   fxOutput: { label: 'FX output', category: 'Input & Output', global: true, keywords: 'effects return bus master out',
     inputs: ['left', 'right'], outputs: [], params: {
       level: { min: 0, max: 2, default: 1, step: 0.01, fixed: true },
@@ -316,17 +457,115 @@ export const MODULAR_TYPES = Object.freeze({
 
 // Patch effects share preallocated buffers: one slot per Echo, Chorus or Reverb.
 export const MODULAR_FX_SLOTS = 4;
+// Each slot's state values (the Soundboard keeps 16 modes of 2 states and 6 coefficients).
+export const MODULAR_FX_MEMORY = 128;
 export const MODULAR_ECHO_SECONDS = 2;
-export const MODULAR_ECHO_BEATS = [0.25, 0.5, 0.75, 1, 1.5, 2, 4];
+// The LFO's host-synced cycle lengths in beats (quarter notes), as the Synth's LFO Sync.
+// GM Drum Kit: one row of MODULAR_DRUM_FIELDS numbers per kit and GM note (35-81), worked out
+// from the Drums instrument's parameters as drums_update / drums_note_on do. Fields: kind, the
+// Drums voice it plays (a new hit chokes older hits of that voice), a second voice it chokes
+// (the closed hat chokes the open hat), gain, left and right pan gains, pitch, tone, decay (ms),
+// then kind-specific values x1-x6.
+export const MODULAR_DRUM_FIRST = 35, MODULAR_DRUM_LAST = 81, MODULAR_DRUM_FIELDS = 15;
+export const MODULAR_DRUM_HITS = buildDrumHits();
+function buildDrumHits() {
+  const notes = MODULAR_DRUM_LAST - MODULAR_DRUM_FIRST + 1;
+  const table = new Float64Array(DRUM_PRESETS.length * notes * MODULAR_DRUM_FIELDS);
+  DRUM_PRESETS.forEach((kit, k) => {
+    const p = { ...defaultValues(DRUM_PARAMS), ...kit.params };
+    for (let note = MODULAR_DRUM_FIRST; note <= MODULAR_DRUM_LAST; note++) {
+      const hit = drumHit(p, note);
+      if (hit) table.set(hit, (k * notes + note - MODULAR_DRUM_FIRST) * MODULAR_DRUM_FIELDS);
+    }
+  });
+  return table;
+}
+function drumHit(p, note) {
+  const g = GM_DRUM_VARIANTS.find(x => x.note === note) ?? { pitch: 1, decay: 1, level: 1 };
+  const db = d => d <= -60 ? 0 : Math.pow(10, d / 20);
+  // kind: 1 kick, 2 snare, 3 clap, 4 hat / cymbal, 5 tom, 6 rimshot, 7 cowbell / agogo, 8 shaker,
+  // 9 conga / bongo / timbale, 10 claves / wood block, 11 triangle, 12 vibraslap, 13 whistle,
+  // 14 guiro, 15 cuica.
+  const row = (kind, voice, part, { gain = 1, hz = p[part + '_pitch_hz'] * g.pitch, decay = p[part + '_decay_ms'] * g.decay,
+    tone = p[part + '_tone'], x = [], choke = -1 } = {}) => {
+    const a = (Math.min(1, Math.max(-1, p[part + '_pan'])) + 1) * 0.25 * Math.PI;
+    const level = db(p[part + '_level_db']) * gain * db(p.drum_master_volume_db) * 0.8;
+    return [kind, voice, choke, level, Math.cos(a) * 1.41421356, Math.sin(a) * 1.41421356, hz, tone, decay, ...x];
+  };
+  const hat = (voice, part, bp, hp, metal, options = {}) => row(4, voice, part, { ...options, x: [metal, bp, hp] });
+  const hand = (voice, part) => row(9, voice, part, { gain: g.level,
+    x: part === 'conga' ? [1.59, 0.35, 1200] : [2.32, 0.8, 3000] });
+  const bell = (voice, part, fast, ratio, bp, k, mix) => row(7, voice, part, { gain: g.level, x: [fast, ratio, bp, k, mix] });
+  switch (note) {
+    case 35: case 36: return row(1, 0, 'kick', { hz: p.kick_pitch_hz, decay: p.kick_decay_ms, x: [p.kick_sweep_oct, p.kick_sweep_ms] });
+    case 38: case 40: return row(2, 1, 'snare', { hz: p.snare_pitch_hz, decay: p.snare_decay_ms, x: [p.snare_snappy] });
+    case 39: return row(3, 2, 'clap', { x: [p.clap_spread_ms] });
+    case 42: return hat(3, 'closed_hat', 10000, 3000, p.closed_hat_metal_mix, { choke: 4 });
+    case 44: return hat(3, 'closed_hat', 10000, 3000, p.closed_hat_metal_mix, { choke: 4, gain: 0.6, decay: p.closed_hat_decay_ms * 0.8 });
+    case 46: return hat(4, 'open_hat', 10000, 3000, p.open_hat_metal_mix);
+    case 49: return hat(5, 'crash', 6500, 1500, p.crash_metal_mix);
+    case 51: return hat(6, 'ride', 8000, 2000, p.ride_metal_mix);
+    case 45: return row(5, 7, 'low_tom');
+    case 47: return row(5, 8, 'mid_tom');
+    case 50: return row(5, 9, 'high_tom');
+    case 37: return row(6, 10, 'rimshot');
+    case 56: return bell(11, 'cowbell', 40, 1.4815, 1.6, 1, 0.6);
+    case 69: case 70: return row(8, 12, 'shaker', { hz: p.shaker_pitch_hz, decay: p.shaker_decay_ms });
+    case 54: return hat(13, 'tambourine', 9000, 4000, 0.7);
+    case 41: case 43: return row(5, note === 41 ? 14 : 15, 'low_tom');
+    case 48: return row(5, 16, 'mid_tom');
+    case 52: case 55: case 57: return hat(17, 'crash', 6500, 1500, p.crash_metal_mix, { gain: g.level });
+    case 53: case 59: return hat(18, 'ride', 8000, 2000, g.pitch > 1 ? 1 : p.ride_metal_mix, { gain: g.level });
+    case 60: case 61: case 62: case 63: case 64: return hand(19 + note - 60, 'conga');
+    case 65: case 66: return hand(19 + note - 60, 'timbale');
+    case 67: case 68: return bell(26 + note - 67, 'agogo', 25, 1.6, 1.3, 0.8, 0.5);
+    case 75: case 76: case 77: return row(10, 28 + note - 75, 'claves', { gain: g.level });
+    case 80: case 81: return row(11, 31, 'triangle', { hz: p.triangle_pitch_hz, decay: Math.max(30, p.triangle_decay_ms * (note === 80 ? 0.05 : 1)) });
+    case 58: return row(12, 32, 'vibraslap');
+    case 71: case 72: return row(13, 33, 'whistle', { hz: p.whistle_pitch_hz, decay: p.whistle_decay_ms * (note === 71 ? 0.3 : 1) });
+    case 73: case 74: return row(14, 34, 'guiro', { hz: p.guiro_pitch_hz, decay: p.guiro_decay_ms * (note === 73 ? 0.3 : 1) });
+    case 78: case 79: return row(15, 35, 'cuica', { hz: p.cuica_pitch_hz * (note === 78 ? 1.5 : 1), decay: p.cuica_decay_ms * (note === 78 ? 0.35 : 1) });
+    default: return null;
+  }
+}
+export const MODULAR_ARP_BEATS = [1, 0.5, 1 / 3, 0.75, 0.25, 1 / 6, 0.125];
+/** New Chord: a key pressed this long after the previous key press starts a new chord. */
+export const MODULAR_ARP_CHORD_MS = 50;
+export const MODULAR_LFO_BEATS = [16, 8, 4, 2, 3, 4 / 3, 1, 1.5, 2 / 3, 0.5, 0.75, 1 / 3, 0.25, 0.375, 1 / 6, 0.125];
+// Later entries were appended so stored patches keep their note values.
+export const MODULAR_ECHO_BEATS = [0.25, 0.5, 0.75, 1, 1.5, 2, 4, 0.125, 1 / 6, 0.375, 1 / 3, 2 / 3, 4 / 3, 3];
 // Freeverb's comb and allpass lengths at 44.1 kHz; the right channel is 23 samples longer.
 export const MODULAR_REVERB_COMBS = [1116, 1188, 1277, 1356, 1422, 1491, 1557, 1617];
 export const MODULAR_REVERB_ALLPASSES = [556, 441, 341, 225];
 export const MODULAR_REVERB_SPREAD = 23;
-const FX_TYPES = new Set(['echo', 'chorus', 'reverb']);
+// The Physical instrument's amps: pre high-pass Hz, drive at gain 0 and 1, bias, clipping
+// stages, cabinet low-pass Hz at tone 0 and 1.
+// The Physical instrument's wind constants: where the conical bores' reed sits in the loop,
+// their output gains, the flute jet's delay ratio and gain, and the free reed's slot overlap.
+export const MODULAR_WIND = { conePosition: [0, 0, 0.4, 0.35], coneGain: [0, 0, 0.7, 0.9], jetRatio: 1.03,
+  jetGain: 1.6, overlap: 0.35, freeReedGain: 1.1 };
+// The Physical instrument's brass constants: lip boost after the tongue release, its minimum
+// length in periods, the tongue's seed wave, wave steepening and output gain.
+export const MODULAR_BRASS = { boost: 6, boostPeriods: 10, seed: 0.15, steep: 1.5, gain: 2.5 };
+// The Physical instrument's piano constants: dispersion all-passes per string, hammer
+// integration sub-steps and the hammer pulse gain.
+// The Physical instrument's organ: drawbar parameters in drawbar order, the partial (of half the
+// note frequency) each one plays, the fold-down frequency of the top tonewheel and a drawbar's gain.
+export const MODULAR_ORGAN = { bars: ['d16', 'd513', 'd8', 'd4', 'd223', 'd2', 'd135', 'd113', 'd1'],
+  harmonics: [1, 3, 2, 4, 6, 8, 10, 12, 16], foldHz: 6000, gain: 0.12 };
+export const MODULAR_PIANO = { allpasses: 4, substeps: 4, gain: 63 };
+export { BRASS_MIN_DRIVE, BRASS_MULTS, BRASS_NOTE0, BRASS_SHARP };
+export const MODULAR_AMP_TYPES = [
+  [60, 1, 4, 0, 1, 3000, 9000],
+  [100, 3, 30, 0.15, 1, 2500, 7000],
+  [200, 8, 100, 0.2, 1, 2200, 6000],
+  [150, 30, 600, 0.1, 2, 1800, 5000],
+];
+const FX_TYPES = new Set(['echo', 'chorus', 'reverb', 'guitarAmp', 'soundboard', 'rotary', 'sympathetic']);
 
-const LINE_TYPES = new Set(['string', 'comb', 'reedPipe']);
+const LINE_TYPES = new Set(['string', 'physString', 'physMesh', 'synthNoise', 'comb', 'reedPipe']);
 // Modules that ring on after their gate falls; a released voice lives until they are quiet.
-const RINGING_TYPES = new Set(['adsr', 'functionGen', 'string', 'modal', 'bowed', 'reedPipe']);
+const RINGING_TYPES = new Set(['drumKit', 'adsr', 'functionGen', 'string', 'physString', 'physBowed', 'physWind', 'physBrass', 'physPiano', 'physMesh', 'modal', 'bowed', 'reedPipe']);
 const QUANTIZER_SCALES = [0xfff, 0xab5, 0x5ad, 0x295, 0x4a9];
 
 const searchWords = text => text.toLowerCase().split(/[^a-z0-9&]+/).filter(Boolean);
@@ -573,11 +812,6 @@ const FACTORY_PATCHES = [
     return patch;
   } },
   ...physicalPresets(),
-  ...['Wine Glass', 'Kalimba'].map(name => ({
-    name: name + ' (Modular)', category: 'Mallets', source: 'Physical',
-    description: PHYS_PRESETS.find(preset => preset.name === name).description,
-    patch: () => modalPresetFromPhysical(name),
-  })),
   { name: 'Velvet Reed', patch: velvetReed },
   { name: 'Cowbell and Shaker', patch: () => percussionLayer('bell', { sound: 7, level: 0.7 },
     'shaker', { sound: 8, level: 0.48 }) },
@@ -679,6 +913,8 @@ const FACTORY_PATCHES = [
     description: 'Plucked string through a host-synced dotted-eighth ping-pong echo and a hall reverb',
     patch: echoHallPluck },
   ...MODULAR_SYNTH_PORTS,
+  ...MODULAR_PHYSICAL_PORTS,
+  ...MODULAR_DRUM_PORTS,
 ];
 
 const MANUAL_CATEGORIES = {
@@ -846,28 +1082,6 @@ function physicalPresets() {
   ];
 }
 
-function modalPresetFromPhysical(name) {
-  const source = PHYS_PRESETS.find(preset => preset.name === name);
-  const p = { ...defaultValues(PHYS_PARAMS), ...source.params };
-  return {
-    nodes: [
-      { id: 'note', type: 'midi', position: { x: 22, y: 22 } },
-      { id: 'resonator', type: 'modal', params: {
-        material: p.modal_material, decay: p.modal_decay_ms / 1000, release: p.phys_release_ms / 1000,
-        brightness: 1 - p.modal_high_damping, hardness: p.modal_hardness, strikePosition: p.modal_strike_position,
-        level: Math.min(1, 10 ** (p.phys_volume_db / 20)),
-      }, position: { x: 296, y: 22 } },
-      { id: 'out', type: 'output', position: { x: 570, y: 22 } },
-    ],
-    cables: [
-      { from: 'note', port: 'pitch', to: 'resonator', input: 'pitch' },
-      { from: 'note', port: 'gate', to: 'resonator', input: 'gate' },
-      { from: 'note', port: 'velocity', to: 'resonator', input: 'velocity' },
-      { from: 'resonator', port: 'out', to: 'out', input: 'audio' },
-    ],
-  };
-}
-
 function drumPreset808() {
   const p = { ...defaultValues(DRUM_PARAMS), ...DRUM_PRESETS.find(preset => preset.name === '808-ish').params };
   const part = (key, sound) => ({
@@ -975,7 +1189,7 @@ export function compileModularPatch(raw) {
     throw new Error(`Use at most ${MODULAR_FX_SLOTS} patch effects`);
   let lineCount = 0;
   for (const n of nodes) {
-    const lines = n.type === 'bowed' ? 2 : Number(LINE_TYPES.has(n.type));
+    const lines = n.type === 'physPiano' ? 3 : n.type === 'bowed' || n.type === 'physBowed' || n.type === 'physWind' || n.type === 'physBrass' ? 2 : Number(LINE_TYPES.has(n.type));
     n.line = lines ? lineCount : -1;
     lineCount += lines;
   }
@@ -1034,9 +1248,15 @@ export function compileModularPatch(raw) {
   const clocks = order.filter(i => nodes[i].type === 'clock');
   const mono = { mode: midi?.params.voices ?? 0, glide: midi?.params.glide ?? 0, legatoOnly: midi?.params.glideMode ?? 0,
     bendRange: midi?.params.bendRange ?? 2 };
+  // The arpeggiator, as in the Synth instrument: steps lock to the beat grid, every second step is
+  // delayed by the swing, and each step plays the next held key (or the whole chord).
+  const ap = midi?.params;
+  const arp = ap ? { mode: ap.arp, stepBeats: MODULAR_ARP_BEATS[ap.arpRate], octaves: ap.arpOctaves, gate: ap.arpGate,
+    swing: clamp(2 * ap.arpSwing / 100 - 1, 0, 0.5), steps: ap.arpSteps, pattern: ap.arpPattern, retrigger: ap.arpRetrigger }
+    : { mode: 0 };
   return {
     nodes, order: voiceOrder, globals, busLinks, fxOutputs,
-    delays, outputs, envelopes, lineCount, mono, clocks, autonomous: clocks.length > 0 && !midi,
+    delays, outputs, envelopes, lineCount, mono, arp, clocks, autonomous: clocks.length > 0 && !midi,
     meterSources: [...new Map(raw.cables.map(c => {
       const key = c.from + '/' + c.port;
       return [key, { key, index: ids.get(c.from), port: c.port }];
@@ -1155,6 +1375,7 @@ export function modular_init(s, sampleRate) {
   s.host = { bpm: 120, playing: false, beat: 0 };
   s.stack = []; // Held keys in Mono and Legato, most recent last.
   s.lastKey = -1;
+  s.arp = newArp();
   s.out_l = 0; s.out_r = 0;
   s.fx = []; // Patch effect slots, allocated when a patch first uses them.
   modular_set_patch(s, defaultModularPatch());
@@ -1165,6 +1386,8 @@ export function modular_set_patch(s, patch) {
   for (const node of graph.nodes) if (node.type === 'wavetable') wt_build(node.params.bank);
   const old = s.graph;
   s.graph = graph;
+  // Switching the arpeggiator on or off releases every note, as in the Synth instrument.
+  if (old && (old.arp.mode > 0) !== (graph.arp.mode > 0)) arpSwitch(s);
   if (s.meter) modular_meter_enable(s, true);
   if (old && old.nodes.length === graph.nodes.length &&
       old.patch.cables.length === graph.patch.cables.length &&
@@ -1176,7 +1399,7 @@ export function modular_set_patch(s, patch) {
   s.gsig = graph.nodes.map(() => ({ left: 0, right: 0 }));
   s.bus = graph.nodes.map(() => ({ left: 0, right: 0 }));
   const slots = graph.nodes.filter(n => n.slot >= 0).length;
-  while (s.fx.length < slots) s.fx.push({ buf: new Float32Array(fxSlotSize(s.sampleRate)), pos: new Int32Array(24), mem: new Float64Array(24) });
+  while (s.fx.length < slots) s.fx.push({ buf: new Float32Array(fxSlotSize(s.sampleRate)), pos: new Int32Array(24), mem: new Float64Array(MODULAR_FX_MEMORY) });
   for (const fx of s.fx) { fx.buf.fill(0); fx.pos.fill(0); fx.mem.fill(0); }
 }
 
@@ -1257,6 +1480,362 @@ function sampleReverb(s, fx, p, inL, inR, sig) {
   sig.right = wet[1] * wet1 + wet[0] * wet2 + inR * (1 - p.mix);
 }
 
+function lowpassDelay(b, hz, rate) {
+  const w = TAU * hz / rate;
+  return Math.atan2(b * Math.sin(w), 1 - b * Math.cos(w)) / w;
+}
+// Recomputes a Physical Wind voice's loop for a new pitch or knob setting (Physical's voice_tune).
+function tuneWind(st, kind, hz, embouchure, musette, rate) {
+  const W = MODULAR_WIND, max = MODULAR_LINE_SAMPLES - 2, c = st.a1;
+  c[3] = 1 / (2 * Math.sin(Math.PI * hz / rate)); // radiation: first difference, unity at the fundamental
+  if (kind === 4) {
+    c[0] = hz / rate;
+    c[1] = Math.pow(2, musette / 1200);
+  } else if (kind >= 2) {
+    c[2] = Math.exp(-TAU * Math.max(kind === 2 ? 2500 : 3500, 6 * hz) / rate);
+    const x = Math.log(hz * 48000 / (rate * 261.63)) / Math.LN2;
+    const flat = kind === 2 ? clamp(2.5 + 4 * x, 2, 7) : clamp(1.5 + 3.5 * x, 1, 9);
+    const total = clamp(rate / hz * Math.pow(2, -flat / 1200) - lowpassDelay(c[2], hz, rate), 4, 2 * max);
+    c[1] = clamp(W.conePosition[kind] * total, 2, max);
+    c[0] = clamp(total - c[1], 2, max);
+  } else if (kind === 0) {
+    c[2] = Math.exp(-TAU * Math.max(1500, 5 * hz) / rate);
+    c[0] = clamp(0.5 * rate / hz - lowpassDelay(c[2], hz, rate), 2, max);
+  } else {
+    c[2] = 0.7 - 0.1 * 22050 / rate;
+    const x = Math.log(hz * 48000 / (rate * 523.25)) / Math.LN2;
+    const total = rate / hz * Math.pow(2, (10.7 * x + 3.1 * x * x) / 1200);
+    c[0] = clamp(total - lowpassDelay(c[2], hz, rate), 2, max);
+    c[1] = clamp(c[0] * W.jetRatio, 2, max);
+    c[4] = 0.1 + 0.4 * embouchure;
+    c[5] = clamp(1 + 0.5 * Math.log(hz * 48000 / (rate * 1046.5)) / Math.LN2, 1, 1.6);
+  }
+}
+// A Physical Brass voice's lips and bore for a pitch and mouth pressure (Physical's voice_tune).
+function tuneBrass(st, hz, press, lip, bell, rate) {
+  const c = st.a1;
+  const note = 69 + 12 * Math.log(hz / 440) / Math.LN2;
+  const u = clamp((note - BRASS_NOTE0) / 4, 0, BRASS_MIN_DRIVE.length - 1.000001), i = Math.floor(u), fu = u - i;
+  const mult = BRASS_MULTS[0] + (BRASS_MULTS.at(-1) - BRASS_MULTS[0]) * clamp(0.5 * lip + 0.5 * (press - 0.2) / 0.8, 0, 1);
+  const drive = (BRASS_MIN_DRIVE[i] + (BRASS_MIN_DRIVE[i + 1] - BRASS_MIN_DRIVE[i]) * fu) * mult;
+  let j = 0;
+  while (j < BRASS_MULTS.length - 2 && mult > BRASS_MULTS[j + 1]) j++;
+  const fv = clamp((mult - BRASS_MULTS[j]) / (BRASS_MULTS[j + 1] - BRASS_MULTS[j]), 0, 1);
+  const a = BRASS_SHARP[j], b = BRASS_SHARP[j + 1];
+  const sharp = (a[i] * (1 - fu) + a[i + 1] * fu) * (1 - fv) + (b[i] * (1 - fu) + b[i + 1] * fu) * fv;
+  const f = hz * Math.pow(2, -sharp / 1200);
+  c[0] = clamp(2 * rate / f, 2, MODULAR_LINE_SAMPLES - 2);
+  const r = Math.exp(-Math.PI * Math.min(42, 0.15 * f) / rate), w = TAU * f / rate;
+  c[1] = -2 * r * Math.cos(w);
+  c[2] = r * r;
+  c[3] = drive * hz * 2 * Math.sin(w) * (1 - r) / (0.3 * press);
+  c[4] = press;
+  c[5] = Math.exp(-TAU * 0.05 * f / rate);
+  c[6] = Math.exp(-TAU * Math.max(1500, 5 * f) / rate);
+  c[7] = 1 / (2 * Math.sin(w / 2));
+  st.a2[0] = Math.exp(-TAU * (1500 + 6000 * bell) / rate);
+}
+// Phase delays in samples, at angular frequency w, of a first-order all-pass (a + z^-1) / (1 + a z^-1)
+// and of the one-pole low-pass y = (1 - b) x + b y1.
+const allpassDelay = (a, w) => -(Math.atan2(-Math.sin(w), a + Math.cos(w)) - Math.atan2(-a * Math.sin(w), 1 + a * Math.cos(w))) / w;
+const onePoleDelay = (b, w) => Math.atan2(b * Math.sin(w), 1 - b * Math.cos(w)) / w;
+// A loop delay as an integer delay and a Thiran all-pass for the fraction: [length, coefficient].
+function thiranSplit(L, w) {
+  const n = clamp(Math.floor(L - 0.5), 1, MODULAR_LINE_SAMPLES - 2), d = clamp(L - n, 0.5, 1.5);
+  let dl = d, a = 0;
+  for (let it = 0; it < 4; it++) {
+    a = (1 - dl) / (1 + dl);
+    dl += d - allpassDelay(a, w);
+  }
+  return [n, (1 - dl) / (1 + dl)];
+}
+// A Physical Piano voice's two strings for a pitch and knob setting (Physical's voice_tune):
+// a damping low-pass, four dispersion all-passes that stretch the partials like a stiff string,
+// and a tuning all-pass per string.
+function tunePiano(st, hz, inharmonicity, damping, detune, rate) {
+  const c = st.a1, P = MODULAR_PIANO;
+  const b = (0.05 + 0.6 * damping) * clamp(Math.sqrt(262 / hz), 0.15, 1) * Math.min(1, Math.pow(2093 / hz, 3));
+  // The all-pass coefficient that puts partial n where a string with inharmonicity B has it.
+  const k = inharmonicity / 0.35, B = 1.5e-4 * (1 + Math.pow(hz / 262, 1.5)) * k * k;
+  const w1 = TAU * hz / rate, n = Math.min(8, Math.floor(0.5 * Math.PI / w1));
+  let a = 0;
+  if (n >= 2 && B > 0) {
+    const wn = n * w1, period = rate / hz;
+    const target = period * (1 - 1 / Math.sqrt(1 + B * n * n)) - (onePoleDelay(b, w1) - onePoleDelay(b, wn));
+    if (target > 0) {
+      const room = period - onePoleDelay(b, w1) - 3;
+      let lo = -0.95, hi = 0;
+      for (let it = 0; it < 40; it++) {
+        const mid = 0.5 * (lo + hi), pd1 = P.allpasses * allpassDelay(mid, w1);
+        if (pd1 - P.allpasses * allpassDelay(mid, wn) > target || pd1 > room) lo = mid;
+        else hi = mid;
+      }
+      a = 0.5 * (lo + hi);
+    }
+  }
+  const det = Math.pow(2, detune / 2400), hzA = hz * det, hzB = hz / det;
+  const wA = TAU * hzA / rate, wB = TAU * hzB / rate, count = a === 0 ? 0 : P.allpasses;
+  [c[0], c[2]] = thiranSplit(rate / hzA - onePoleDelay(b, wA) - count * allpassDelay(a, wA), wA);
+  [c[1], c[3]] = thiranSplit(rate / hzB - onePoleDelay(b, wB) - count * allpassDelay(a, wB), wB);
+  c[4] = a; c[5] = count; c[6] = b;
+  c[7] = 0.9 * clamp(Math.pow(hz / 220, 0.3), 0.7, 2);
+  st.a2[2] = wA; st.a2[3] = wB;
+}
+// Scratch buffers for the hammer pulse (the audio thread renders one voice at a time).
+const pianoPulse = new Float64Array(MODULAR_LINE_SAMPLES), pianoForce = new Float64Array(MODULAR_LINE_SAMPLES);
+// A felt hammer thrown at the string at v0 m/s (Physical's hammer_force): the force pulse as
+// string velocity, written to pianoPulse. Returns its length.
+function hammerForce(hz, v0, hardness, beta, rate) {
+  const P = MODULAR_PIANO, sub = P.substeps;
+  const m = clamp(0.0087 * Math.pow(262 / hz, 0.3), 0.004, 0.012), Z = 2 * Math.pow(262 / hz, 0.2);
+  const K = 250000000 * Math.pow(100, hardness - 0.5), dt = 1 / (rate * sub);
+  const lagged = clamp(Math.round(beta * rate * sub / hz), 1, MASK);
+  const most = Math.min(MODULAR_LINE_SAMPLES, Math.floor(0.03 * rate));
+  let vh = v0, d = 0, i = 0, count = 0;
+  while (count < most) {
+    let acc = 0;
+    for (let j = 0; j < sub; j++) {
+      const F = d > 0 ? K * Math.pow(d, 2.5) : 0;
+      pianoForce[i & MASK] = F;
+      const back = i >= lagged ? pianoForce[(i - lagged) & MASK] : 0;
+      vh -= F / m * dt;
+      d += (vh - (F - back) / (2 * Z)) * dt;
+      acc += F;
+      i++;
+    }
+    pianoPulse[count++] = acc / (sub * 2 * Z);
+    if (d <= 0 && vh < 0 && count > 3) break;
+  }
+  return count;
+}
+// |DFT| of the first `count` pulse samples at w.
+function pulseLevel(count, w) {
+  let re = 0, im = 0;
+  for (let i = 0; i < count; i++) { re += pianoPulse[i] * Math.cos(w * i); im += pianoPulse[i] * Math.sin(w * i); }
+  return Math.sqrt(re * re + im * im);
+}
+// The hammer excitation for a new note (Physical's stiff string note on), written to `line`.
+// Returns its length.
+function pianoStrike(st, line, hz, vel, hardness, position, rate) {
+  const P = MODULAR_PIANO, e = pianoPulse;
+  // Hammer speed in m/s: soft and even up to mf, fast only near ff.
+  const v0 = 0.3 + 4.7 * vel * vel * vel;
+  const len = hammerForce(hz, v0, hardness, position, rate);
+  // The strike position comb, after the pulse's tail.
+  const pick = Math.max(1, Math.round(position * st.a1[0]));
+  const total = Math.min(MODULAR_LINE_SAMPLES, Math.max(len + pick + 1, Math.round(0.03 * rate)));
+  for (let i = len; i < total; i++) e[i] = 0;
+  for (let i = total - 1; i >= pick; i--) e[i] -= e[i - pick];
+  // High-pass at 0.8 x the fundamental: below it the pulse is only a click.
+  const hpA = 1 - Math.exp(-TAU * 0.8 * hz / rate), hp = [0, 0, 0, 0];
+  for (let i = 0; i < total; i++) {
+    let x = e[i];
+    for (let k = 0; k < 4; k++) { hp[k] += hpA * (x - hp[k]); x -= hp[k]; }
+    e[i] = x;
+  }
+  // Top octaves: fade towards a windowed sine burst at the fundamental.
+  const top = clamp((hz - rate / 16) / (rate / 10 - rate / 16), 0, 1);
+  if (top > 0) {
+    const w0 = TAU * hz / rate;
+    let around = 0;
+    for (let k = 0; k < 5; k++) around = Math.max(around, pulseLevel(total, w0 * (0.8 + 0.1 * k)));
+    const want = Math.max(pulseLevel(total, w0), 0.3 * around);
+    const blen = Math.min(total, Math.max(len, Math.ceil(2 * rate / hz)));
+    const amp = want / (blen / 4);
+    for (let i = 0; i < total; i++) {
+      const burst = i < blen ? amp * (0.5 - 0.5 * Math.cos(TAU * i / blen)) * Math.sin(w0 * i) : 0;
+      e[i] = (1 - top) * e[i] + top * burst;
+    }
+  }
+  // Normalise at the fundamental (or 30 % of the level around it, if it falls into a notch).
+  let mag = 0, around = 0;
+  for (let k = 0; k < 5; k++) {
+    const level = pulseLevel(total, TAU * hz * (0.8 + 0.1 * k) / rate);
+    if (k === 2) mag = level;
+    if (level > around) around = level;
+  }
+  mag = Math.max(mag, 0.3 * around);
+  const scale = P.gain * Math.pow(clamp(hz / 262, 0.35, 8), -1.5) * Math.pow(v0 / 2, 0.6) / Math.max(1e-12, mag);
+  // Plus a little key and action thump: decaying low-passed noise.
+  const decay = Math.exp(-1 / (0.004 * rate)), thumpA = 1 - Math.exp(-TAU * 600 / rate);
+  let env = 0.02 * vel, lp = 0;
+  for (let i = 0; i < total; i++) {
+    lp += thumpA * (white(st) - lp);
+    line[i] = e[i] * scale + lp * env;
+    env *= decay;
+  }
+  return total;
+}
+// The Physical instrument's piano soundboard: 16 band-pass resonances, dense and long in the
+// bass, alternately leaning left and right. mem holds 2 states per mode, then 6 coefficients.
+function sampleSoundboard(s, fx, p, inL, inR, sig) {
+  const mem = fx.mem, rate = s.sampleRate;
+  if (!fx.pos[0]) {
+    fx.pos[0] = 1;
+    for (let k = 0; k < 16; k++) {
+      const f = 75 * Math.pow(2800 / 75, k / 15) * (1 + 0.06 * Math.sin(2.3 * k + 1));
+      const t60 = clamp(0.35 * Math.pow(150 / f, 0.4), 0.05, 0.6);
+      const kk = 1 / clamp(Math.PI * f * t60 / 6.908, 2, 60), g = Math.tan(Math.PI * Math.min(f, rate * 0.45) / rate);
+      const o = 32 + k * 6, a1 = 1 / (1 + g * (g + kk)), gain = (0.7 + 0.3 * Math.cos(1.7 * k)) / (1 + f / 1500) * 0.45;
+      mem[o] = kk; mem[o + 1] = a1; mem[o + 2] = g * a1; mem[o + 3] = g * g * a1;
+      mem[o + 4] = gain * (k % 2 === 0 ? 1.3 : 0.7);
+      mem[o + 5] = gain * (k % 2 === 0 ? 0.7 : 1.3);
+    }
+  }
+  const x = 0.5 * (inL + inR);
+  let l = 0, r = 0;
+  for (let k = 0; k < 16; k++) {
+    const o = 32 + k * 6, i = 2 * k;
+    const v3 = x - mem[i + 1];
+    const v1 = mem[o + 1] * mem[i] + mem[o + 2] * v3, v2 = mem[i + 1] + mem[o + 2] * mem[i] + mem[o + 3] * v3;
+    mem[i] = 2 * v1 - mem[i];
+    mem[i + 1] = 2 * v2 - mem[i + 1];
+    const bp = v1 * mem[o];
+    l += bp * mem[o + 4];
+    r += bp * mem[o + 5];
+  }
+  const body = p.body, dry = 1 - 0.7 * body;
+  sig.left = inL * dry + body * l;
+  sig.right = inR * dry + body * r;
+}
+// The Physical instrument's membrane mesh: up to 16 x 16 cells inside a zero border, 18 cells
+// to a row. A shape's rows of cells, its lowest mode's -Laplacian eigenvalue and pickup cell
+// depend only on the size and shape, so they are worked out once (Physical's mesh_setup).
+const MESH_W = 18, MESH_CELLS = MESH_W * MESH_W, meshShapes = new Map();
+function meshShape(n, shape) {
+  const found = meshShapes.get(shape * 32 + n);
+  if (found) return found;
+  const cc = (n - 1) / 2, rr = n / 2, m = new Float64Array(MESH_CELLS), spans = [];
+  for (let i = 0; i < n; i++) {
+    let start = -1, end = -1;
+    for (let j = 0; j < n; j++) {
+      const c = (i + 1) * MESH_W + (j + 1);
+      m[c] = shape === 1 || (i - cc) * (i - cc) + (j - cc) * (j - cc) <= rr * rr ? 1 : 0;
+      if (m[c] !== 0) { if (start < 0) start = c; end = c + 1; }
+    }
+    if (start >= 0) spans.push(start, end);
+  }
+  // Power iteration on (8 - (-Laplacian)): its largest eigenvalue is 8 - mu.
+  const x = new Float64Array(MESH_CELLS), y = new Float64Array(MESH_CELLS);
+  for (let c = 0; c < MESH_CELLS; c++) x[c] = m[c];
+  let lambda = 0;
+  for (let it = 0; it < 800; it++) {
+    let norm = 0;
+    for (let c = 0; c < MESH_CELLS; c++) {
+      if (m[c] === 0) continue;
+      y[c] = 4 * x[c] + x[c - 1] + x[c + 1] + x[c - MESH_W] + x[c + MESH_W];
+      if (y[c] > norm) norm = y[c];
+    }
+    lambda = norm;
+    for (let c = 0; c < MESH_CELLS; c++) x[c] = m[c] === 0 ? 0 : y[c] / norm;
+  }
+  let pick = (Math.floor(n * 0.62) + 1) * MESH_W + (Math.floor(n * 0.71) + 1);
+  if (m[pick] === 0) pick = (Math.floor(cc) + 1) * MESH_W + (Math.floor(cc) + 1);
+  const result = { mu: 8 - lambda, pick, spans, mask: m };
+  meshShapes.set(shape * 32 + n, result);
+  return result;
+}
+const organSines = new Float64Array(17);
+// The Physical instrument's rotary speaker: a crossover at 800 Hz, the treble through a spinning
+// horn (Doppler delay and amplitude), the bass through a drum; the rotors spin up and down slowly.
+// Fast with **speed** Fast or the mod wheel past half on any channel.
+function sampleRotary(s, fx, p, inL, inR, sig) {
+  const rate = s.sampleRate, L = chorusLength(rate), mem = fx.mem;
+  if (!fx.pos[1]) { fx.pos[1] = 1; mem[0] = 0.8; mem[1] = 0.65; }
+  let fast = p.speed >= 0.5;
+  for (let channel = 0; channel < 16 && !fast; channel++) fast = s.cc[channel * 128 + 1] >= 0.5;
+  mem[0] += (1 - Math.exp(-1 / (0.5 * rate))) * ((fast ? 6.8 : 0.8) - mem[0]);
+  mem[1] += (1 - Math.exp(-1 / (3 * rate))) * ((fast ? 5.9 : 0.65) - mem[1]);
+  mem[2] += mem[0] / rate;
+  if (mem[2] >= 1) mem[2] -= 1;
+  mem[3] += mem[1] / rate;
+  if (mem[3] >= 1) mem[3] -= 1;
+  const x = (inL + inR) * 0.5;
+  mem[4] += (1 - Math.exp(-TAU * 800 / rate)) * (x - mem[4]);
+  const lo = mem[4], w = fx.pos[0];
+  fx.buf[w] = clamp(x - lo, -4, 4);
+  const next = w + 1 === L ? 0 : w + 1;
+  fx.pos[0] = next;
+  const hc = Math.cos(TAU * mem[2]), hs = Math.sin(TAU * mem[2]), dc = Math.cos(TAU * mem[3]), ds = Math.sin(TAU * mem[3]);
+  const d0 = Math.max(1, 0.0002 * rate), dd = 0.00035 * rate;
+  const hl = fxRead(fx.buf, 0, L, next, d0 + dd * (1 - hc)) * (0.65 + 0.35 * hc);
+  const hr = fxRead(fx.buf, 0, L, next, d0 + dd * (1 - hs)) * (0.65 + 0.35 * hs);
+  const rl = 1.2 * (hl + lo * (0.8 + 0.2 * dc)), rr = 1.2 * (hr + lo * (0.8 + 0.2 * ds));
+  sig.left = inL + p.mix * (rl - inL);
+  sig.right = inR + p.mix * (rr - inR);
+}
+// The Physical instrument's sympathetic strings: 24 resonators tuned a semitone apart from
+// **root**, driven by the sum of the voices and alternately panned. mem holds 2 states and 3
+// coefficients per string; pos[1] marks them set for pos[2] (root) and mem[127] (decay).
+function sampleSympathetic(s, fx, p, inL, inR, sig) {
+  const mem = fx.mem, rate = s.sampleRate;
+  if (!fx.pos[1] || fx.pos[2] !== p.root || mem[127] !== p.decay) {
+    fx.pos[1] = 1; fx.pos[2] = p.root; mem[127] = p.decay;
+    for (let k = 0; k < 24; k++) {
+      const hz = 440 * Math.pow(2, (p.root + k - 69) / 12), o = 48 + 3 * k;
+      const decay = p.decay * (1 - 0.012 * k), r = Math.exp(-LN1000 / (decay * rate)), w = TAU * hz / rate;
+      const ok = hz < rate * 0.45;
+      mem[o] = ok ? 2 * r * Math.cos(w) : 0;
+      mem[o + 1] = ok ? r * r : 0;
+      mem[o + 2] = ok ? Math.sin(w) * 2 * (1 - r) : 0;
+    }
+  }
+  const x = 0.5 * (inL + inR);
+  let l = 0, r = 0;
+  for (let k = 0; k < 24; k++) {
+    const o = 48 + 3 * k, i = 2 * k;
+    const y = mem[o] * mem[i] - mem[o + 1] * mem[i + 1] + mem[o + 2] * x;
+    mem[i + 1] = mem[i]; mem[i] = y;
+    const wet = y * p.mix * 2.4, pan = k % 2 ? 0.85 : 0.15;
+    l += wet * pan;
+    r += wet * (1 - pan);
+  }
+  sig.left = inL + l;
+  sig.right = inR + r;
+}
+// The Synth instrument's LFO shapes; Duck dips to -1 in the first 3 % and swells back.
+function lfoWave(wave, t) {
+  if (wave <= 0) return Math.sin(TAU * t);
+  if (wave === 1) return 1 - 4 * Math.abs(t - 0.5);
+  if (wave === 2) return 1 - 2 * t;
+  if (wave === 3) return t < 0.5 ? 1 : -1;
+  if (t < 0.03) return 1 - t * 66.66666666666667;
+  const u = (1 - t) * 1.0309278350515465, u2 = u * u;
+  return 1 - 2 * u2 * u2;
+}
+function freeReedFlow(x, bias) {
+  const d = Math.abs(x - bias) - MODULAR_WIND.overlap;
+  return d > 0 ? d : 0;
+}
+
+// The Physical instrument's guitar amp: pre high-pass, asymmetric soft clipping in one or two
+// stages, then a resonant cabinet low-pass and an 80 Hz high-pass.
+function svfStep(mem, i, x, cutoff, k, rate) {
+  const g = Math.tan(Math.PI * clamp(cutoff, 5, rate * 0.49) / rate);
+  const a1 = 1 / (1 + g * (g + k)), a2 = g * a1, a3 = g * a2;
+  const v3 = x - mem[i + 1];
+  const v1 = a1 * mem[i] + a2 * v3, v2 = mem[i + 1] + a2 * mem[i] + a3 * v3;
+  mem[i] = 2 * v1 - mem[i];
+  mem[i + 1] = 2 * v2 - mem[i + 1];
+  return [v2, x - k * v1 - v2];
+}
+function sampleAmp(s, fx, p, inL, inR, sig) {
+  const t = MODULAR_AMP_TYPES[p.type], rate = s.sampleRate;
+  const drive = t[1] * Math.pow(t[2] / t[1], p.gain), biasOut = softClip(t[3]);
+  const cabinet = t[5] * Math.pow(t[6] / t[5], p.tone), out = Math.pow(10, p.level / 20);
+  const pre = 1 - Math.exp(-TAU * clamp(t[0], 1, rate * 0.49) / rate), inter = 1 - Math.exp(-TAU * 5000 / rate);
+  const channel = (x, base) => {
+    const mem = fx.mem;
+    mem[base] += pre * (x - mem[base]);
+    let y = softClip((x - mem[base]) * drive + t[3]) - biasOut;
+    if (t[4] > 1) { mem[base + 1] += inter * (y - mem[base + 1]); y = softClip(mem[base + 1] * 4); }
+    const [low] = svfStep(mem, base + 2, y, cabinet, 1.1, rate);
+    return svfStep(mem, base + 4, low, 80, 1.4, rate)[1] * out;
+  };
+  sig.left = channel(inL, 0);
+  sig.right = channel(inR, 6);
+}
+
 // Runs the patch effects once per sample on the summed voice signals. Returns [left, right].
 function sampleGlobals(s) {
   const { nodes, globals } = s.graph;
@@ -1277,6 +1856,10 @@ function sampleGlobals(s) {
     const fx = s.fx[n.slot];
     if (n.type === 'echo') sampleEcho(s, fx, n.params, inL, inR, sig);
     else if (n.type === 'chorus') sampleChorus(s, fx, n.params, inL, inR, sig);
+    else if (n.type === 'guitarAmp') sampleAmp(s, fx, n.params, inL, inR, sig);
+    else if (n.type === 'soundboard') sampleSoundboard(s, fx, n.params, inL, inR, sig);
+    else if (n.type === 'rotary') sampleRotary(s, fx, n.params, inL, inR, sig);
+    else if (n.type === 'sympathetic') sampleSympathetic(s, fx, n.params, inL, inR, sig);
     else sampleReverb(s, fx, n.params, inL, inR, sig);
     sig.left = clamp(sig.left, -1e6, 1e6);
     sig.right = clamp(sig.right, -1e6, 1e6);
@@ -1295,6 +1878,7 @@ export function modular_transport(s, bpm, playing, beat) {
 }
 
 export function modular_all_notes_off(s) {
+  s.arp.keys = []; s.arp.sounding = [];
   s.sustain.fill(0);
   for (const v of s.voices) v.active = false;
 }
@@ -1315,6 +1899,10 @@ export function modular_midi(s, status, d1, d2) {
       for (const v of s.voices) if (v.channel === channel) resetNoteExpressions(v);
     }
     if (d1 === 64) s.sustain[channel] = d2 >= 64;
+    if (d1 === 120 || d1 === 123) {
+      s.arp.keys = s.arp.keys.filter(h => h.channel !== channel);
+      s.arp.sounding = s.arp.sounding.filter(h => h.channel !== channel);
+    }
     for (const v of s.voices) {
       if (v.channel !== channel) continue;
       if (d1 === 120) v.active = false;
@@ -1324,23 +1912,139 @@ export function modular_midi(s, status, d1, d2) {
     return;
   }
   if (!Number.isInteger(d1) || d1 < 0 || d1 > 127) return;
-  if (s.graph.mono.mode && (op === 0x80 || op === 0x90)) {
-    if (op === 0x90 && d2) { if (Number.isFinite(d2) && d2 <= 127) monoNoteOn(s, channel, d1, d2 / 127); }
-    else monoNoteOff(s, channel, d1);
-    return;
-  }
+  const arp = s.graph.arp.mode > 0;
   if (op === 0x80 || (op === 0x90 && !d2)) {
-    let oldest;
-    for (const v of s.voices) {
-      if (v.active && v.keyDown && v.channel === channel && v.note === d1 && (!oldest || v.age < oldest.age)) oldest = v;
-    }
-    if (oldest) { oldest.keyDown = false; oldest.held = !!s.sustain[channel]; }
+    if (arp) arpKeyOff(s, channel, d1);
+    else noteOff(s, channel, d1);
     return;
   }
   if (op !== 0x90 || !Number.isFinite(d2) || d2 < 1 || d2 > 127) return;
+  if (arp) arpKeyOn(s, channel, d1, d2 / 127);
+  else noteOn(s, channel, d1, d2 / 127);
+}
+
+function noteOn(s, channel, key, velocity) {
+  if (s.graph.mono.mode) { monoNoteOn(s, channel, key, velocity); return; }
   let v = s.voices.find(voice => !voice.active);
   if (!v) v = s.voices.reduce((a, b) => a.held === b.held ? (a.age < b.age ? a : b) : a.held ? b : a);
-  startVoice(s, v, channel, d1, d2 / 127);
+  startVoice(s, v, channel, key, velocity);
+}
+
+function noteOff(s, channel, key) {
+  if (s.graph.mono.mode) { monoNoteOff(s, channel, key); return; }
+  let oldest;
+  for (const v of s.voices) {
+    if (v.active && v.keyDown && v.channel === channel && v.note === key && (!oldest || v.age < oldest.age)) oldest = v;
+  }
+  if (oldest) { oldest.keyDown = false; oldest.held = !!s.sustain[channel]; }
+}
+
+// ---------------------------------------------------------------------------
+// Arpeggiator (the Synth instrument's, on the MIDI / Note module). Held keys are kept in the
+// order played; the steps follow the host beat while it plays, and the host tempo while stopped.
+
+function newArp() {
+  return { keys: [], sounding: [], last: 0, offPos: 0, idx: 0, bar: 0, sinceKey: 1e9, beat: 0, rng: 1 };
+}
+
+function arpSwitch(s) {
+  s.arp.keys = []; s.arp.sounding = []; s.stack = [];
+  for (const v of s.voices) if (v.keyDown) { v.keyDown = false; v.held = !!s.sustain[v.channel]; }
+}
+
+function arpKeyOn(s, channel, key, velocity) {
+  const a = s.arp, cfg = s.graph.arp;
+  const held = a.keys.find(h => h.channel === channel && h.key === key);
+  if (held) { held.velocity = velocity; return; }
+  if (a.keys.length >= 16) return;
+  if (!a.keys.length) {
+    // The first key starts from the bottom and plays the current step at once, unless it comes in
+    // the last 10 % of a step.
+    const pos = a.beat / cfg.stepBeats;
+    const k = Math.floor(pos + 0.000001);
+    a.idx = 0;
+    a.last = pos - k > 0.9 ? k : k - 1;
+  } else if (cfg.retrigger === 1 && a.sinceKey > MODULAR_ARP_CHORD_MS * 0.001 * s.sampleRate) {
+    a.idx = 0;
+  }
+  a.sinceKey = 0;
+  a.keys.push({ channel, key, velocity });
+}
+
+function arpKeyOff(s, channel, key) {
+  s.arp.keys = s.arp.keys.filter(h => h.channel !== channel || h.key !== key);
+}
+
+function arpRandom(a) {
+  a.rng = (Math.imul(a.rng, 1664525) + 1013904223) >>> 0;
+  return a.rng / 4294967296;
+}
+
+function arpFire(s) {
+  const a = s.arp, cfg = s.graph.arp, n = a.keys.length;
+  let notes;
+  if (cfg.mode === 6) notes = a.keys.map(h => ({ ...h }));
+  else {
+    const order = a.keys.slice();
+    // Sorted low to high, equal keys in play order; As Played keeps the order.
+    if (cfg.mode !== 5) order.sort((x, y) => x.key - y.key);
+    const len = n * cfg.octaves;
+    if (cfg.retrigger === 3) a.idx = Math.max(0, a.last);
+    let i;
+    if (cfg.mode === 2) i = len - 1 - (a.idx % len);
+    else if (cfg.mode === 3) {
+      const cycle = 2 * len - 2;
+      const j = len > 1 ? a.idx % cycle : 0;
+      i = j < len ? j : cycle - j;
+    } else if (cfg.mode === 4) i = Math.min(len - 1, Math.floor(arpRandom(a) * len));
+    else i = a.idx % len;
+    a.idx++;
+    const octave = Math.floor(i / n), held = order[i - octave * n];
+    notes = [{ channel: held.channel, key: held.key + 12 * octave, velocity: held.velocity }];
+  }
+  // Notes struck again are released first so they restart; the rest of the old notes end after the
+  // new ones start, so Legato slurs at gate 1.
+  const old = a.sounding.filter(o => {
+    const again = notes.some(note => note.channel === o.channel && note.key === o.key);
+    if (again) noteOff(s, o.channel, o.key);
+    return !again;
+  });
+  for (const note of notes) noteOn(s, note.channel, note.key, note.velocity);
+  for (const o of old) noteOff(s, o.channel, o.key);
+  a.sounding = notes.map(({ channel, key }) => ({ channel, key }));
+}
+
+/** Once per sample, before the voices. */
+function arpTick(s) {
+  const a = s.arp, cfg = s.graph.arp;
+  if (s.host.playing) a.beat = s.host.beat;
+  const pos = a.beat / cfg.stepBeats;
+  const k = Math.floor(pos + 0.000001);
+  let fired = false;
+  if (a.sinceKey < 1e9) a.sinceKey++;
+  if (a.keys.length && k !== a.last) {
+    const odd = k - 2 * Math.floor(k / 2);
+    const start = k + odd * cfg.swing;
+    if (pos >= start - 0.000001) {
+      a.last = k;
+      // Every Bar: the first step in a new (4-beat) bar goes back to the first note.
+      const bar = Math.floor(k * cfg.stepBeats / 4 + 0.000001);
+      if (cfg.retrigger === 2 && bar !== a.bar) a.idx = 0;
+      a.bar = bar;
+      const step = k - cfg.steps * Math.floor(k / cfg.steps);
+      if ((cfg.pattern >> step) & 1) {
+        fired = true;
+        a.offPos = start + cfg.gate * (odd ? 1 - cfg.swing : 1 + cfg.swing);
+        arpFire(s);
+      }
+    }
+  }
+  // The end of the gate, also when the host jumps back (a loop).
+  if (!fired && a.sounding.length && (pos >= a.offPos - 0.000001 || pos < a.offPos - 4)) {
+    for (const note of a.sounding) noteOff(s, note.channel, note.key);
+    a.sounding = [];
+  }
+  a.beat += s.host.bpm / (60 * s.sampleRate);
 }
 
 function startVoice(s, v, channel, key, velocity) {
@@ -1475,6 +2179,276 @@ function measureSignals(s, voice) {
     }
     last[i] = value;
   }
+}
+
+// GM Drum Kit (see MODULAR_DRUM_HITS). State: st.write is the hit's table row; envelopes in y2[0..2]
+// with coefficients in a2[0..2]; oscillator phases in y1[0..5] with increments in a1[0..5]; a band
+// (or low) state variable filter in ic1/ic2 with coefficients b[0..2] and damping a1[6]; a second
+// one in ic3/ic4, b[3..5], a1[7]; a one-pole high-pass in prev with coefficient b[6]; a pitch
+// envelope in p0 with coefficient b[7]; st.value the hit's gain; y2[5] the choke fade.
+export const MODULAR_TRIANGLE = { ratios: [1, 2.05, 3.13, 4.27, 5.4], levels: [1, 0.7, 0.55, 0.45, 0.35] };
+const { ratios: TRI_RATIOS, levels: TRI_LEVELS } = MODULAR_TRIANGLE;
+const t60 = (ms, sr) => Math.exp(-6.907755 / (Math.max(ms, 0.01) * 0.001 * sr));
+const tau = (ms, sr) => Math.exp(-1 / (Math.max(ms, 0.001) * 0.001 * sr));
+function kitSvf(st, slot, hz, k, sr) {
+  const g = Math.tan(Math.PI * clamp(hz, 5, sr * 0.49) / sr), a1 = 1 / (1 + g * (g + k)), a2 = g * a1;
+  st.b[slot] = a1; st.b[slot + 1] = a2; st.b[slot + 2] = g * a2; st.a1[6 + slot / 3] = k;
+}
+// Runs filter 0 (ic1/ic2) or 1 (ic3/ic4); returns band-pass, leaves high-pass in kitHp.
+let kitHp = 0;
+function kitFilter(st, slot, x) {
+  const b = st.b, k = st.a1[6 + slot / 3];
+  const ic1 = slot ? st.ic3 : st.ic1, ic2 = slot ? st.ic4 : st.ic2;
+  const v3 = x - ic2, v1 = b[slot] * ic1 + b[slot + 1] * v3, v2 = ic2 + b[slot + 1] * ic1 + b[slot + 2] * v3;
+  if (slot) { st.ic3 = 2 * v1 - ic1; st.ic4 = 2 * v2 - ic2; } else { st.ic1 = 2 * v1 - ic1; st.ic2 = 2 * v2 - ic2; }
+  kitHp = x - k * v1 - v2;
+  return v1;
+}
+function kitEnv(st, e) {
+  const value = st.y2[e];
+  st.y2[e] *= st.a2[e];
+  if (st.y2[e] < 0.000001) st.y2[e] = 0;
+  return value;
+}
+function kitSine(st, o) {
+  const y = Math.sin(TAU * st.y1[o]);
+  st.y1[o] += st.a1[o];
+  if (st.y1[o] >= 1) st.y1[o] -= 1;
+  return y;
+}
+function kitSquare(st, o) {
+  const y = st.y1[o] < 0.5 ? 1 : -1;
+  st.y1[o] += st.a1[o];
+  if (st.y1[o] >= 1) st.y1[o] -= 1;
+  return y;
+}
+function kitHighpass(st, x) {
+  st.prev += st.b[6] * (x - st.prev);
+  return x - st.prev;
+}
+const kitPole = (hz, sr) => 1 - Math.exp(-TAU * clamp(hz, 1, sr * 0.49) / sr);
+
+function strikeDrumKit(s, v, n, st, index) {
+  const sr = s.sampleRate, notes = MODULAR_DRUM_LAST - MODULAR_DRUM_FIRST + 1;
+  const note = Math.round(read(v, n, 'key', v.note));
+  st.mode = 0;
+  if (note < MODULAR_DRUM_FIRST || note > MODULAR_DRUM_LAST) return;
+  const h = (n.params.kit * notes + note - MODULAR_DRUM_FIRST) * MODULAR_DRUM_FIELDS, T = MODULAR_DRUM_HITS;
+  const kind = T[h];
+  if (!kind) return;
+  // A new hit chokes older hits of the same Drums voice, and the closed hat chokes the open hat.
+  for (const o of s.voices) {
+    const ot = o.stages[index];
+    if (o === v || !o.active || o.age > v.age || !ot.ready || !ot.mode) continue;
+    if (T[ot.write + 1] === T[h + 1] || T[ot.write + 1] === T[h + 2]) ot.release = 1;
+  }
+  const velocity = clamp(read(v, n, 'velocity', v.velocity), 0, 1);
+  const hz = T[h + 6] * Math.pow(2, parameter(v, n, 'tune') / 12), tone = T[h + 7];
+  const decay = T[h + 8] * parameter(v, n, 'decay');
+  st.write = h; st.ready = true; st.mode = 1; st.release = 0;
+  st.value = (0.2 + 0.8 * velocity * velocity) * T[h + 3] * parameter(v, n, 'level');
+  st.p2 = hz;
+  st.y1.fill(0); st.y2.fill(0); st.y2[5] = 1; st.a2[7] = t60(8, sr);
+  st.ic1 = st.ic2 = st.ic3 = st.ic4 = st.prev = st.phase = st.amp = 0;
+  st.p0 = 1;
+  const env = (e, ms) => { st.y2[e] = 1; st.a2[e] = t60(ms, sr); };
+  const inc = (o, f) => { st.a1[o] = clamp(f / sr, 0, 0.49); };
+  switch (kind) {
+    case 1: env(0, decay); env(1, 4); st.b[7] = tau(T[h + 10], sr); st.b[6] = kitPole(2000 + 8000 * tone, sr); break;
+    case 2: env(0, Math.min(decay, 180)); env(1, decay); st.b[7] = tau(15, sr); kitSvf(st, 0, 1500 * Math.pow(6, tone), 1.2, sr);
+      st.b[6] = kitPole(400, sr); break;
+    case 3: kitSvf(st, 0, hz, 2 - 1.75 * tone, sr); st.p1 = Math.max(1, Math.round(T[h + 9] * 0.001 * sr));
+      st.a2[3] = t60(T[h + 9] * 0.9, sr); st.a2[4] = t60(decay, sr); break;
+    case 4:
+      for (let i = 0; i < 6; i++) { st.y1[i] = 0.5 + 0.5 * white(st); inc(i, hz * HAT_RATIOS[i]); }
+      env(0, decay); kitSvf(st, 0, T[h + 10], 1, sr); kitSvf(st, 3, T[h + 11] * Math.pow(4, tone), 1.2, sr); break;
+    case 5: env(0, decay); env(1, 25); st.b[7] = tau(40, sr); st.b[6] = kitPole(1500, sr); break;
+    case 6: env(0, decay); env(1, 3); inc(0, hz); inc(1, hz * 0.27); st.b[6] = kitPole(3000, sr); break;
+    case 7: env(0, T[h + 9]); env(1, decay); inc(0, hz); inc(1, hz * T[h + 10]);
+      kitSvf(st, 0, hz * T[h + 11] * Math.pow(3, tone), T[h + 12], sr); break;
+    case 8: env(0, decay); kitSvf(st, 0, hz, 1, sr); st.p1 = 1 / ((1 + 40 * tone) * 0.001 * sr); break;
+    case 9: env(0, decay); env(1, decay * T[h + 10]); env(2, 15); st.b[6] = kitPole(T[h + 11], sr); st.b[7] = tau(25, sr); break;
+    case 10: env(0, decay); env(1, decay * 0.4); env(2, 2); inc(0, hz); inc(1, hz * 2.76); st.b[6] = kitPole(3000, sr); break;
+    case 11: env(0, decay); env(1, decay * 0.5); env(2, 3);
+      for (let i = 0; i < 5; i++) inc(i, hz * TRI_RATIOS[i]);
+      st.b[6] = kitPole(4000, sr); break;
+    case 12: env(0, decay); kitSvf(st, 0, hz, 0.25, sr); st.phase = 1; st.p1 = (18 + 30 * tone) / sr; st.a2[3] = t60(1.5, sr); break;
+    case 13: kitSvf(st, 0, hz, 0.5, sr); st.amp = 1; st.p1 = Math.max(1, Math.round(decay * 0.001 * sr)); st.a2[3] = t60(60, sr); break;
+    case 14: kitSvf(st, 0, hz, 0.6, sr); st.y1[0] = 1; st.p1 = Math.max(1, Math.round(decay * 0.001 * sr));
+      st.a1[0] = (40 + 80 * tone) / sr; st.a2[3] = t60(0.8, sr); break;
+    case 15: env(0, decay); st.b[7] = tau(60, sr); break;
+  }
+}
+
+function sampleDrumKit(s, v, n, st, index) {
+  const trigger = read(v, n, 'trigger', Number(v.held)) > 0;
+  if (trigger && !st.lastGate) strikeDrumKit(s, v, n, st, index);
+  st.lastGate = trigger;
+  if (!st.mode) return 0;
+  const sr = s.sampleRate, T = MODULAR_DRUM_HITS, h = st.write, hz = st.p2, tone = T[h + 7];
+  let y = 0, alive = true;
+  switch (T[h]) {
+    case 1: {
+      if (!st.y2[0]) { alive = false; break; }
+      st.a1[0] = hz * Math.pow(2, T[h + 9] * st.p0) / sr;
+      st.p0 *= st.b[7];
+      y = kitSine(st, 0) * kitEnv(st, 0);
+      y += kitHighpass(st, white(st)) * kitEnv(st, 1) * tone * 0.6;
+      const drive = 1 + 3 * tone;
+      y = softClip(y * drive) / softClip(drive);
+      break;
+    }
+    case 2: {
+      if (!st.y2[0] && !st.y2[1]) { alive = false; break; }
+      const bend = 1 + 0.5 * st.p0;
+      st.p0 *= st.b[7];
+      st.a1[0] = hz * bend / sr; st.a1[1] = hz * 1.63 * bend / sr;
+      const body = (kitSine(st, 0) + 0.6 * kitSine(st, 1)) * 0.6 * kitEnv(st, 0);
+      const bp = kitFilter(st, 0, white(st));
+      const noise = kitHighpass(st, bp + 0.3 * kitHp) * kitEnv(st, 1) * 2.5;
+      y = body * (1 - T[h + 9]) + noise * T[h + 9];
+      break;
+    }
+    case 3: {
+      if (st.phase < 0) { alive = false; break; }
+      const spread = st.p1;
+      let env;
+      if (st.phase < 3 * spread) {
+        env = Math.pow(st.a2[3], st.phase % spread);
+        st.phase++;
+      } else {
+        if (st.phase === 3 * spread) st.amp = 1;
+        env = st.amp;
+        st.amp *= st.a2[4];
+        if (st.amp < 0.000001) st.phase = -1;
+        else st.phase++;
+      }
+      y = kitFilter(st, 0, white(st)) * env * 3.5;
+      break;
+    }
+    case 4: {
+      if (!st.y2[0]) { alive = false; break; }
+      let metal = 0;
+      for (let i = 0; i < 6; i++) metal += kitSquare(st, i);
+      const mix = T[h + 9];
+      const bp = kitFilter(st, 0, metal * (1 / 6) * mix + white(st) * (1 - mix));
+      kitFilter(st, 3, bp);
+      y = kitHp * kitEnv(st, 0) * 3;
+      break;
+    }
+    case 5: {
+      if (!st.y2[0]) { alive = false; break; }
+      st.a1[0] = hz * Math.pow(2, tone * st.p0) / sr;
+      st.p0 *= st.b[7];
+      const body = kitSine(st, 0) * kitEnv(st, 0);
+      y = body + kitHighpass(st, white(st)) * kitEnv(st, 1) * tone * 0.4;
+      break;
+    }
+    case 6: {
+      if (!st.y2[0]) { alive = false; break; }
+      const env = kitEnv(st, 0);
+      const body = (kitSine(st, 0) * 0.7 + kitSine(st, 1) * 0.5) * env;
+      const click = kitHighpass(st, white(st)) * kitEnv(st, 1) * 0.5;
+      const drive = 1 + 4 * tone;
+      y = softClip((body + click) * drive) / softClip(drive);
+      break;
+    }
+    case 7: {
+      if (!st.y2[1]) { alive = false; break; }
+      const mix = T[h + 13];
+      const env = mix * kitEnv(st, 0) + (1 - mix) * kitEnv(st, 1);
+      y = kitFilter(st, 0, (kitSquare(st, 0) + kitSquare(st, 1)) * 0.5) * env * 2;
+      break;
+    }
+    case 8: {
+      if (!st.y2[0]) { alive = false; break; }
+      let env;
+      if (st.phase < 1) {
+        st.phase = Math.min(1, st.phase + st.p1);
+        env = st.phase * st.phase;
+      } else env = kitEnv(st, 0);
+      y = kitFilter(st, 0, white(st)) * env * 2.5;
+      break;
+    }
+    case 9: {
+      if (!st.y2[0]) { alive = false; break; }
+      const f = hz * Math.pow(2, 0.5 * tone * st.p0);
+      st.p0 *= st.b[7];
+      st.a1[0] = clamp(f / sr, 0, 0.49); st.a1[1] = clamp(f * T[h + 9] / sr, 0, 0.49);
+      const body = kitSine(st, 0) * kitEnv(st, 0) + 0.35 * kitSine(st, 1) * kitEnv(st, 1);
+      y = body + kitHighpass(st, white(st)) * kitEnv(st, 2) * tone * 0.5;
+      break;
+    }
+    case 10: {
+      if (!st.y2[0]) { alive = false; break; }
+      const body = kitSine(st, 0) * kitEnv(st, 0) + 0.4 * tone * kitSine(st, 1) * kitEnv(st, 1);
+      y = (body + kitHighpass(st, white(st)) * kitEnv(st, 2) * tone * 0.6) * 1.2;
+      break;
+    }
+    case 11: {
+      if (!st.y2[0]) { alive = false; break; }
+      const e1 = kitEnv(st, 0), e2 = kitEnv(st, 1);
+      let x = 0;
+      for (let i = 0; i < 5; i++) {
+        const level = TRI_LEVELS[i] * (i === 0 ? 1 - 0.5 * tone : 1.5 * tone);
+        x += kitSine(st, i) * level * (i < 3 ? e1 : e2);
+      }
+      x += kitHighpass(st, white(st)) * kitEnv(st, 2) * 0.5;
+      y = x * 0.35;
+      break;
+    }
+    case 12: {
+      if (!st.y2[0]) { alive = false; break; }
+      st.phase += st.p1;
+      if (st.phase >= 1) { st.phase -= 1; st.amp = 1; }
+      const bp = kitFilter(st, 0, white(st) * st.amp);
+      st.amp *= st.a2[3];
+      y = bp * kitEnv(st, 0) * 6;
+      break;
+    }
+    case 13: {
+      if (!st.amp) { alive = false; break; }
+      const tr = Math.sin(TAU * st.y1[1]);
+      st.y1[1] += 30 / sr;
+      if (st.y1[1] >= 1) st.y1[1] -= 1;
+      st.a1[0] = clamp(hz * (1 + 0.025 * tone * tr) / sr, 0, 0.49);
+      const am = 1 - 0.6 * tone * (0.5 + 0.5 * tr);
+      const bp = kitFilter(st, 0, white(st));
+      if (st.phase >= st.p1) st.amp *= st.a2[3];
+      const a = Math.min(1, st.phase * (1 / (0.008 * sr))) * st.amp;
+      st.phase++;
+      if (st.amp < 0.0001) st.amp = 0;
+      y = (kitSine(st, 0) * am + 0.15 * bp) * a * 0.5;
+      break;
+    }
+    case 14: {
+      if (st.phase >= st.p1) { alive = false; break; }
+      st.y1[0] += st.a1[0] * (1 + 0.6 * (st.phase / st.p1));
+      if (st.y1[0] >= 1) { st.y1[0] -= 1; st.amp = 1; }
+      const bp = kitFilter(st, 0, white(st) * st.amp);
+      st.amp *= st.a2[3];
+      const a = Math.min(1, st.phase / (0.015 * sr)) * Math.min(1, (st.p1 - st.phase) / (0.008 * sr));
+      st.phase++;
+      y = bp * a * 5;
+      break;
+    }
+    case 15: {
+      if (!st.y2[0]) { alive = false; break; }
+      const f = hz * (1 - 0.35 * tone * st.p0);
+      st.p0 *= st.b[7];
+      st.a1[0] = clamp(f / sr, 0, 0.49); st.a1[1] = clamp(2 * f / sr, 0, 0.49);
+      const body = kitSine(st, 0) + 0.3 * kitSine(st, 1);
+      y = body * (1 + 0.2 * white(st)) * kitEnv(st, 0) * 0.6;
+      break;
+    }
+  }
+  // Choked: fade out within about 8 ms, then end.
+  if (st.release) {
+    st.y2[5] *= st.a2[7];
+    if (st.y2[5] < 0.000001) alive = false;
+  }
+  if (!alive) { st.mode = 0; return 0; }
+  return y * st.value * st.y2[5];
 }
 
 function sampleDrum(s, v, n, st) {
@@ -1703,9 +2677,12 @@ function sampleNode(s, v, i) {
       break;
     }
     case 'lfo': {
-      const phase = st.phase;
-      sig.out = (parameter(v, n, 'wave') ? 1 - 4 * Math.abs(phase - 0.5) : Math.sin(TAU * phase)) * parameter(v, n, 'depth');
-      st.phase = (phase + parameter(v, n, 'rate') / s.sampleRate) % 1;
+      // Host sync: one cycle every **beats**, locked to the host's beat position while it plays
+      // (all voices in step) and running on at the host tempo while it is stopped.
+      const beats = n.params.sync ? MODULAR_LFO_BEATS[n.params.beats] : 0;
+      const phase = beats && s.host.playing ? hostPhase(s.host.beat / beats) : st.phase;
+      sig.out = lfoWave(Math.round(parameter(v, n, 'wave')), phase) * parameter(v, n, 'depth');
+      st.phase = (phase + (beats ? s.host.bpm / (60 * beats) : parameter(v, n, 'rate')) / s.sampleRate) % 1;
       break;
     }
     case 'adsr': {
@@ -1774,6 +2751,99 @@ function sampleNode(s, v, i) {
       } else sig.out = w * parameter(v, n, 'level');
       break;
     }
+    case 'synthNoise': {
+      // The Synth instrument's special noises. Chip Long / Short (a 15-bit shift register) and
+      // Sample & Hold are clocked from **pitch**; Rotor, Crowd Claps, Shot and Rain have their own
+      // timing, restarted with each voice. **clock** shifts every clock in octaves.
+      const rate = s.sampleRate, type = clamp(Math.round(parameter(v, n, 'type')), 0, 6), speed = Math.pow(2, parameter(v, n, 'clock'));
+      const mem = v.lines[n.line];
+      if (!st.ready) {
+        st.ready = true;
+        st.p0 = 1; st.p1 = 0;
+        st.value = 0; st.ic1 = st.ic2 = st.ic3 = 0;
+        st.ic4 = 901 + (v.age % 997) * 37 + Math.round(v.velocity * 127) * 17;
+        for (let i = 0; i < 18; i++) { mem[2 * i] = (0.002 + 0.013 * i) * rate / speed; mem[2 * i + 1] = 0; }
+        for (let i = 0; i < 6; i++) {
+          mem[36 + 4 * i] = (0.001 + 0.011 * i) * rate / speed;
+          mem[37 + 4 * i] = mem[38 + 4 * i] = mem[39 + 4 * i] = 0;
+        }
+      }
+      const random = () => {
+        st.ic4 *= 16807;
+        st.ic4 -= Math.floor(st.ic4 / 2147483647) * 2147483647;
+        return st.ic4 / 2147483647;
+      };
+      let y;
+      if (type <= 2) {
+        const hz = 440 * Math.pow(2, (read(v, n, 'pitch', 69) - 69) / 12);
+        st.phase += Math.min(1, hz * [32, 93, 8][type] * speed / rate);
+        if (st.phase >= 1) {
+          st.phase -= 1;
+          if (type === 2) st.p1 = white(st);
+          else {
+            const r = st.p0, tap = type === 1 ? 64 : 2;
+            const b0 = r - 2 * Math.floor(r / 2), bx = Math.floor(r / tap) - 2 * Math.floor(r / (2 * tap));
+            st.p0 = Math.floor(r / 2) + (b0 === bx ? 0 : 16384);
+            st.p1 = st.p0 - 2 * Math.floor(st.p0 / 2) ? 1 : -1;
+          }
+        }
+        y = st.p1;
+      } else {
+        const nz = white(st);
+        const a1 = 1 - Math.exp(-TAU * [400, 6000, 3500, 8000][type - 3] / rate);
+        const a2 = 1 - Math.exp(-TAU * [2800, 1200, 400, 400][type - 3] / rate);
+        st.ic1 += a1 * (nz - st.ic1);
+        st.ic2 += a2 * (nz - st.ic2);
+        if (type === 3) {
+          const ph = st.phase;
+          st.phase += 11 * speed / rate;
+          if (st.phase >= 1) st.phase -= 1;
+          const blade = Math.exp(-18 * ph);
+          y = 3 * (st.ic1 * (0.12 + 0.88 * blade) + st.ic2 * 0.12 * blade + 0.22 * Math.sin(TAU * 4 * ph) * Math.exp(-10 * ph));
+        } else if (type === 4) {
+          const decay = Math.exp(-1 / (0.006 * rate));
+          let env = 0;
+          for (let i = 0; i < 18; i++) {
+            const o = 2 * i;
+            mem[o]--;
+            if (mem[o] <= 0) {
+              mem[o] = (0.12 + 0.36 * random()) * rate / speed;
+              mem[o + 1] = 0.4 + 0.6 * random();
+            }
+            mem[o + 1] *= decay;
+            env += mem[o + 1];
+          }
+          st.ic3 += (1 - Math.exp(-1 / (0.00035 * rate))) * (env - st.ic3);
+          y = 1.8 * (st.ic1 - st.ic2) * st.ic3;
+        } else if (type === 6) {
+          const decay = Math.exp(-1 / (0.006 * rate));
+          let drops = 0;
+          for (let i = 0; i < 6; i++) {
+            const o = 36 + 4 * i;
+            mem[o]--;
+            if (mem[o] <= 0) {
+              mem[o] = (0.015 + 0.16 * random()) * rate / speed;
+              const strength = random();
+              mem[o + 1] = 0.15 + 0.85 * strength * strength;
+              mem[o + 2] = 0;
+              mem[o + 3] = (1200 + 3300 * random()) / rate;
+            }
+            mem[o + 1] *= decay;
+            mem[o + 2] += mem[o + 3];
+            if (mem[o + 2] >= 1) mem[o + 2] -= 1;
+            drops += (0.6 * Math.sin(TAU * mem[o + 2]) + 0.4 * nz) * mem[o + 1];
+          }
+          y = 0.45 * (st.ic1 - st.ic2) + 0.35 * drops;
+        } else {
+          const t = st.value;
+          st.value += speed / rate;
+          const reflection = t >= 0.007 ? Math.exp(-(t - 0.007) / 0.004) : 0;
+          y = 6 * ((nz - st.ic1) * (Math.exp(-t / 0.0015) + 0.18 * reflection) + 0.35 * (st.ic1 - st.ic2) * Math.exp(-t / 0.018));
+        }
+      }
+      sig.out = y * parameter(v, n, 'level');
+      break;
+    }
     case 'sh': {
       let fire = !st.ready;
       if (n.links.trigger) {
@@ -1825,6 +2895,12 @@ function sampleNode(s, v, i) {
       break;
     }
     case 'drumVoice': sig.out = sampleDrum(s, v, n, st); break;
+    case 'drumKit': {
+      const y = sampleDrumKit(s, v, n, st, i);
+      const h = st.write;
+      sig.out = y; sig.left = y * MODULAR_DRUM_HITS[h + 4]; sig.right = y * MODULAR_DRUM_HITS[h + 5];
+      break;
+    }
     case 'ring': sig.out = read(v, n, 'a') * read(v, n, 'b', 1) * parameter(v, n, 'level'); break;
     case 'wavefolder': {
       const input = read(v, n, 'in');
@@ -1872,6 +2948,463 @@ function sampleNode(s, v, i) {
       st.amp = Math.max(Math.abs(y), st.amp * 0.9995);
       st.mode = st.amp > 1e-4 ? 1 : 0;
       sig.out = y * parameter(v, n, 'level');
+      break;
+    }
+    case 'physString': {
+      // The Physical instrument's String model: a Karplus-Strong loop with a one-pole damping
+      // filter, filled with a pick-combed noise burst or hammer pulse on each rising gate.
+      const line = v.lines[n.line];
+      const gate = read(v, n, 'gate', 1) >= 0.5;
+      const hz = clamp(440 * Math.pow(2, (read(v, n, 'pitch', 69) - 69) / 12),
+        s.sampleRate / (MODULAR_LINE_SAMPLES - 4), s.sampleRate * 0.45);
+      const damping = 0.05 + 0.9 * parameter(v, n, 'damping');
+      if (st.key[0] !== hz || st.key[1] !== damping) {
+        // The loop delay less the damping filter's phase delay at the fundamental.
+        st.key[0] = hz; st.key[1] = damping;
+        const w = TAU * hz / s.sampleRate;
+        st.a1[0] = clamp(s.sampleRate / hz - Math.atan2(damping * Math.sin(w), 1 - damping * Math.cos(w)) / w,
+          2, MODULAR_LINE_SAMPLES - 2);
+        st.a1[1] = 1.2 * clamp(Math.pow(hz / 220, 0.3), 0.7, 2);
+        st.key[2] = NaN;
+      }
+      if (gate && !st.lastGate) {
+        line.fill(0);
+        const count = Math.ceil(st.a1[0]);
+        const bright = clamp(parameter(v, n, 'brightness') * (0.6 + 0.4 * clamp(read(v, n, 'velocity', 1), 0, 1)), 0.02, 1);
+        const a = bright * bright, norm = 1 / Math.sqrt(a / (2 - a));
+        const strike = parameter(v, n, 'excitation') >= 0.5, width = Math.max(2, count * (0.5 - 0.45 * bright));
+        const plectrum = parameter(v, n, 'plectrum'), at = clamp(parameter(v, n, 'pick'), 0.02, 0.98);
+        let lp = 0;
+        for (let i = 0; i < count; i++) {
+          let x;
+          if (strike) x = i < width ? 0.5 - 0.5 * Math.cos(TAU * i / width) : 0;
+          else {
+            lp += a * (white(st) - lp); x = lp * norm * 0.5;
+            if (plectrum > 0) {
+              // Displacement released by a plectrum; the pick comb still colours it.
+              const q = i / count, displacement = q < at ? q / at : (1 - q) / (1 - at);
+              x += 0.65 * plectrum * (displacement - 0.5 - x);
+            }
+          }
+          line[(st.write + i) & MASK] = x;
+        }
+        // Picking point: subtract the burst delayed by the pick distance.
+        const pick = Math.max(1, Math.round(parameter(v, n, 'pick') * count));
+        for (let i = count - 1; i >= pick; i--) line[(st.write + i) & MASK] -= line[(st.write + i - pick) & MASK];
+        st.write = (st.write + count) & MASK;
+        st.prev = 0;
+        // Sawari state (envelope, DC, mean levels in and out, gain, on) and the plectrum contact.
+        st.ic1 = st.ic2 = st.ic3 = st.ic4 = 0; st.p0 = 1; st.p1 = 1; st.p2 = 0;
+        const hard = clamp(parameter(v, n, 'hardness') * (0.6 + 0.4 * clamp(read(v, n, 'velocity', 1), 0, 1)), 0, 1);
+        st.a2[4] = Math.max(2, Math.round(s.sampleRate * (0.0012 - 0.001 * hard)));
+        for (let k = 0; k < 3; k++) {
+          // Short, bright skin contact resonances.
+          const w = TAU * [950, 2300, 4800][k] / s.sampleRate, r = Math.exp(-LN1000 / ([30, 18, 10][k] * (1 - 0.5 * hard) * 0.001 * s.sampleRate));
+          const ok = [950, 2300, 4800][k] < s.sampleRate * 0.45;
+          st.a1[2 + k] = ok ? 2 * r * Math.cos(w) : 0;
+          st.a2[1 + k] = ok ? r * r : 0;
+          st.b[k] = ok ? Math.sin(w) * [0.08, 0.85, 0.65][k] : 0;
+          st.y1[k] = st.y2[k] = 0;
+        }
+      }
+      if (!gate && st.lastGate) { st.p1 = 0; st.p0 = 1; }
+      st.lastGate = gate;
+      const decay = parameter(v, n, 'decay');
+      const t60 = gate ? decay : Math.min(decay, parameter(v, n, 'release'));
+      if (st.key[2] !== t60) { st.key[2] = t60; st.a2[0] = Math.exp(-LN1000 / (hz * t60)); }
+      const y = lineRead(line, st.write, st.a1[0]);
+      st.prev = (1 - damping) * y + damping * st.prev;
+      let fb = st.prev * st.a2[0];
+      const sawari = parameter(v, n, 'sawari'), rate = s.sampleRate;
+      if (sawari > 0) {
+        // Sawari (jawari bridge): above a fraction of its own swing the string lies on the curved
+        // bridge, which throws it back; the contact's loss is given back to keep the decay.
+        const a = Math.abs(st.prev);
+        st.ic1 = a > st.ic1 ? a : st.ic1 * Math.exp(-1 / (0.03 * rate));
+        const b = (0.8 - 0.55 * sawari) * st.ic1;
+        let z = st.prev;
+        if (z > b) z = b - 0.5 * (z - b);
+        st.ic2 += (1 - Math.exp(-TAU * 5 / rate)) * (z - st.ic2);
+        z -= st.ic2;
+        const m = 1 - Math.exp(-1 / (0.02 * rate));
+        st.ic3 += m * (a - st.ic3);
+        st.ic4 += m * (Math.abs(z) - st.ic4);
+        if (st.p1 && st.ic4 > 1e-12) st.p0 = Math.min(st.ic3 / st.ic4, 1.5);
+        fb = z * st.a2[0] * st.p0;
+      }
+      const feedback = clamp(fb, -4, 4);
+      line[st.write] = feedback;
+      st.write = (st.write + 1) & MASK;
+      const direct = feedback * st.a1[1];
+      let out = direct;
+      const body = parameter(v, n, 'body');
+      let contact = 0;
+      if (st.p2 < st.a2[4]) {
+        contact = parameter(v, n, 'contact') * parameter(v, n, 'plectrum') * (1 + parameter(v, n, 'hardness')) *
+          Math.sin(TAU * st.p2 / st.a2[4]) / (0.5 * st.a2[4]);
+        st.p2++;
+      }
+      if (body > 0) {
+        let sum = 0;
+        for (let k = 0; k < 3; k++) {
+          const r = st.a1[2 + k] * st.y1[k] - st.a2[1 + k] * st.y2[k] + st.b[k] * (0.002 * direct + contact);
+          st.y2[k] = st.y1[k]; st.y1[k] = r; sum += r;
+        }
+        out += 2 * body * sum;
+      }
+      st.amp = Math.max(Math.abs(feedback), st.amp * 0.9995);
+      st.mode = st.amp > 1e-4 ? 1 : 0;
+      sig.out = out * parameter(v, n, 'level');
+      break;
+    }
+    case 'physBowed': {
+      // The Physical instrument's Bowed model: bridge and nut delay lines meeting at the bow, a
+      // friction curve between bow and string, and two body resonances. **bow** is the bow
+      // envelope, scaled by **speed** into the bow velocity.
+      const bridge = v.lines[n.line], nut = v.lines[n.line + 1];
+      const hz = clamp(440 * Math.pow(2, (read(v, n, 'pitch', 69) - 69) / 12),
+        s.sampleRate / (MODULAR_LINE_SAMPLES - 4), s.sampleRate * 0.45);
+      const damping = 0.1 + 0.75 * (1 - parameter(v, n, 'brightness')), position = parameter(v, n, 'position');
+      if (st.key[0] !== hz || st.key[1] !== damping || st.key[2] !== position) {
+        st.key[0] = hz; st.key[1] = damping; st.key[2] = position;
+        const w = TAU * hz / s.sampleRate;
+        const total = s.sampleRate / hz - Math.atan2(damping * Math.sin(w), 1 - damping * Math.cos(w)) / w;
+        st.a1[0] = clamp(total * position, 2, MODULAR_LINE_SAMPLES - 2);
+        st.a1[1] = clamp(total * (1 - position), 2, MODULAR_LINE_SAMPLES - 2);
+      }
+      if (!st.ready) {
+        // The body's two band-pass resonances at 290 Hz and 1150 Hz.
+        st.ready = true;
+        for (const [k, hzBody, q] of [[0, 290, 0.6], [1, 1150, 0.9]]) {
+          const g = Math.tan(Math.PI * hzBody / s.sampleRate);
+          st.a2[3 * k] = 1 / (1 + g * (g + q)); st.a2[3 * k + 1] = g * st.a2[3 * k]; st.a2[3 * k + 2] = g * st.a2[3 * k + 1];
+        }
+      }
+      const bow = clamp(read(v, n, 'bow'), 0, 1) * (0.03 + 0.25 * parameter(v, n, 'speed'));
+      const bridgeOut = lineRead(bridge, st.write, st.a1[0]), nutOut = lineRead(nut, st.write, st.a1[1]);
+      st.prev = (1 - damping) * bridgeOut + damping * st.prev;
+      const reflectedBridge = -st.prev * 0.95, reflectedNut = -nutOut;
+      const relative = bow - (reflectedBridge + reflectedNut);
+      const friction = Math.min(1, Math.pow(Math.abs(relative * (5 - 4 * parameter(v, n, 'pressure'))) + 0.75, -4));
+      nut[st.write] = clamp(reflectedBridge + relative * friction, -4, 4);
+      bridge[st.write] = clamp(reflectedNut + relative * friction, -4, 4);
+      st.write = (st.write + 1) & MASK;
+      // Band-pass outputs of the two body resonances (state-variable filters).
+      let body = 0;
+      for (let k = 0; k < 2; k++) {
+        const ic1 = k ? 'ic3' : 'ic1', ic2 = k ? 'ic4' : 'ic2', a1 = st.a2[3 * k], a2 = st.a2[3 * k + 1], a3 = st.a2[3 * k + 2];
+        const v3 = bridgeOut - st[ic2], v1 = a1 * st[ic1] + a2 * v3, v2 = st[ic2] + a2 * st[ic1] + a3 * v3;
+        st[ic1] = 2 * v1 - st[ic1]; st[ic2] = 2 * v2 - st[ic2];
+        body += (k ? 0.8 : 1.2) * v1;
+      }
+      st.amp = Math.max(Math.abs(bridgeOut), st.amp * 0.9995);
+      st.mode = bow > 1e-5 || st.amp > 1e-4 ? 1 : 0;
+      sig.out = (bridgeOut + body) * 1.6 * parameter(v, n, 'level');
+      break;
+    }
+    case 'physPiano': {
+      // The Physical instrument's Stiff String (piano) model: two detuned strings with dispersion
+      // all-passes, struck by a felt hammer on each rising gate. Raw **velocity** sets the hammer
+      // speed, so loud notes are brighter; the level follows velocity only through the hammer.
+      const lineA = v.lines[n.line], lineB = v.lines[n.line + 1], pulse = v.lines[n.line + 2], rate = s.sampleRate;
+      const gate = read(v, n, 'gate', 1) >= 0.5;
+      const hz = clamp(440 * Math.pow(2, (read(v, n, 'pitch', 69) - 69) / 12), rate / (MODULAR_LINE_SAMPLES - 4), rate * 0.45);
+      const inharmonicity = parameter(v, n, 'inharmonicity'), damping = parameter(v, n, 'damping'), detune = parameter(v, n, 'detune');
+      if (st.key[0] !== hz || st.key[1] !== inharmonicity || st.key[2] !== damping || st.key[3] !== detune) {
+        st.key[0] = hz; st.key[1] = inharmonicity; st.key[2] = damping; st.key[3] = detune;
+        tunePiano(st, hz, inharmonicity, damping, detune, rate);
+        st.key[4] = NaN;
+      }
+      const c = st.a1, g = st.a2;
+      const decay = parameter(v, n, 'decay');
+      if (st.key[4] !== decay) {
+        // Higher strings decay faster; the damping filter's loss at the fundamental is divided out.
+        st.key[4] = decay;
+        const t = decay * clamp(Math.pow(220 / hz, 0.4), 0.25, 2), b = c[6];
+        const gain = w => (1 - b) / Math.sqrt(1 - 2 * b * Math.cos(w) + b * b);
+        g[0] = Math.min(0.99999, Math.exp(-LN1000 / (g[2] / TAU * rate * t)) / gain(g[2]));
+        g[1] = Math.min(0.99999, Math.exp(-LN1000 / (g[3] / TAU * rate * t)) / gain(g[3]));
+      }
+      if (gate && !st.lastGate) {
+        lineA.fill(0); lineB.fill(0);
+        st.y1.fill(0); st.y2.fill(0);
+        st.ic1 = st.ic2 = st.ic3 = st.ic4 = st.p0 = st.p1 = st.p2 = 0;
+        g[4] = pianoStrike(st, pulse, hz, clamp(read(v, n, 'velocity', 1), 0, 1), parameter(v, n, 'hardness'),
+          parameter(v, n, 'position'), rate);
+      }
+      st.lastGate = gate;
+      let loopA = g[0], loopB = g[1];
+      if (!gate) {
+        const released = Math.exp(-LN1000 / (hz * parameter(v, n, 'release')));
+        loopA = Math.min(loopA, released);
+        loopB = Math.min(loopB, released);
+      }
+      const exc = st.p2 < g[4] ? pulse[st.p2++] : 0;
+      const a = c[4], count = c[5], b = c[6], A = st.y1, B = st.y2;
+      // String A: tuning all-pass, dispersion all-passes, damping low-pass.
+      let x = lineA[(st.write - c[0]) & MASK];
+      let y = c[2] * x + st.ic1 - c[2] * st.ic2;
+      st.ic1 = x; st.ic2 = y;
+      for (let k = 0; k < count; k++) { x = y; y = a * x + A[2 * k] - a * A[2 * k + 1]; A[2 * k] = x; A[2 * k + 1] = y; }
+      st.p0 = (1 - b) * y + b * st.p0;
+      const fa = st.p0 * loopA + 0.5 * exc;
+      lineA[st.write] = fa;
+      x = lineB[(st.write - c[1]) & MASK];
+      y = c[3] * x + st.ic3 - c[3] * st.ic4;
+      st.ic3 = x; st.ic4 = y;
+      for (let k = 0; k < count; k++) { x = y; y = a * x + B[2 * k] - a * B[2 * k + 1]; B[2 * k] = x; B[2 * k + 1] = y; }
+      st.p1 = (1 - b) * y + b * st.p1;
+      const fb = st.p1 * loopB + 0.32 * exc;
+      lineB[st.write] = fb;
+      st.write = (st.write + 1) & MASK;
+      const out = (fa + fb) * c[7];
+      st.amp = Math.max(Math.abs(out), st.amp * 0.9995);
+      st.mode = st.amp > 1e-4 || st.p2 < g[4] ? 1 : 0;
+      sig.out = clamp(out, -16, 16) * parameter(v, n, 'level');
+      break;
+    }
+    case 'physMesh': {
+      // The Physical instrument's Mesh model: a 2D membrane (circular drum or square plate) of
+      // size x size cells, struck by a mallet on each rising gate; the pitch tunes its lowest mode.
+      // Raw **velocity** makes the mallet harder; the level follows velocity outside the module.
+      const line = v.lines[n.line], rate = s.sampleRate;
+      const gate = read(v, n, 'gate', 1) >= 0.5;
+      const size = clamp(Math.floor(parameter(v, n, 'size') + 0.5), 6, 16), form = parameter(v, n, 'shape') >= 0.5 ? 1 : 0;
+      const mesh = meshShape(size, form);
+      const hz = clamp(440 * Math.pow(2, (read(v, n, 'pitch', 69) - 69) / 12), 20, rate * 0.2);
+      if (st.key[0] !== hz || st.key[1] !== mesh.mu) {
+        st.key[0] = hz; st.key[1] = mesh.mu;
+        const w = TAU * hz / rate;
+        st.a1[0] = Math.min(0.49, 2 * (1 - Math.cos(w)) / mesh.mu);
+        st.a1[1] = w;
+      }
+      const decay = parameter(v, n, 'decay'), t60 = gate ? decay : Math.min(decay, parameter(v, n, 'release'));
+      if (st.key[2] !== t60) {
+        st.key[2] = t60;
+        const g = Math.exp(-2 * LN1000 / (Math.max(t60, 1e-5) * rate));
+        st.a1[2] = (1 - g) / (1 + g);
+      }
+      if (gate && !st.lastGate) {
+        // The mallet: a raised-cosine bump of radius R around the strike point, as initial velocity
+        // (the same momentum whatever the mallet size).
+        line.fill(0, 0, 3 * MESH_CELLS);
+        st.ic1 = 0; st.ic2 = MESH_CELLS; st.ic3 = 2 * MESH_CELLS;
+        const vel = clamp(read(v, n, 'velocity', 1), 0, 1);
+        const R = 0.75 + 2.5 * (1 - clamp(parameter(v, n, 'hardness') * (0.7 + 0.3 * vel), 0, 1)), amp = 4 / (R * R);
+        const sx = parameter(v, n, 'strikeX') * (size - 1), sy = parameter(v, n, 'strikeY') * (size - 1);
+        for (let i = 0; i < size; i++) {
+          for (let j = 0; j < size; j++) {
+            const c = (i + 1) * MESH_W + (j + 1);
+            if (mesh.mask[c] === 0) continue;
+            const d = Math.sqrt((i - sy) * (i - sy) + (j - sx) * (j - sx));
+            if (d < R) line[st.ic2 + c] = (-0.5 - 0.5 * Math.cos(Math.PI * (R - d) / R)) * amp;
+          }
+        }
+      }
+      st.lastGate = gate;
+      // u' = 2u - (1 - s) up + c2 Lap(u) + d (Lap(u) - Lap(up) + mu (u - up)), all / (1 + s).
+      const sig2 = st.a1[2], inv = 1 / (1 + sig2), d = parameter(v, n, 'highDamping') * 172.5 / rate, mu = mesh.mu;
+      const c2 = st.a1[0];
+      const ku = (2 - 4 * c2 - 4 * d + d * mu) * inv, kp = (4 * d - d * mu - (1 - sig2)) * inv;
+      const kn = (c2 + d) * inv, kq = d * inv;
+      const u = st.ic1, up = st.ic2, un = st.ic3, spans = mesh.spans;
+      for (let r = 0; r < spans.length; r += 2) {
+        for (let c = spans[r]; c < spans[r + 1]; c++) {
+          line[un + c] = ku * line[u + c] + kp * line[up + c] +
+            kn * (line[u + c - 1] + line[u + c + 1] + line[u + c - MESH_W] + line[u + c + MESH_W]) -
+            kq * (line[up + c - 1] + line[up + c + 1] + line[up + c - MESH_W] + line[up + c + MESH_W]);
+        }
+      }
+      st.ic1 = un; st.ic2 = u; st.ic3 = up;
+      const out = line[un + mesh.pick] * st.a1[1] * 5.5;
+      st.amp = Math.max(Math.abs(out), st.amp * 0.9995);
+      st.mode = st.amp > 1e-4 ? 1 : 0;
+      sig.out = clamp(out, -16, 16) * parameter(v, n, 'level');
+      break;
+    }
+    case 'physOrgan': {
+      // The Physical instrument's tonewheel organ: nine drawbar sines (partials above the top
+      // tonewheel fold down an octave), single-trigger percussion and a key click. The level
+      // envelope and velocity are patched outside the module.
+      const rate = s.sampleRate, O = MODULAR_ORGAN;
+      const gate = read(v, n, 'gate', 1) >= 0.5;
+      const hz = clamp(440 * Math.pow(2, (read(v, n, 'pitch', 69) - 69) / 12), 1, rate * 0.45);
+      if (gate && !st.lastGate) {
+        // Percussion only strikes when no earlier key is still down.
+        st.p0 = s.voices.some(o => o !== v && o.active && o.keyDown && o.age < v.age) ? 0 : 1;
+        st.p1 = parameter(v, n, 'click') > 0 ? Math.max(1, Math.round(0.004 * rate)) : 0;
+      }
+      st.lastGate = gate;
+      const inc = 0.5 * hz / rate;
+      st.phase += inc;
+      if (st.phase >= 1) st.phase -= 1;
+      const th = TAU * st.phase, c2 = 2 * Math.cos(th), sn = organSines;
+      sn[0] = 0;
+      sn[1] = Math.sin(th);
+      for (let k = 2; k <= 16; k++) sn[k] = c2 * sn[k - 1] - sn[k - 2];
+      const half = inc * rate, top = 0.45 * rate;
+      let y = 0;
+      for (let j = 0; j < 9; j++) {
+        const bar = clamp(Math.round(parameter(v, n, O.bars[j])), 0, 8);
+        if (bar === 0) continue;
+        let k = O.harmonics[j];
+        if (k * half > O.foldHz && k > 3) k = k / 2;
+        if (k * half < top) y += O.gain * Math.pow(10, 3 * (bar - 8) / 20) * sn[k];
+      }
+      const perc = Math.round(parameter(v, n, 'percussion')), pk = perc === 1 ? 4 : perc === 2 ? 6 : 0;
+      if (pk > 0 && st.p0 > 0.00001) {
+        if (pk * half < top) y += 2 * O.gain * parameter(v, n, 'percLevel') * st.p0 * sn[pk];
+        st.p0 *= Math.exp(-LN1000 / (Math.max(parameter(v, n, 'percDecay'), 1e-5) * rate));
+      }
+      if (st.p1 > 0) {
+        const e = st.p1 / Math.max(1, Math.round(0.004 * rate));
+        y += 0.4 * parameter(v, n, 'click') * e * e * white(st);
+        st.p1--;
+      }
+      st.mode = 0;
+      sig.out = y * parameter(v, n, 'level');
+      break;
+    }
+    case 'physBrass': {
+      // The Physical instrument's Brass model: a lip resonator driven by the mouth pressure
+      // against the bore's reflection, wave steepening and a bell filter. **breath** is the breath
+      // envelope; raw **velocity** scales the blowing pressure by **velocity** (amount).
+      const line = v.lines[n.line], steep = v.lines[n.line + 1], B = MODULAR_BRASS, rate = s.sampleRate;
+      const hz = clamp(440 * Math.pow(2, (read(v, n, 'pitch', 69) - 69) / 12), rate / (MODULAR_LINE_SAMPLES - 4), rate * 0.45);
+      const velocity = clamp(read(v, n, 'velocity', 1), 0, 1);
+      const press = clamp((0.2 + 0.8 * parameter(v, n, 'pressure')) * Math.pow(10, parameter(v, n, 'velocity') * (velocity - 1)), 0.05, 1);
+      const lip = parameter(v, n, 'lip'), bell = parameter(v, n, 'bell');
+      if (st.key[0] !== hz || st.key[1] !== press || st.key[2] !== lip || st.key[3] !== bell) {
+        st.key[0] = hz; st.key[1] = press; st.key[2] = lip; st.key[3] = bell;
+        tuneBrass(st, hz, press, lip, bell, rate);
+      }
+      const c = st.a1, m = st.y1;
+      if (!st.ready) {
+        // The tongue release: seed the bore with the note's wave and boost the lip gain for the
+        // attack (at least ten periods).
+        st.ready = true;
+        const count = Math.ceil(c[0]), w = TAU * 2 / c[0];
+        for (let i = 0; i < count; i++) line[(st.write + i) & MASK] = B.seed * 0.3 * c[4] * Math.sin(w * i);
+        st.write = (st.write + count) & MASK;
+        m[7] = B.boost;
+        st.a2[1] = Math.exp(-3 / Math.max(parameter(v, n, 'attack') * rate, B.boostPeriods * rate / hz));
+      }
+      const mouth = 0.3 * c[4] * clamp(read(v, n, 'breath'), 0, 1);
+      const atBell = lineRead(line, st.write, c[0]);
+      // Wave steepening: a delay shortened by the pressure, outside the loop.
+      const w = st.p1;
+      steep[w] = atBell;
+      st.p1 = (w + 1) & MASK;
+      const period = c[0] * 0.5, d0 = Math.min(MODULAR_LINE_SAMPLES * 0.4, period * 0.5 + 2);
+      const shaped = lineRead(steep, st.p1, clamp(d0 - B.steep * atBell * period, 1, 2 * d0));
+      m[5] = (1 - c[6]) * atBell + c[6] * m[5];
+      const bore = 0.85 * m[5];
+      const y = mouth - bore - c[1] * m[0] - c[2] * m[1];
+      m[1] = m[0]; m[0] = y;
+      m[7] *= st.a2[1];
+      const u = c[3] * (1 + m[7]) * y, open = 1 - Math.exp(-u * u);
+      const x = open * mouth + (1 - open) * bore;
+      const d = x - m[2] + c[5] * m[3];
+      m[2] = x; m[3] = d;
+      line[st.write] = clamp(d, -4, 4);
+      st.write = (st.write + 1) & MASK;
+      const radiated = (shaped - m[6]) * c[7];
+      m[6] = shaped;
+      m[4] = (1 - st.a2[0]) * radiated + st.a2[0] * m[4];
+      st.amp = Math.max(Math.abs(m[4]), st.amp * 0.9995);
+      st.mode = mouth > 1e-6 || st.amp > 1e-4 ? 1 : 0;
+      sig.out = clamp(m[4] * B.gain, -16, 16) * parameter(v, n, 'level');
+      break;
+    }
+    case 'physWind': {
+      // The Physical instrument's Wind model. **breath** is the breath envelope from 0 to 1.
+      const line = v.lines[n.line], line2 = v.lines[n.line + 1], W = MODULAR_WIND, rate = s.sampleRate;
+      const kind = parameter(v, n, 'type'), embouchure = parameter(v, n, 'embouchure');
+      const hz = clamp(440 * Math.pow(2, (read(v, n, 'pitch', 69) - 69) / 12), rate / (MODULAR_LINE_SAMPLES - 4), rate * 0.45);
+      const musette = parameter(v, n, 'musette');
+      if (st.key[0] !== hz || st.key[1] !== kind || st.key[2] !== embouchure || st.key[3] !== musette) {
+        st.key[0] = hz; st.key[1] = kind; st.key[2] = embouchure; st.key[3] = musette;
+        tuneWind(st, kind, hz, embouchure, musette, rate);
+      }
+      const m = st.y1, c = st.a1, bias = 0.25 + 0.3 * embouchure;
+      if (!st.ready) {
+        // Fresh note: the musette reeds start out of phase, and the free reed's radiation starts
+        // at its rest flow so it does not click.
+        st.ready = true;
+        st.y2[1] = 0.33; st.y2[2] = 0.67;
+        m[4] = kind === 4 ? freeReedFlow(0, bias) * (musette > 0 ? 1.8 : 1) : 0;
+        const g = Math.tan(Math.PI * 1600 / rate);
+        st.b[0] = 1 / (1 + g * (g + 1.2)); st.b[1] = g * st.b[0]; st.b[2] = g * st.b[1];
+      }
+      const env = clamp(read(v, n, 'breath'), 0, 1), noiseAmount = parameter(v, n, 'noise');
+      // Breath pressure into the reed or jet (Physical's wind_maxv).
+      const pressure = parameter(v, n, 'pressure'), slope = -(0.2 + 0.25 * embouchure);
+      const maxv = kind === 4 ? 0.3 + 0.7 * pressure : kind >= 2 ? (0.24 + 0.05 * pressure) / -slope
+        : kind === 0 ? (0.2 + 0.06 * pressure) / -slope : (0.6 + 0.4 * pressure) * c[5];
+      const nz = white(st);
+      m[0] += (1 - Math.exp(-TAU * 5 / rate)) * (nz - m[0]);
+      let bp = env * maxv * (1 + 1.4 * m[0]);
+      m[1] += (1 - Math.exp(-TAU * 1000 / rate)) * (nz - m[1]);
+      const hiss = (nz - m[1]) * env * noiseAmount * 0.05;
+      let y;
+      if (kind === 4) {
+        bp += bp * noiseAmount * 0.25 * m[0];
+        const ph = st.y2;
+        ph[0] += c[0]; if (ph[0] >= 1) ph[0] -= 1;
+        let u = freeReedFlow(bp * Math.sin(TAU * ph[0]), bias);
+        if (musette > 0) {
+          ph[1] += c[0] * c[1]; if (ph[1] >= 1) ph[1] -= 1;
+          ph[2] += c[0] / c[1]; if (ph[2] >= 1) ph[2] -= 1;
+          u = 0.6 * (u + freeReedFlow(bp * Math.sin(TAU * ph[1]), bias) + freeReedFlow(bp * Math.sin(TAU * ph[2]), bias));
+        }
+        const rad = (u - m[4]) * c[3];
+        m[4] = u;
+        // Body resonance: the band-pass of a 1600 Hz state-variable filter.
+        const v3 = rad - m[7], v1 = st.b[0] * m[6] + st.b[1] * v3, v2 = m[7] + st.b[1] * m[6] + st.b[2] * v3;
+        m[6] = 2 * v1 - m[6]; m[7] = 2 * v2 - m[7];
+        y = (0.7 * rad + 0.5 * v1) * W.freeReedGain + hiss;
+      } else if (kind >= 2) {
+        bp += bp * noiseAmount * 0.25 * nz;
+        const bell = lineRead(line, st.write, c[0]);
+        m[2] = (1 - c[2]) * bell + c[2] * m[2];
+        const t = -0.95 * m[2];
+        const pd = bp - (t - lineRead(line2, st.write, c[1]));
+        const reed = clamp(0.7 - slope * pd, -1, 1);
+        line2[st.write] = clamp(t, -4, 4);
+        line[st.write] = clamp(bp - pd * reed - t, -4, 4);
+        let rad = (t - m[4]) * c[3];
+        m[4] = t;
+        if (kind === 3) {
+          // The narrow cone's second difference above ~1 kHz: the nasal double-reed formant.
+          const r2 = (rad - m[5]) / (2 * Math.sin(Math.PI * 1000 / rate));
+          m[5] = rad;
+          rad = 0.4 * rad + 0.6 * r2;
+        }
+        y = rad * W.coneGain[kind] + hiss;
+      } else if (kind === 0) {
+        bp += bp * noiseAmount * 0.25 * nz;
+        const bore = lineRead(line, st.write, c[0]);
+        m[2] = (1 - c[2]) * bore + c[2] * m[2];
+        const pd = -0.95 * m[2] - bp;
+        const reed = clamp(0.7 + slope * pd, -1, 1);
+        line[st.write] = clamp(bp + pd * reed, -4, 4);
+        y = bore * 1.1 + hiss;
+      } else {
+        const bore = lineRead(line, st.write, c[0]);
+        m[2] = (1 - c[2]) * bore + c[2] * m[2];
+        // Open end: the reflection with its DC removed (20 Hz one-pole high-pass).
+        m[3] += (1 - Math.exp(-TAU * 20 / rate)) * (m[2] - m[3]);
+        const t = m[2] - m[3];
+        const jet = lineRead(line2, st.write, c[1]);
+        line2[st.write] = clamp(t + (0.01 + 0.08 * noiseAmount) * env * nz, -4, 4);
+        const j = softClip(W.jetGain * jet + c[4]) - softClip(c[4]);
+        line[st.write] = clamp(bp * j + 0.5 * t, -4, 4);
+        y = bore * 0.3 + hiss;
+      }
+      st.write = (st.write + 1) & MASK;
+      st.amp = Math.max(Math.abs(y), st.amp * 0.9995);
+      st.mode = env > 1e-5 || st.amp > 1e-4 ? 1 : 0;
+      sig.out = clamp(y, -16, 16) * parameter(v, n, 'level');
       break;
     }
     case 'bowed': {
@@ -2022,6 +3555,7 @@ export function modular_render(s) {
   let out = 0, right = 0;
   const { nodes, order, delays, outputs, envelopes, mono, clocks, autonomous, globals, busLinks } = s.graph;
   if (autonomous && !s.voices[0].active) startVoice(s, s.voices[0], 0, 60, 1);
+  if (s.graph.arp.mode > 0) arpTick(s);
   // Glide decays like the Synth instrument: about 95% of the way after the glide time.
   const glideCoef = mono.glide > 0 ? Math.exp(-1 / (mono.glide / 3 * s.sampleRate)) : 0;
   let meterVoice;

@@ -74,6 +74,46 @@ int main(int argc, char **argv) {
         self.emit_macro_changes(&output);
         check(output_types.size() == 3, "GUI macro gestures repeated");
         check(dirty_count == 5, "Successful edits did not mark the project dirty");
+
+        // GM program change: ignored while off, then loads the GM sound's patch, and a drum kit on channel 10.
+        const auto program = [&](int channel, int number) {
+            clap_event_midi_t midi{{sizeof(clap_event_midi_t), 0, CLAP_CORE_EVENT_SPACE_ID, CLAP_EVENT_MIDI, 0}, 0,
+                {uint8_t(0xc0 | channel), uint8_t(number), 0}};
+            self.event(&midi.header, nullptr);
+            self.apply_program();
+        };
+        const auto loaded = [&](int index) {
+            const auto expected = Json::parse(kPresets[index].patch)["nodes"], nodes = self.snapshot()["nodes"];
+            if (expected.size() != nodes.size()) return false;
+            for (size_t i = 0; i < nodes.size(); ++i)
+                if (expected[i]["id"] != nodes[i]["id"] || expected[i]["type"] != nodes[i]["type"]) return false;
+            return true;
+        };
+        const auto before = self.snapshot();
+        program(0, 0);
+        check(self.snapshot() == before, "Program change applied while switched off");
+        clap_event_param_value_t on{{sizeof(clap_event_param_value_t), 0, CLAP_CORE_EVENT_SPACE_ID, CLAP_EVENT_PARAM_VALUE, 0},
+            kProgramChange, nullptr, -1, -1, -1, -1, 1};
+        self.event(&on.header, nullptr);
+        program(0, 0);
+        check(loaded(kGmPrograms[0]) && std::strcmp(kPresets[kGmPrograms[0]].name, "Grand Piano (Modular)") == 0, "Program 1 did not load the piano");
+        program(9, 25);
+        check(loaded(kGmDrumKits[25]) && std::strcmp(kPresets[kGmDrumKits[25]].name, "808-ish (Modular)") == 0, "Channel 10 did not load a drum kit");
+        // The setting is saved with the instance and restored from it.
+        std::string bytes;
+        clap_ostream_t out{&bytes, [](const clap_ostream_t *s, const void *data, uint64_t size) -> int64_t {
+            static_cast<std::string *>(s->ctx)->append(static_cast<const char *>(data), size_t(size)); return int64_t(size);
+        }};
+        check(save_state(&self.plugin, &out) && Json::parse(bytes).value("programChange", false), "Program change setting not saved");
+        self.program_change.store(false);
+        struct Reader { const std::string *text; size_t pos; } reader{&bytes, 0};
+        clap_istream_t in{&reader, [](const clap_istream_t *s, void *data, uint64_t size) -> int64_t {
+            auto &r = *static_cast<Reader *>(s->ctx);
+            const size_t n = std::min(size_t(size), r.text->size() - r.pos);
+            std::memcpy(data, r.text->data() + r.pos, n); r.pos += n; return int64_t(n);
+        }};
+        check(load_state(&self.plugin, &in) && self.program_change.load() && !self.patch.contains("programChange"),
+            "Program change setting not restored");
 #if defined(_WIN32)
         if (argc > 1 && std::strcmp(argv[1], "--gui-smoke") == 0) {
             check(self.load(kPresets[0].patch), "GUI initial state failed");

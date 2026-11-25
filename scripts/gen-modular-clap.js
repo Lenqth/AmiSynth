@@ -2,12 +2,13 @@
 import { writeFileSync } from 'node:fs';
 import { HAT_RATIOS } from '../src/dsp/drums.js';
 import { BEAT_GRID_MAX_STEPS } from '../src/dsp/modular.js';
-import { MODULAR_ECHO_BEATS, MODULAR_ECHO_SECONDS, MODULAR_FX_SLOTS, MODULAR_REVERB_ALLPASSES, MODULAR_REVERB_COMBS, MODULAR_REVERB_SPREAD } from '../src/dsp/modular.js';
+import { BRASS_MIN_DRIVE, BRASS_MULTS, BRASS_NOTE0, BRASS_SHARP, MODULAR_BRASS, MODULAR_AMP_TYPES, MODULAR_WIND, MODULAR_ECHO_BEATS, MODULAR_ECHO_SECONDS, MODULAR_FX_MEMORY, MODULAR_FX_SLOTS, MODULAR_LFO_BEATS, MODULAR_ARP_BEATS, MODULAR_ARP_CHORD_MS, MODULAR_DRUM_FIELDS, MODULAR_DRUM_FIRST, MODULAR_DRUM_HITS, MODULAR_DRUM_LAST, MODULAR_TRIANGLE, MODULAR_ORGAN, MODULAR_PIANO, MODULAR_REVERB_ALLPASSES, MODULAR_REVERB_COMBS, MODULAR_REVERB_SPREAD } from '../src/dsp/modular.js';
 import { MODULAR_DRUM_DECAY, MODULAR_DRUM_PITCH } from '../src/dsp/modular.js';
 import {
   MODULAR_LINE_SAMPLES, MODULAR_LINES, MODULAR_MACROS, MODULAR_MATERIALS, MODULAR_MAX_INPUTS, MODULAR_MAX_OUTPUTS,
   MODULAR_MAX_PARAMS, MODULAR_MODAL_FIELDS, MODULAR_MODES, MODULAR_PATCH_BYTES, MODULAR_POSITION_MAX, MODULAR_PRESETS, MODULAR_TYPES,
 } from '../src/dsp/modular.js';
+import { gmModularPreset } from '../src/presets/modular.js';
 import { WT_BANKS, WT_FADE, WT_FRAMES, WT_MAX_HARM, WT_MIPS, WT_SIZE, wt_frame_spectrum } from '../src/dsp/wavetable.js';
 
 const json = JSON.stringify;
@@ -24,6 +25,14 @@ const materials = MODULAR_MATERIALS.map(m => {
   if (m.ratios.length !== MODULAR_MODES || m.gains.length !== MODULAR_MODES) throw new Error(`Material ${m.name} needs ${MODULAR_MODES} modes`);
   return `    {{${m.ratios.join(', ')}}, {${m.gains.join(', ')}}}, // ${m.name}`;
 });
+// GM program change: the factory patch index for each program, and for each program on channel 10.
+const presetIndex = name => {
+  const index = MODULAR_PRESETS.findIndex(p => p.name === name);
+  if (index < 0) throw new Error(`No Modular patch named ${name}`);
+  return index;
+};
+const gmPrograms = Array.from({ length: 128 }, (_, program) => presetIndex(gmModularPreset(program)));
+const gmDrumKits = Array.from({ length: 128 }, (_, program) => presetIndex(gmModularPreset(program, 9)));
 const presets = MODULAR_PRESETS.map(p => `    {${json(p.name)}, ${json(json(p.patch()))}},`);
 const spectra = Array.from({ length: WT_BANKS }, (_, bank) => {
   const frames = Array.from({ length: WT_FRAMES }, (_, frame) => {
@@ -59,12 +68,34 @@ constexpr double kHatRatios[] = ${list(HAT_RATIOS)};
 constexpr size_t kWtBanks = ${WT_BANKS}, kWtFrames = ${WT_FRAMES}, kWtMips = ${WT_MIPS};
 constexpr size_t kWtSize = ${WT_SIZE}, kWtHarmonics = ${WT_MAX_HARM};
 constexpr double kWtFade = ${WT_FADE};
-constexpr size_t kFxSlots = ${MODULAR_FX_SLOTS};
+constexpr size_t kFxSlots = ${MODULAR_FX_SLOTS}, kFxMemory = ${MODULAR_FX_MEMORY};
+constexpr std::array<double, ${MODULAR_ARP_BEATS.length}> kArpBeats{${MODULAR_ARP_BEATS.map(b => b.toPrecision(17)).join(', ')}};
+constexpr double kArpChordMs = ${MODULAR_ARP_CHORD_MS};
+constexpr int kGmPrograms[128] = ${list(gmPrograms)}, kGmDrumKits[128] = ${list(gmDrumKits)};
+constexpr int kDrumFirst = ${MODULAR_DRUM_FIRST}, kDrumLast = ${MODULAR_DRUM_LAST}, kDrumFields = ${MODULAR_DRUM_FIELDS};
+constexpr double kDrumHits[] = {${Array.from(MODULAR_DRUM_HITS, x => x.toPrecision(17)).join(', ')}};
+constexpr double kTriangleRatios[] = ${list(MODULAR_TRIANGLE.ratios)}, kTriangleLevels[] = ${list(MODULAR_TRIANGLE.levels)};
+constexpr std::array<double, ${MODULAR_LFO_BEATS.length}> kLfoBeats{${MODULAR_LFO_BEATS.map(b => b.toPrecision(17)).join(', ')}};
 constexpr double kEchoSeconds = ${MODULAR_ECHO_SECONDS};
 constexpr double kEchoBeats[] = ${list(MODULAR_ECHO_BEATS)};
 constexpr int kReverbCombs[] = ${list(MODULAR_REVERB_COMBS)};
 constexpr int kReverbAllpasses[] = ${list(MODULAR_REVERB_ALLPASSES)};
 constexpr int kReverbSpread = ${MODULAR_REVERB_SPREAD};
+constexpr double kWindConePosition[] = ${list(MODULAR_WIND.conePosition)};
+constexpr double kWindConeGain[] = ${list(MODULAR_WIND.coneGain)};
+constexpr double kWindJetRatio = ${MODULAR_WIND.jetRatio}, kWindJetGain = ${MODULAR_WIND.jetGain};
+constexpr double kWindOverlap = ${MODULAR_WIND.overlap}, kFreeReedGain = ${MODULAR_WIND.freeReedGain};
+constexpr double kBrassNote0 = ${BRASS_NOTE0};
+constexpr double kBrassMinDrive[] = ${list(BRASS_MIN_DRIVE)};
+constexpr double kBrassMults[] = ${list(BRASS_MULTS)};
+constexpr double kBrassSharp[][${BRASS_SHARP[0].length}] = {${BRASS_SHARP.map(list).join(', ')}};
+constexpr double kBrassBoost = ${MODULAR_BRASS.boost}, kBrassBoostPeriods = ${MODULAR_BRASS.boostPeriods};
+constexpr double kBrassSeed = ${MODULAR_BRASS.seed}, kBrassSteep = ${MODULAR_BRASS.steep}, kBrassGain = ${MODULAR_BRASS.gain};
+constexpr int kPianoAllpasses = ${MODULAR_PIANO.allpasses}, kPianoSubsteps = ${MODULAR_PIANO.substeps};
+constexpr double kPianoGain = ${MODULAR_PIANO.gain};
+constexpr std::array<int, 9> kOrganHarmonics{${MODULAR_ORGAN.harmonics.join(', ')}};
+constexpr double kOrganFoldHz = ${MODULAR_ORGAN.foldHz}, kOrganGain = ${MODULAR_ORGAN.gain};
+constexpr double kAmpTypes[][7] = {${MODULAR_AMP_TYPES.map(list).join(', ')}};
 constexpr bool kGlobal[] = {${Object.values(MODULAR_TYPES).map(t => !!t.global).join(', ')}};
 inline constexpr double kWtSpectra[kWtBanks][kWtFrames][2][kWtHarmonics] = {
 ${spectra.join('\n')}

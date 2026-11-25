@@ -123,13 +123,13 @@ const ROTARY_LEN = 1024;
 
 // Brass lip drive: every note needs a minimum drive to speak (measured on notes 28, 32, .. 104);
 // Lip Buzz and the blowing pressure choose a multiple of it (BRASS_MULTS range).
-const BRASS_NOTE0 = 28;
-const BRASS_MIN_DRIVE = [0.0542, 0.0308, 0.0275, 0.0219, 0.0175, 0.0124, 0.0099, 0.0079, 0.0063, 0.005,
+export const BRASS_NOTE0 = 28;
+export const BRASS_MIN_DRIVE = [0.0542, 0.0308, 0.0275, 0.0219, 0.0175, 0.0124, 0.0099, 0.0079, 0.0063, 0.005,
   0.0045, 0.004, 0.004, 0.004, 0.004, 0.004, 0.004, 0.004, 0.004, 0.004];
 // Brass tuning: the pitch settles between the bore and the lip resonance, so it depends on the
 // note and the drive. Measured residual (cents sharp) per drive multiple x note; bore and lips
 // are scaled together by it so the pitch lands on the note.
-const BRASS_MULTS = [1.1, 1.6, 2.2, 3];
+export const BRASS_MULTS = [1.1, 1.6, 2.2, 3];
 export const BRASS_SHARP = [
   [86.5, 70.6, 73.9, 69.7, 67.9, 62.6, 59.1, 56.9, 54.9, 47.9, 44.1, 40.2, 39.7, 38.9, 37.9, 37.3, 36.7, 37.1, 39.8, 42.5],
   [68.9, 71.7, 75.5, 75.2, 74.7, 72.6, 71.2, 69.5, 67.8, 60.7, 55.6, 50.3, 48.4, 46.3, 44.5, 43.3, 42.4, 42.7, 46.2, 49.7],
