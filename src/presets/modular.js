@@ -399,6 +399,8 @@ const PHYS_COMMON = new Set(['phys_model', 'phys_volume_db', 'phys_release_ms', 
 const PHYS_MODELS = {
   0: new Set(['string_excitation', 'string_decay_ms', 'string_damping', 'string_pick_position', 'string_brightness',
     'amp_type', 'amp_gain', 'amp_tone', 'amp_level_db', 'phys_vibrato_cents', 'phys_vibrato_rate_hz']),
+  3: new Set(['wind_type', 'breath_pressure', 'breath_noise', 'wind_attack_ms', 'wind_embouchure', 'free_reed_detune_cents',
+    'phys_vibrato_cents', 'phys_vibrato_rate_hz']),
   2: new Set(['bow_pressure', 'bow_speed', 'bow_position', 'bow_attack_ms', 'bowed_brightness',
     'phys_vibrato_cents', 'phys_vibrato_rate_hz']),
   1: new Set(['modal_material', 'modal_decay_ms', 'modal_high_damping', 'modal_hardness', 'modal_strike_position',
@@ -454,6 +456,20 @@ export function modularFromPhysical(params) {
     pitch = ['pitch', 'out'];
   }
   let source;
+  if (model === 3) {
+    // The breath envelope (release at most 400 ms, as in Physical); velocity sets the level.
+    node('breath', 'adsr', { attack: Math.max(0.001, p.wind_attack_ms / 1000), decay: 0.001, sustain: 1,
+      release: Math.max(0.001, Math.min(p.phys_release_ms, 400) / 1000), curve: 1 }, 0);
+    wire('note', 'gate', 'breath', 'gate');
+    source = node('wind', 'physWind', { type: Math.round(p.wind_type), pressure: p.breath_pressure, noise: p.breath_noise,
+      embouchure: p.wind_embouchure, musette: p.free_reed_detune_cents, level: 1 }, 1);
+    wire(...pitch, source, 'pitch');
+    wire('breath', 'out', source, 'breath');
+    node('dynamics', 'vca', { level: Math.min(2, Math.round(voiceGain * panGain * 1e4) / 1e4) }, 1);
+    wire(source, 'out', 'dynamics', 'audio');
+    wire('velocity', 'out', 'dynamics', 'gain');
+    source = 'dynamics';
+  }
   if (model === 2) {
     // The bow envelope, scaled by velocity, drives the bow speed.
     node('bowenv', 'adsr', { attack: Math.max(0.001, p.bow_attack_ms / 1000), decay: 0.001, sustain: 1,

@@ -99,7 +99,7 @@ inline Graph compile(Json &patch, Macros &macros) {
             throw std::invalid_argument("Invalid module");
         auto &node = graph.nodes[ids.size()];
         node.type = spec->type;
-        const int lines = node.type == Type::bowed || node.type == Type::physBowed ? 2 :
+        const int lines = node.type == Type::bowed || node.type == Type::physBowed || node.type == Type::physWind ? 2 :
             int(node.type == Type::string || node.type == Type::physString || node.type == Type::comb || node.type == Type::reedPipe);
         if (lines) {
             if (graph.line_count + lines > int(kLines)) throw std::invalid_argument("Too many delay lines");
@@ -252,7 +252,7 @@ inline Graph compile(Json &patch, Macros &macros) {
         const int index = audible[i];
         // Modules that ring on after their gate falls keep a released voice alive until quiet.
         const auto type = graph.nodes[index].type;
-        if (type == Type::adsr || type == Type::functionGen || type == Type::string || type == Type::physString || type == Type::physBowed ||
+        if (type == Type::adsr || type == Type::functionGen || type == Type::string || type == Type::physString || type == Type::physBowed || type == Type::physWind ||
             type == Type::modal || type == Type::bowed || type == Type::reedPipe)
             graph.envelopes[graph.envelope_count++] = index;
         if (type == Type::drumVoice) graph.envelopes[graph.envelope_count++] = index;
@@ -535,6 +535,42 @@ struct Engine {
     }
 
     // The Synth instrument's soft clipper (tanh-like, exactly +/-1 beyond |x| >= 3).
+    static double lowpass_delay(double b, double hz, double rate) {
+        const double w = 2 * kPi * hz / rate;
+        return std::atan2(b * std::sin(w), 1 - b * std::cos(w)) / w;
+    }
+    static double free_reed_flow(double x, double bias) {
+        const double d = std::abs(x - bias) - kWindOverlap;
+        return d > 0 ? d : 0;
+    }
+    // A Physical Wind voice's loop for a new pitch or knob setting (see the Web engine).
+    static void tune_wind(Stage &st, int kind, double hz, double embouchure, double musette, double rate) {
+        auto &c = st.a1;
+        const double max = double(kLineSamples - 2);
+        c[3] = 1 / (2 * std::sin(kPi * hz / rate));
+        if (kind == 4) {
+            c[0] = hz / rate;
+            c[1] = std::pow(2.0, musette / 1200);
+        } else if (kind >= 2) {
+            c[2] = std::exp(-2 * kPi * std::max(kind == 2 ? 2500.0 : 3500.0, 6 * hz) / rate);
+            const double x = std::log(hz * 48000 / (rate * 261.63)) / std::log(2.0);
+            const double flat = kind == 2 ? std::clamp(2.5 + 4 * x, 2.0, 7.0) : std::clamp(1.5 + 3.5 * x, 1.0, 9.0);
+            const double total = std::clamp(rate / hz * std::pow(2.0, -flat / 1200) - lowpass_delay(c[2], hz, rate), 4.0, 2 * max);
+            c[1] = std::clamp(kWindConePosition[kind] * total, 2.0, max);
+            c[0] = std::clamp(total - c[1], 2.0, max);
+        } else if (kind == 0) {
+            c[2] = std::exp(-2 * kPi * std::max(1500.0, 5 * hz) / rate);
+            c[0] = std::clamp(0.5 * rate / hz - lowpass_delay(c[2], hz, rate), 2.0, max);
+        } else {
+            c[2] = 0.7 - 0.1 * 22050 / rate;
+            const double x = std::log(hz * 48000 / (rate * 523.25)) / std::log(2.0);
+            const double total = rate / hz * std::pow(2.0, (10.7 * x + 3.1 * x * x) / 1200);
+            c[0] = std::clamp(total - lowpass_delay(c[2], hz, rate), 2.0, max);
+            c[1] = std::clamp(c[0] * kWindJetRatio, 2.0, max);
+            c[4] = 0.1 + 0.4 * embouchure;
+            c[5] = std::clamp(1 + 0.5 * std::log(hz * 48000 / (rate * 1046.5)) / std::log(2.0), 1.0, 1.6);
+        }
+    }
     static double soft_clip(double x) {
         if (x > 3) return 1;
         if (x < -3) return -1;
@@ -1040,6 +1076,104 @@ struct Engine {
             st.amp = std::max(std::abs(bridge_out), st.amp * 0.9995);
             st.mode = bow > 1e-5 || st.amp > 1e-4 ? 1 : 0;
             sig[0] = (bridge_out + body) * 1.6 * p[4];
+            break;
+        }
+        case Type::physWind: {
+            // The Physical instrument's Wind model (see the Web engine).
+            auto &line = v.lines[size_t(n.line)], &line2 = v.lines[size_t(n.line + 1)];
+            const int kind = int(p[0]);
+            const double embouchure = p[3], musette = p[4];
+            const double hz = std::clamp(440 * std::pow(2.0, (read(v, n, 0, 69) - 69) / 12),
+                rate / double(kLineSamples - 4), rate * 0.45);
+            if (st.key[0] != hz || st.key[1] != kind || st.key[2] != embouchure || st.key[3] != musette) {
+                st.key[0] = hz;
+                st.key[1] = kind;
+                st.key[2] = embouchure;
+                st.key[3] = musette;
+                tune_wind(st, kind, hz, embouchure, musette, rate);
+            }
+            auto &m = st.y1;
+            const auto &c = st.a1;
+            const double bias = 0.25 + 0.3 * embouchure;
+            if (!st.ready) {
+                st.ready = true;
+                st.y2[1] = 0.33;
+                st.y2[2] = 0.67;
+                m[4] = kind == 4 ? free_reed_flow(0, bias) * (musette > 0 ? 1.8 : 1) : 0;
+                const double g = std::tan(kPi * 1600 / rate);
+                st.b[0] = 1 / (1 + g * (g + 1.2));
+                st.b[1] = g * st.b[0];
+                st.b[2] = g * st.b[1];
+            }
+            const double env = std::clamp(read(v, n, 1), 0.0, 1.0), noise_amount = p[2];
+            const double pressure = p[1], slope = -(0.2 + 0.25 * embouchure);
+            const double maxv = kind == 4 ? 0.3 + 0.7 * pressure : kind >= 2 ? (0.24 + 0.05 * pressure) / -slope
+                : kind == 0 ? (0.2 + 0.06 * pressure) / -slope : (0.6 + 0.4 * pressure) * c[5];
+            const double nz = white(st);
+            m[0] += (1 - std::exp(-2 * kPi * 5 / rate)) * (nz - m[0]);
+            double bp = env * maxv * (1 + 1.4 * m[0]);
+            m[1] += (1 - std::exp(-2 * kPi * 1000 / rate)) * (nz - m[1]);
+            const double hiss = (nz - m[1]) * env * noise_amount * 0.05;
+            double y;
+            if (kind == 4) {
+                bp += bp * noise_amount * 0.25 * m[0];
+                auto &ph = st.y2;
+                ph[0] += c[0];
+                if (ph[0] >= 1) ph[0] -= 1;
+                double u = free_reed_flow(bp * std::sin(2 * kPi * ph[0]), bias);
+                if (musette > 0) {
+                    ph[1] += c[0] * c[1];
+                    if (ph[1] >= 1) ph[1] -= 1;
+                    ph[2] += c[0] / c[1];
+                    if (ph[2] >= 1) ph[2] -= 1;
+                    u = 0.6 * (u + free_reed_flow(bp * std::sin(2 * kPi * ph[1]), bias) + free_reed_flow(bp * std::sin(2 * kPi * ph[2]), bias));
+                }
+                const double rad = (u - m[4]) * c[3];
+                m[4] = u;
+                const double v3 = rad - m[7], v1 = st.b[0] * m[6] + st.b[1] * v3, v2 = m[7] + st.b[1] * m[6] + st.b[2] * v3;
+                m[6] = 2 * v1 - m[6];
+                m[7] = 2 * v2 - m[7];
+                y = (0.7 * rad + 0.5 * v1) * kFreeReedGain + hiss;
+            } else if (kind >= 2) {
+                bp += bp * noise_amount * 0.25 * nz;
+                const double bell = line_read(line, st.write, c[0]);
+                m[2] = (1 - c[2]) * bell + c[2] * m[2];
+                const double t = -0.95 * m[2];
+                const double pd = bp - (t - line_read(line2, st.write, c[1]));
+                const double reed = std::clamp(0.7 - slope * pd, -1.0, 1.0);
+                line2[size_t(st.write)] = float(std::clamp(t, -4.0, 4.0));
+                line[size_t(st.write)] = float(std::clamp(bp - pd * reed - t, -4.0, 4.0));
+                double rad = (t - m[4]) * c[3];
+                m[4] = t;
+                if (kind == 3) {
+                    const double r2 = (rad - m[5]) / (2 * std::sin(kPi * 1000 / rate));
+                    m[5] = rad;
+                    rad = 0.4 * rad + 0.6 * r2;
+                }
+                y = rad * kWindConeGain[kind] + hiss;
+            } else if (kind == 0) {
+                bp += bp * noise_amount * 0.25 * nz;
+                const double bore = line_read(line, st.write, c[0]);
+                m[2] = (1 - c[2]) * bore + c[2] * m[2];
+                const double pd = -0.95 * m[2] - bp;
+                const double reed = std::clamp(0.7 + slope * pd, -1.0, 1.0);
+                line[size_t(st.write)] = float(std::clamp(bp + pd * reed, -4.0, 4.0));
+                y = bore * 1.1 + hiss;
+            } else {
+                const double bore = line_read(line, st.write, c[0]);
+                m[2] = (1 - c[2]) * bore + c[2] * m[2];
+                m[3] += (1 - std::exp(-2 * kPi * 20 / rate)) * (m[2] - m[3]);
+                const double t = m[2] - m[3];
+                const double jet = line_read(line2, st.write, c[1]);
+                line2[size_t(st.write)] = float(std::clamp(t + (0.01 + 0.08 * noise_amount) * env * nz, -4.0, 4.0));
+                const double j = soft_clip(kWindJetGain * jet + c[4]) - soft_clip(c[4]);
+                line[size_t(st.write)] = float(std::clamp(bp * j + 0.5 * t, -4.0, 4.0));
+                y = bore * 0.3 + hiss;
+            }
+            st.write = (st.write + 1) & kLineMask;
+            st.amp = std::max(std::abs(y), st.amp * 0.9995);
+            st.mode = env > 1e-5 || st.amp > 1e-4 ? 1 : 0;
+            sig[0] = std::clamp(y, -16.0, 16.0) * p[5];
             break;
         }
         case Type::bowed: {

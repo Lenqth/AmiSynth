@@ -120,6 +120,16 @@ export const MODULAR_TYPES = Object.freeze({
       brightness: { min: 0, max: 1, default: 0.6, step: 0.001 },
       level: { min: 0, max: 1, default: 0.6, step: 0.01 },
     } },
+  physWind: { label: 'Physical Wind', category: 'Physical',
+    keywords: 'clarinet flute saxophone oboe bassoon accordion harmonica reed jet breath bore physical model',
+    inputs: ['pitch', 'breath'], outputs: ['out'], params: {
+      type: { min: 0, max: 4, default: 0, step: 1, choices: ['Clarinet', 'Flute', 'Saxophone', 'Double Reed', 'Free Reed'] },
+      pressure: { min: 0, max: 1, default: 0.6, step: 0.001 },
+      noise: { min: 0, max: 1, default: 0.15, step: 0.001 },
+      embouchure: { min: 0, max: 1, default: 0.5, step: 0.001 },
+      musette: { min: 0, max: 50, default: 0, step: 0.1 },
+      level: { min: 0, max: 1, default: 0.6, step: 0.01 },
+    } },
   modal: { label: 'Modal Resonator', category: 'Physical', keywords: 'bell marimba glass gong mallet physical model resonance',
     inputs: ['in', 'pitch', 'gate', 'velocity'], outputs: ['out'], params: {
       material: { min: 0, max: MATERIALS.length - 1, default: 0, step: 1, choices: MATERIALS.map(m => m.name) },
@@ -353,6 +363,10 @@ export const MODULAR_REVERB_ALLPASSES = [556, 441, 341, 225];
 export const MODULAR_REVERB_SPREAD = 23;
 // The Physical instrument's amps: pre high-pass Hz, drive at gain 0 and 1, bias, clipping
 // stages, cabinet low-pass Hz at tone 0 and 1.
+// The Physical instrument's wind constants: where the conical bores' reed sits in the loop,
+// their output gains, the flute jet's delay ratio and gain, and the free reed's slot overlap.
+export const MODULAR_WIND = { conePosition: [0, 0, 0.4, 0.35], coneGain: [0, 0, 0.7, 0.9], jetRatio: 1.03,
+  jetGain: 1.6, overlap: 0.35, freeReedGain: 1.1 };
 export const MODULAR_AMP_TYPES = [
   [60, 1, 4, 0, 1, 3000, 9000],
   [100, 3, 30, 0.15, 1, 2500, 7000],
@@ -363,7 +377,7 @@ const FX_TYPES = new Set(['echo', 'chorus', 'reverb', 'guitarAmp']);
 
 const LINE_TYPES = new Set(['string', 'physString', 'comb', 'reedPipe']);
 // Modules that ring on after their gate falls; a released voice lives until they are quiet.
-const RINGING_TYPES = new Set(['adsr', 'functionGen', 'string', 'physString', 'physBowed', 'modal', 'bowed', 'reedPipe']);
+const RINGING_TYPES = new Set(['adsr', 'functionGen', 'string', 'physString', 'physBowed', 'physWind', 'modal', 'bowed', 'reedPipe']);
 const QUANTIZER_SCALES = [0xfff, 0xab5, 0x5ad, 0x295, 0x4a9];
 
 const searchWords = text => text.toLowerCase().split(/[^a-z0-9&]+/).filter(Boolean);
@@ -986,7 +1000,7 @@ export function compileModularPatch(raw) {
     throw new Error(`Use at most ${MODULAR_FX_SLOTS} patch effects`);
   let lineCount = 0;
   for (const n of nodes) {
-    const lines = n.type === 'bowed' || n.type === 'physBowed' ? 2 : Number(LINE_TYPES.has(n.type));
+    const lines = n.type === 'bowed' || n.type === 'physBowed' || n.type === 'physWind' ? 2 : Number(LINE_TYPES.has(n.type));
     n.line = lines ? lineCount : -1;
     lineCount += lines;
   }
@@ -1266,6 +1280,42 @@ function sampleReverb(s, fx, p, inL, inR, sig) {
   const wet1 = p.mix * (p.width / 2 + 0.5), wet2 = p.mix * ((1 - p.width) / 2);
   sig.left = wet[0] * wet1 + wet[1] * wet2 + inL * (1 - p.mix);
   sig.right = wet[1] * wet1 + wet[0] * wet2 + inR * (1 - p.mix);
+}
+
+function lowpassDelay(b, hz, rate) {
+  const w = TAU * hz / rate;
+  return Math.atan2(b * Math.sin(w), 1 - b * Math.cos(w)) / w;
+}
+// Recomputes a Physical Wind voice's loop for a new pitch or knob setting (Physical's voice_tune).
+function tuneWind(st, kind, hz, embouchure, musette, rate) {
+  const W = MODULAR_WIND, max = MODULAR_LINE_SAMPLES - 2, c = st.a1;
+  c[3] = 1 / (2 * Math.sin(Math.PI * hz / rate)); // radiation: first difference, unity at the fundamental
+  if (kind === 4) {
+    c[0] = hz / rate;
+    c[1] = Math.pow(2, musette / 1200);
+  } else if (kind >= 2) {
+    c[2] = Math.exp(-TAU * Math.max(kind === 2 ? 2500 : 3500, 6 * hz) / rate);
+    const x = Math.log(hz * 48000 / (rate * 261.63)) / Math.LN2;
+    const flat = kind === 2 ? clamp(2.5 + 4 * x, 2, 7) : clamp(1.5 + 3.5 * x, 1, 9);
+    const total = clamp(rate / hz * Math.pow(2, -flat / 1200) - lowpassDelay(c[2], hz, rate), 4, 2 * max);
+    c[1] = clamp(W.conePosition[kind] * total, 2, max);
+    c[0] = clamp(total - c[1], 2, max);
+  } else if (kind === 0) {
+    c[2] = Math.exp(-TAU * Math.max(1500, 5 * hz) / rate);
+    c[0] = clamp(0.5 * rate / hz - lowpassDelay(c[2], hz, rate), 2, max);
+  } else {
+    c[2] = 0.7 - 0.1 * 22050 / rate;
+    const x = Math.log(hz * 48000 / (rate * 523.25)) / Math.LN2;
+    const total = rate / hz * Math.pow(2, (10.7 * x + 3.1 * x * x) / 1200);
+    c[0] = clamp(total - lowpassDelay(c[2], hz, rate), 2, max);
+    c[1] = clamp(c[0] * W.jetRatio, 2, max);
+    c[4] = 0.1 + 0.4 * embouchure;
+    c[5] = clamp(1 + 0.5 * Math.log(hz * 48000 / (rate * 1046.5)) / Math.LN2, 1, 1.6);
+  }
+}
+function freeReedFlow(x, bias) {
+  const d = Math.abs(x - bias) - MODULAR_WIND.overlap;
+  return d > 0 ? d : 0;
 }
 
 // The Physical instrument's guitar amp: pre high-pass, asymmetric soft clipping in one or two
@@ -2007,6 +2057,97 @@ function sampleNode(s, v, i) {
       st.amp = Math.max(Math.abs(bridgeOut), st.amp * 0.9995);
       st.mode = bow > 1e-5 || st.amp > 1e-4 ? 1 : 0;
       sig.out = (bridgeOut + body) * 1.6 * parameter(v, n, 'level');
+      break;
+    }
+    case 'physWind': {
+      // The Physical instrument's Wind model. **breath** is the breath envelope from 0 to 1.
+      const line = v.lines[n.line], line2 = v.lines[n.line + 1], W = MODULAR_WIND, rate = s.sampleRate;
+      const kind = parameter(v, n, 'type'), embouchure = parameter(v, n, 'embouchure');
+      const hz = clamp(440 * Math.pow(2, (read(v, n, 'pitch', 69) - 69) / 12), rate / (MODULAR_LINE_SAMPLES - 4), rate * 0.45);
+      const musette = parameter(v, n, 'musette');
+      if (st.key[0] !== hz || st.key[1] !== kind || st.key[2] !== embouchure || st.key[3] !== musette) {
+        st.key[0] = hz; st.key[1] = kind; st.key[2] = embouchure; st.key[3] = musette;
+        tuneWind(st, kind, hz, embouchure, musette, rate);
+      }
+      const m = st.y1, c = st.a1, bias = 0.25 + 0.3 * embouchure;
+      if (!st.ready) {
+        // Fresh note: the musette reeds start out of phase, and the free reed's radiation starts
+        // at its rest flow so it does not click.
+        st.ready = true;
+        st.y2[1] = 0.33; st.y2[2] = 0.67;
+        m[4] = kind === 4 ? freeReedFlow(0, bias) * (musette > 0 ? 1.8 : 1) : 0;
+        const g = Math.tan(Math.PI * 1600 / rate);
+        st.b[0] = 1 / (1 + g * (g + 1.2)); st.b[1] = g * st.b[0]; st.b[2] = g * st.b[1];
+      }
+      const env = clamp(read(v, n, 'breath'), 0, 1), noiseAmount = parameter(v, n, 'noise');
+      // Breath pressure into the reed or jet (Physical's wind_maxv).
+      const pressure = parameter(v, n, 'pressure'), slope = -(0.2 + 0.25 * embouchure);
+      const maxv = kind === 4 ? 0.3 + 0.7 * pressure : kind >= 2 ? (0.24 + 0.05 * pressure) / -slope
+        : kind === 0 ? (0.2 + 0.06 * pressure) / -slope : (0.6 + 0.4 * pressure) * c[5];
+      const nz = white(st);
+      m[0] += (1 - Math.exp(-TAU * 5 / rate)) * (nz - m[0]);
+      let bp = env * maxv * (1 + 1.4 * m[0]);
+      m[1] += (1 - Math.exp(-TAU * 1000 / rate)) * (nz - m[1]);
+      const hiss = (nz - m[1]) * env * noiseAmount * 0.05;
+      let y;
+      if (kind === 4) {
+        bp += bp * noiseAmount * 0.25 * m[0];
+        const ph = st.y2;
+        ph[0] += c[0]; if (ph[0] >= 1) ph[0] -= 1;
+        let u = freeReedFlow(bp * Math.sin(TAU * ph[0]), bias);
+        if (musette > 0) {
+          ph[1] += c[0] * c[1]; if (ph[1] >= 1) ph[1] -= 1;
+          ph[2] += c[0] / c[1]; if (ph[2] >= 1) ph[2] -= 1;
+          u = 0.6 * (u + freeReedFlow(bp * Math.sin(TAU * ph[1]), bias) + freeReedFlow(bp * Math.sin(TAU * ph[2]), bias));
+        }
+        const rad = (u - m[4]) * c[3];
+        m[4] = u;
+        // Body resonance: the band-pass of a 1600 Hz state-variable filter.
+        const v3 = rad - m[7], v1 = st.b[0] * m[6] + st.b[1] * v3, v2 = m[7] + st.b[1] * m[6] + st.b[2] * v3;
+        m[6] = 2 * v1 - m[6]; m[7] = 2 * v2 - m[7];
+        y = (0.7 * rad + 0.5 * v1) * W.freeReedGain + hiss;
+      } else if (kind >= 2) {
+        bp += bp * noiseAmount * 0.25 * nz;
+        const bell = lineRead(line, st.write, c[0]);
+        m[2] = (1 - c[2]) * bell + c[2] * m[2];
+        const t = -0.95 * m[2];
+        const pd = bp - (t - lineRead(line2, st.write, c[1]));
+        const reed = clamp(0.7 - slope * pd, -1, 1);
+        line2[st.write] = clamp(t, -4, 4);
+        line[st.write] = clamp(bp - pd * reed - t, -4, 4);
+        let rad = (t - m[4]) * c[3];
+        m[4] = t;
+        if (kind === 3) {
+          // The narrow cone's second difference above ~1 kHz: the nasal double-reed formant.
+          const r2 = (rad - m[5]) / (2 * Math.sin(Math.PI * 1000 / rate));
+          m[5] = rad;
+          rad = 0.4 * rad + 0.6 * r2;
+        }
+        y = rad * W.coneGain[kind] + hiss;
+      } else if (kind === 0) {
+        bp += bp * noiseAmount * 0.25 * nz;
+        const bore = lineRead(line, st.write, c[0]);
+        m[2] = (1 - c[2]) * bore + c[2] * m[2];
+        const pd = -0.95 * m[2] - bp;
+        const reed = clamp(0.7 + slope * pd, -1, 1);
+        line[st.write] = clamp(bp + pd * reed, -4, 4);
+        y = bore * 1.1 + hiss;
+      } else {
+        const bore = lineRead(line, st.write, c[0]);
+        m[2] = (1 - c[2]) * bore + c[2] * m[2];
+        // Open end: the reflection with its DC removed (20 Hz one-pole high-pass).
+        m[3] += (1 - Math.exp(-TAU * 20 / rate)) * (m[2] - m[3]);
+        const t = m[2] - m[3];
+        const jet = lineRead(line2, st.write, c[1]);
+        line2[st.write] = clamp(t + (0.01 + 0.08 * noiseAmount) * env * nz, -4, 4);
+        const j = softClip(W.jetGain * jet + c[4]) - softClip(c[4]);
+        line[st.write] = clamp(bp * j + 0.5 * t, -4, 4);
+        y = bore * 0.3 + hiss;
+      }
+      st.write = (st.write + 1) & MASK;
+      st.amp = Math.max(Math.abs(y), st.amp * 0.9995);
+      st.mode = env > 1e-5 || st.amp > 1e-4 ? 1 : 0;
+      sig.out = clamp(y, -16, 16) * parameter(v, n, 'level');
       break;
     }
     case 'bowed': {
