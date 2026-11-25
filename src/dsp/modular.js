@@ -1,7 +1,7 @@
 // AmiSynth Modular: a small, independent, serializable graph DSP (no Web Audio dependencies).
 // All cables carry a per-voice, audio-rate scalar. A Unit Delay breaks a feedback loop.
 // The native CLAP engine (clap/src/modular_dsp.h) mirrors every module; keep the two in step.
-import { MATERIALS } from './phys.js';
+import { BRASS_MIN_DRIVE, BRASS_MULTS, BRASS_NOTE0, BRASS_SHARP, MATERIALS } from './phys.js';
 import { HAT_RATIOS } from './drums.js';
 import { WT_BANK_NAMES, wt_build, wt_sample } from './wavetable.js';
 import { MODULAR_PHYSICAL_PORTS, MODULAR_SYNTH_PORTS } from '../presets/modular.js';
@@ -128,6 +128,16 @@ export const MODULAR_TYPES = Object.freeze({
       noise: { min: 0, max: 1, default: 0.15, step: 0.001 },
       embouchure: { min: 0, max: 1, default: 0.5, step: 0.001 },
       musette: { min: 0, max: 50, default: 0, step: 0.1 },
+      level: { min: 0, max: 1, default: 0.6, step: 0.01 },
+    } },
+  physBrass: { label: 'Physical Brass', category: 'Physical',
+    keywords: 'trumpet trombone tuba horn flugelhorn lip buzz bell bore physical model',
+    inputs: ['pitch', 'breath', 'velocity'], outputs: ['out'], params: {
+      pressure: { min: 0, max: 1, default: 0.6, step: 0.001 },
+      lip: { min: 0, max: 1, default: 0.5, step: 0.001 },
+      bell: { min: 0, max: 1, default: 0.5, step: 0.001 },
+      attack: { min: 0.001, max: 2, default: 0.04, step: 0.001 },
+      velocity: { min: 0, max: 1, default: 0.8, step: 0.001 },
       level: { min: 0, max: 1, default: 0.6, step: 0.01 },
     } },
   modal: { label: 'Modal Resonator', category: 'Physical', keywords: 'bell marimba glass gong mallet physical model resonance',
@@ -367,6 +377,10 @@ export const MODULAR_REVERB_SPREAD = 23;
 // their output gains, the flute jet's delay ratio and gain, and the free reed's slot overlap.
 export const MODULAR_WIND = { conePosition: [0, 0, 0.4, 0.35], coneGain: [0, 0, 0.7, 0.9], jetRatio: 1.03,
   jetGain: 1.6, overlap: 0.35, freeReedGain: 1.1 };
+// The Physical instrument's brass constants: lip boost after the tongue release, its minimum
+// length in periods, the tongue's seed wave, wave steepening and output gain.
+export const MODULAR_BRASS = { boost: 6, boostPeriods: 10, seed: 0.15, steep: 1.5, gain: 2.5 };
+export { BRASS_MIN_DRIVE, BRASS_MULTS, BRASS_NOTE0, BRASS_SHARP };
 export const MODULAR_AMP_TYPES = [
   [60, 1, 4, 0, 1, 3000, 9000],
   [100, 3, 30, 0.15, 1, 2500, 7000],
@@ -377,7 +391,7 @@ const FX_TYPES = new Set(['echo', 'chorus', 'reverb', 'guitarAmp']);
 
 const LINE_TYPES = new Set(['string', 'physString', 'comb', 'reedPipe']);
 // Modules that ring on after their gate falls; a released voice lives until they are quiet.
-const RINGING_TYPES = new Set(['adsr', 'functionGen', 'string', 'physString', 'physBowed', 'physWind', 'modal', 'bowed', 'reedPipe']);
+const RINGING_TYPES = new Set(['adsr', 'functionGen', 'string', 'physString', 'physBowed', 'physWind', 'physBrass', 'modal', 'bowed', 'reedPipe']);
 const QUANTIZER_SCALES = [0xfff, 0xab5, 0x5ad, 0x295, 0x4a9];
 
 const searchWords = text => text.toLowerCase().split(/[^a-z0-9&]+/).filter(Boolean);
@@ -1000,7 +1014,7 @@ export function compileModularPatch(raw) {
     throw new Error(`Use at most ${MODULAR_FX_SLOTS} patch effects`);
   let lineCount = 0;
   for (const n of nodes) {
-    const lines = n.type === 'bowed' || n.type === 'physBowed' || n.type === 'physWind' ? 2 : Number(LINE_TYPES.has(n.type));
+    const lines = n.type === 'bowed' || n.type === 'physBowed' || n.type === 'physWind' || n.type === 'physBrass' ? 2 : Number(LINE_TYPES.has(n.type));
     n.line = lines ? lineCount : -1;
     lineCount += lines;
   }
@@ -1312,6 +1326,30 @@ function tuneWind(st, kind, hz, embouchure, musette, rate) {
     c[4] = 0.1 + 0.4 * embouchure;
     c[5] = clamp(1 + 0.5 * Math.log(hz * 48000 / (rate * 1046.5)) / Math.LN2, 1, 1.6);
   }
+}
+// A Physical Brass voice's lips and bore for a pitch and mouth pressure (Physical's voice_tune).
+function tuneBrass(st, hz, press, lip, bell, rate) {
+  const c = st.a1;
+  const note = 69 + 12 * Math.log(hz / 440) / Math.LN2;
+  const u = clamp((note - BRASS_NOTE0) / 4, 0, BRASS_MIN_DRIVE.length - 1.000001), i = Math.floor(u), fu = u - i;
+  const mult = BRASS_MULTS[0] + (BRASS_MULTS.at(-1) - BRASS_MULTS[0]) * clamp(0.5 * lip + 0.5 * (press - 0.2) / 0.8, 0, 1);
+  const drive = (BRASS_MIN_DRIVE[i] + (BRASS_MIN_DRIVE[i + 1] - BRASS_MIN_DRIVE[i]) * fu) * mult;
+  let j = 0;
+  while (j < BRASS_MULTS.length - 2 && mult > BRASS_MULTS[j + 1]) j++;
+  const fv = clamp((mult - BRASS_MULTS[j]) / (BRASS_MULTS[j + 1] - BRASS_MULTS[j]), 0, 1);
+  const a = BRASS_SHARP[j], b = BRASS_SHARP[j + 1];
+  const sharp = (a[i] * (1 - fu) + a[i + 1] * fu) * (1 - fv) + (b[i] * (1 - fu) + b[i + 1] * fu) * fv;
+  const f = hz * Math.pow(2, -sharp / 1200);
+  c[0] = clamp(2 * rate / f, 2, MODULAR_LINE_SAMPLES - 2);
+  const r = Math.exp(-Math.PI * Math.min(42, 0.15 * f) / rate), w = TAU * f / rate;
+  c[1] = -2 * r * Math.cos(w);
+  c[2] = r * r;
+  c[3] = drive * hz * 2 * Math.sin(w) * (1 - r) / (0.3 * press);
+  c[4] = press;
+  c[5] = Math.exp(-TAU * 0.05 * f / rate);
+  c[6] = Math.exp(-TAU * Math.max(1500, 5 * f) / rate);
+  c[7] = 1 / (2 * Math.sin(w / 2));
+  st.a2[0] = Math.exp(-TAU * (1500 + 6000 * bell) / rate);
 }
 function freeReedFlow(x, bias) {
   const d = Math.abs(x - bias) - MODULAR_WIND.overlap;
@@ -2057,6 +2095,57 @@ function sampleNode(s, v, i) {
       st.amp = Math.max(Math.abs(bridgeOut), st.amp * 0.9995);
       st.mode = bow > 1e-5 || st.amp > 1e-4 ? 1 : 0;
       sig.out = (bridgeOut + body) * 1.6 * parameter(v, n, 'level');
+      break;
+    }
+    case 'physBrass': {
+      // The Physical instrument's Brass model: a lip resonator driven by the mouth pressure
+      // against the bore's reflection, wave steepening and a bell filter. **breath** is the breath
+      // envelope; raw **velocity** scales the blowing pressure by **velocity** (amount).
+      const line = v.lines[n.line], steep = v.lines[n.line + 1], B = MODULAR_BRASS, rate = s.sampleRate;
+      const hz = clamp(440 * Math.pow(2, (read(v, n, 'pitch', 69) - 69) / 12), rate / (MODULAR_LINE_SAMPLES - 4), rate * 0.45);
+      const velocity = clamp(read(v, n, 'velocity', 1), 0, 1);
+      const press = clamp((0.2 + 0.8 * parameter(v, n, 'pressure')) * Math.pow(10, parameter(v, n, 'velocity') * (velocity - 1)), 0.05, 1);
+      const lip = parameter(v, n, 'lip'), bell = parameter(v, n, 'bell');
+      if (st.key[0] !== hz || st.key[1] !== press || st.key[2] !== lip || st.key[3] !== bell) {
+        st.key[0] = hz; st.key[1] = press; st.key[2] = lip; st.key[3] = bell;
+        tuneBrass(st, hz, press, lip, bell, rate);
+      }
+      const c = st.a1, m = st.y1;
+      if (!st.ready) {
+        // The tongue release: seed the bore with the note's wave and boost the lip gain for the
+        // attack (at least ten periods).
+        st.ready = true;
+        const count = Math.ceil(c[0]), w = TAU * 2 / c[0];
+        for (let i = 0; i < count; i++) line[(st.write + i) & MASK] = B.seed * 0.3 * c[4] * Math.sin(w * i);
+        st.write = (st.write + count) & MASK;
+        m[7] = B.boost;
+        st.a2[1] = Math.exp(-3 / Math.max(parameter(v, n, 'attack') * rate, B.boostPeriods * rate / hz));
+      }
+      const mouth = 0.3 * c[4] * clamp(read(v, n, 'breath'), 0, 1);
+      const atBell = lineRead(line, st.write, c[0]);
+      // Wave steepening: a delay shortened by the pressure, outside the loop.
+      const w = st.p1;
+      steep[w] = atBell;
+      st.p1 = (w + 1) & MASK;
+      const period = c[0] * 0.5, d0 = Math.min(MODULAR_LINE_SAMPLES * 0.4, period * 0.5 + 2);
+      const shaped = lineRead(steep, st.p1, clamp(d0 - B.steep * atBell * period, 1, 2 * d0));
+      m[5] = (1 - c[6]) * atBell + c[6] * m[5];
+      const bore = 0.85 * m[5];
+      const y = mouth - bore - c[1] * m[0] - c[2] * m[1];
+      m[1] = m[0]; m[0] = y;
+      m[7] *= st.a2[1];
+      const u = c[3] * (1 + m[7]) * y, open = 1 - Math.exp(-u * u);
+      const x = open * mouth + (1 - open) * bore;
+      const d = x - m[2] + c[5] * m[3];
+      m[2] = x; m[3] = d;
+      line[st.write] = clamp(d, -4, 4);
+      st.write = (st.write + 1) & MASK;
+      const radiated = (shaped - m[6]) * c[7];
+      m[6] = shaped;
+      m[4] = (1 - st.a2[0]) * radiated + st.a2[0] * m[4];
+      st.amp = Math.max(Math.abs(m[4]), st.amp * 0.9995);
+      st.mode = mouth > 1e-6 || st.amp > 1e-4 ? 1 : 0;
+      sig.out = clamp(m[4] * B.gain, -16, 16) * parameter(v, n, 'level');
       break;
     }
     case 'physWind': {

@@ -99,7 +99,7 @@ inline Graph compile(Json &patch, Macros &macros) {
             throw std::invalid_argument("Invalid module");
         auto &node = graph.nodes[ids.size()];
         node.type = spec->type;
-        const int lines = node.type == Type::bowed || node.type == Type::physBowed || node.type == Type::physWind ? 2 :
+        const int lines = node.type == Type::bowed || node.type == Type::physBowed || node.type == Type::physWind || node.type == Type::physBrass ? 2 :
             int(node.type == Type::string || node.type == Type::physString || node.type == Type::comb || node.type == Type::reedPipe);
         if (lines) {
             if (graph.line_count + lines > int(kLines)) throw std::invalid_argument("Too many delay lines");
@@ -252,7 +252,7 @@ inline Graph compile(Json &patch, Macros &macros) {
         const int index = audible[i];
         // Modules that ring on after their gate falls keep a released voice alive until quiet.
         const auto type = graph.nodes[index].type;
-        if (type == Type::adsr || type == Type::functionGen || type == Type::string || type == Type::physString || type == Type::physBowed || type == Type::physWind ||
+        if (type == Type::adsr || type == Type::functionGen || type == Type::string || type == Type::physString || type == Type::physBowed || type == Type::physWind || type == Type::physBrass ||
             type == Type::modal || type == Type::bowed || type == Type::reedPipe)
             graph.envelopes[graph.envelope_count++] = index;
         if (type == Type::drumVoice) graph.envelopes[graph.envelope_count++] = index;
@@ -570,6 +570,34 @@ struct Engine {
             c[4] = 0.1 + 0.4 * embouchure;
             c[5] = std::clamp(1 + 0.5 * std::log(hz * 48000 / (rate * 1046.5)) / std::log(2.0), 1.0, 1.6);
         }
+    }
+    // A Physical Brass voice's lips and bore for a pitch and mouth pressure (see the Web engine).
+    static void tune_brass(Stage &st, double hz, double press, double lip, double bell, double rate) {
+        auto &c = st.a1;
+        constexpr int drives = int(std::size(kBrassMinDrive)), mults = int(std::size(kBrassMults));
+        const double note = 69 + 12 * std::log(hz / 440) / std::log(2.0);
+        const double u = std::clamp((note - kBrassNote0) / 4, 0.0, drives - 1.000001);
+        const int i = int(std::floor(u));
+        const double fu = u - i;
+        const double mult = kBrassMults[0] + (kBrassMults[mults - 1] - kBrassMults[0]) *
+            std::clamp(0.5 * lip + 0.5 * (press - 0.2) / 0.8, 0.0, 1.0);
+        const double drive = (kBrassMinDrive[i] + (kBrassMinDrive[i + 1] - kBrassMinDrive[i]) * fu) * mult;
+        int j = 0;
+        while (j < mults - 2 && mult > kBrassMults[j + 1]) ++j;
+        const double fv = std::clamp((mult - kBrassMults[j]) / (kBrassMults[j + 1] - kBrassMults[j]), 0.0, 1.0);
+        const auto &a = kBrassSharp[j], &b = kBrassSharp[j + 1];
+        const double sharp = (a[i] * (1 - fu) + a[i + 1] * fu) * (1 - fv) + (b[i] * (1 - fu) + b[i + 1] * fu) * fv;
+        const double f = hz * std::pow(2.0, -sharp / 1200);
+        c[0] = std::clamp(2 * rate / f, 2.0, double(kLineSamples - 2));
+        const double r = std::exp(-kPi * std::min(42.0, 0.15 * f) / rate), w = 2 * kPi * f / rate;
+        c[1] = -2 * r * std::cos(w);
+        c[2] = r * r;
+        c[3] = drive * hz * 2 * std::sin(w) * (1 - r) / (0.3 * press);
+        c[4] = press;
+        c[5] = std::exp(-2 * kPi * 0.05 * f / rate);
+        c[6] = std::exp(-2 * kPi * std::max(1500.0, 5 * f) / rate);
+        c[7] = 1 / (2 * std::sin(w / 2));
+        st.a2[0] = std::exp(-2 * kPi * (1500 + 6000 * bell) / rate);
     }
     static double soft_clip(double x) {
         if (x > 3) return 1;
@@ -1076,6 +1104,59 @@ struct Engine {
             st.amp = std::max(std::abs(bridge_out), st.amp * 0.9995);
             st.mode = bow > 1e-5 || st.amp > 1e-4 ? 1 : 0;
             sig[0] = (bridge_out + body) * 1.6 * p[4];
+            break;
+        }
+        case Type::physBrass: {
+            // The Physical instrument's Brass model (see the Web engine).
+            auto &line = v.lines[size_t(n.line)], &steep = v.lines[size_t(n.line + 1)];
+            const double hz = std::clamp(440 * std::pow(2.0, (read(v, n, 0, 69) - 69) / 12),
+                rate / double(kLineSamples - 4), rate * 0.45);
+            const double velocity = std::clamp(read(v, n, 2, 1), 0.0, 1.0);
+            const double press = std::clamp((0.2 + 0.8 * p[0]) * std::pow(10.0, p[4] * (velocity - 1)), 0.05, 1.0);
+            if (st.key[0] != hz || st.key[1] != press || st.key[2] != p[1] || st.key[3] != p[2]) {
+                st.key[0] = hz;
+                st.key[1] = press;
+                st.key[2] = p[1];
+                st.key[3] = p[2];
+                tune_brass(st, hz, press, p[1], p[2], rate);
+            }
+            auto &m = st.y1;
+            const auto &c = st.a1;
+            if (!st.ready) {
+                st.ready = true;
+                const int count = int(std::ceil(c[0]));
+                const double w = 2 * kPi * 2 / c[0];
+                for (int i = 0; i < count; ++i) line[size_t((st.write + i) & kLineMask)] = float(kBrassSeed * 0.3 * c[4] * std::sin(w * i));
+                st.write = (st.write + count) & kLineMask;
+                m[7] = kBrassBoost;
+                st.a2[1] = std::exp(-3 / std::max(p[3] * rate, kBrassBoostPeriods * rate / hz));
+            }
+            const double mouth = 0.3 * c[4] * std::clamp(read(v, n, 1), 0.0, 1.0);
+            const double at_bell = line_read(line, st.write, c[0]);
+            const int w = int(st.p1);
+            steep[size_t(w)] = float(at_bell);
+            st.p1 = (w + 1) & kLineMask;
+            const double period = c[0] * 0.5, d0 = std::min(kLineSamples * 0.4, period * 0.5 + 2);
+            const double shaped = line_read(steep, int(st.p1), std::clamp(d0 - kBrassSteep * at_bell * period, 1.0, 2 * d0));
+            m[5] = (1 - c[6]) * at_bell + c[6] * m[5];
+            const double bore = 0.85 * m[5];
+            const double y = mouth - bore - c[1] * m[0] - c[2] * m[1];
+            m[1] = m[0];
+            m[0] = y;
+            m[7] *= st.a2[1];
+            const double u = c[3] * (1 + m[7]) * y, open = 1 - std::exp(-u * u);
+            const double x = open * mouth + (1 - open) * bore;
+            const double d = x - m[2] + c[5] * m[3];
+            m[2] = x;
+            m[3] = d;
+            line[size_t(st.write)] = float(std::clamp(d, -4.0, 4.0));
+            st.write = (st.write + 1) & kLineMask;
+            const double radiated = (shaped - m[6]) * c[7];
+            m[6] = shaped;
+            m[4] = (1 - st.a2[0]) * radiated + st.a2[0] * m[4];
+            st.amp = std::max(std::abs(m[4]), st.amp * 0.9995);
+            st.mode = mouth > 1e-6 || st.amp > 1e-4 ? 1 : 0;
+            sig[0] = std::clamp(m[4] * kBrassGain, -16.0, 16.0) * p[5];
             break;
         }
         case Type::physWind: {
