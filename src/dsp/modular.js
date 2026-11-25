@@ -81,6 +81,13 @@ export const MODULAR_TYPES = Object.freeze({
       color: { min: 0, max: 1, default: 0, step: 1, choices: ['White', 'Pink'] },
       level: { min: 0, max: 1, default: 0.5, step: 0.01 },
     } },
+  synthNoise: { label: 'Synth Noise', category: 'Sources',
+    keywords: 'chip lfsr 8-bit metallic sample hold rotor helicopter claps applause shot gunshot rain sound effect noise',
+    inputs: ['pitch'], outputs: ['out'], params: {
+      type: { min: 0, max: 6, default: 0, step: 1, choices: ['Chip Long', 'Chip Short', 'Sample & Hold', 'Rotor', 'Crowd Claps', 'Shot', 'Rain'] },
+      clock: { min: -4, max: 4, default: 0, step: 0.01 },
+      level: { min: 0, max: 1, default: 0.5, step: 0.01 },
+    } },
   wavetable: { label: 'Wavetable Oscillator', category: 'Sources', keywords: 'wavetable morph unison stereo oscillator fm pm sync',
     inputs: ['pitch', 'fm', 'pm', 'sync'], outputs: ['out', 'left', 'right', 'sync'], params: {
       bank: { min: 0, max: WT_BANK_NAMES.length - 1, default: 0, step: 1, choices: WT_BANK_NAMES, fixed: true },
@@ -219,7 +226,7 @@ export const MODULAR_TYPES = Object.freeze({
     inputs: [], outputs: ['out'], params: {
       rate: { min: 0.01, max: 30, default: 2, step: 0.01 },
       depth: { min: 0, max: 1, default: 1, step: 0.01 },
-      wave: { min: 0, max: 1, default: 0, step: 1, choices: ['Sine', 'Triangle'] },
+      wave: { min: 0, max: 4, default: 0, step: 1, choices: ['Sine', 'Triangle', 'Saw Down', 'Square', 'Duck'] },
     } },
   adsr: { label: 'ADSR', category: 'Modulation', keywords: 'envelope attack decay sustain release eg',
     inputs: ['gate'], outputs: ['out'], params: {
@@ -464,7 +471,7 @@ export const MODULAR_AMP_TYPES = [
 ];
 const FX_TYPES = new Set(['echo', 'chorus', 'reverb', 'guitarAmp', 'soundboard', 'rotary', 'sympathetic']);
 
-const LINE_TYPES = new Set(['string', 'physString', 'physMesh', 'comb', 'reedPipe']);
+const LINE_TYPES = new Set(['string', 'physString', 'physMesh', 'synthNoise', 'comb', 'reedPipe']);
 // Modules that ring on after their gate falls; a released voice lives until they are quiet.
 const RINGING_TYPES = new Set(['adsr', 'functionGen', 'string', 'physString', 'physBowed', 'physWind', 'physBrass', 'physPiano', 'physMesh', 'modal', 'bowed', 'reedPipe']);
 const QUANTIZER_SCALES = [0xfff, 0xab5, 0x5ad, 0x295, 0x4a9];
@@ -1684,6 +1691,16 @@ function sampleSympathetic(s, fx, p, inL, inR, sig) {
   sig.left = inL + l;
   sig.right = inR + r;
 }
+// The Synth instrument's LFO shapes; Duck dips to -1 in the first 3 % and swells back.
+function lfoWave(wave, t) {
+  if (wave <= 0) return Math.sin(TAU * t);
+  if (wave === 1) return 1 - 4 * Math.abs(t - 0.5);
+  if (wave === 2) return 1 - 2 * t;
+  if (wave === 3) return t < 0.5 ? 1 : -1;
+  if (t < 0.03) return 1 - t * 66.66666666666667;
+  const u = (1 - t) * 1.0309278350515465, u2 = u * u;
+  return 1 - 2 * u2 * u2;
+}
 function freeReedFlow(x, bias) {
   const d = Math.abs(x - bias) - MODULAR_WIND.overlap;
   return d > 0 ? d : 0;
@@ -2168,7 +2185,7 @@ function sampleNode(s, v, i) {
     }
     case 'lfo': {
       const phase = st.phase;
-      sig.out = (parameter(v, n, 'wave') ? 1 - 4 * Math.abs(phase - 0.5) : Math.sin(TAU * phase)) * parameter(v, n, 'depth');
+      sig.out = lfoWave(Math.round(parameter(v, n, 'wave')), phase) * parameter(v, n, 'depth');
       st.phase = (phase + parameter(v, n, 'rate') / s.sampleRate) % 1;
       break;
     }
@@ -2236,6 +2253,99 @@ function sampleNode(s, v, i) {
         st.p2 = 0.57000 * st.p2 + w * 1.0526913;
         sig.out = (st.p0 + st.p1 + st.p2 + w * 0.1848) * 0.25 * parameter(v, n, 'level');
       } else sig.out = w * parameter(v, n, 'level');
+      break;
+    }
+    case 'synthNoise': {
+      // The Synth instrument's special noises. Chip Long / Short (a 15-bit shift register) and
+      // Sample & Hold are clocked from **pitch**; Rotor, Crowd Claps, Shot and Rain have their own
+      // timing, restarted with each voice. **clock** shifts every clock in octaves.
+      const rate = s.sampleRate, type = clamp(Math.round(parameter(v, n, 'type')), 0, 6), speed = Math.pow(2, parameter(v, n, 'clock'));
+      const mem = v.lines[n.line];
+      if (!st.ready) {
+        st.ready = true;
+        st.p0 = 1; st.p1 = 0;
+        st.value = 0; st.ic1 = st.ic2 = st.ic3 = 0;
+        st.ic4 = 901 + (v.age % 997) * 37 + Math.round(v.velocity * 127) * 17;
+        for (let i = 0; i < 18; i++) { mem[2 * i] = (0.002 + 0.013 * i) * rate / speed; mem[2 * i + 1] = 0; }
+        for (let i = 0; i < 6; i++) {
+          mem[36 + 4 * i] = (0.001 + 0.011 * i) * rate / speed;
+          mem[37 + 4 * i] = mem[38 + 4 * i] = mem[39 + 4 * i] = 0;
+        }
+      }
+      const random = () => {
+        st.ic4 *= 16807;
+        st.ic4 -= Math.floor(st.ic4 / 2147483647) * 2147483647;
+        return st.ic4 / 2147483647;
+      };
+      let y;
+      if (type <= 2) {
+        const hz = 440 * Math.pow(2, (read(v, n, 'pitch', 69) - 69) / 12);
+        st.phase += Math.min(1, hz * [32, 93, 8][type] * speed / rate);
+        if (st.phase >= 1) {
+          st.phase -= 1;
+          if (type === 2) st.p1 = white(st);
+          else {
+            const r = st.p0, tap = type === 1 ? 64 : 2;
+            const b0 = r - 2 * Math.floor(r / 2), bx = Math.floor(r / tap) - 2 * Math.floor(r / (2 * tap));
+            st.p0 = Math.floor(r / 2) + (b0 === bx ? 0 : 16384);
+            st.p1 = st.p0 - 2 * Math.floor(st.p0 / 2) ? 1 : -1;
+          }
+        }
+        y = st.p1;
+      } else {
+        const nz = white(st);
+        const a1 = 1 - Math.exp(-TAU * [400, 6000, 3500, 8000][type - 3] / rate);
+        const a2 = 1 - Math.exp(-TAU * [2800, 1200, 400, 400][type - 3] / rate);
+        st.ic1 += a1 * (nz - st.ic1);
+        st.ic2 += a2 * (nz - st.ic2);
+        if (type === 3) {
+          const ph = st.phase;
+          st.phase += 11 * speed / rate;
+          if (st.phase >= 1) st.phase -= 1;
+          const blade = Math.exp(-18 * ph);
+          y = 3 * (st.ic1 * (0.12 + 0.88 * blade) + st.ic2 * 0.12 * blade + 0.22 * Math.sin(TAU * 4 * ph) * Math.exp(-10 * ph));
+        } else if (type === 4) {
+          const decay = Math.exp(-1 / (0.006 * rate));
+          let env = 0;
+          for (let i = 0; i < 18; i++) {
+            const o = 2 * i;
+            mem[o]--;
+            if (mem[o] <= 0) {
+              mem[o] = (0.12 + 0.36 * random()) * rate / speed;
+              mem[o + 1] = 0.4 + 0.6 * random();
+            }
+            mem[o + 1] *= decay;
+            env += mem[o + 1];
+          }
+          st.ic3 += (1 - Math.exp(-1 / (0.00035 * rate))) * (env - st.ic3);
+          y = 1.8 * (st.ic1 - st.ic2) * st.ic3;
+        } else if (type === 6) {
+          const decay = Math.exp(-1 / (0.006 * rate));
+          let drops = 0;
+          for (let i = 0; i < 6; i++) {
+            const o = 36 + 4 * i;
+            mem[o]--;
+            if (mem[o] <= 0) {
+              mem[o] = (0.015 + 0.16 * random()) * rate / speed;
+              const strength = random();
+              mem[o + 1] = 0.15 + 0.85 * strength * strength;
+              mem[o + 2] = 0;
+              mem[o + 3] = (1200 + 3300 * random()) / rate;
+            }
+            mem[o + 1] *= decay;
+            mem[o + 2] += mem[o + 3];
+            if (mem[o + 2] >= 1) mem[o + 2] -= 1;
+            drops += (0.6 * Math.sin(TAU * mem[o + 2]) + 0.4 * nz) * mem[o + 1];
+          }
+          y = 0.45 * (st.ic1 - st.ic2) + 0.35 * drops;
+        } else {
+          const t = st.value;
+          st.value += speed / rate;
+          const reflection = t >= 0.007 ? Math.exp(-(t - 0.007) / 0.004) : 0;
+          y = 6 * ((nz - st.ic1) * (Math.exp(-t / 0.0015) + 0.18 * reflection) + 0.35 * (st.ic1 - st.ic2) * Math.exp(-t / 0.018));
+        }
+      }
+      sig.out = y * parameter(v, n, 'level');
       break;
     }
     case 'sh': {

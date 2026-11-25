@@ -19,7 +19,7 @@ const DEFAULTS = defaultValues(SYNTH_PARAMS);
 // Parameters the conversion reproduces, or deliberately leaves out (see above).
 const SUPPORTED = new Set([
   'osc1_waveform', 'osc1_pulse_width', 'osc1_level', 'osc2_waveform', 'osc2_pulse_width', 'osc2_level',
-  'osc2_transpose_cents', 'osc2_detune_cents', 'sub_osc_level', 'noise_level', 'osc2_hard_sync',
+  'osc2_transpose_cents', 'osc2_detune_cents', 'sub_osc_level', 'noise_level', 'noise_type', 'noise_clock_oct', 'osc2_hard_sync',
   'osc2_env_pitch_cents', 'fm_index', 'filter_mode', 'filter_cutoff_hz', 'filter_resonance', 'filter_slope',
   'filter_drive', 'filter_env_amount_oct', 'filter_key_tracking', 'filter_velocity_amount',
   'filter_env_attack_ms', 'filter_env_decay_ms', 'filter_env_sustain', 'filter_env_release_ms',
@@ -37,7 +37,8 @@ const SUPPORTED = new Set([
   // Left out: performance controls and stereo.
   'modwheel_vibrato_cents', 'modwheel_filter_oct', 'pitch_bend_range_cents', 'unison_stereo_width', 'legato_window_ms',
 ]);
-const LFO_WAVES = { 0: 'sine', 1: 'triangle', 4: 'sample-and-hold' };
+// Synth LFO waveforms and the LFO module's wave for each (Sample & Hold is the S&H module).
+const LFO_WAVES = { 0: 0, 1: 1, 2: 2, 3: 3, 4: 'sample-and-hold', 5: 4 };
 // Synth waveforms: Saw, Pulse, Triangle, Sine. Modular VCO: Sine, Saw, Square, Triangle.
 const VCO_WAVE = [1, 2, 3, 0];
 // The Synth's triangle starts its cycle at -1, a quarter cycle before the VCO's.
@@ -141,7 +142,7 @@ export function modularFromSynth(params) {
   env('aenv', 'amp');
   wire('note', 'gate', 'aenv', 'gate');
   const lfoNode = (id, wave, rate) => LFO_WAVES[wave] === 'sample-and-hold'
-    ? node(id, 'sh', { rate }, 0) : node(id, 'lfo', { rate, depth: 1, wave }, 0);
+    ? node(id, 'sh', { rate }, 0) : node(id, 'lfo', { rate, depth: 1, wave: LFO_WAVES[wave] }, 0);
   let lfo = null;
   const usesTables = p.osc1_waveform === 4 || p.osc2_waveform === 4;
   const needsLfo = p.lfo_pitch_cents !== 0 || p.lfo_filter_oct !== 0 || p.lfo_amp !== 0 ||
@@ -259,8 +260,12 @@ export function modularFromSynth(params) {
     audio.push(['sub', 'out', p.sub_osc_level]);
   }
   const noiseTerms = modTerms('Noise Level', 1, 2);
+  // The Sound FX noises run even at Noise Level 0 in the Synth, but are only heard through it.
   if (p.noise_level || noiseTerms.length) {
-    node('noise', 'noise', { color: 0, level: 1 }, 1);
+    if (Math.round(p.noise_type) > 0) {
+      node('noise', 'synthNoise', { type: Math.round(p.noise_type) - 1, clock: p.noise_clock_oct, level: 1 }, 1);
+      wire('note', 'pitch', 'noise', 'pitch');
+    } else node('noise', 'noise', { color: 0, level: 1 }, 1);
     let noise = 'noise';
     if (p.noise_filter_mode > 0) {
       // The Synth's noise filter: a fixed SVF with k = 1.

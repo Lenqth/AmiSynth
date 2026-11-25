@@ -100,7 +100,7 @@ inline Graph compile(Json &patch, Macros &macros) {
         auto &node = graph.nodes[ids.size()];
         node.type = spec->type;
         const int lines = node.type == Type::physPiano ? 3 : node.type == Type::bowed || node.type == Type::physBowed || node.type == Type::physWind || node.type == Type::physBrass ? 2 :
-            int(node.type == Type::string || node.type == Type::physString || node.type == Type::physMesh || node.type == Type::comb || node.type == Type::reedPipe);
+            int(node.type == Type::string || node.type == Type::physString || node.type == Type::physMesh || node.type == Type::synthNoise || node.type == Type::comb || node.type == Type::reedPipe);
         if (lines) {
             if (graph.line_count + lines > int(kLines)) throw std::invalid_argument("Too many delay lines");
             node.line = graph.line_count;
@@ -616,6 +616,16 @@ struct Engine {
             c[5] = std::clamp(1 + 0.5 * std::log(hz * 48000 / (rate * 1046.5)) / std::log(2.0), 1.0, 1.6);
         }
     }
+    // The Synth instrument's LFO shapes (see the Web engine).
+    static double lfo_wave(int wave, double t) {
+        if (wave <= 0) return std::sin(2 * kPi * t);
+        if (wave == 1) return 1 - 4 * std::abs(t - 0.5);
+        if (wave == 2) return 1 - 2 * t;
+        if (wave == 3) return t < 0.5 ? 1 : -1;
+        if (t < 0.03) return 1 - t * 66.66666666666667;
+        const double u = (1 - t) * 1.0309278350515465, u2 = u * u;
+        return 1 - 2 * u2 * u2;
+    }
     static double allpass_delay(double a, double w) {
         return -(std::atan2(-std::sin(w), a + std::cos(w)) - std::atan2(-a * std::sin(w), 1 + a * std::cos(w))) / w;
     }
@@ -1008,7 +1018,7 @@ struct Engine {
             break;
         }
         case Type::lfo:
-            sig[0] = (p[2] ? 1 - 4 * std::abs(st.phase - 0.5) : std::sin(2 * kPi * st.phase)) * p[1];
+            sig[0] = lfo_wave(int(std::round(p[2])), st.phase) * p[1];
             st.phase = std::fmod(st.phase + p[0] / rate, 1.0);
             break;
         case Type::adsr: {
@@ -1075,6 +1085,101 @@ struct Engine {
                 st.p2 = 0.57000 * st.p2 + w * 1.0526913;
                 sig[0] = (st.p0 + st.p1 + st.p2 + w * 0.1848) * 0.25 * p[1];
             } else sig[0] = w * p[1];
+            break;
+        }
+        case Type::synthNoise: {
+            // The Synth instrument's special noises (see the Web engine).
+            const int type = int(std::clamp(std::round(p[0]), 0.0, 6.0));
+            const double speed = std::pow(2.0, p[1]);
+            auto &mem = v.lines[size_t(n.line)];
+            if (!st.ready) {
+                st.ready = true;
+                st.p0 = 1; st.p1 = 0;
+                st.value = 0; st.ic1 = st.ic2 = st.ic3 = 0;
+                st.ic4 = 901 + double(v.age % 997) * 37 + std::round(v.velocity * 127) * 17;
+                for (int i = 0; i < 18; ++i) { mem[size_t(2 * i)] = float((0.002 + 0.013 * i) * rate / speed); mem[size_t(2 * i + 1)] = 0; }
+                for (int i = 0; i < 6; ++i) {
+                    mem[size_t(36 + 4 * i)] = float((0.001 + 0.011 * i) * rate / speed);
+                    mem[size_t(37 + 4 * i)] = mem[size_t(38 + 4 * i)] = mem[size_t(39 + 4 * i)] = 0;
+                }
+            }
+            const auto random = [&]() {
+                st.ic4 *= 16807;
+                st.ic4 -= std::floor(st.ic4 / 2147483647) * 2147483647;
+                return st.ic4 / 2147483647;
+            };
+            const auto at = [&](int i) { return double(mem[size_t(i)]); };
+            const auto put = [&](int i, double x) { mem[size_t(i)] = float(x); };
+            double y;
+            if (type <= 2) {
+                constexpr double clocks[3] = {32, 93, 8};
+                const double hz = 440 * std::pow(2.0, (read(v, n, 0, 69) - 69) / 12);
+                st.phase += std::min(1.0, hz * clocks[type] * speed / rate);
+                if (st.phase >= 1) {
+                    st.phase -= 1;
+                    if (type == 2) st.p1 = white(st);
+                    else {
+                        const double r = st.p0, tap = type == 1 ? 64 : 2;
+                        const double b0 = r - 2 * std::floor(r / 2), bx = std::floor(r / tap) - 2 * std::floor(r / (2 * tap));
+                        st.p0 = std::floor(r / 2) + (b0 == bx ? 0 : 16384);
+                        st.p1 = st.p0 - 2 * std::floor(st.p0 / 2) != 0 ? 1 : -1;
+                    }
+                }
+                y = st.p1;
+            } else {
+                constexpr double f1[4] = {400, 6000, 3500, 8000}, f2[4] = {2800, 1200, 400, 400};
+                const double nz = white(st);
+                const double a1 = 1 - std::exp(-2 * kPi * f1[type - 3] / rate), a2 = 1 - std::exp(-2 * kPi * f2[type - 3] / rate);
+                st.ic1 += a1 * (nz - st.ic1);
+                st.ic2 += a2 * (nz - st.ic2);
+                if (type == 3) {
+                    const double ph = st.phase;
+                    st.phase += 11 * speed / rate;
+                    if (st.phase >= 1) st.phase -= 1;
+                    const double blade = std::exp(-18 * ph);
+                    y = 3 * (st.ic1 * (0.12 + 0.88 * blade) + st.ic2 * 0.12 * blade + 0.22 * std::sin(2 * kPi * 4 * ph) * std::exp(-10 * ph));
+                } else if (type == 4) {
+                    const double decay = std::exp(-1 / (0.006 * rate));
+                    double env = 0;
+                    for (int i = 0; i < 18; ++i) {
+                        const int o = 2 * i;
+                        put(o, at(o) - 1);
+                        if (at(o) <= 0) {
+                            put(o, (0.12 + 0.36 * random()) * rate / speed);
+                            put(o + 1, 0.4 + 0.6 * random());
+                        }
+                        put(o + 1, at(o + 1) * decay);
+                        env += at(o + 1);
+                    }
+                    st.ic3 += (1 - std::exp(-1 / (0.00035 * rate))) * (env - st.ic3);
+                    y = 1.8 * (st.ic1 - st.ic2) * st.ic3;
+                } else if (type == 6) {
+                    const double decay = std::exp(-1 / (0.006 * rate));
+                    double drops = 0;
+                    for (int i = 0; i < 6; ++i) {
+                        const int o = 36 + 4 * i;
+                        put(o, at(o) - 1);
+                        if (at(o) <= 0) {
+                            put(o, (0.015 + 0.16 * random()) * rate / speed);
+                            const double strength = random();
+                            put(o + 1, 0.15 + 0.85 * strength * strength);
+                            put(o + 2, 0);
+                            put(o + 3, (1200 + 3300 * random()) / rate);
+                        }
+                        put(o + 1, at(o + 1) * decay);
+                        put(o + 2, at(o + 2) + at(o + 3));
+                        if (at(o + 2) >= 1) put(o + 2, at(o + 2) - 1);
+                        drops += (0.6 * std::sin(2 * kPi * at(o + 2)) + 0.4 * nz) * at(o + 1);
+                    }
+                    y = 0.45 * (st.ic1 - st.ic2) + 0.35 * drops;
+                } else {
+                    const double t = st.value;
+                    st.value += speed / rate;
+                    const double reflection = t >= 0.007 ? std::exp(-(t - 0.007) / 0.004) : 0;
+                    y = 6 * ((nz - st.ic1) * (std::exp(-t / 0.0015) + 0.18 * reflection) + 0.35 * (st.ic1 - st.ic2) * std::exp(-t / 0.018));
+                }
+            }
+            sig[0] = y * p[2];
             break;
         }
         case Type::sh: {
