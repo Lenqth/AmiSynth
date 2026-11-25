@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "contentId": "26381139c7fe40eeed79608f9ace63bd1edb94e307812a1f81628d943563c64f",
+  "contentId": "05ebbf4da53fb2fec573d8bc42cec0553d594043435d69942759867380fc21f7",
   "presets": {
     "synth": [
       "Init",
@@ -268,27 +268,27 @@
     {
       "source": "jsfx/reaper/AmiSynth - Apply sound.lua",
       "installedPath": "Scripts/AmiSynth/reaper/AmiSynth - Apply sound.lua",
-      "sha256": "355fdb14139ed9475a49f3f6ab6876d9637bb44cec7dda6720a6dc8505f255c7"
+      "sha256": "816d9a7d358d364d3ce38f6234c5c7864b73a26bf860564f691dcb98e2edf35b"
     },
     {
       "source": "jsfx/reaper/AmiSynth - Read sound.lua",
       "installedPath": "Scripts/AmiSynth/reaper/AmiSynth - Read sound.lua",
-      "sha256": "1009696ba7fbe872e2593e98d1010358b59ed9d1be38ba07e7277e23184a3c16"
+      "sha256": "38b214491dd2973cf1ea6013a020cef6c756a772184abedd8844913123359cd3"
     },
     {
       "source": "jsfx/reaper/AmiSynth - Run.lua",
       "installedPath": "Scripts/AmiSynth/reaper/AmiSynth - Run.lua",
-      "sha256": "74d563ca2079def61088cd2bcebbd5807b9254e1a78751970e22fe42e7e5d7be"
+      "sha256": "51126715791d28b4a1b00ded695ddf6e28edce3e143f657bc68eb0b87c9ed346"
     },
     {
       "source": "jsfx/reaper/toolkit.lua",
       "installedPath": "Scripts/AmiSynth/reaper/toolkit.lua",
-      "sha256": "1ab2c373a97d8c5b489e2c8ad0001983eedb4121f967b56d41e370a6f694f824"
+      "sha256": "bd7e831fdb540e78157da44ef161ed7d1946f20a000bcbda74072ad074beae3b"
     },
     {
       "source": "jsfx/reaper/README.md",
       "installedPath": "Scripts/AmiSynth/reaper/README.md",
-      "sha256": "ec3c6ba709cbe6d1eb97c04439de4be9769865f9328cf54ab9826217cae09308"
+      "sha256": "f4badb8d23bf576d8f1b5e8505ed3cf43305d65016f80a69c0d4dd149d9a60b9"
     },
     {
       "source": "jsfx/generated/catalog.lua",
@@ -304,6 +304,11 @@
       "source": "jsfx/generated/presets.json",
       "installedPath": "Scripts/AmiSynth/generated/presets.json",
       "sha256": "efe0ffadcd870c407a71d685df69f387dfe4b1a8e15c2871a710c75a1bdc5022"
+    },
+    {
+      "source": "jsfx/generated/modular.json",
+      "installedPath": "Scripts/AmiSynth/generated/modular.json",
+      "sha256": "68335877c0ebc75db691f2dd0d68e536c1c7d96b3b593a2a8930b823c67e39a9"
     }
   ]
 }

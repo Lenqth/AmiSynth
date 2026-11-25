@@ -6,7 +6,7 @@ import { execFileSync } from 'node:child_process';
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { MODULAR_PRESETS, MODULAR_TYPES, modular_init, modular_midi, modular_render, modular_set_patch } from '../src/dsp/modular.js';
+import { MODULAR_PRESETS, MODULAR_TYPES, modular_init, modular_midi, modular_render, modular_set_patch, modular_transport } from '../src/dsp/modular.js';
 
 const win = process.platform === 'win32';
 const tool = join(import.meta.dirname, '..', '.cache', 'clap-build', win ? 'Release' : '', win ? 'modular_render.exe' : 'modular_render');
@@ -18,7 +18,7 @@ const notes = [
 ];
 const samples = 24000;
 
-function renderWeb(patch, right = false) {
+function renderWeb(patch, right = false, midi = [], transport = []) {
   const s = {};
   modular_init(s, rate);
   modular_set_patch(s, patch);
@@ -28,15 +28,17 @@ function renderWeb(patch, right = false) {
       if (note.on === n) modular_midi(s, 0x90, note.key, note.velocity);
       if (note.off === n) modular_midi(s, 0x80, note.key, 0);
     }
+    for (const t of transport) if (t.at === n) modular_transport(s, t.bpm, t.playing, t.beat);
+    for (const event of midi) if (event.at === n) modular_midi(s, ...event.data);
     modular_render(s);
     out[n] = right ? s.out_r : s.out_l;
   }
   return out;
 }
 
-function renderNative(patch, dir, right = false) {
+function renderNative(patch, dir, right = false, midi = [], expressions = [], transport = []) {
   const spec = join(dir, 'spec.json'), out = join(dir, 'out.f32');
-  writeFileSync(spec, JSON.stringify({ rate, samples, patch, notes, right }));
+  writeFileSync(spec, JSON.stringify({ rate, samples, patch, notes, right, midi, expressions, transport }));
   execFileSync(tool, [spec, out]);
   const bytes = readFileSync(out);
   return new Float32Array(bytes.buffer, bytes.byteOffset, bytes.length / 4);
@@ -255,6 +257,113 @@ longGrid.params = { length: 12 };
 longGrid.grid.push(0, 0, 0, 9);
 PATCHES['Beat Grid exercises four output lanes and columns beyond eight'] = fastGrid;
 
+// Controllers sent during the parity notes, per patch name.
+const MIDI = {};
+const performance = voice([
+  { id: 'osc', type: 'vco', params: { wave: 1 } },
+  { id: 'filter', type: 'vcf', params: { cutoff: 300, resonance: 0.4 } },
+  { id: 'vib', type: 'lfo', params: { rate: 6 } },
+  { id: 'depth', type: 'ring', params: { level: 0.2 } },
+  { id: 'sum', type: 'mix4', params: { a: 1, b: 1, c: 0.5, d: 0.3 } },
+  { id: 'amp', type: 'vca' },
+], [
+  { from: 'note', port: 'pitch', to: 'osc', input: 'pitch' },
+  { from: 'vib', port: 'out', to: 'depth', input: 'a' },
+  { from: 'note', port: 'mod', to: 'depth', input: 'b' },
+  { from: 'depth', port: 'out', to: 'osc', input: 'fm' },
+  { from: 'osc', port: 'out', to: 'filter', input: 'audio' },
+  { from: 'note', port: 'pressure', to: 'sum', input: 'a' },
+  { from: 'note', port: 'cc', to: 'sum', input: 'b' },
+  { from: 'note', port: 'bend', to: 'sum', input: 'c' },
+  { from: 'note', port: 'velocity', to: 'sum', input: 'd' },
+  { from: 'sum', port: 'out', to: 'filter', input: 'cutoff' },
+  { from: 'filter', port: 'out', to: 'amp', input: 'audio' },
+  { from: 'note', port: 'gate', to: 'amp', input: 'gain' },
+  { from: 'amp', port: 'out', to: 'out', input: 'audio' },
+]);
+performance.nodes[0].params = { bendRange: 7, cc: 2 };
+const PERFORMANCE = 'performance controllers: bend range, mod wheel, pressure and a chosen CC';
+PATCHES[PERFORMANCE] = performance;
+MIDI[PERFORMANCE] = [
+  { at: 1000, data: [0xb0, 1, 100] },   // mod wheel
+  { at: 2000, data: [0xe0, 0, 96] },    // bend up
+  { at: 2500, data: [0xb0, 2, 90] },    // breath, read by the cc output
+  { at: 3500, data: [0xd0, 70, 0] },    // channel pressure
+  { at: 6500, data: [0xa0, 79, 127] },  // poly pressure on the third note only
+  { at: 8000, data: [0xb0, 7, 20] },    // volume: stored, not patched
+  { at: 12000, data: [0xb0, 121, 0] },  // reset all controllers
+];
+
+// Host transport changes during the parity notes, per patch name.
+const TRANSPORT = {};
+const HOST_CLOCKS = 'host-synced Clock and Gated Clock follow tempo, position and stop';
+PATCHES[HOST_CLOCKS] = voice([
+  { id: 'clock', type: 'clock', params: { pulses: 4, duty: 0.3, sync: 1 } },
+  { id: 'seq', type: 'sequencer', params: { length: 3, step1: 0, step2: 7, step3: 12 } },
+  { id: 'held', type: 'gatedClock', params: { pulses: 2, bpm: 300, sync: 1 } },
+  { id: 'osc', type: 'vco', params: { wave: 1 } },
+  { id: 'sum', type: 'mix', params: { a: 1, b: 0.3 } },
+  { id: 'trigger', type: 'mix4', params: { a: 1, b: 1, c: 0.5, d: 0.2 } },
+  { id: 'amp', type: 'vca' },
+], [
+  { from: 'clock', port: 'gate', to: 'seq', input: 'clock' },
+  { from: 'clock', port: 'reset', to: 'seq', input: 'reset' },
+  { from: 'note', port: 'pitch', to: 'sum', input: 'a' },
+  { from: 'seq', port: 'cv', to: 'sum', input: 'b' },
+  { from: 'sum', port: 'out', to: 'osc', input: 'pitch' },
+  { from: 'seq', port: 'gate', to: 'trigger', input: 'a' },
+  { from: 'held', port: 'gate', to: 'trigger', input: 'b' },
+  { from: 'clock', port: 'phase', to: 'trigger', input: 'c' },
+  { from: 'held', port: 'phase', to: 'trigger', input: 'd' },
+  { from: 'osc', port: 'out', to: 'amp', input: 'audio' },
+  { from: 'trigger', port: 'out', to: 'amp', input: 'gain' },
+  { from: 'amp', port: 'out', to: 'out', input: 'audio' },
+]);
+TRANSPORT[HOST_CLOCKS] = [
+  { at: 0, bpm: 150, playing: true, beat: 3.25 },
+  { at: 5000, bpm: 150, playing: true, beat: 3.25 + 5000 * 150 / 60 / rate },
+  { at: 9000, bpm: 97, playing: true, beat: 12.5 },  // a jump, as when the play cursor moves
+  { at: 15000, bpm: 97, playing: false, beat: 0 },
+  { at: 19000, bpm: 180, playing: true, beat: 0 },
+];
+
+const PATCH_FX = 'patch effects: echo (free and host-synced ping-pong), chorus and reverb on the voice sum';
+PATCHES[PATCH_FX] = {
+  nodes: [
+    { id: 'note', type: 'midi' },
+    { id: 'osc', type: 'vco', params: { wave: 1 } },
+    { id: 'env', type: 'adsr', params: { attack: 0.002, decay: 0.08, sustain: 0.3, release: 0.05 } },
+    { id: 'amp', type: 'vca' },
+    { id: 'pan', type: 'pan', params: { pan: -0.3, spread: 0.5 } },
+    { id: 'dry', type: 'output', params: { level: 0.5 } },
+    { id: 'chorus', type: 'chorus', params: { rate: 1.3, depth: 4, delay: 7, spread: 0.8, mix: 0.5 } },
+    { id: 'echo', type: 'echo', params: { time: 90, feedback: 0.55, damping: 0.4, mix: 0.4 } },
+    { id: 'synced', type: 'echo', params: { sync: 1, beats: 0, pingPong: 1, feedback: 0.6, mix: 0.5 } },
+    { id: 'reverb', type: 'reverb', params: { size: 0.8, damping: 0.3, width: 0.7, mix: 0.45 } },
+    { id: 'fx', type: 'fxOutput', params: { level: 0.9 } },
+  ],
+  cables: [
+    { from: 'note', port: 'pitch', to: 'osc', input: 'pitch' },
+    { from: 'note', port: 'gate', to: 'env', input: 'gate' },
+    { from: 'osc', port: 'out', to: 'amp', input: 'audio' },
+    { from: 'env', port: 'out', to: 'amp', input: 'gain' },
+    { from: 'amp', port: 'out', to: 'pan', input: 'in' },
+    { from: 'pan', port: 'left', to: 'dry', input: 'audio' },
+    { from: 'pan', port: 'right', to: 'dry', input: 'right' },
+    { from: 'pan', port: 'left', to: 'chorus', input: 'left' },
+    { from: 'pan', port: 'right', to: 'chorus', input: 'right' },
+    { from: 'chorus', port: 'left', to: 'echo', input: 'left' },
+    { from: 'chorus', port: 'right', to: 'echo', input: 'right' },
+    { from: 'echo', port: 'left', to: 'synced', input: 'left' },
+    { from: 'echo', port: 'right', to: 'synced', input: 'right' },
+    { from: 'synced', port: 'left', to: 'reverb', input: 'left' },
+    { from: 'synced', port: 'right', to: 'reverb', input: 'right' },
+    { from: 'reverb', port: 'left', to: 'fx', input: 'left' },
+    { from: 'reverb', port: 'right', to: 'fx', input: 'right' },
+  ],
+};
+TRANSPORT[PATCH_FX] = [{ at: 0, bpm: 160, playing: false, beat: 0 }, { at: 12000, bpm: 100, playing: true, beat: 4 }];
+
 test('the parity patches use every module type', () => {
   const used = new Set(Object.values(PATCHES).flatMap(p => p.nodes.map(n => n.type)));
   assert.deepEqual([...Object.keys(MODULAR_TYPES)].filter(t => !used.has(t) && t !== 'delay' && t !== 'cv' && t !== 'macro'), []);
@@ -264,7 +373,9 @@ for (const [name, patch] of Object.entries(PATCHES)) {
   test(`Web and native engines render the same audio: ${name}`, { skip: !existsSync(tool) && 'modular_render unavailable' }, () => {
     const dir = mkdtempSync(join(tmpdir(), 'amisynth-parity-'));
     try {
-      const web = renderWeb(patch), native = renderNative(patch, dir);
+      const midi = MIDI[name] ?? [];
+      const transport = TRANSPORT[name] ?? [];
+      const web = renderWeb(patch, false, midi, transport), native = renderNative(patch, dir, false, midi, [], transport);
       assert.equal(native.length, web.length);
       let worst = 0, at = 0, energy = 0;
       for (let i = 0; i < web.length; i++) {
@@ -274,17 +385,44 @@ for (const [name, patch] of Object.entries(PATCHES)) {
       }
       assert.ok(energy > 1e-3, `${name} is silent`);
       assert.ok(worst < 1e-4, `${name} differs by ${worst} at sample ${at}`);
-      const stereo = patch.cables.some(cable => cable.input === 'right' &&
+      // Patch effects return stereo through FX output.
+      const stereo = patch.nodes.some(node => node.type === 'fxOutput') || patch.cables.some(cable => cable.input === 'right' &&
         patch.nodes.some(node => node.id === cable.to && node.type === 'output'));
       if (stereo) {
-        const webRight = renderWeb(patch, true), nativeRight = renderNative(patch, dir, true);
+        const webRight = renderWeb(patch, true, midi, transport), nativeRight = renderNative(patch, dir, true, midi, [], transport);
         assert.ok(webRight.some((value, i) => Math.abs(value - web[i]) > 0.01));
         assert.ok(webRight.every((value, i) => Math.abs(value - nativeRight[i]) < 1e-4));
       } else {
-        assert.deepEqual(renderWeb(patch, true), web);
+        assert.deepEqual(renderWeb(patch, true, midi, transport), web);
       }
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
   });
 }
+
+test('CLAP note expressions reach the native MIDI / Note outputs', { skip: !existsSync(tool) && 'modular_render unavailable' }, () => {
+  const probe = (port, scale, expressions) => {
+    const patch = {
+      nodes: [
+        { id: 'note', type: 'midi', params: { cc: 74 } },
+        { id: 'scale', type: 'cv', params: { scale } },
+        { id: 'out', type: 'output', params: { level: 1 } },
+      ],
+      cables: [
+        { from: 'note', port, to: 'scale', input: 'in' },
+        { from: 'scale', port: 'out', to: 'out', input: 'audio' },
+      ],
+    };
+    const dir = mkdtempSync(join(tmpdir(), 'amisynth-expression-'));
+    try { return Array.from(renderNative(patch, dir, false, [], expressions), x => Math.atanh(x) / scale); }
+    finally { rmSync(dir, { recursive: true, force: true }); }
+  };
+  // Expression IDs from clap/events.h: tuning 2, brightness 5, pressure 6. Only key 48 sounds at sample 200.
+  const tuning = probe('pitch', 0.001, [{ at: 200, id: 2, key: 48, value: 1.5 }]);
+  assert.ok(Math.abs(tuning[199] - 48) < 1e-3 && Math.abs(tuning[200] - 49.5) < 1e-3);
+  const pressure = probe('pressure', 0.1, [{ at: 200, id: 6, key: 48, value: 0.5 }]);
+  assert.ok(Math.abs(pressure[199]) < 1e-6 && Math.abs(pressure[200] - 0.5) < 1e-4);
+  const brightness = probe('cc', 0.1, [{ at: 200, id: 5, key: 48, value: 0.25 }, { at: 300, id: 5, key: 55, value: 1 }]);
+  assert.ok(Math.abs(brightness[199]) < 1e-6 && Math.abs(brightness[300] - 0.25) < 1e-4);
+});

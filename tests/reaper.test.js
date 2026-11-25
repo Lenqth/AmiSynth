@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { createCatalog, macroPatch, validatePatch, verifyReadback } from '../src/lib/reaper-catalog.js';
-import { LUA_CATALOG_HEADER, toLua } from '../scripts/gen-jsfx-sliders.js';
+import { LUA_CATALOG_HEADER, modularCatalog, toLua } from '../scripts/gen-jsfx-sliders.js';
 import { SYNTH_PARAMS } from '../src/dsp/params.js';
 
 const catalog = createCatalog();
@@ -53,4 +53,11 @@ test('macros touch only their declared targets, remain valid, and expose Duck ex
   assert.deepEqual(macroPatch(inst, 'Pump', 0.7), { lfo_waveform: 5, lfo_sync: 7, lfo_amp: 0.7 });
   assert.throws(() => macroPatch(inst, 'Width', 2));
   assert.throws(() => macroPatch(inst, 'Width', NaN));
+});
+
+test('the Modular catalog for REAPER scripts is regenerated with the factory patches', () => {
+  const saved = JSON.parse(readFileSync(new URL('../jsfx/generated/modular.json', import.meta.url), 'utf8'));
+  assert.deepEqual(saved, JSON.parse(JSON.stringify(modularCatalog())));
+  assert.ok(saved.presets.some(p => p.name === 'Expressive Lead'));
+  assert.deepEqual(saved.types.midi.outputs, ['pitch', 'gate', 'velocity', 'bend', 'mod', 'pressure', 'cc']);
 });

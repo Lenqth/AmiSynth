@@ -112,6 +112,7 @@ struct Instance {
         if (applied_epoch != graph_epochs[front]) {
             for (auto &v : dsp.voices) if (v.active) end_voice(v, 0, output);
             dsp.clock_phases = {};
+            dsp.clear_fx();
         }
         applied_epoch = graph_epochs[front];
     }
@@ -181,8 +182,13 @@ struct Instance {
                 if (!v.clap_note && v.key_down && Engine::matches(v, channel, key, -1) && (!oldest || v.age < oldest->age)) oldest = &v;
             if (oldest) dsp.release(*oldest);
         } else if (op == 0xe0) {
-            dsp.bend[channel] = ((value << 7 | key) - 8192) / 4096.0;
+            dsp.pitch_bend(channel, value << 7 | key);
+        } else if (op == 0xd0) {
+            dsp.channel_pressure(channel, key);
+        } else if (op == 0xa0) {
+            dsp.poly_pressure(channel, key, value);
         } else if (op == 0xb0) {
+            dsp.controller(channel, key, value);
             if (key == 64) dsp.sustain[channel] = value >= 64;
             for (auto &v : dsp.voices) {
                 if (!Engine::matches(v, channel, -1, -1)) continue;
@@ -193,12 +199,33 @@ struct Instance {
         }
     }
 
+    void expression(const clap_event_note_expression_t &e) {
+        if (e.port_index > 0) return;
+        static_assert(CLAP_NOTE_EXPRESSION_TUNING == kExpressionTuning && CLAP_NOTE_EXPRESSION_EXPRESSION == kExpressionExpression &&
+                      CLAP_NOTE_EXPRESSION_BRIGHTNESS == kExpressionBrightness && CLAP_NOTE_EXPRESSION_PRESSURE == kExpressionPressure);
+        dsp.note_expression(e.expression_id, e.channel, e.key, e.note_id, e.value);
+    }
+
+    void transport(const clap_event_transport_t &t) {
+        const double bpm = t.flags & CLAP_TRANSPORT_HAS_TEMPO ? t.tempo : 0;
+        const double beat = t.flags & CLAP_TRANSPORT_HAS_BEATS_TIMELINE ? double(t.song_pos_beats) / CLAP_BEATTIME_FACTOR : NAN;
+        dsp.transport(bpm, (t.flags & CLAP_TRANSPORT_IS_PLAYING) != 0, beat);
+    }
+
     void event(const clap_event_header_t *h, const clap_output_events_t *output) {
         if (!h || h->space_id != CLAP_CORE_EVENT_SPACE_ID) return;
         if (h->type == CLAP_EVENT_PARAM_VALUE) { param(h); return; }
+        if (h->type == CLAP_EVENT_TRANSPORT && h->size >= sizeof(clap_event_transport_t)) {
+            transport(*reinterpret_cast<const clap_event_transport_t *>(h));
+            return;
+        }
         if (dsp.graph.autonomous) return;
         if (h->type == CLAP_EVENT_MIDI && h->size >= sizeof(clap_event_midi_t)) {
             midi(*reinterpret_cast<const clap_event_midi_t *>(h), output);
+        }
+        if (h->type == CLAP_EVENT_NOTE_EXPRESSION && h->size >= sizeof(clap_event_note_expression_t)) {
+            expression(*reinterpret_cast<const clap_event_note_expression_t *>(h));
+            return;
         }
         if (h->type > CLAP_EVENT_NOTE_CHOKE || h->size < sizeof(clap_event_note_t)) return;
         const auto &e = *reinterpret_cast<const clap_event_note_t *>(h);
@@ -236,7 +263,7 @@ bool CLAP_ABI init(const clap_plugin_t *p) {
 bool CLAP_ABI activate(const clap_plugin_t *p, double rate, uint32_t, uint32_t) {
     if (!std::isfinite(rate) || rate < 1000 || rate > 768000) return false;
     auto &self = Instance::get(p);
-    self.dsp.rate = rate;
+    self.dsp.prepare(rate);
     self.dsp.reset();
     self.tail_samples.store(uint32_t(std::ceil(10.005 * rate)));
     return true;
@@ -250,6 +277,8 @@ clap_process_status CLAP_ABI process(const clap_plugin_t *p, const clap_process_
     out.constant_mask = 0;
     self.sync_graph(block->out_events);
     self.emit_macro_changes(block->out_events);
+    if (block->transport) self.transport(*block->transport);
+    else self.dsp.transport(0, false, NAN);
     const auto *events = block->in_events;
     const uint32_t count = events ? events->size(events) : 0;
     uint32_t index = 0;
@@ -271,7 +300,8 @@ clap_process_status CLAP_ABI process(const clap_plugin_t *p, const clap_process_
         for (auto &v : self.dsp.voices)
             if (!v.active && v.clap_note) self.end_voice(v, frame, block->out_events);
     }
-    return self.dsp.graph.clock_count > 0 ||
+    // Patch effects keep ringing after the last voice ends.
+    return self.dsp.graph.clock_count > 0 || self.dsp.graph.global_count > 0 ||
         std::any_of(self.dsp.voices.begin(), self.dsp.voices.end(), [](const Voice &v) { return v.active; })
         ? CLAP_PROCESS_CONTINUE : CLAP_PROCESS_SLEEP;
 }

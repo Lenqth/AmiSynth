@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { MODULAR_PRESETS, MODULAR_TYPES, compileModularPatch, searchModularTypes, defaultModularPatch, modular_init, modular_meter_enable, modular_meter_snapshot, modular_midi, modularPresetIndex, modular_render, modular_set_patch, safeModularPatch } from '../src/dsp/modular.js';
+import { MODULAR_PRESETS, MODULAR_TYPES, compileModularPatch, searchModularTypes, defaultModularPatch, modular_init, modular_meter_enable, modular_meter_snapshot, modular_midi, modularPresetIndex, modular_render, modular_set_patch, modular_transport, safeModularPatch } from '../src/dsp/modular.js';
 import { renderPattern } from '../src/lib/render.js';
 import { modularCardBounds, modularCardsOverlap, modularRackPoint, searchModularPresets } from '../src/dsp/modular.js';
 
@@ -640,4 +640,122 @@ test('a Drum Voice rings after its trigger falls and a choke input cuts its tail
   const open = tailEnergy(false);
   assert.ok(open > 0.01);
   assert.ok(tailEnergy(true) < open / 100);
+});
+
+// Route one MIDI / Note output through a scale small enough that tanh at the output stays linear.
+function midiPort(port, params = {}, scale = 0.01) {
+  const s = {};
+  modular_init(s, 1000);
+  modular_set_patch(s, {
+    nodes: [
+      { id: 'note', type: 'midi', params },
+      { id: 'scale', type: 'cv', params: { scale } },
+      { id: 'out', type: 'output', params: { level: 1 } },
+    ],
+    cables: [
+      { from: 'note', port, to: 'scale', input: 'in' },
+      { from: 'scale', port: 'out', to: 'out', input: 'audio' },
+    ],
+  });
+  return { s, value: () => { modular_render(s); return Math.atanh(s.out_l) / scale; } };
+}
+
+test('MIDI / Note outputs the mod wheel, a chosen CC and normalized pitch bend', () => {
+  const mod = midiPort('mod');
+  modular_midi(mod.s, 0x90, 60, 100);
+  assert.ok(Math.abs(mod.value()) < 1e-9);
+  modular_midi(mod.s, 0xb0, 1, 127);
+  assert.ok(Math.abs(mod.value() - 1) < 1e-6);
+
+  const breath = midiPort('cc', { cc: 2 });
+  modular_midi(breath.s, 0x90, 60, 100);
+  modular_midi(breath.s, 0xb0, 2, 64);
+  assert.ok(Math.abs(breath.value() - 64 / 127) < 1e-6);
+  modular_midi(breath.s, 0xb0, 121, 0);
+  assert.ok(Math.abs(breath.value()) < 1e-9, 'reset all controllers clears the CC');
+
+  const expression = midiPort('cc', { cc: 11 });
+  modular_midi(expression.s, 0x90, 60, 100);
+  assert.ok(Math.abs(expression.value() - 1) < 1e-6, 'expression defaults to full');
+
+  const bend = midiPort('bend');
+  modular_midi(bend.s, 0x90, 60, 100);
+  modular_midi(bend.s, 0xe0, 0, 0);
+  assert.ok(Math.abs(bend.value() + 1) < 1e-6);
+});
+
+test('the first MIDI / Note module sets the pitch bend range', () => {
+  for (const [range, expected] of [[undefined, 62], [12, 72], [0, 60]]) {
+    const pitch = midiPort('pitch', range === undefined ? {} : { bendRange: range }, 0.001);
+    modular_midi(pitch.s, 0x90, 60, 100);
+    modular_midi(pitch.s, 0xe0, 127, 127);
+    assert.ok(Math.abs(pitch.value() - (60 + (expected - 60) * 8191 / 8192)) < 1e-3, `range ${range}`);
+  }
+});
+
+test('pressure follows channel aftertouch and per-note polyphonic aftertouch', () => {
+  const p = midiPort('pressure');
+  modular_midi(p.s, 0x90, 60, 100);
+  modular_midi(p.s, 0xa0, 61, 127);
+  assert.ok(Math.abs(p.value()) < 1e-9, 'another key does not press this note');
+  modular_midi(p.s, 0xa0, 60, 127);
+  assert.ok(Math.abs(p.value() - 1) < 1e-6);
+  modular_midi(p.s, 0xa0, 60, 0);
+  modular_midi(p.s, 0xd0, 32, 0);
+  assert.ok(Math.abs(p.value() - 32 / 127) < 1e-6);
+});
+
+test('a host-synced Clock pulses on the host beat grid and holds reset while stopped', () => {
+  const s = {};
+  modular_init(s, 1000);
+  modular_set_patch(s, {
+    nodes: [
+      { id: 'clock', type: 'clock', params: { pulses: 1, duty: 0.25, sync: 1 } },
+      { id: 'out', type: 'output', params: { level: 1 } },
+    ],
+    cables: [{ from: 'clock', port: 'gate', to: 'out', input: 'audio' }],
+  });
+  const gate = () => { modular_render(s); return Math.round(Math.atanh(s.out_l) * 1000) / 1000; };
+  assert.equal(gate(), 0, 'stopped transport keeps the clock low');
+  modular_transport(s, 120, true, 1.9); // 2 beats per second: 0.1 beat = 50 samples before the beat
+  const pulses = Array.from({ length: 1200 }, gate);
+  // Accumulated beat steps may land a sample late on the boundary.
+  const first = pulses.indexOf(1), second = pulses.indexOf(1, 300);
+  assert.ok(first >= 50 && first <= 51, `first pulse at ${first}`);
+  assert.ok(second >= 550 && second <= 551, `second pulse at ${second}`);
+  assert.ok(pulses.slice(first, first + 124).every(x => x === 1));
+  assert.equal(pulses[first + 130], 0);
+});
+
+test('patch effects run on the voice sum, keep ringing after the voices end and only feed effects', () => {
+  const s = {};
+  modular_init(s, 8000);
+  modular_set_patch(s, {
+    nodes: [
+      { id: 'note', type: 'midi' },
+      { id: 'osc', type: 'vco', params: { wave: 0 } },
+      { id: 'echo', type: 'echo', params: { time: 100, feedback: 0.5, mix: 1 } },
+      { id: 'fx', type: 'fxOutput' },
+    ],
+    cables: [
+      { from: 'note', port: 'pitch', to: 'osc', input: 'pitch' },
+      { from: 'osc', port: 'out', to: 'echo', input: 'left' },
+      { from: 'echo', port: 'left', to: 'fx', input: 'left' },
+    ],
+  });
+  modular_midi(s, 0x90, 69, 100);
+  const level = n => { let peak = 0; for (let i = 0; i < n; i++) { modular_render(s); peak = Math.max(peak, Math.abs(s.out_l)); } return peak; };
+  assert.ok(level(790) < 1e-9, 'a fully wet echo is silent before its first repeat');
+  assert.ok(level(200) > 0.1);
+  modular_midi(s, 0x80, 69, 0);
+  level(80); // the voice ends (no envelope) after its short fade
+  assert.ok(s.voices.every(v => !v.active));
+  assert.ok(level(1600) > 0.01, 'the echo tail continues without voices');
+
+  const node = (id, type) => ({ id, type });
+  assert.throws(() => compileModularPatch({ nodes: [node('a', 'reverb'), node('osc', 'vco'), node('out', 'output')],
+    cables: [{ from: 'a', port: 'left', to: 'osc', input: 'fm' }] }), /feed only/);
+  assert.throws(() => compileModularPatch({ nodes: [...['a', 'b', 'c', 'd', 'e'].map(id => node(id, 'chorus')), node('out', 'fxOutput')],
+    cables: [] }), /at most 4/);
+  assert.doesNotThrow(() => compileModularPatch({ nodes: [node('out', 'fxOutput')], cables: [] }));
 });

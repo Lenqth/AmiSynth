@@ -22,7 +22,7 @@ Type an exact value next to a numeric slider or macro. Press Enter or leave the 
 
 | Port or module | Meaning |
 | --- | --- |
-| MIDI / Note | Pitch is a MIDI note number, gate is 0 or 1, and velocity is 0–1. |
+| MIDI / Note | Pitch is a MIDI note number, gate is 0 or 1, and velocity is 0–1. **bend** is the pitch wheel from −1 to 1; it also moves **pitch** by **bendRange** semitones (default 2, set by the first MIDI / Note module). **mod** is the modulation wheel (CC1), 0–1. **pressure** is the larger of channel aftertouch and the note's own polyphonic aftertouch, 0–1. **cc** reads the controller chosen by the **cc** knob (default 74), 0–1. Use another MIDI / Note module to read a second CC. Controllers are tracked per MIDI channel, so MPE input works. Volume (CC7) starts at 100, pan (CC10) at 64 and expression (CC11) at 127; Reset All Controllers (CC121) restores these defaults. |
 | VCO FM | 1 adds one octave. VCO pitch and FM run at audio rate. |
 | VCO PM | Phase modulation in radians, as the Synth instrument's FM index. |
 | VCO sync | The **sync** output is 1 on the sample where the cycle restarts. Patched into another VCO's **sync** input, it restarts that oscillator (hard sync). |
@@ -41,8 +41,8 @@ Type an exact value next to a numeric slider or macro. Press Enter or leave the 
 | Noise | White, or pink (Paul Kellet's filter). Each voice's noise is seeded from its note, identically in the Web and CLAP engines. |
 | Sample & Hold | Holds **in** (or new noise when unpatched) on each rising **trigger**, or at **rate** when the trigger is unpatched. |
 | Function Generator | A rising **trigger** restarts the envelope from zero. **rise** and **fall** are in seconds, and **curve** shapes the 0–1 output. **eoc** pulses for one sample at the end of the fall. In **Loop** mode, a high **run** starts or repeats cycles. Lowering **run** lets the current cycle finish. Unpatched trigger and run follow the voice's note gate. |
-| Clock | Generates a shared **gate** pulse and a 0–1 **phase** ramp. Set **bpm**, **pulses** per beat and the fraction of each pulse spent high (**duty**). |
-| Gated Clock | Emits **gate** pulses and a **phase** ramp while a key is physically held, or while a connected **run** signal is positive. It starts with a pulse, resets its phase when released, and holds **reset** high while stopped. Connect that output to the sequencer's **reset** input to restart at step 1. |
+| Clock | Generates a shared **gate** pulse and a 0–1 **phase** ramp. Set **bpm**, **pulses** per beat and the fraction of each pulse spent high (**duty**). With **sync** set to **Host**, the clock follows the DAW's tempo and beat position instead of **bpm**: pulses land on the host's beat grid while the transport plays, and while it is stopped the gate and phase stay at 0 and **reset** is high. Connect **reset** to a sequencer's **reset** so playback restarts at step 1. In Free mode **reset** stays 0. |
+| Gated Clock | Emits **gate** pulses and a **phase** ramp while a key is physically held, or while a connected **run** signal is positive. It starts with a pulse, resets its phase when released, and holds **reset** high while stopped. Connect that output to the sequencer's **reset** input to restart at step 1. With **sync** set to **Host**, the DAW's tempo replaces **bpm**; the clock still starts when a key goes down. |
 | Beat Grid | Patch a pulse source into **clock**. Each rising edge advances one column in the grid, starting at step 1. Click a cell to send that step's pulse to output **A**, **B**, **C**, or **D**. Set **Steps** to show and loop over 1–32 columns; scroll horizontally to reach later columns. Shortening the loop keeps the hidden cells for later use. A high **reset** silences the outputs and returns to step 1 for the next rising edge. |
 | Clock Divider | Passes the first and every Nth **clock** pulse, keeping its width. Hold **reset** high to clear the count and suppress the output. |
 | Step Sequencer | Advances on rising **clock**, starting at step 1. **CV** holds the current step value. **Gate** follows the clock when that step passes the **probability** check. **Reset** returns to step 1 and suppresses the gate while high. |
@@ -56,7 +56,15 @@ Type an exact value next to a numeric slider or macro. Press Enter or leave the 
 | Comb / Delay Line | Delay of 0.05–40 ms with damped feedback and a dry/wet mix. |
 | Pluck String | Karplus-Strong string: a rising **gate** plucks it at **pitch**; **excite** adds input to the loop. **decay** is the time to −60 dB while held, **release** after. |
 | Modal Resonator | Uses a built-in material or a custom table of up to eight resonant modes. A rising **gate** strikes it and **in** adds continuous excitation. |
+| Patch effects | **Echo**, **Chorus** and **Reverb** run once for the whole patch, after the voices. Each input adds up that signal from every voice, so a released note's tail keeps ringing through them after the voice ends. Their outputs can feed only other patch effects and **FX output**, which adds them to the final mix; keep an **Audio output** for the dry sound or use the effect's **mix**. An unpatched **right** input copies **left**. A patch can use four of Echo, Chorus and Reverb. Their knobs are set in the rack or patch, not by cables. |
+| Echo | A stereo delay of 1–2000 ms. With **sync** set to **Host**, **beats** picks a note value at the DAW's (or Piano Roll's) tempo. **Feedback** sets the repeats, **damping** darkens each repeat and **pingPong** bounces repeats between the channels. |
+| Chorus | Two delay lines of **delay** ms swept by **depth** ms at **rate** Hz; **spread** offsets the right channel's sweep by up to a quarter cycle. |
+| Reverb | A Freeverb-style room: **size** sets the decay, **damping** the high-frequency loss, and **width** the stereo spread of the reverb. **Mix** blends it with the input. |
 | Delay lines | Strings and comb filters share four preallocated lines per voice, so a patch can use four of them. A released voice stays alive while an ADSR, function generator, string or modal resonator is still active, up to the voice tail limit. |
+
+### Patch effect presets
+
+**Echo Hall Pluck** sends a plucked string to a host-synced dotted-eighth ping-pong Echo and a hall Reverb while the dry string goes to Audio output.
 
 ### Wavetable presets
 
@@ -78,7 +86,7 @@ Drum Voice also offers **Rimshot**, **Cowbell**, **Shaker**, **Crash**, and **Ri
 
 ### Synth presets
 
-`src/presets/modular.js` rebuilds supported Synth presets from Modular modules. It maps classic oscillators, wavetable banks and position sweeps, per-copy unison, sync and PM, filter settings, velocity, and supported LFO and envelope controls. The converter rejects unsupported features such as the arpeggiator, effects, modulation matrix, tempo-synced LFOs, or chip noise. Ports use mono output, restart the LFO per voice, and use fixed oscillator start phases. Performance controls such as the modulation wheel and pitch-bend range are outside the conversion.
+`src/presets/modular.js` rebuilds supported Synth presets from Modular modules. It maps classic oscillators, wavetable banks and position sweeps, per-copy unison, sync and PM, filter settings, velocity, and supported LFO and envelope controls. The converter rejects unsupported features such as the arpeggiator, effects, modulation matrix, tempo-synced LFOs, or chip noise. Ports use mono output, restart the LFO per voice, and use fixed oscillator start phases. Performance controls such as the modulation wheel and pitch-bend range are outside the conversion; patch them from the MIDI / Note outputs.
 
 Run `node scripts/modular-preset-audit.js` for the Synth conversion inventory and first blockers, and for render measurements of selected Synth, Physical, and Drums examples. These measurements compare levels over time; they do not establish timbre equivalence.
 
@@ -86,7 +94,9 @@ Run `node scripts/modular-preset-audit.js` for the Synth conversion inventory an
 
 Build with `npm ci && npm run clap:build`, then install with `npm run install:clap`. Release archives contain one `AmiSynth.clap` with Synth, Physical, Drums, Tuning and Modular. The installer renames a former standalone `AmiSynthModular.clap` in the destination to an unused `.disabled` backup. Modular retains its plugin ID and JSON state format; projects that stored the old file path may need their instrument replaced with Modular from `AmiSynth.clap`.
 
-Add **AmiSynth Modular** to an instrument track. The plug-in accepts CLAP notes and MIDI and exposes **Macro 1–8** with stable IDs 0–7. Open a factory preset using a DAW that supports CLAP preset discovery. The CLAP preset-load file interface also accepts JSON exported by the Web rack. DAW support for selecting custom preset files varies.
+Add **AmiSynth Modular** to an instrument track. The plug-in accepts CLAP notes and MIDI and exposes **Macro 1–8** with stable IDs 0–7.
+
+MIDI CCs, pitch bend and channel or polyphonic aftertouch in the track's MIDI items reach the MIDI / Note outputs, so REAPER's CC lanes can move any patched parameter. CLAP note expressions also apply per note: **tuning** adds semitones to **pitch**, **pressure** sets **pressure**, **brightness** replaces CC74, and **expression** replaces CC11 on the **cc** output. The factory patch **Expressive Lead** uses the modulation wheel for vibrato, and aftertouch and CC74 for the filter. Open a factory preset using a DAW that supports CLAP preset discovery. The CLAP preset-load file interface also accepts JSON exported by the Web rack. DAW support for selecting custom preset files varies.
 
 On Windows, open the plugin's editor to use the same node rack as the Web app: add, duplicate, move or remove modules; connect or disconnect cables; and turn each module's knobs. **Save patch** and **Open patch** exchange the same JSON files as the Web rack. Changes apply to the native instrument and mark the DAW project as changed. The complete patch is stored in the DAW project. Knob and layout changes preserve running voices; structural changes end them at the next audio block. Macros remain the eight DAW automation parameters; the other module knobs are edited in the rack. Cable activity visualization is currently available in the Web app only.
 
@@ -102,6 +112,6 @@ Developer checks: `tests/modular-parity.test.js` renders every module and factor
 
 The factory rhythm patches use Gated Clock and a single legato voice. Hold any key to play **Patch Beat**, **Choked Hats**, **Clap and Toms**, **Clockwork Plucks**, or **Four Lane Beat**. Overlapping notes keep the pattern running. Releasing all keys stops new hits and lets existing tails decay. The next key starts from step 1. In **Four Lane Beat**, try clicking the Beat Grid cells to change which pulses reach the kick, snare, closed hat and open hat.
 
-Clock is available when building a free-running rack. Patches that contain Clock and omit MIDI / Note run as a single voice without MIDI. With MIDI / Note present, playing a note starts a voice and its sequencer, while all voices read the same clock phase.
+Clock is available when building a free-running rack. In the Web app, **Host** sync follows the Piano Roll's tempo and playback. Patches that contain Clock and omit MIDI / Note run as a single voice without MIDI. With MIDI / Note present, playing a note starts a voice and its sequencer, while all voices read the same clock phase.
 
 Modular uses 12-TET and per-voice audio-rate signals. The Web DSP and native DSP share module definitions and factory patch data and have separate sample loops. Hosting external CLAP modules is a follow-up to the built-in engine.

@@ -111,6 +111,9 @@ Typical LLM loop: Read sound → change a few values → Apply sound with `"base
 | `macro` | `track`, `fx`, `name` (Brightness / Punch / Width / Pump), `amount` 0..1 | the resulting `sound` diff |
 | `save_preset` | `track`, `instrument`, `fx`, `name` | `saved` |
 | `create_drum_tracks` | `select` (default true) | as AmiSynth Drums - Create routed tracks.lua |
+| `modular_presets` | – | AmiSynth Modular factory patches `[{name, category, description}]` |
+| `modular_modules` | – | Modular module `types` with `inputs`, `outputs` and knob ranges (`min`, `max`, `default`, `step`, `choices`), for writing a patch |
+| `read_modular` / `apply_modular` | see below | see below |
 
 Several actions in order: `{"actions": [{"action": "set", ...}, {"action": "read_sound", ...}]}` returns `results` (one per action). It stops at the first error and says which action failed; the earlier actions stay done (each has its own Undo step).
 
@@ -126,6 +129,21 @@ Example in the project notes, then `script_run` of `AmiSynth - Run.lua`:
 ````
 
 The `get` result's `labels.scale_status` says whether the scale file was loaded (`File loaded`, `File not found`, `File format error`, or `Sliders`), and `values.scale_loaded_notes` how many notes the scale has. The JSFX writes them when its sliders change; if a `get` right after a `set` still shows the old status, run `get` again.
+
+## AmiSynth Modular (CLAP)
+
+AmiSynth Modular is a CLAP plug-in, not a JSFX, and its whole patch is the plug-in state, so these actions read and write the track state chunk. Read sound and Apply sound accept `"instrument": "Modular"` and then behave like `read_modular` and `apply_modular`. Read sound picks Modular on its own when the track has it and no AmiSynth JSFX.
+
+- `read_modular` `{track, fx}` returns `type: "amisynth-modular-patch"`, the `patch` in the Web rack's **Save patch** format (with current `macros`), and `macro_names`.
+- `apply_modular` `{track, fx, insert, preset | patch, macros, dry_run}` replaces the patch with a factory `preset` (name from `modular_presets`) or a `patch` object (a Web rack patch file, or one built from `modular_modules`), then sets `macros`: an array of up to eight 0..1 values, or an object keyed by 1-8 or by macro name. It inserts AmiSynth Modular when the track has none (`"insert": false` prevents that). One Undo step. If the plug-in does not accept the patch (unknown ports, out-of-range structure, a feedback loop without Unit Delay), the track state is restored and the result is an error.
+
+Ports and knobs in a patch use the names in `modular_modules`; knob values outside their range are clamped by the plug-in. MIDI CCs, aftertouch and pitch bend in the track's MIDI items reach the MIDI / Note module's `mod`, `pressure`, `cc` and `bend` outputs, and Clock / Gated Clock with `sync: 1` follow the project tempo.
+
+````
+```amisynth run
+{"action": "apply_modular", "track": "Lead", "preset": "Expressive Lead", "macros": {"1": 0.4}}
+```
+````
 
 ## Headless wrapper example
 

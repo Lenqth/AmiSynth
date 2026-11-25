@@ -271,12 +271,17 @@ function M.json_decode(text)
   return result
 end
 
+-- Modular, modular or 'amisynth-modular-patch' select AmiSynth Modular (CLAP), handled separately.
+function M.is_modular(name)
+  return name ~= nil and tostring(name):lower():gsub('^amisynth%-', ''):gsub('%-patch$', '') == 'modular'
+end
+
 -- Accepts synth / Synth / Physical / phys / Drums / drums or a web type 'amisynth-<kind>-preset'.
 function M.sound_kind(name)
   if name == nil then return nil end
   local key = tostring(name):lower():gsub('^amisynth%-', ''):gsub('%-preset$', '')
   local aliases = { synth = 'synth', phys = 'phys', physical = 'phys', drums = 'drums', drum = 'drums' }
-  return aliases[key] or error('Unknown instrument: ' .. tostring(name) .. ' (use Synth, Physical or Drums)', 0)
+  return aliases[key] or error('Unknown instrument: ' .. tostring(name) .. ' (use Synth, Physical, Drums or Modular)', 0)
 end
 
 local function editable(d) return not d.file and not d.readonly and not d.id:match('^tuning_') end
@@ -408,6 +413,7 @@ end
 -- Request = Lua table from M.request(). Returns a summary table; raises on fatal errors.
 function M.apply_sound(req)
   assert(type(req) == 'table', 'Request must be a JSON object')
+  if M.is_modular(req.instrument or req.type) then return M.apply_modular(req) end
   local params = req.params
   if params == nil then params = {} end
   assert(type(params) == 'table' and getmetatable(params) ~= ARRAY, '"params" must be an object of id: real value')
@@ -494,7 +500,11 @@ end
 function M.read_sound(req)
   req = req or {}
   assert(type(req) == 'table', 'Request must be a JSON object')
+  if M.is_modular(req.instrument or req.type) then return M.read_modular(req) end
   local track = M.find_track(req.track)
+  if req.instrument == nil and req.type == nil and req.fx == nil and #M.instruments_on(track) == 0 and #M.modular_on(track) > 0 then
+    return M.read_modular(req)
+  end
   local fx, kind = M.locate(track, M.sound_kind(req.instrument or req.type), req.fx, false)
   local binding = M.bind(track, fx, kind)
   local values = M.read(binding)
@@ -632,6 +642,288 @@ function M.create_drum_tracks(req)
   return summary
 end
 
+-- ---- AmiSynth Modular (CLAP): the whole patch lives in the plugin state ---------------------
+-- The state is the patch JSON that the Web rack saves. REAPER keeps it base64-encoded in the
+-- track state chunk, so reads and writes go through the chunk. Macros are the CLAP parameters 0-7.
+
+M.MODULAR_TITLE = 'AmiSynth Modular'
+local modular_catalog
+function M.modular_catalog()
+  if not modular_catalog then
+    local path = dir .. '../generated/modular.json'
+    local file = assert(io.open(path, 'r'), 'Missing ' .. path .. '; reinstall the AmiSynth scripts')
+    modular_catalog = M.json_decode(file:read('*a'))
+    file:close()
+  end
+  return modular_catalog
+end
+
+local B64 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/'
+function M.base64_encode(data)
+  local out = {}
+  for i = 1, #data, 3 do
+    local a, b, c = data:byte(i, i + 2)
+    local n = (a << 16) | ((b or 0) << 8) | (c or 0)
+    local quad = {}
+    for k = 1, 4 do
+      local index = (n >> (6 * (4 - k))) & 63
+      quad[k] = B64:sub(index + 1, index + 1)
+    end
+    if not b then quad[3], quad[4] = '=', '='
+    elseif not c then quad[4] = '=' end
+    out[#out + 1] = table.concat(quad)
+  end
+  return table.concat(out)
+end
+
+function M.base64_decode(text)
+  local values = {}
+  for i = 1, #B64 do values[B64:byte(i)] = i - 1 end
+  text = text:gsub('%s', '')
+  assert(#text % 4 == 0 and not text:find('[^%w%+/=]'), 'Plugin state is not base64')
+  local out = {}
+  for i = 1, #text, 4 do
+    local n, pad = 0, 0
+    for k = 0, 3 do
+      local ch = text:byte(i + k)
+      if ch == 61 then pad = pad + 1; n = n << 6 else n = (n << 6) | values[ch] end
+    end
+    local bytes = string.char((n >> 16) & 255, (n >> 8) & 255, n & 255)
+    out[#out + 1] = bytes:sub(1, 3 - pad)
+  end
+  return table.concat(out)
+end
+
+function M.modular_on(track)
+  local found = {}
+  for fx = 0, reaper.TrackFX_GetCount(track) - 1 do
+    local _, name = reaper.TrackFX_GetFXName(track, fx, '')
+    if name:find(M.MODULAR_TITLE, 1, true) then found[#found + 1] = fx end
+  end
+  return found
+end
+
+function M.locate_modular(track, fx, insert)
+  local found = M.modular_on(track)
+  if fx ~= nil then
+    for _, f in ipairs(found) do if f == fx then return fx, false end end
+    error('FX ' .. tostring(fx) .. ' is not AmiSynth Modular', 0)
+  end
+  if found[1] then
+    assert(#found == 1, 'Track has several AmiSynth Modular instances; pass "fx"')
+    return found[1], false
+  end
+  assert(insert, 'No AmiSynth Modular on the track (insert disabled)')
+  for _, name in ipairs({ 'CLAPi:AmiSynth Modular', 'CLAP:AmiSynth Modular', 'AmiSynth Modular' }) do
+    local index = reaper.TrackFX_AddByName(track, name, false, -1)
+    if index >= 0 then
+      local _, got = reaper.TrackFX_GetFXName(track, index, '')
+      if got:find(M.MODULAR_TITLE, 1, true) then return index, true end
+      reaper.TrackFX_Delete(track, index)
+    end
+  end
+  error('Could not insert AmiSynth Modular; install AmiSynth.clap (npm run install:clap) and rescan CLAP plug-ins', 0)
+end
+
+-- Finds the state lines of the FX with this GUID in a track chunk. Returns the chunk lines, the
+-- first and last state line indices, and the decoded state split around the patch JSON.
+function M.modular_state(chunk, guid)
+  local lines = {}
+  for line in (chunk:gsub('\r', '') .. '\n'):gmatch('([^\n]*)\n') do lines[#lines + 1] = line end
+  local i = 1
+  while i <= #lines do
+    if lines[i]:match('^%s*<CLAP') or lines[i]:match('^%s*<VST') then
+      local start, depth, stop = i, 0, nil
+      for j = i, #lines do
+        if lines[j]:match('^%s*<') then depth = depth + 1 elseif lines[j]:match('^%s*>%s*$') then depth = depth - 1 end
+        if depth == 0 then stop = j; break end
+      end
+      assert(stop, 'Unterminated plug-in block in the track chunk')
+      local id
+      for j = stop + 1, #lines do
+        if lines[j]:match('^%s*<') or lines[j]:match('^%s*BYPASS') then break end
+        id = id or lines[j]:match('^%s*FXID%s+(%S+)')
+      end
+      if id and id:upper() == guid:upper() then
+        -- State lines: inside a <STATE sub-block if there is one, else the bare base64 lines.
+        local first, last, inside = nil, nil, false
+        local has_state = false
+        for j = start + 1, stop - 1 do if lines[j]:match('^%s*<STATE') then has_state = true end end
+        local nested = 0
+        for j = start + 1, stop - 1 do
+          local line = lines[j]
+          if has_state then
+            if line:match('^%s*<STATE') then inside = true
+            elseif inside and line:match('^%s*>%s*$') then break
+            elseif inside then first = first or j; last = j end
+          else
+            if line:match('^%s*<') then nested = nested + 1
+            elseif line:match('^%s*>%s*$') then nested = nested - 1
+            elseif nested == 0 and line:match('^%s*[%w%+/]+=*%s*$') then
+              assert(not last or last == j - 1, 'Unexpected plug-in state layout in the track chunk')
+              first = first or j; last = j
+            end
+          end
+        end
+        assert(first, 'No plug-in state found for AmiSynth Modular in the track chunk')
+        local text = {}
+        for j = first, last do text[#text + 1] = lines[j] end
+        local data = M.base64_decode(table.concat(text))
+        local open, close = data:find('{', 1, true), data:match('.*()}')
+        assert(open and close, 'The plug-in state is not an AmiSynth Modular patch')
+        local ok, state = pcall(M.json_decode, data:sub(open, close))
+        assert(ok and type(state) == 'table' and type(state.patch or state.nodes) == 'table',
+          'The plug-in state is not an AmiSynth Modular patch')
+        return { lines = lines, first = first, last = last, prefix = data:sub(1, open - 1),
+          suffix = data:sub(close + 1), state = state, indent = lines[first]:match('^(%s*)') }
+      end
+      i = stop + 1
+    else
+      i = i + 1
+    end
+  end
+  error('AmiSynth Modular was not found in the track chunk', 0)
+end
+
+local function state_patch(state) return state.patch or state end
+
+-- Checks the shape and module types before REAPER is touched; the plug-in validates the rest
+-- (ports, ranges, feedback loops) and the write is checked by reading the state back.
+function M.validate_modular_patch(patch)
+  assert(type(patch) == 'table', '"patch" must be a Modular patch object (Save patch in the Web rack)')
+  assert(type(patch.nodes) == 'table' and #patch.nodes > 0, 'patch.nodes must be a non-empty array')
+  assert(patch.cables == nil or type(patch.cables) == 'table', 'patch.cables must be an array')
+  local types, ids = M.modular_catalog().types, {}
+  for i, node in ipairs(patch.nodes) do
+    assert(type(node) == 'table' and type(node.id) == 'string' and node.id ~= '', 'node ' .. i .. ' needs an id')
+    assert(not ids[node.id], 'Duplicate node id: ' .. node.id)
+    ids[node.id] = true
+    assert(types[node.type], 'Unknown module type: ' .. tostring(node.type))
+  end
+  for i, c in ipairs(patch.cables or {}) do
+    assert(type(c) == 'table' and ids[c.from] and ids[c.to], 'cable ' .. i .. ' connects an unknown node')
+  end
+  return patch
+end
+
+function M.modular_preset(name)
+  for _, p in ipairs(M.modular_catalog().presets) do if p.name == name then return p end end
+  local names = {}
+  for _, p in ipairs(M.modular_catalog().presets) do names[#names + 1] = p.name end
+  error('Unknown Modular preset: ' .. tostring(name) .. ' (factory: ' .. table.concat(names, ', ') .. ')', 0)
+end
+
+local function macro_values(track, fx)
+  local values = M.array()
+  for i = 0, M.modular_catalog().macros - 1 do values[i + 1] = reaper.TrackFX_GetParamNormalized(track, fx, i) end
+  return values
+end
+
+local function macro_names(track, fx)
+  local names = M.array()
+  for i = 0, M.modular_catalog().macros - 1 do
+    local _, name = reaper.TrackFX_GetParamName(track, fx, i, '')
+    names[i + 1] = name
+  end
+  return names
+end
+
+-- {track, fx} -> the patch with its macro values, as the Web rack's Save patch writes it.
+function M.read_modular(req)
+  req = req or {}
+  local track = M.find_track(req.track)
+  local fx = M.locate_modular(track, req.fx, false)
+  local ok, chunk = reaper.GetTrackStateChunk(track, '', false)
+  assert(ok, 'Could not read the track state')
+  local found = M.modular_state(chunk, reaper.TrackFX_GetFXGUID(track, fx))
+  local patch = state_patch(found.state)
+  patch.macros = macro_values(track, fx)
+  return { ok = true, type = 'amisynth-modular-patch', instrument = 'modular', track = label(track), fx = fx,
+    patch = patch, macro_names = macro_names(track, fx), meter = M.track_meter(track) }
+end
+
+-- Macros: an array of up to 8 values, or an object keyed by 1-8 or by macro name; values 0-1.
+local function macro_writes(macros, names)
+  local writes = {}
+  if macros == nil then return writes end
+  assert(type(macros) == 'table', '"macros" must be an array or an object of 0..1 values')
+  for key, value in pairs(macros) do
+    local index = tonumber(key)
+    if not index then
+      for i, name in ipairs(names) do if name == key then index = i end end
+    end
+    assert(index and index >= 1 and index <= #names and index == math.floor(index), 'Unknown macro: ' .. tostring(key))
+    assert(type(value) == 'number' and value >= 0 and value <= 1, 'Macro ' .. tostring(key) .. ' must be 0..1')
+    writes[index] = value
+  end
+  return writes
+end
+
+local function same_modules(a, b)
+  if #a.nodes ~= #b.nodes or #(a.cables or {}) ~= #(b.cables or {}) then return false end
+  for i, node in ipairs(a.nodes) do
+    if node.id ~= b.nodes[i].id or node.type ~= b.nodes[i].type then return false end
+  end
+  return true
+end
+
+-- {track, fx, insert, preset | patch, macros, dry_run}: replaces the patch (and/or sets macros) in
+-- one Undo step; on failure the original track state is restored and an inserted plug-in removed.
+function M.apply_modular(req)
+  assert(type(req) == 'table', 'Request must be a JSON object')
+  assert(req.preset == nil or req.patch == nil, 'Pass either "preset" or "patch", not both')
+  local patch
+  if req.preset ~= nil then patch = M.modular_preset(req.preset).patch
+  elseif req.patch ~= nil then patch = M.validate_modular_patch(state_patch(req.patch)) end
+  assert(patch or req.macros ~= nil, 'Nothing to apply: pass "preset", "patch" or "macros"')
+  local track = M.find_track(req.track)
+  local dry = req.dry_run == true
+  if dry then
+    local names = {}
+    for i = 1, M.modular_catalog().macros do names[i] = (patch and patch.macroNames and patch.macroNames[i]) or ('Macro ' .. i) end
+    macro_writes(req.macros, names)
+    return { ok = true, dry_run = true, track = label(track), instrument = 'modular',
+      would_insert = #M.modular_on(track) == 0 and req.fx == nil, modules = patch and #patch.nodes or nil }
+  end
+  local _, original = reaper.GetTrackStateChunk(track, '', false)
+  local summary, inserted
+  reaper.Undo_BeginBlock2(0)
+  local ok, err = pcall(function()
+    local fx
+    fx, inserted = M.locate_modular(track, req.fx, req.insert ~= false)
+    local guid = reaper.TrackFX_GetFXGUID(track, fx)
+    if patch then
+      local got, chunk = reaper.GetTrackStateChunk(track, '', false)
+      assert(got, 'Could not read the track state')
+      local found = M.modular_state(chunk, guid)
+      local text = M.json_encode(patch)
+      local data = M.base64_encode(found.prefix .. text .. found.suffix)
+      local lines = {}
+      for i = 1, found.first - 1 do lines[#lines + 1] = found.lines[i] end
+      for i = 1, #data, 128 do lines[#lines + 1] = found.indent .. data:sub(i, i + 127) end
+      for i = found.last + 1, #found.lines do lines[#lines + 1] = found.lines[i] end
+      assert(reaper.SetTrackStateChunk(track, table.concat(lines, '\n'), false), 'REAPER rejected the track state')
+      fx = nil
+      for _, f in ipairs(M.modular_on(track)) do if reaper.TrackFX_GetFXGUID(track, f) == guid then fx = f end end
+      assert(fx, 'AmiSynth Modular disappeared after writing the patch')
+      local _, after = reaper.GetTrackStateChunk(track, '', false)
+      assert(same_modules(patch, state_patch(M.modular_state(after, guid).state)),
+        'AmiSynth Modular did not accept the patch (check ports, ranges and feedback loops); the track was restored')
+    end
+    local names = macro_names(track, fx)
+    for index, value in pairs(macro_writes(req.macros, names)) do
+      reaper.TrackFX_SetParamNormalized(track, fx, index - 1, value)
+      assert(math.abs(reaper.TrackFX_GetParamNormalized(track, fx, index - 1) - value) < 1e-6, 'Macro ' .. index .. ' did not stick')
+    end
+    summary = M.read_modular({ track = req.track, fx = fx })
+    summary.inserted, summary.applied = inserted, req.preset or (patch and 'patch') or 'macros'
+  end)
+  if not ok then reaper.SetTrackStateChunk(track, original, false) end
+  reaper.Undo_EndBlock2(0, 'AmiSynth MCP: apply Modular patch (' .. label(track) .. ')', -1)
+  if not ok then error(err, 0) end
+  return summary
+end
+
 -- ---- Generic MCP entry point (AmiSynth - Run.lua): {"action": "...", ...} ---------------
 
 -- synth / phys / drums (as M.sound_kind) or tuning
@@ -679,6 +971,7 @@ M.ACTIONS = {
         for kind, title in pairs(M.TITLES) do
           if name:find('AmiSynth ' .. title, 1, true) then fx[#fx + 1] = { fx = j, kind = kind, name = name } end
         end
+        if name:find(M.MODULAR_TITLE, 1, true) then fx[#fx + 1] = { fx = j, kind = 'modular', name = name } end
       end
       if #fx > 0 then tracks[#tracks + 1] = { number = i + 1, index = i, name = M.track_name(track), fx = fx } end
     end
@@ -753,6 +1046,16 @@ M.ACTIONS = {
     M.save(binding, req.name)
     return { ok = true, track = M.track_name(track), instrument = binding.kind, saved = req.name }
   end },
+  modular_presets = { about = 'AmiSynth Modular factory patches: [{name, category, description}]; no fields', run = function()
+    local out = M.array()
+    for _, p in ipairs(M.modular_catalog().presets) do out[#out + 1] = { name = p.name, category = p.category, description = p.description } end
+    return { ok = true, instrument = 'modular', presets = out }
+  end },
+  modular_modules = { about = 'AmiSynth Modular module types with inputs, outputs and knob ranges, for building a patch; no fields', run = function()
+    return { ok = true, instrument = 'modular', macros = M.modular_catalog().macros, types = M.modular_catalog().types }
+  end },
+  read_modular = { about = 'AmiSynth Modular patch JSON and macro values: {track, fx}', run = function(req) return M.read_modular(req) end },
+  apply_modular = { about = 'Replace the AmiSynth Modular patch and/or set macros (inserts the CLAP if missing): {track, fx, insert, preset | patch, macros, dry_run}', run = function(req) return M.apply_modular(req) end },
   create_drum_tracks = { about = 'Same as AmiSynth Drums - Create routed tracks.lua: {select}', run = function(req) return M.create_drum_tracks(req) end },
 }
 
