@@ -798,3 +798,17 @@ test('patch effects run on the voice sum, keep ringing after the voices end and 
     cables: [] }), /at most 4/);
   assert.doesNotThrow(() => compileModularPatch({ nodes: [node('out', 'fxOutput')], cables: [] }));
 });
+
+test('GM program changes select the Modular port of each GM sound, and drum kits on channel 10', async () => {
+  const { gmModularPreset } = await import('../src/presets/modular.js');
+  const { GM_PROGRAMS } = await import('../src/presets/gm.js');
+  const names = new Set(MODULAR_PRESETS.map(preset => preset.name));
+  for (let program = 0; program < 128; program++) {
+    const gm = GM_PROGRAMS[program];
+    assert.equal(gmModularPreset(program), gm.kind === 'phys' ? gm.preset + ' (Modular)' : gm.preset, gm.name);
+    assert.ok(names.has(gmModularPreset(program, 9)));
+  }
+  assert.equal(gmModularPreset(0, 9), 'AmiSynth Default (Modular)');
+  assert.equal(gmModularPreset(25, 9), '808-ish (Modular)');
+  assert.equal(gmModularPreset(30, 9), '808-ish (Modular)');
+});

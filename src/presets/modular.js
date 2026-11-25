@@ -14,6 +14,7 @@ import { MATERIALS } from '../dsp/phys.js';
 import { PHYS_PRESETS } from './phys.js';
 import { SYNTH_PRESETS } from './synth.js';
 import { DRUM_PRESETS } from './drums.js';
+import { GM_PROGRAMS } from './gm.js';
 
 const DEFAULTS = defaultValues(SYNTH_PARAMS);
 
@@ -734,3 +735,25 @@ export function modularFromDrums(kit) {
 }
 export const MODULAR_DRUM_PORTS = DRUM_PRESETS.map((preset, kit) => ({ name: preset.name + ' (Modular)', category: 'Rhythm',
   description: preset.description, source: 'Drums', tags: 'drum kit gm percussion channel 10', patch: () => modularFromDrums(kit) }));
+
+// GM program change: a GS drum kit number on channel 10 picks the Drums kit at or below it.
+export const GM_DRUM_KITS = [[0, 'AmiSynth Default'], [16, 'Electro Big Room'], [24, '909-ish'], [25, '808-ish'],
+  [40, 'Soft Percussion']];
+const MODULAR_PORT_NAMES = new Set([...MODULAR_SYNTH_PORTS, ...MODULAR_PHYSICAL_PORTS].map(port => port.name));
+
+/**
+ * The Modular factory patch that a GM program change selects: the port of the GM sound's preset
+ * (Synth ports keep the Synth preset's name),
+ * or of the nearest program that has one; a drum kit on MIDI channel 10 (channel 9 from 0).
+ */
+export function gmModularPreset(program, channel = 0) {
+  program = Math.min(127, Math.max(0, Math.round(program)));
+  if (channel === 9) return GM_DRUM_KITS.findLast(([number]) => number <= program)[1] + ' (Modular)';
+  for (let distance = 0; distance < 128; distance++) {
+    for (const p of [program - distance, program + distance]) {
+      const gm = GM_PROGRAMS[p], name = gm && (gm.kind === 'phys' ? gm.preset + ' (Modular)' : gm.preset);
+      if (name && MODULAR_PORT_NAMES.has(name)) return name;
+    }
+  }
+  return null;
+}

@@ -117,7 +117,14 @@ int main(int argc, char **argv) {
     const auto *params = ext<clap_plugin_params_t>(p, CLAP_EXT_PARAMS);
     const auto *state = ext<clap_plugin_state_t>(p, CLAP_EXT_STATE);
     const auto *presets = ext<clap_plugin_preset_load_t>(p, CLAP_EXT_PRESET_LOAD);
-    check(params->count(p) == 8, "Wrong macro count");
+    check(params->count(p) == 9, "Wrong parameter count");
+    {
+        // After the macros: the GM Program Change switch, off by default.
+        clap_param_info_t info{};
+        double value = -1;
+        check(params->get_info(p, 8, &info) && info.id == 8 && info.max_value == 1 && (info.flags & CLAP_PARAM_IS_STEPPED) &&
+            !std::strcmp(info.name, "GM Program Change") && params->get_value(p, 8, &value) && value == 0, "Invalid program change switch");
+    }
     for (clap_id i = 0; i < 8; ++i) {
         clap_param_info_t info{};
         check(params->get_info(p, i, &info) && info.id == i && info.min_value == 0 && info.max_value == 1 &&

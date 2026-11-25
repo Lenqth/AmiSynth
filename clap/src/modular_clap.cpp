@@ -16,6 +16,7 @@ namespace {
 using namespace modular;
 
 constexpr const char *kId = "com.github.lenqth.amisynth.modular";
+constexpr clap_id kProgramChange = kMacroCount; // The parameter after the macros.
 constexpr const char *kFeatures[] = {CLAP_PLUGIN_FEATURE_INSTRUMENT, CLAP_PLUGIN_FEATURE_SYNTHESIZER,
     CLAP_PLUGIN_FEATURE_STEREO, nullptr};
 const clap_plugin_descriptor_t kDescriptor{CLAP_VERSION_INIT, kId, "AmiSynth Modular", "AmiSynth",
@@ -39,6 +40,12 @@ struct Instance {
     std::atomic<unsigned> middle{1};
     unsigned back = 2, front = 0;
     std::atomic<uint32_t> tail_samples{480240};
+    // GM program change (parameter kProgramChange, off by default): a MIDI program change picks the
+    // factory patch for that GM sound, or a drum kit on channel 10. The audio thread posts the
+    // patch index and the main thread loads it.
+    std::atomic<bool> program_change{false};
+    std::atomic<int> pending_program{-1};
+    bool loaded_program_change = false; // Main thread: the setting in the last loaded state.
 #if defined(_WIN32)
     std::unique_ptr<ModularEditor> editor;
 #endif
@@ -53,6 +60,8 @@ struct Instance {
                 if (depth > 12) throw std::invalid_argument("Patch nesting");
                 return true;
             });
+            loaded_program_change = next.is_object() && next.value("programChange", false);
+            if (next.is_object()) next.erase("programChange");
             Macros macros;
             const auto graph = compile(next, macros);
             renamed = !patch.contains("macroNames") || next["macroNames"] != patch["macroNames"];
@@ -119,6 +128,14 @@ struct Instance {
         applied_epoch = graph_epochs[front];
     }
 
+    // Main thread, after a program change: load its factory patch.
+    void apply_program() {
+        const int index = pending_program.exchange(-1);
+        if (index < 0 || index >= int(std::size(kPresets)) || !load(kPresets[index].patch)) return;
+        if (const auto *state = static_cast<const clap_host_state_t *>(host->get_extension(host, CLAP_EXT_STATE)))
+            state->mark_dirty(host);
+    }
+
     Json snapshot() const {
         auto result = patch;
         Macros macros;
@@ -166,6 +183,10 @@ struct Instance {
         if (!h || h->space_id != CLAP_CORE_EVENT_SPACE_ID || h->type != CLAP_EVENT_PARAM_VALUE ||
             h->size < sizeof(clap_event_param_value_t)) return;
         const auto &e = *reinterpret_cast<const clap_event_param_value_t *>(h);
+        if (e.param_id == kProgramChange && e.note_id < 0 && e.port_index < 0 && e.channel < 0 && e.key < 0 && std::isfinite(e.value)) {
+            program_change.store(e.value >= 0.5);
+            return;
+        }
         if (e.param_id < values.size() && e.note_id < 0 && e.port_index < 0 && e.channel < 0 && e.key < 0 && std::isfinite(e.value))
             values[e.param_id].store(std::clamp(e.value, 0.0, 1.0));
     }
@@ -207,6 +228,12 @@ struct Instance {
         }
     }
 
+    void program(int channel, int number) {
+        if (!program_change.load()) return;
+        pending_program.store(channel == 9 ? kGmDrumKits[number] : kGmPrograms[number]);
+        host->request_callback(host);
+    }
+
     void expression(const clap_event_note_expression_t &e) {
         if (e.port_index > 0) return;
         static_assert(CLAP_NOTE_EXPRESSION_TUNING == kExpressionTuning && CLAP_NOTE_EXPRESSION_EXPRESSION == kExpressionExpression &&
@@ -226,6 +253,11 @@ struct Instance {
         if (h->type == CLAP_EVENT_TRANSPORT && h->size >= sizeof(clap_event_transport_t)) {
             transport(*reinterpret_cast<const clap_event_transport_t *>(h));
             return;
+        }
+        if (h->type == CLAP_EVENT_MIDI && h->size >= sizeof(clap_event_midi_t)) {
+            // Program changes also reach patches that run without MIDI / Note.
+            const auto &e = *reinterpret_cast<const clap_event_midi_t *>(h);
+            if (e.port_index == 0 && (e.data[0] & 0xf0) == 0xc0) { program(e.data[0] & 0xf, e.data[1] & 0x7f); return; }
         }
         if (dsp.graph.autonomous) return;
         if (h->type == CLAP_EVENT_MIDI && h->size >= sizeof(clap_event_midi_t)) {
@@ -329,6 +361,7 @@ bool CLAP_ABI save_state(const clap_plugin_t *p, const clap_ostream_t *s) {
     try {
         const auto &self = Instance::get(p);
         auto payload = self.snapshot();
+        if (self.program_change.load()) payload["programChange"] = true;
         const std::string bytes = payload.dump();
         for (size_t pos = 0; pos < bytes.size();) {
             const auto n = s->write(s, bytes.data() + pos, bytes.size() - pos);
@@ -349,14 +382,27 @@ bool CLAP_ABI load_state(const clap_plugin_t *p, const clap_istream_t *s) {
             if (!n) break;
             text.append(data, size_t(n));
         }
-        return Instance::get(p).load(text);
+        auto &self = Instance::get(p);
+        if (!self.load(text)) return false;
+        self.program_change.store(self.loaded_program_change);
+        if (const auto *params = static_cast<const clap_host_params_t *>(self.host->get_extension(self.host, CLAP_EXT_PARAMS)))
+            params->rescan(self.host, CLAP_PARAM_RESCAN_VALUES);
+        return true;
     } catch (...) { return false; }
 }
 const clap_plugin_state_t kState{save_state, load_state};
 
 const clap_plugin_params_t kParams{
-    [](const clap_plugin_t *) -> uint32_t { return kMacroCount; },
+    [](const clap_plugin_t *) -> uint32_t { return kMacroCount + 1; },
     [](const clap_plugin_t *p, uint32_t index, clap_param_info_t *info) {
+        if (index == kProgramChange) {
+            *info = {};
+            info->id = kProgramChange;
+            info->flags = CLAP_PARAM_IS_STEPPED;
+            std::snprintf(info->name, sizeof(info->name), "GM Program Change");
+            info->max_value = 1;
+            return true;
+        }
         if (index >= kMacroCount) return false;
         *info = {};
         info->id = index;
@@ -371,17 +417,23 @@ const clap_plugin_params_t kParams{
         return true;
     },
     [](const clap_plugin_t *p, clap_id id, double *value) {
+        if (id == kProgramChange) { *value = Instance::get(p).program_change.load() ? 1 : 0; return true; }
         if (id >= kMacroCount) return false;
         *value = Instance::get(p).values[id].load();
         return true;
     },
     [](const clap_plugin_t *, clap_id id, double value, char *text, uint32_t capacity) {
-        if (id >= kMacroCount || !capacity || !std::isfinite(value)) return false;
-        const int n = std::snprintf(text, capacity, "%.3f", value);
+        if (id > kProgramChange || !capacity || !std::isfinite(value)) return false;
+        const int n = id == kProgramChange ? std::snprintf(text, capacity, "%s", value >= 0.5 ? "On" : "Off")
+                                           : std::snprintf(text, capacity, "%.3f", value);
         return n >= 0 && uint32_t(n) < capacity;
     },
     [](const clap_plugin_t *, clap_id id, const char *text, double *value) {
-        if (id >= kMacroCount) return false;
+        if (id == kProgramChange && (std::strcmp(text, "On") == 0 || std::strcmp(text, "Off") == 0)) {
+            *value = text[1] == 'n' ? 1 : 0;
+            return true;
+        }
+        if (id > kProgramChange) return false;
         char *end;
         const double x = std::strtod(text, &end);
         if (end == text || *end || !std::isfinite(x) || x < 0 || x > 1) return false;
@@ -562,7 +614,7 @@ const clap_plugin_factory_t kFactory{
             activate, [](const clap_plugin_t *) {},
             [](const clap_plugin_t *) { return true; }, [](const clap_plugin_t *) {},
             [](const clap_plugin_t *p) { Instance::get(p).dsp.reset(); },
-            process, extension, [](const clap_plugin_t *) {}};
+            process, extension, [](const clap_plugin_t *p) { Instance::get(p).apply_program(); }};
         return &self->plugin;
     },
 };

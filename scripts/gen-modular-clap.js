@@ -8,6 +8,7 @@ import {
   MODULAR_LINE_SAMPLES, MODULAR_LINES, MODULAR_MACROS, MODULAR_MATERIALS, MODULAR_MAX_INPUTS, MODULAR_MAX_OUTPUTS,
   MODULAR_MAX_PARAMS, MODULAR_MODAL_FIELDS, MODULAR_MODES, MODULAR_PATCH_BYTES, MODULAR_POSITION_MAX, MODULAR_PRESETS, MODULAR_TYPES,
 } from '../src/dsp/modular.js';
+import { gmModularPreset } from '../src/presets/modular.js';
 import { WT_BANKS, WT_FADE, WT_FRAMES, WT_MAX_HARM, WT_MIPS, WT_SIZE, wt_frame_spectrum } from '../src/dsp/wavetable.js';
 
 const json = JSON.stringify;
@@ -24,6 +25,14 @@ const materials = MODULAR_MATERIALS.map(m => {
   if (m.ratios.length !== MODULAR_MODES || m.gains.length !== MODULAR_MODES) throw new Error(`Material ${m.name} needs ${MODULAR_MODES} modes`);
   return `    {{${m.ratios.join(', ')}}, {${m.gains.join(', ')}}}, // ${m.name}`;
 });
+// GM program change: the factory patch index for each program, and for each program on channel 10.
+const presetIndex = name => {
+  const index = MODULAR_PRESETS.findIndex(p => p.name === name);
+  if (index < 0) throw new Error(`No Modular patch named ${name}`);
+  return index;
+};
+const gmPrograms = Array.from({ length: 128 }, (_, program) => presetIndex(gmModularPreset(program)));
+const gmDrumKits = Array.from({ length: 128 }, (_, program) => presetIndex(gmModularPreset(program, 9)));
 const presets = MODULAR_PRESETS.map(p => `    {${json(p.name)}, ${json(json(p.patch()))}},`);
 const spectra = Array.from({ length: WT_BANKS }, (_, bank) => {
   const frames = Array.from({ length: WT_FRAMES }, (_, frame) => {
@@ -62,6 +71,7 @@ constexpr double kWtFade = ${WT_FADE};
 constexpr size_t kFxSlots = ${MODULAR_FX_SLOTS}, kFxMemory = ${MODULAR_FX_MEMORY};
 constexpr std::array<double, ${MODULAR_ARP_BEATS.length}> kArpBeats{${MODULAR_ARP_BEATS.map(b => b.toPrecision(17)).join(', ')}};
 constexpr double kArpChordMs = ${MODULAR_ARP_CHORD_MS};
+constexpr int kGmPrograms[128] = ${list(gmPrograms)}, kGmDrumKits[128] = ${list(gmDrumKits)};
 constexpr int kDrumFirst = ${MODULAR_DRUM_FIRST}, kDrumLast = ${MODULAR_DRUM_LAST}, kDrumFields = ${MODULAR_DRUM_FIELDS};
 constexpr double kDrumHits[] = {${Array.from(MODULAR_DRUM_HITS, x => x.toPrecision(17)).join(', ')}};
 constexpr double kTriangleRatios[] = ${list(MODULAR_TRIANGLE.ratios)}, kTriangleLevels[] = ${list(MODULAR_TRIANGLE.levels)};
