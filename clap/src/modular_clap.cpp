@@ -181,8 +181,13 @@ struct Instance {
                 if (!v.clap_note && v.key_down && Engine::matches(v, channel, key, -1) && (!oldest || v.age < oldest->age)) oldest = &v;
             if (oldest) dsp.release(*oldest);
         } else if (op == 0xe0) {
-            dsp.bend[channel] = ((value << 7 | key) - 8192) / 4096.0;
+            dsp.pitch_bend(channel, value << 7 | key);
+        } else if (op == 0xd0) {
+            dsp.channel_pressure(channel, key);
+        } else if (op == 0xa0) {
+            dsp.poly_pressure(channel, key, value);
         } else if (op == 0xb0) {
+            dsp.controller(channel, key, value);
             if (key == 64) dsp.sustain[channel] = value >= 64;
             for (auto &v : dsp.voices) {
                 if (!Engine::matches(v, channel, -1, -1)) continue;
@@ -193,12 +198,23 @@ struct Instance {
         }
     }
 
+    void expression(const clap_event_note_expression_t &e) {
+        if (e.port_index > 0) return;
+        static_assert(CLAP_NOTE_EXPRESSION_TUNING == kExpressionTuning && CLAP_NOTE_EXPRESSION_EXPRESSION == kExpressionExpression &&
+                      CLAP_NOTE_EXPRESSION_BRIGHTNESS == kExpressionBrightness && CLAP_NOTE_EXPRESSION_PRESSURE == kExpressionPressure);
+        dsp.note_expression(e.expression_id, e.channel, e.key, e.note_id, e.value);
+    }
+
     void event(const clap_event_header_t *h, const clap_output_events_t *output) {
         if (!h || h->space_id != CLAP_CORE_EVENT_SPACE_ID) return;
         if (h->type == CLAP_EVENT_PARAM_VALUE) { param(h); return; }
         if (dsp.graph.autonomous) return;
         if (h->type == CLAP_EVENT_MIDI && h->size >= sizeof(clap_event_midi_t)) {
             midi(*reinterpret_cast<const clap_event_midi_t *>(h), output);
+        }
+        if (h->type == CLAP_EVENT_NOTE_EXPRESSION && h->size >= sizeof(clap_event_note_expression_t)) {
+            expression(*reinterpret_cast<const clap_event_note_expression_t *>(h));
+            return;
         }
         if (h->type > CLAP_EVENT_NOTE_CHOKE || h->size < sizeof(clap_event_note_t)) return;
         const auto &e = *reinterpret_cast<const clap_event_note_t *>(h);

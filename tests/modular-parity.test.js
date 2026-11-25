@@ -18,7 +18,7 @@ const notes = [
 ];
 const samples = 24000;
 
-function renderWeb(patch, right = false) {
+function renderWeb(patch, right = false, midi = []) {
   const s = {};
   modular_init(s, rate);
   modular_set_patch(s, patch);
@@ -28,15 +28,16 @@ function renderWeb(patch, right = false) {
       if (note.on === n) modular_midi(s, 0x90, note.key, note.velocity);
       if (note.off === n) modular_midi(s, 0x80, note.key, 0);
     }
+    for (const event of midi) if (event.at === n) modular_midi(s, ...event.data);
     modular_render(s);
     out[n] = right ? s.out_r : s.out_l;
   }
   return out;
 }
 
-function renderNative(patch, dir, right = false) {
+function renderNative(patch, dir, right = false, midi = [], expressions = []) {
   const spec = join(dir, 'spec.json'), out = join(dir, 'out.f32');
-  writeFileSync(spec, JSON.stringify({ rate, samples, patch, notes, right }));
+  writeFileSync(spec, JSON.stringify({ rate, samples, patch, notes, right, midi, expressions }));
   execFileSync(tool, [spec, out]);
   const bytes = readFileSync(out);
   return new Float32Array(bytes.buffer, bytes.byteOffset, bytes.length / 4);
@@ -255,6 +256,43 @@ longGrid.params = { length: 12 };
 longGrid.grid.push(0, 0, 0, 9);
 PATCHES['Beat Grid exercises four output lanes and columns beyond eight'] = fastGrid;
 
+// Controllers sent during the parity notes, per patch name.
+const MIDI = {};
+const performance = voice([
+  { id: 'osc', type: 'vco', params: { wave: 1 } },
+  { id: 'filter', type: 'vcf', params: { cutoff: 300, resonance: 0.4 } },
+  { id: 'vib', type: 'lfo', params: { rate: 6 } },
+  { id: 'depth', type: 'ring', params: { level: 0.2 } },
+  { id: 'sum', type: 'mix4', params: { a: 1, b: 1, c: 0.5, d: 0.3 } },
+  { id: 'amp', type: 'vca' },
+], [
+  { from: 'note', port: 'pitch', to: 'osc', input: 'pitch' },
+  { from: 'vib', port: 'out', to: 'depth', input: 'a' },
+  { from: 'note', port: 'mod', to: 'depth', input: 'b' },
+  { from: 'depth', port: 'out', to: 'osc', input: 'fm' },
+  { from: 'osc', port: 'out', to: 'filter', input: 'audio' },
+  { from: 'note', port: 'pressure', to: 'sum', input: 'a' },
+  { from: 'note', port: 'cc', to: 'sum', input: 'b' },
+  { from: 'note', port: 'bend', to: 'sum', input: 'c' },
+  { from: 'note', port: 'velocity', to: 'sum', input: 'd' },
+  { from: 'sum', port: 'out', to: 'filter', input: 'cutoff' },
+  { from: 'filter', port: 'out', to: 'amp', input: 'audio' },
+  { from: 'note', port: 'gate', to: 'amp', input: 'gain' },
+  { from: 'amp', port: 'out', to: 'out', input: 'audio' },
+]);
+performance.nodes[0].params = { bendRange: 7, cc: 2 };
+const PERFORMANCE = 'performance controllers: bend range, mod wheel, pressure and a chosen CC';
+PATCHES[PERFORMANCE] = performance;
+MIDI[PERFORMANCE] = [
+  { at: 1000, data: [0xb0, 1, 100] },   // mod wheel
+  { at: 2000, data: [0xe0, 0, 96] },    // bend up
+  { at: 2500, data: [0xb0, 2, 90] },    // breath, read by the cc output
+  { at: 3500, data: [0xd0, 70, 0] },    // channel pressure
+  { at: 6500, data: [0xa0, 79, 127] },  // poly pressure on the third note only
+  { at: 8000, data: [0xb0, 7, 20] },    // volume: stored, not patched
+  { at: 12000, data: [0xb0, 121, 0] },  // reset all controllers
+];
+
 test('the parity patches use every module type', () => {
   const used = new Set(Object.values(PATCHES).flatMap(p => p.nodes.map(n => n.type)));
   assert.deepEqual([...Object.keys(MODULAR_TYPES)].filter(t => !used.has(t) && t !== 'delay' && t !== 'cv' && t !== 'macro'), []);
@@ -264,7 +302,8 @@ for (const [name, patch] of Object.entries(PATCHES)) {
   test(`Web and native engines render the same audio: ${name}`, { skip: !existsSync(tool) && 'modular_render unavailable' }, () => {
     const dir = mkdtempSync(join(tmpdir(), 'amisynth-parity-'));
     try {
-      const web = renderWeb(patch), native = renderNative(patch, dir);
+      const midi = MIDI[name] ?? [];
+      const web = renderWeb(patch, false, midi), native = renderNative(patch, dir, false, midi);
       assert.equal(native.length, web.length);
       let worst = 0, at = 0, energy = 0;
       for (let i = 0; i < web.length; i++) {
@@ -277,14 +316,40 @@ for (const [name, patch] of Object.entries(PATCHES)) {
       const stereo = patch.cables.some(cable => cable.input === 'right' &&
         patch.nodes.some(node => node.id === cable.to && node.type === 'output'));
       if (stereo) {
-        const webRight = renderWeb(patch, true), nativeRight = renderNative(patch, dir, true);
+        const webRight = renderWeb(patch, true, midi), nativeRight = renderNative(patch, dir, true, midi);
         assert.ok(webRight.some((value, i) => Math.abs(value - web[i]) > 0.01));
         assert.ok(webRight.every((value, i) => Math.abs(value - nativeRight[i]) < 1e-4));
       } else {
-        assert.deepEqual(renderWeb(patch, true), web);
+        assert.deepEqual(renderWeb(patch, true, midi), web);
       }
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
   });
 }
+
+test('CLAP note expressions reach the native MIDI / Note outputs', { skip: !existsSync(tool) && 'modular_render unavailable' }, () => {
+  const probe = (port, scale, expressions) => {
+    const patch = {
+      nodes: [
+        { id: 'note', type: 'midi', params: { cc: 74 } },
+        { id: 'scale', type: 'cv', params: { scale } },
+        { id: 'out', type: 'output', params: { level: 1 } },
+      ],
+      cables: [
+        { from: 'note', port, to: 'scale', input: 'in' },
+        { from: 'scale', port: 'out', to: 'out', input: 'audio' },
+      ],
+    };
+    const dir = mkdtempSync(join(tmpdir(), 'amisynth-expression-'));
+    try { return Array.from(renderNative(patch, dir, false, [], expressions), x => Math.atanh(x) / scale); }
+    finally { rmSync(dir, { recursive: true, force: true }); }
+  };
+  // Expression IDs from clap/events.h: tuning 2, brightness 5, pressure 6. Only key 48 sounds at sample 200.
+  const tuning = probe('pitch', 0.001, [{ at: 200, id: 2, key: 48, value: 1.5 }]);
+  assert.ok(Math.abs(tuning[199] - 48) < 1e-3 && Math.abs(tuning[200] - 49.5) < 1e-3);
+  const pressure = probe('pressure', 0.1, [{ at: 200, id: 6, key: 48, value: 0.5 }]);
+  assert.ok(Math.abs(pressure[199]) < 1e-6 && Math.abs(pressure[200] - 0.5) < 1e-4);
+  const brightness = probe('cc', 0.1, [{ at: 200, id: 5, key: 48, value: 0.25 }, { at: 300, id: 5, key: 55, value: 1 }]);
+  assert.ok(Math.abs(brightness[199]) < 1e-6 && Math.abs(brightness[300] - 0.25) < 1e-4);
+});

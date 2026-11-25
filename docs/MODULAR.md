@@ -22,7 +22,7 @@ Type an exact value next to a numeric slider or macro. Press Enter or leave the 
 
 | Port or module | Meaning |
 | --- | --- |
-| MIDI / Note | Pitch is a MIDI note number, gate is 0 or 1, and velocity is 0–1. |
+| MIDI / Note | Pitch is a MIDI note number, gate is 0 or 1, and velocity is 0–1. **bend** is the pitch wheel from −1 to 1; it also moves **pitch** by **bendRange** semitones (default 2, set by the first MIDI / Note module). **mod** is the modulation wheel (CC1), 0–1. **pressure** is the larger of channel aftertouch and the note's own polyphonic aftertouch, 0–1. **cc** reads the controller chosen by the **cc** knob (default 74), 0–1. Use another MIDI / Note module to read a second CC. Controllers are tracked per MIDI channel, so MPE input works. Volume (CC7) starts at 100, pan (CC10) at 64 and expression (CC11) at 127; Reset All Controllers (CC121) restores these defaults. |
 | VCO FM | 1 adds one octave. VCO pitch and FM run at audio rate. |
 | VCO PM | Phase modulation in radians, as the Synth instrument's FM index. |
 | VCO sync | The **sync** output is 1 on the sample where the cycle restarts. Patched into another VCO's **sync** input, it restarts that oscillator (hard sync). |
@@ -78,7 +78,7 @@ Drum Voice also offers **Rimshot**, **Cowbell**, **Shaker**, **Crash**, and **Ri
 
 ### Synth presets
 
-`src/presets/modular.js` rebuilds supported Synth presets from Modular modules. It maps classic oscillators, wavetable banks and position sweeps, per-copy unison, sync and PM, filter settings, velocity, and supported LFO and envelope controls. The converter rejects unsupported features such as the arpeggiator, effects, modulation matrix, tempo-synced LFOs, or chip noise. Ports use mono output, restart the LFO per voice, and use fixed oscillator start phases. Performance controls such as the modulation wheel and pitch-bend range are outside the conversion.
+`src/presets/modular.js` rebuilds supported Synth presets from Modular modules. It maps classic oscillators, wavetable banks and position sweeps, per-copy unison, sync and PM, filter settings, velocity, and supported LFO and envelope controls. The converter rejects unsupported features such as the arpeggiator, effects, modulation matrix, tempo-synced LFOs, or chip noise. Ports use mono output, restart the LFO per voice, and use fixed oscillator start phases. Performance controls such as the modulation wheel and pitch-bend range are outside the conversion; patch them from the MIDI / Note outputs.
 
 Run `node scripts/modular-preset-audit.js` for the Synth conversion inventory and first blockers, and for render measurements of selected Synth, Physical, and Drums examples. These measurements compare levels over time; they do not establish timbre equivalence.
 
@@ -86,7 +86,9 @@ Run `node scripts/modular-preset-audit.js` for the Synth conversion inventory an
 
 Build with `npm ci && npm run clap:build`, then install with `npm run install:clap`. Release archives contain one `AmiSynth.clap` with Synth, Physical, Drums, Tuning and Modular. The installer renames a former standalone `AmiSynthModular.clap` in the destination to an unused `.disabled` backup. Modular retains its plugin ID and JSON state format; projects that stored the old file path may need their instrument replaced with Modular from `AmiSynth.clap`.
 
-Add **AmiSynth Modular** to an instrument track. The plug-in accepts CLAP notes and MIDI and exposes **Macro 1–8** with stable IDs 0–7. Open a factory preset using a DAW that supports CLAP preset discovery. The CLAP preset-load file interface also accepts JSON exported by the Web rack. DAW support for selecting custom preset files varies.
+Add **AmiSynth Modular** to an instrument track. The plug-in accepts CLAP notes and MIDI and exposes **Macro 1–8** with stable IDs 0–7.
+
+MIDI CCs, pitch bend and channel or polyphonic aftertouch in the track's MIDI items reach the MIDI / Note outputs, so REAPER's CC lanes can move any patched parameter. CLAP note expressions also apply per note: **tuning** adds semitones to **pitch**, **pressure** sets **pressure**, **brightness** replaces CC74, and **expression** replaces CC11 on the **cc** output. The factory patch **Expressive Lead** uses the modulation wheel for vibrato, and aftertouch and CC74 for the filter. Open a factory preset using a DAW that supports CLAP preset discovery. The CLAP preset-load file interface also accepts JSON exported by the Web rack. DAW support for selecting custom preset files varies.
 
 On Windows, open the plugin's editor to use the same node rack as the Web app: add, duplicate, move or remove modules; connect or disconnect cables; and turn each module's knobs. **Save patch** and **Open patch** exchange the same JSON files as the Web rack. Changes apply to the native instrument and mark the DAW project as changed. The complete patch is stored in the DAW project. Knob and layout changes preserve running voices; structural changes end them at the next audio block. Macros remain the eight DAW automation parameters; the other module knobs are edited in the rack. Cable activity visualization is currently available in the Web app only.
 

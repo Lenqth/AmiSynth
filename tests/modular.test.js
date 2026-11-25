@@ -641,3 +641,66 @@ test('a Drum Voice rings after its trigger falls and a choke input cuts its tail
   assert.ok(open > 0.01);
   assert.ok(tailEnergy(true) < open / 100);
 });
+
+// Route one MIDI / Note output through a scale small enough that tanh at the output stays linear.
+function midiPort(port, params = {}, scale = 0.01) {
+  const s = {};
+  modular_init(s, 1000);
+  modular_set_patch(s, {
+    nodes: [
+      { id: 'note', type: 'midi', params },
+      { id: 'scale', type: 'cv', params: { scale } },
+      { id: 'out', type: 'output', params: { level: 1 } },
+    ],
+    cables: [
+      { from: 'note', port, to: 'scale', input: 'in' },
+      { from: 'scale', port: 'out', to: 'out', input: 'audio' },
+    ],
+  });
+  return { s, value: () => { modular_render(s); return Math.atanh(s.out_l) / scale; } };
+}
+
+test('MIDI / Note outputs the mod wheel, a chosen CC and normalized pitch bend', () => {
+  const mod = midiPort('mod');
+  modular_midi(mod.s, 0x90, 60, 100);
+  assert.ok(Math.abs(mod.value()) < 1e-9);
+  modular_midi(mod.s, 0xb0, 1, 127);
+  assert.ok(Math.abs(mod.value() - 1) < 1e-6);
+
+  const breath = midiPort('cc', { cc: 2 });
+  modular_midi(breath.s, 0x90, 60, 100);
+  modular_midi(breath.s, 0xb0, 2, 64);
+  assert.ok(Math.abs(breath.value() - 64 / 127) < 1e-6);
+  modular_midi(breath.s, 0xb0, 121, 0);
+  assert.ok(Math.abs(breath.value()) < 1e-9, 'reset all controllers clears the CC');
+
+  const expression = midiPort('cc', { cc: 11 });
+  modular_midi(expression.s, 0x90, 60, 100);
+  assert.ok(Math.abs(expression.value() - 1) < 1e-6, 'expression defaults to full');
+
+  const bend = midiPort('bend');
+  modular_midi(bend.s, 0x90, 60, 100);
+  modular_midi(bend.s, 0xe0, 0, 0);
+  assert.ok(Math.abs(bend.value() + 1) < 1e-6);
+});
+
+test('the first MIDI / Note module sets the pitch bend range', () => {
+  for (const [range, expected] of [[undefined, 62], [12, 72], [0, 60]]) {
+    const pitch = midiPort('pitch', range === undefined ? {} : { bendRange: range }, 0.001);
+    modular_midi(pitch.s, 0x90, 60, 100);
+    modular_midi(pitch.s, 0xe0, 127, 127);
+    assert.ok(Math.abs(pitch.value() - (60 + (expected - 60) * 8191 / 8192)) < 1e-3, `range ${range}`);
+  }
+});
+
+test('pressure follows channel aftertouch and per-note polyphonic aftertouch', () => {
+  const p = midiPort('pressure');
+  modular_midi(p.s, 0x90, 60, 100);
+  modular_midi(p.s, 0xa0, 61, 127);
+  assert.ok(Math.abs(p.value()) < 1e-9, 'another key does not press this note');
+  modular_midi(p.s, 0xa0, 60, 127);
+  assert.ok(Math.abs(p.value() - 1) < 1e-6);
+  modular_midi(p.s, 0xa0, 60, 0);
+  modular_midi(p.s, 0xd0, 32, 0);
+  assert.ok(Math.abs(p.value() - 32 / 127) < 1e-6);
+});

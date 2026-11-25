@@ -50,6 +50,9 @@ struct Node {
     int line = -1; // Delay-line slot for strings and comb filters.
     const float *wavetable = nullptr;
 };
+// CLAP note expression IDs (clap/events.h), so the engine stays free of CLAP headers.
+constexpr int kExpressionTuning = 2, kExpressionExpression = 4, kExpressionBrightness = 5, kExpressionPressure = 6;
+
 struct Graph {
     std::array<Node, kNodes> nodes{};
     std::array<int, kNodes> order{}, delays{}, outputs{}, envelopes{}, clocks{};
@@ -58,7 +61,7 @@ struct Graph {
     bool autonomous = false;
     // From the first MIDI / Note module: 0 poly, 1 mono, 2 legato; glide in seconds.
     int voice_mode = 0;
-    double glide = 0;
+    double glide = 0, bend_range = 2;
     bool glide_legato_only = false;
 };
 
@@ -117,7 +120,7 @@ inline Graph compile(Json &patch, Macros &macros) {
         if (node.type == Type::beatGrid) {
             const auto pattern = n.find("grid");
             const bool has_grid = pattern != n.end() && pattern->is_array();
-            constexpr double max_mask = (1 << kMaxOutputs) - 1;
+            constexpr double max_mask = (1 << 4) - 1; // four lanes, A-D
             for (size_t step = 0; step < node.grid.size(); ++step) {
                 const auto *value = has_grid && step < pattern->size() ? &(*pattern)[step] : nullptr;
                 if (!has_grid && params != n.end() && params->is_object()) {
@@ -232,6 +235,7 @@ inline Graph compile(Json &patch, Macros &macros) {
         graph.voice_mode = int(graph.nodes[i].knobs[0]);
         graph.glide = graph.nodes[i].knobs[1];
         graph.glide_legato_only = graph.nodes[i].knobs[2] != 0;
+        graph.bend_range = graph.nodes[i].knobs[3];
         break;
     }
     macros = {};
@@ -279,6 +283,9 @@ struct Voice {
     int32_t note_id = -1;
     uint64_t age = 0, tail = 0;
     double velocity = 0, glide = 0; // glide: semitones still to slide
+    // Per-note values from polyphonic aftertouch or CLAP note expressions. NaN leaves the channel's CC.
+    double pressure = 0, tuning = 0, brightness = NAN, expression = NAN;
+    void reset_expressions() { pressure = 0; tuning = 0; brightness = NAN; expression = NAN; }
     std::array<Stage, kNodes> stages{};
     std::array<std::array<double, kMaxOutputs>, kNodes> signals{};
     std::array<Line, kLines> lines{};
@@ -294,7 +301,8 @@ struct Engine {
     double rate = 48000;
     Graph graph;
     std::array<Voice, 8> voices{};
-    std::array<double, 16> bend{};
+    std::array<double, 16> bend{}, pressure{}; // bend: -1..1
+    std::array<double, 16 * 128> cc{};
     std::array<bool, 16> sustain{};
     std::array<double, kNodes> clock_phases{};
     uint64_t clock = 0;
@@ -308,6 +316,43 @@ struct Engine {
     void reset() {
         for (auto &v : voices) { v.active = v.key_down = v.held = v.clap_note = false; v.tail = 0; }
         bend = {}; sustain = {}; clock_phases = {}; clock = 0; held_count = 0; last_key = -1;
+        for (int channel = 0; channel < 16; ++channel) reset_controllers(channel);
+    }
+
+    // MIDI's recommended controller defaults: volume 100, pan centred, expression full; others 0.
+    void reset_controllers(int channel) {
+        bend[size_t(channel)] = 0;
+        pressure[size_t(channel)] = 0;
+        double *c = cc.data() + channel * 128;
+        std::fill(c, c + 128, 0.0);
+        c[7] = 100 / 127.0; c[10] = 64 / 127.0; c[11] = 1;
+    }
+
+    void pitch_bend(int channel, int value) { bend[size_t(channel)] = (value - 8192) / 8192.0; }
+    void channel_pressure(int channel, int value) { pressure[size_t(channel)] = std::clamp(value, 0, 127) / 127.0; }
+    void poly_pressure(int channel, int key, int value) {
+        for (auto &v : voices)
+            if (matches(v, channel, key, -1)) v.pressure = std::clamp(value, 0, 127) / 127.0;
+    }
+    // Per-note tuning (semitones), pressure, brightness (read as CC74) and expression (read as CC11).
+    void note_expression(int id, int channel, int key, int32_t note_id, double value) {
+        if (!std::isfinite(value)) return;
+        for (auto &v : voices) {
+            if (!matches(v, channel, key, note_id)) continue;
+            if (id == kExpressionTuning) v.tuning = std::clamp(value, -120.0, 120.0);
+            else if (id == kExpressionPressure) v.pressure = std::clamp(value, 0.0, 1.0);
+            else if (id == kExpressionBrightness) v.brightness = std::clamp(value, 0.0, 1.0);
+            else if (id == kExpressionExpression) v.expression = std::clamp(value, 0.0, 1.0);
+        }
+    }
+
+    // Stores a controller value; sustain and the channel-mode messages are handled by the caller.
+    void controller(int channel, int number, int value) {
+        if (number >= 0 && number < 120) cc[size_t(channel * 128 + number)] = std::clamp(value, 0, 127) / 127.0;
+        if (number == 121) {
+            reset_controllers(channel);
+            for (auto &v : voices) if (v.channel == channel) v.reset_expressions();
+        }
     }
 
     NoteEnd note_on(int channel, int key, int32_t id, double velocity, bool clap_note) {
@@ -327,6 +372,7 @@ struct Engine {
         v.clap_note = clap_note;
         v.channel = int16_t(channel); v.key = int16_t(key); v.note_id = id;
         v.age = ++clock; v.tail = 0; v.velocity = velocity; v.glide = 0;
+        v.reset_expressions();
         // Same seeds as the Web engine, so noise is identical in both.
         const auto age = uint32_t(v.age);
         for (size_t i = 0; i < v.stages.size(); ++i) {
@@ -354,6 +400,7 @@ struct Engine {
             previous = {v.clap_note && (v.note_id != note.id || v.key != note.key), v.channel, v.key, v.note_id};
             v.channel = note.channel; v.key = note.key; v.note_id = note.id; v.clap_note = note.clap_note;
             v.held = v.key_down = true; v.tail = 0;
+            v.reset_expressions();
         }
         v.glide = std::clamp(offset, -96.0, 96.0);
         return previous;
@@ -524,9 +571,16 @@ struct Engine {
         auto &st = v.stages[i];
         auto &sig = v.signals[i];
         switch (n.type) {
-        case Type::midi:
-            sig = {v.key + v.glide + bend[v.channel], v.held ? 1.0 : 0.0, v.velocity};
+        case Type::midi: {
+            const double b = bend[size_t(v.channel)];
+            const int number = int(p[4]);
+            double value = cc[size_t(v.channel * 128 + number)];
+            if (number == 74 && !std::isnan(v.brightness)) value = v.brightness;
+            else if (number == 11 && !std::isnan(v.expression)) value = v.expression;
+            sig = {v.key + v.glide + b * graph.bend_range + v.tuning, v.held ? 1.0 : 0.0, v.velocity, b,
+                   cc[size_t(v.channel * 128 + 1)], std::max(pressure[size_t(v.channel)], v.pressure), value};
             break;
+        }
         case Type::clock:
             sig[0] = clock_phases[i] < p[2] ? 1 : 0;
             sig[1] = clock_phases[i];

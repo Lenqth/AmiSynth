@@ -1,7 +1,9 @@
 // Renders a Modular patch with the native engine, for comparison with the Web engine.
 // Usage: modular_render spec.json out.f32
 // spec: {"rate": 48000, "samples": 4800, "patch": {...},
-//        "notes": [{"key": 60, "velocity": 100, "on": 0, "off": 2400}]}
+//        "notes": [{"key": 60, "velocity": 100, "on": 0, "off": 2400}],
+//        "midi": [{"at": 100, "data": [176, 1, 64]}],            optional controllers on channel 1
+//        "expressions": [{"at": 100, "id": 6, "key": 60, "value": 0.5}]}  optional CLAP note expressions
 #include "../src/modular_dsp.h"
 #include <cstdio>
 #include <fstream>
@@ -36,6 +38,23 @@ int main(int argc, char **argv) {
                     else for (auto &v : engine->voices)
                         if (v.key_down && Engine::matches(v, 0, key, -1)) engine->release(v);
                 }
+            }
+            if (const auto midi = spec.find("midi"); midi != spec.end()) {
+                for (const auto &event : *midi) {
+                    if (event.at("at").get<size_t>() != n) continue;
+                    const auto &d = event.at("data");
+                    const int status = d.at(0).get<int>(), d1 = d.at(1).get<int>(), d2 = d.at(2).get<int>();
+                    const int op = status & 0xf0, channel = status & 0xf;
+                    if (op == 0xe0) engine->pitch_bend(channel, d2 << 7 | d1);
+                    else if (op == 0xd0) engine->channel_pressure(channel, d1);
+                    else if (op == 0xa0) engine->poly_pressure(channel, d1, d2);
+                    else if (op == 0xb0) engine->controller(channel, d1, d2);
+                }
+            }
+            if (const auto expressions = spec.find("expressions"); expressions != spec.end()) {
+                for (const auto &e : *expressions)
+                    if (e.at("at").get<size_t>() == n)
+                        engine->note_expression(e.at("id").get<int>(), 0, e.at("key").get<int>(), -1, e.at("value").get<double>());
             }
             out[n] = float(engine->sample(macros)[channel]);
         }

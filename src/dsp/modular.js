@@ -12,7 +12,7 @@ import { DRUM_PARAMS, PHYS_PARAMS, defaultValues } from './params.js';
 // Native storage limits per module (checked by scripts/gen-modular-clap.js).
 export const MODULAR_MAX_INPUTS = 4;
 export const MODULAR_MAX_PARAMS = 10;
-export const MODULAR_MAX_OUTPUTS = 4;
+export const MODULAR_MAX_OUTPUTS = 8;
 export const BEAT_GRID_LANES = ['a', 'b', 'c', 'd'];
 export const BEAT_GRID_MAX_STEPS = 32;
 // Strings and comb filters share a fixed, preallocated delay-line pool per voice.
@@ -55,11 +55,16 @@ const DRUM_SOUNDS = ['Kick', 'Snare', 'Clap', 'Closed Hat', 'Open Hat', 'Tom',
 export const MODULAR_TYPES = Object.freeze({
   // The first MIDI / Note module's knobs set how notes reach voices. They are patch settings,
   // not per-voice signals, so they take no cable ("fixed").
-  midi: { label: 'MIDI / Note', category: 'Input & Output', keywords: 'keyboard pitch gate velocity trigger mono legato glide portamento',
-    inputs: [], outputs: ['pitch', 'gate', 'velocity'], params: {
+  // bend is -1..1 and also moves pitch by bendRange semitones; mod is CC1; pressure is the larger of
+  // channel pressure and the note's own pressure; cc reads the controller numbered by the cc knob.
+  midi: { label: 'MIDI / Note', category: 'Input & Output',
+    keywords: 'keyboard pitch gate velocity trigger mono legato glide portamento bend mod wheel modulation cc controller aftertouch pressure mpe expression breath',
+    inputs: [], outputs: ['pitch', 'gate', 'velocity', 'bend', 'mod', 'pressure', 'cc'], params: {
       voices: { min: 0, max: 2, default: 0, step: 1, choices: ['Poly', 'Mono', 'Legato'], fixed: true },
       glide: { min: 0, max: 2, default: 0, step: 0.001, fixed: true },
       glideMode: { min: 0, max: 1, default: 0, step: 1, choices: ['Always', 'Legato only'], fixed: true },
+      bendRange: { min: 0, max: 48, default: 2, step: 1, fixed: true },
+      cc: { min: 0, max: 127, default: 74, step: 1, fixed: true },
     } },
   vco: { label: 'VCO', category: 'Sources', keywords: 'oscillator saw square pulse sine triangle tone sync fm pm',
     // The sync output is 1 for the sample where the cycle restarts; patch it into another VCO's sync.
@@ -621,6 +626,9 @@ const FACTORY_PATCHES = [
   { name: '808-ish Groove', category: 'Rhythm', source: 'Drums', tags: '808 hip hop electronic',
     description: 'Kick, snare and hats modeled on the 808-ish kit',
     patch: drumPreset808 },
+  { name: 'Expressive Lead', category: 'Lead', tags: 'mod wheel aftertouch pressure mpe cc74 brightness vibrato bend',
+    description: 'Mod wheel adds vibrato; aftertouch and CC74 open the filter; bend spans a whole tone',
+    patch: expressiveLead },
   ...MODULAR_SYNTH_PORTS,
 ];
 
@@ -651,6 +659,38 @@ export function searchModularPresets(query, category = '') {
     const text = searchWords([preset.name, preset.category, preset.source, preset.description, preset.tags].join(' '));
     return words.every(word => text.some(token => token.startsWith(word))) ? [{ preset, index }] : [];
   });
+}
+
+// Plays as a plain saw lead until the controllers move, so it also works without them.
+function expressiveLead() {
+  return {
+    nodes: [
+      { id: 'note', type: 'midi', params: { bendRange: 2, cc: 74 }, position: { x: 22, y: 22 } },
+      { id: 'vibrato', type: 'lfo', params: { rate: 5.6 }, position: { x: 22, y: 470 } },
+      { id: 'depth', type: 'ring', params: { level: 0.035 }, position: { x: 296, y: 470 } },
+      { id: 'osc', type: 'vco', params: { wave: 1, level: 0.5 }, position: { x: 296, y: 22 } },
+      { id: 'bright', type: 'mix', params: { a: 1.6, b: 1.2 }, position: { x: 296, y: 290 } },
+      { id: 'filter', type: 'vcf', params: { cutoff: 700, resonance: 0.32, keytrack: 0.5, slope: 1 }, position: { x: 570, y: 22 } },
+      { id: 'env', type: 'adsr', params: { attack: 0.012, decay: 0.4, sustain: 0.8, release: 0.25, curve: 1 }, position: { x: 570, y: 330 } },
+      { id: 'amp', type: 'vca', position: { x: 844, y: 22 } },
+      { id: 'out', type: 'output', position: { x: 844, y: 200 } },
+    ],
+    cables: [
+      { from: 'note', port: 'pitch', to: 'osc', input: 'pitch' },
+      { from: 'vibrato', port: 'out', to: 'depth', input: 'a' },
+      { from: 'note', port: 'mod', to: 'depth', input: 'b' },
+      { from: 'depth', port: 'out', to: 'osc', input: 'fm' },
+      { from: 'note', port: 'pressure', to: 'bright', input: 'a' },
+      { from: 'note', port: 'cc', to: 'bright', input: 'b' },
+      { from: 'osc', port: 'out', to: 'filter', input: 'audio' },
+      { from: 'bright', port: 'out', to: 'filter', input: 'cutoff' },
+      { from: 'note', port: 'pitch', to: 'filter', input: 'pitch' },
+      { from: 'note', port: 'gate', to: 'env', input: 'gate' },
+      { from: 'filter', port: 'out', to: 'amp', input: 'audio' },
+      { from: 'env', port: 'out', to: 'amp', input: 'gain' },
+      { from: 'amp', port: 'out', to: 'out', input: 'audio' },
+    ],
+  };
 }
 
 function velvetReed() {
@@ -907,7 +947,8 @@ export function compileModularPatch(raw) {
   });
   const midi = nodes.find(n => n.type === 'midi');
   const clocks = order.filter(i => nodes[i].type === 'clock');
-  const mono = { mode: midi?.params.voices ?? 0, glide: midi?.params.glide ?? 0, legatoOnly: midi?.params.glideMode ?? 0 };
+  const mono = { mode: midi?.params.voices ?? 0, glide: midi?.params.glide ?? 0, legatoOnly: midi?.params.glideMode ?? 0,
+    bendRange: midi?.params.bendRange ?? 2 };
   return {
     nodes, order, delays, outputs, envelopes, lineCount, mono, clocks, autonomous: clocks.length > 0 && !midi,
     meterSources: [...new Map(raw.cables.map(c => {
@@ -997,15 +1038,32 @@ function white(st) {
 }
 function newVoice(nodeCount, slot) {
   return { active: false, keyDown: false, held: false, channel: 0, note: -1, velocity: 0,
-    age: 0, tail: 0, glide: 0, slot,
+    age: 0, tail: 0, glide: 0, slot, pressure: 0, tuning: 0, brightness: NaN, expression: NaN,
     stages: Array.from({ length: nodeCount }, newStage),
     signals: Array.from({ length: nodeCount }, () => ({})),
     lines: Array.from({ length: MODULAR_LINES }, () => new Float32Array(MODULAR_LINE_SAMPLES)) };
 }
 
+// Per-note values from polyphonic aftertouch or CLAP note expressions. NaN leaves the channel's CC.
+function resetNoteExpressions(v) {
+  v.pressure = 0; v.tuning = 0; v.brightness = NaN; v.expression = NaN;
+  return v;
+}
+// MIDI's recommended controller defaults: volume 100, pan centred, expression full; others 0.
+function resetControllers(s, channel) {
+  s.bend[channel] = 0;
+  s.pressure[channel] = 0;
+  const cc = s.cc.subarray(channel * 128, channel * 128 + 128);
+  cc.fill(0);
+  cc[7] = 100 / 127; cc[10] = 64 / 127; cc[11] = 1;
+}
+
 export function modular_init(s, sampleRate) {
   s.sampleRate = sampleRate;
-  s.bend = new Float64Array(16);
+  s.bend = new Float64Array(16); // -1..1
+  s.pressure = new Float64Array(16);
+  s.cc = new Float64Array(16 * 128);
+  for (let channel = 0; channel < 16; channel++) resetControllers(s, channel);
   s.sustain = new Uint8Array(16);
   s.tick = 0;
   s.stack = []; // Held keys in Mono and Legato, most recent last.
@@ -1037,8 +1095,18 @@ export function modular_all_notes_off(s) {
 export function modular_midi(s, status, d1, d2) {
   if (s.graph.autonomous) return;
   const op = status & 0xf0, channel = status & 0x0f;
-  if (op === 0xe0) { s.bend[channel] = (((d2 << 7) | d1) - 8192) / 4096; return; }
+  if (op === 0xe0) { s.bend[channel] = (((d2 << 7) | d1) - 8192) / 8192; return; }
+  if (op === 0xd0) { s.pressure[channel] = clamp(d1, 0, 127) / 127; return; }
+  if (op === 0xa0) {
+    for (const v of s.voices) if (v.active && v.channel === channel && v.note === d1) v.pressure = clamp(d2, 0, 127) / 127;
+    return;
+  }
   if (op === 0xb0) {
+    if (d1 >= 0 && d1 < 120) s.cc[channel * 128 + d1] = clamp(d2, 0, 127) / 127;
+    if (d1 === 121) {
+      resetControllers(s, channel);
+      for (const v of s.voices) if (v.channel === channel) resetNoteExpressions(v);
+    }
     if (d1 === 64) s.sustain[channel] = d2 >= 64;
     for (const v of s.voices) {
       if (v.channel !== channel) continue;
@@ -1078,6 +1146,7 @@ function startVoice(s, v, channel, key, velocity) {
   for (let i = 0; i < s.graph.lineCount; i++) v.lines[i].fill(0);
   v.active = v.held = v.keyDown = true;
   v.channel = channel; v.note = key; v.velocity = velocity; v.age = age; v.tail = 0; v.glide = 0;
+  resetNoteExpressions(v);
 }
 
 // Mono and Legato play voice 0 with last-note priority, as the Synth instrument does.
@@ -1088,7 +1157,7 @@ function monoPlay(s, channel, key, velocity, retrigger, overlap) {
     offset = v.active ? v.note + v.glide - key : s.lastKey >= 0 ? s.lastKey - key : 0;
   s.lastKey = key;
   if (retrigger || !v.active) startVoice(s, v, channel, key, velocity);
-  else { v.channel = channel; v.note = key; v.held = v.keyDown = true; v.tail = 0; }
+  else { v.channel = channel; v.note = key; v.held = v.keyDown = true; v.tail = 0; resetNoteExpressions(v); }
   v.glide = clamp(offset, -96, 96);
 }
 
@@ -1274,9 +1343,17 @@ function sampleDrum(s, v, n, st) {
 function sampleNode(s, v, i) {
   const n = s.graph.nodes[i], st = v.stages[i], sig = v.signals[i];
   switch (n.type) {
-    case 'midi':
-      sig.pitch = v.note + v.glide + s.bend[v.channel]; sig.gate = v.held ? 1 : 0; sig.velocity = v.velocity;
+    case 'midi': {
+      const bend = s.bend[v.channel], number = n.params.cc, cc = s.cc[v.channel * 128 + number];
+      sig.pitch = v.note + v.glide + bend * s.graph.mono.bendRange + v.tuning;
+      sig.gate = v.held ? 1 : 0; sig.velocity = v.velocity;
+      sig.bend = bend;
+      sig.mod = s.cc[v.channel * 128 + 1];
+      sig.pressure = Math.max(s.pressure[v.channel], v.pressure);
+      sig.cc = number === 74 && !Number.isNaN(v.brightness) ? v.brightness
+        : number === 11 && !Number.isNaN(v.expression) ? v.expression : cc;
       break;
+    }
     case 'clock':
       sig.phase = s.clockPhases[i];
       sig.gate = Number(sig.phase < n.params.duty);
