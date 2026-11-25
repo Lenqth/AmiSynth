@@ -180,7 +180,7 @@ inline Graph compile(Json &patch, Macros &macros) {
     bool fx_output = false;
     for (int i = 0; i < graph.size; ++i) {
         const auto type = graph.nodes[size_t(i)].type;
-        fx_count += type == Type::echo || type == Type::chorus || type == Type::reverb || type == Type::guitarAmp || type == Type::soundboard || type == Type::rotary;
+        fx_count += type == Type::echo || type == Type::chorus || type == Type::reverb || type == Type::guitarAmp || type == Type::soundboard || type == Type::rotary || type == Type::sympathetic;
         fx_output |= type == Type::fxOutput;
     }
     if (!graph.output_count && !fx_output) throw std::invalid_argument("Missing output");
@@ -1196,11 +1196,19 @@ struct Engine {
                 const double a = bright * bright, norm = 1 / std::sqrt(a / (2 - a));
                 const bool strike = p[0] >= 0.5;
                 const double width = std::max(2.0, count * (0.5 - 0.45 * bright));
+                const double plectrum = p[8], at = std::clamp(p[4], 0.02, 0.98);
                 double lp = 0;
                 for (int i = 0; i < count; ++i) {
                     double x;
                     if (strike) x = i < width ? 0.5 - 0.5 * std::cos(2 * kPi * i / width) : 0;
-                    else { lp += a * (white(st) - lp); x = lp * norm * 0.5; }
+                    else {
+                        lp += a * (white(st) - lp);
+                        x = lp * norm * 0.5;
+                        if (plectrum > 0) {
+                            const double q = double(i) / count, displacement = q < at ? q / at : (1 - q) / (1 - at);
+                            x += 0.65 * plectrum * (displacement - 0.5 - x);
+                        }
+                    }
                     line[size_t((st.write + i) & kLineMask)] = float(x);
                 }
                 const int pick = std::max(1, int(std::round(p[4] * count)));
@@ -1209,18 +1217,63 @@ struct Engine {
                         double(line[size_t((st.write + i - pick) & kLineMask)]));
                 st.write = (st.write + count) & kLineMask;
                 st.prev = 0;
+                st.ic1 = st.ic2 = st.ic3 = st.ic4 = 0;
+                st.p0 = 1; st.p1 = 1; st.p2 = 0;
+                const double hard = std::clamp(p[9] * (0.6 + 0.4 * std::clamp(read(v, n, 2, 1), 0.0, 1.0)), 0.0, 1.0);
+                st.a2[4] = std::max(2.0, std::round(rate * (0.0012 - 0.001 * hard)));
+                constexpr double hz_k[3] = {950, 2300, 4800}, t_k[3] = {30, 18, 10}, g_k[3] = {0.08, 0.85, 0.65};
+                for (size_t k = 0; k < 3; ++k) {
+                    const double w = 2 * kPi * hz_k[k] / rate, r = std::exp(-kLn1000 / (t_k[k] * (1 - 0.5 * hard) * 0.001 * rate));
+                    const bool ok = hz_k[k] < rate * 0.45;
+                    st.a1[2 + k] = ok ? 2 * r * std::cos(w) : 0;
+                    st.a2[1 + k] = ok ? r * r : 0;
+                    st.b[k] = ok ? std::sin(w) * g_k[k] : 0;
+                    st.y1[k] = st.y2[k] = 0;
+                }
             }
+            if (!gate && st.gate) { st.p1 = 0; st.p0 = 1; }
             st.gate = gate;
             const double t60 = gate ? p[1] : std::min(p[1], p[2]);
             if (st.key[2] != t60) { st.key[2] = t60; st.a2[0] = std::exp(-kLn1000 / (hz * t60)); }
             const double y = line_read(line, st.write, st.a1[0]);
             st.prev = (1 - damping) * y + damping * st.prev;
-            const double feedback = std::clamp(st.prev * st.a2[0], -4.0, 4.0);
+            double fb = st.prev * st.a2[0];
+            if (p[7] > 0) {
+                const double a = std::abs(st.prev);
+                st.ic1 = a > st.ic1 ? a : st.ic1 * std::exp(-1 / (0.03 * rate));
+                const double b = (0.8 - 0.55 * p[7]) * st.ic1;
+                double z = st.prev;
+                if (z > b) z = b - 0.5 * (z - b);
+                st.ic2 += (1 - std::exp(-2 * kPi * 5 / rate)) * (z - st.ic2);
+                z -= st.ic2;
+                const double m = 1 - std::exp(-1 / (0.02 * rate));
+                st.ic3 += m * (a - st.ic3);
+                st.ic4 += m * (std::abs(z) - st.ic4);
+                if (st.p1 != 0 && st.ic4 > 1e-12) st.p0 = std::min(st.ic3 / st.ic4, 1.5);
+                fb = z * st.a2[0] * st.p0;
+            }
+            const double feedback = std::clamp(fb, -4.0, 4.0);
             line[size_t(st.write)] = float(feedback);
             st.write = (st.write + 1) & kLineMask;
+            const double direct = feedback * st.a1[1];
+            double out = direct, contact = 0;
+            if (st.p2 < st.a2[4]) {
+                contact = p[11] * p[8] * (1 + p[9]) * std::sin(2 * kPi * st.p2 / st.a2[4]) / (0.5 * st.a2[4]);
+                st.p2 += 1;
+            }
+            if (p[10] > 0) {
+                double sum = 0;
+                for (size_t k = 0; k < 3; ++k) {
+                    const double r = st.a1[2 + k] * st.y1[k] - st.a2[1 + k] * st.y2[k] + st.b[k] * (0.002 * direct + contact);
+                    st.y2[k] = st.y1[k];
+                    st.y1[k] = r;
+                    sum += r;
+                }
+                out += 2 * p[10] * sum;
+            }
             st.amp = std::max(std::abs(feedback), st.amp * 0.9995);
             st.mode = st.amp > 1e-4 ? 1 : 0;
-            sig[0] = feedback * st.a1[1] * p[6];
+            sig[0] = out * p[6];
             break;
         }
         case Type::physBowed: {
@@ -1816,6 +1869,38 @@ struct Engine {
         sig = {channel(in_l, 0), channel(in_r, 6)};
     }
 
+    // The Physical instrument's sympathetic strings (see the Web engine).
+    void sympathetic(Fx &f, const Node &n, double in_l, double in_r, std::array<double, 2> &sig) {
+        const auto &p = n.knobs; // root, decay, mix
+        auto &mem = f.mem;
+        if (!f.pos[1] || f.pos[2] != int(p[0]) || mem[127] != p[1]) {
+            f.pos[1] = 1;
+            f.pos[2] = int(p[0]);
+            mem[127] = p[1];
+            for (int k = 0; k < 24; ++k) {
+                const double hz = 440 * std::pow(2.0, (p[0] + k - 69) / 12);
+                const size_t o = size_t(48 + 3 * k);
+                const double decay = p[1] * (1 - 0.012 * k), r = std::exp(-kLn1000 / (decay * rate)), w = 2 * kPi * hz / rate;
+                const bool ok = hz < rate * 0.45;
+                mem[o] = ok ? 2 * r * std::cos(w) : 0;
+                mem[o + 1] = ok ? r * r : 0;
+                mem[o + 2] = ok ? std::sin(w) * 2 * (1 - r) : 0;
+            }
+        }
+        const double x = 0.5 * (in_l + in_r);
+        double l = 0, r = 0;
+        for (int k = 0; k < 24; ++k) {
+            const size_t o = size_t(48 + 3 * k), i = size_t(2 * k);
+            const double y = mem[o] * mem[i] - mem[o + 1] * mem[i + 1] + mem[o + 2] * x;
+            mem[i + 1] = mem[i];
+            mem[i] = y;
+            const double wet = y * p[2] * 2.4, pan = k % 2 ? 0.85 : 0.15;
+            l += wet * pan;
+            r += wet * (1 - pan);
+        }
+        sig = {in_l + l, in_r + r};
+    }
+
     // The Physical instrument's rotary speaker (see the Web engine).
     void rotary(Fx &f, const Node &n, double in_l, double in_r, std::array<double, 2> &sig) {
         const auto &p = n.knobs; // speed, mix
@@ -1903,6 +1988,7 @@ struct Engine {
             else if (n.type == Type::guitarAmp) amp(f, n, in_l, in_r, sig);
             else if (n.type == Type::soundboard) soundboard(f, n, in_l, in_r, sig);
             else if (n.type == Type::rotary) rotary(f, n, in_l, in_r, sig);
+            else if (n.type == Type::sympathetic) sympathetic(f, n, in_l, in_r, sig);
             else reverb(f, n, in_l, in_r, sig);
             sig[0] = std::clamp(sig[0], -1e6, 1e6);
             sig[1] = std::clamp(sig[1], -1e6, 1e6);

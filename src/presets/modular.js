@@ -398,6 +398,8 @@ const PHYS_COMMON = new Set(['phys_model', 'phys_volume_db', 'phys_release_ms', 
   'tuning_divisions', 'tuning_period_cents', 'tuning_ref_note', 'tuning_ref_hz']);
 const PHYS_MODELS = {
   0: new Set(['string_excitation', 'string_decay_ms', 'string_damping', 'string_pick_position', 'string_brightness',
+    'string_sawari', 'string_plectrum', 'string_plectrum_hardness', 'string_body_mix', 'string_contact_gain',
+    'string_sympathetic_mix', 'string_sympathetic_decay_ms', 'string_sympathetic_root',
     'amp_type', 'amp_gain', 'amp_tone', 'amp_level_db', 'phys_vibrato_cents', 'phys_vibrato_rate_hz']),
   3: new Set(['wind_type', 'breath_pressure', 'breath_noise', 'wind_attack_ms', 'wind_embouchure', 'free_reed_detune_cents',
     'phys_vibrato_cents', 'phys_vibrato_rate_hz']),
@@ -559,6 +561,8 @@ export function modularFromPhysical(params) {
     source = node('string', 'physString', {
       excitation: p.string_excitation >= 0.5 ? 1 : 0, decay: p.string_decay_ms / 1000, release: p.phys_release_ms / 1000,
       damping: p.string_damping, pick: p.string_pick_position, brightness: p.string_brightness, level: 1,
+      ...(p.string_sawari || p.string_plectrum || p.string_body_mix ? { sawari: p.string_sawari, plectrum: p.string_plectrum,
+        hardness: p.string_plectrum_hardness, body: p.string_body_mix, contact: p.string_contact_gain } : {}),
     }, 1);
     wire(...pitch, source, 'pitch');
     wire('note', 'gate', source, 'gate');
@@ -613,6 +617,16 @@ export function modularFromPhysical(params) {
     left = ['board', 'left'];
     right = ['board', 'right'];
   }
+  // Sitar-style sympathetic strings ring on the sum of the voices, before the amp.
+  const sympathetic = model === 0 && p.string_sympathetic_mix > 0;
+  if (sympathetic) {
+    node('tarab', 'sympathetic', { root: Math.round(p.string_sympathetic_root), decay: p.string_sympathetic_decay_ms / 1000,
+      mix: p.string_sympathetic_mix }, 3);
+    wire(...left, 'tarab', 'left');
+    if (right) wire(...right, 'tarab', 'right');
+    left = ['tarab', 'left'];
+    right = ['tarab', 'right'];
+  }
   if (amp) {
     node('amp', 'guitarAmp', { type: Math.round(p.amp_type) - 1, gain: p.amp_gain, tone: p.amp_tone,
       level: p.amp_level_db }, 3);
@@ -630,7 +644,7 @@ export function modularFromPhysical(params) {
     left = ['rotary', 'left'];
     right = ['rotary', 'right'];
   }
-  const chain = board || amp || rotary;
+  const chain = board || sympathetic || amp || rotary;
   if (chain) {
     node('out', 'fxOutput', { level: amp ? Math.min(2, Math.round(outputGain * 1e4) / 1e4) : 1 }, 3);
     wire(...left, 'out', 'left');

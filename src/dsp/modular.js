@@ -110,6 +110,11 @@ export const MODULAR_TYPES = Object.freeze({
       pick: { min: 0.02, max: 0.5, default: 0.13, step: 0.001 },
       brightness: { min: 0, max: 1, default: 0.7, step: 0.001 },
       level: { min: 0, max: 1, default: 0.6, step: 0.01 },
+      sawari: { min: 0, max: 1, default: 0, step: 0.001 },
+      plectrum: { min: 0, max: 1, default: 0, step: 0.001 },
+      hardness: { min: 0, max: 1, default: 0.7, step: 0.001 },
+      body: { min: 0, max: 1, default: 0, step: 0.001 },
+      contact: { min: 0, max: 2, default: 1, step: 0.001 },
     } },
   physBowed: { label: 'Physical Bowed String', category: 'Physical',
     keywords: 'violin viola cello contrabass fiddle bow friction waveguide body physical model',
@@ -405,6 +410,13 @@ export const MODULAR_TYPES = Object.freeze({
       speed: { min: 0, max: 1, default: 0, step: 1, choices: ['Slow', 'Fast'], fixed: true },
       mix: { min: 0, max: 1, default: 1, step: 0.001, fixed: true },
     } },
+  sympathetic: { label: 'Sympathetic Strings', category: 'Patch Effects', global: true,
+    keywords: 'sitar sympathetic strings resonance tarab drone shimmer effect fx',
+    inputs: ['left', 'right'], outputs: ['left', 'right'], params: {
+      root: { min: 0, max: 104, default: 60, step: 1, fixed: true },
+      decay: { min: 0.2, max: 10, default: 3.5, step: 0.01, fixed: true },
+      mix: { min: 0, max: 1, default: 0.5, step: 0.001, fixed: true },
+    } },
   soundboard: { label: 'Soundboard', category: 'Patch Effects', global: true,
     keywords: 'piano soundboard body resonance bridge wood effect fx',
     inputs: ['left', 'right'], outputs: ['left', 'right'], params: {
@@ -450,7 +462,7 @@ export const MODULAR_AMP_TYPES = [
   [200, 8, 100, 0.2, 1, 2200, 6000],
   [150, 30, 600, 0.1, 2, 1800, 5000],
 ];
-const FX_TYPES = new Set(['echo', 'chorus', 'reverb', 'guitarAmp', 'soundboard', 'rotary']);
+const FX_TYPES = new Set(['echo', 'chorus', 'reverb', 'guitarAmp', 'soundboard', 'rotary', 'sympathetic']);
 
 const LINE_TYPES = new Set(['string', 'physString', 'physMesh', 'comb', 'reedPipe']);
 // Modules that ring on after their gate falls; a released voice lives until they are quiet.
@@ -1643,6 +1655,35 @@ function sampleRotary(s, fx, p, inL, inR, sig) {
   sig.left = inL + p.mix * (rl - inL);
   sig.right = inR + p.mix * (rr - inR);
 }
+// The Physical instrument's sympathetic strings: 24 resonators tuned a semitone apart from
+// **root**, driven by the sum of the voices and alternately panned. mem holds 2 states and 3
+// coefficients per string; pos[1] marks them set for pos[2] (root) and mem[127] (decay).
+function sampleSympathetic(s, fx, p, inL, inR, sig) {
+  const mem = fx.mem, rate = s.sampleRate;
+  if (!fx.pos[1] || fx.pos[2] !== p.root || mem[127] !== p.decay) {
+    fx.pos[1] = 1; fx.pos[2] = p.root; mem[127] = p.decay;
+    for (let k = 0; k < 24; k++) {
+      const hz = 440 * Math.pow(2, (p.root + k - 69) / 12), o = 48 + 3 * k;
+      const decay = p.decay * (1 - 0.012 * k), r = Math.exp(-LN1000 / (decay * rate)), w = TAU * hz / rate;
+      const ok = hz < rate * 0.45;
+      mem[o] = ok ? 2 * r * Math.cos(w) : 0;
+      mem[o + 1] = ok ? r * r : 0;
+      mem[o + 2] = ok ? Math.sin(w) * 2 * (1 - r) : 0;
+    }
+  }
+  const x = 0.5 * (inL + inR);
+  let l = 0, r = 0;
+  for (let k = 0; k < 24; k++) {
+    const o = 48 + 3 * k, i = 2 * k;
+    const y = mem[o] * mem[i] - mem[o + 1] * mem[i + 1] + mem[o + 2] * x;
+    mem[i + 1] = mem[i]; mem[i] = y;
+    const wet = y * p.mix * 2.4, pan = k % 2 ? 0.85 : 0.15;
+    l += wet * pan;
+    r += wet * (1 - pan);
+  }
+  sig.left = inL + l;
+  sig.right = inR + r;
+}
 function freeReedFlow(x, bias) {
   const d = Math.abs(x - bias) - MODULAR_WIND.overlap;
   return d > 0 ? d : 0;
@@ -1699,6 +1740,7 @@ function sampleGlobals(s) {
     else if (n.type === 'guitarAmp') sampleAmp(s, fx, n.params, inL, inR, sig);
     else if (n.type === 'soundboard') sampleSoundboard(s, fx, n.params, inL, inR, sig);
     else if (n.type === 'rotary') sampleRotary(s, fx, n.params, inL, inR, sig);
+    else if (n.type === 'sympathetic') sampleSympathetic(s, fx, n.params, inL, inR, sig);
     else sampleReverb(s, fx, n.params, inL, inR, sig);
     sig.left = clamp(sig.left, -1e6, 1e6);
     sig.right = clamp(sig.right, -1e6, 1e6);
@@ -2319,11 +2361,19 @@ function sampleNode(s, v, i) {
         const bright = clamp(parameter(v, n, 'brightness') * (0.6 + 0.4 * clamp(read(v, n, 'velocity', 1), 0, 1)), 0.02, 1);
         const a = bright * bright, norm = 1 / Math.sqrt(a / (2 - a));
         const strike = parameter(v, n, 'excitation') >= 0.5, width = Math.max(2, count * (0.5 - 0.45 * bright));
+        const plectrum = parameter(v, n, 'plectrum'), at = clamp(parameter(v, n, 'pick'), 0.02, 0.98);
         let lp = 0;
         for (let i = 0; i < count; i++) {
           let x;
           if (strike) x = i < width ? 0.5 - 0.5 * Math.cos(TAU * i / width) : 0;
-          else { lp += a * (white(st) - lp); x = lp * norm * 0.5; }
+          else {
+            lp += a * (white(st) - lp); x = lp * norm * 0.5;
+            if (plectrum > 0) {
+              // Displacement released by a plectrum; the pick comb still colours it.
+              const q = i / count, displacement = q < at ? q / at : (1 - q) / (1 - at);
+              x += 0.65 * plectrum * (displacement - 0.5 - x);
+            }
+          }
           line[(st.write + i) & MASK] = x;
         }
         // Picking point: subtract the burst delayed by the pick distance.
@@ -2331,19 +2381,68 @@ function sampleNode(s, v, i) {
         for (let i = count - 1; i >= pick; i--) line[(st.write + i) & MASK] -= line[(st.write + i - pick) & MASK];
         st.write = (st.write + count) & MASK;
         st.prev = 0;
+        // Sawari state (envelope, DC, mean levels in and out, gain, on) and the plectrum contact.
+        st.ic1 = st.ic2 = st.ic3 = st.ic4 = 0; st.p0 = 1; st.p1 = 1; st.p2 = 0;
+        const hard = clamp(parameter(v, n, 'hardness') * (0.6 + 0.4 * clamp(read(v, n, 'velocity', 1), 0, 1)), 0, 1);
+        st.a2[4] = Math.max(2, Math.round(s.sampleRate * (0.0012 - 0.001 * hard)));
+        for (let k = 0; k < 3; k++) {
+          // Short, bright skin contact resonances.
+          const w = TAU * [950, 2300, 4800][k] / s.sampleRate, r = Math.exp(-LN1000 / ([30, 18, 10][k] * (1 - 0.5 * hard) * 0.001 * s.sampleRate));
+          const ok = [950, 2300, 4800][k] < s.sampleRate * 0.45;
+          st.a1[2 + k] = ok ? 2 * r * Math.cos(w) : 0;
+          st.a2[1 + k] = ok ? r * r : 0;
+          st.b[k] = ok ? Math.sin(w) * [0.08, 0.85, 0.65][k] : 0;
+          st.y1[k] = st.y2[k] = 0;
+        }
       }
+      if (!gate && st.lastGate) { st.p1 = 0; st.p0 = 1; }
       st.lastGate = gate;
       const decay = parameter(v, n, 'decay');
       const t60 = gate ? decay : Math.min(decay, parameter(v, n, 'release'));
       if (st.key[2] !== t60) { st.key[2] = t60; st.a2[0] = Math.exp(-LN1000 / (hz * t60)); }
       const y = lineRead(line, st.write, st.a1[0]);
       st.prev = (1 - damping) * y + damping * st.prev;
-      const feedback = clamp(st.prev * st.a2[0], -4, 4);
+      let fb = st.prev * st.a2[0];
+      const sawari = parameter(v, n, 'sawari'), rate = s.sampleRate;
+      if (sawari > 0) {
+        // Sawari (jawari bridge): above a fraction of its own swing the string lies on the curved
+        // bridge, which throws it back; the contact's loss is given back to keep the decay.
+        const a = Math.abs(st.prev);
+        st.ic1 = a > st.ic1 ? a : st.ic1 * Math.exp(-1 / (0.03 * rate));
+        const b = (0.8 - 0.55 * sawari) * st.ic1;
+        let z = st.prev;
+        if (z > b) z = b - 0.5 * (z - b);
+        st.ic2 += (1 - Math.exp(-TAU * 5 / rate)) * (z - st.ic2);
+        z -= st.ic2;
+        const m = 1 - Math.exp(-1 / (0.02 * rate));
+        st.ic3 += m * (a - st.ic3);
+        st.ic4 += m * (Math.abs(z) - st.ic4);
+        if (st.p1 && st.ic4 > 1e-12) st.p0 = Math.min(st.ic3 / st.ic4, 1.5);
+        fb = z * st.a2[0] * st.p0;
+      }
+      const feedback = clamp(fb, -4, 4);
       line[st.write] = feedback;
       st.write = (st.write + 1) & MASK;
+      const direct = feedback * st.a1[1];
+      let out = direct;
+      const body = parameter(v, n, 'body');
+      let contact = 0;
+      if (st.p2 < st.a2[4]) {
+        contact = parameter(v, n, 'contact') * parameter(v, n, 'plectrum') * (1 + parameter(v, n, 'hardness')) *
+          Math.sin(TAU * st.p2 / st.a2[4]) / (0.5 * st.a2[4]);
+        st.p2++;
+      }
+      if (body > 0) {
+        let sum = 0;
+        for (let k = 0; k < 3; k++) {
+          const r = st.a1[2 + k] * st.y1[k] - st.a2[1 + k] * st.y2[k] + st.b[k] * (0.002 * direct + contact);
+          st.y2[k] = st.y1[k]; st.y1[k] = r; sum += r;
+        }
+        out += 2 * body * sum;
+      }
       st.amp = Math.max(Math.abs(feedback), st.amp * 0.9995);
       st.mode = st.amp > 1e-4 ? 1 : 0;
-      sig.out = feedback * st.a1[1] * parameter(v, n, 'level');
+      sig.out = out * parameter(v, n, 'level');
       break;
     }
     case 'physBowed': {
