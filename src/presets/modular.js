@@ -13,6 +13,7 @@ import { DELAY_SYNC_BEATS, MOD_DESTINATIONS, MOD_SLOTS, MOD_SOURCES, PHYS_PARAMS
 import { MATERIALS } from '../dsp/phys.js';
 import { PHYS_PRESETS } from './phys.js';
 import { SYNTH_PRESETS } from './synth.js';
+import { DRUM_PRESETS } from './drums.js';
 
 const DEFAULTS = defaultValues(SYNTH_PARAMS);
 
@@ -716,3 +717,20 @@ export const MODULAR_PHYSICAL_PORTS = PHYS_PRESETS.filter(preset => {
 }).map(preset => ({ name: preset.name + ' (Modular)', category: PHYS_CATEGORIES[preset.category] ?? preset.category,
   description: preset.description,
   source: 'Physical', patch: () => modularFromPhysical(preset.params) }));
+
+/** Drums kits on the GM Drum Kit module, which plays the kit at the same index of DRUM_PRESETS. */
+export function modularFromDrums(kit) {
+  return {
+    nodes: [
+      { id: 'note', type: 'midi', params: {}, position: { x: 22, y: 22 } },
+      { id: 'kit', type: 'drumKit', params: { kit }, position: { x: 22 + COLUMN, y: 22 } },
+      { id: 'out', type: 'output', params: { level: 1 }, position: { x: 22 + 2 * COLUMN, y: 22 } },
+    ],
+    cables: [
+      { from: 'kit', port: 'left', to: 'out', input: 'audio' },
+      { from: 'kit', port: 'right', to: 'out', input: 'right' },
+    ],
+  };
+}
+export const MODULAR_DRUM_PORTS = DRUM_PRESETS.map((preset, kit) => ({ name: preset.name + ' (Modular)', category: 'Rhythm',
+  description: preset.description, source: 'Drums', tags: 'drum kit gm percussion channel 10', patch: () => modularFromDrums(kit) }));

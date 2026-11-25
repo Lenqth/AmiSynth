@@ -4,9 +4,9 @@
 import { BRASS_MIN_DRIVE, BRASS_MULTS, BRASS_NOTE0, BRASS_SHARP, MATERIALS } from './phys.js';
 import { HAT_RATIOS } from './drums.js';
 import { WT_BANK_NAMES, wt_build, wt_sample } from './wavetable.js';
-import { MODULAR_PHYSICAL_PORTS, MODULAR_SYNTH_PORTS } from '../presets/modular.js';
+import { MODULAR_DRUM_PORTS, MODULAR_PHYSICAL_PORTS, MODULAR_SYNTH_PORTS } from '../presets/modular.js';
 import { DRUM_PRESETS } from '../presets/drums.js';
-import { DRUM_PARAMS, defaultValues } from './params.js';
+import { DRUM_PARAMS, GM_DRUM_VARIANTS, defaultValues } from './params.js';
 
 // Native storage limits per module (checked by scripts/gen-modular-clap.js).
 export const MODULAR_MAX_INPUTS = 4;
@@ -328,6 +328,14 @@ export const MODULAR_TYPES = Object.freeze({
       kickSweep: { min: -1, max: 6, default: -1, step: 0.01 },
       kickSweepTime: { min: 0.002, max: 0.3, default: 0.035, step: 0.001 },
     } },
+  // The Drums instrument's kits: the key picks the GM percussion part, as on MIDI channel 10.
+  drumKit: { label: 'GM Drum Kit', category: 'Drums', keywords: 'drums percussion gm kit channel 10 kick snare hat tom cymbal conga cowbell',
+    inputs: ['key', 'trigger', 'velocity'], outputs: ['out', 'left', 'right'], params: {
+      kit: { min: 0, max: DRUM_PRESETS.length - 1, default: 0, step: 1, choices: DRUM_PRESETS.map(kit => kit.name), fixed: true },
+      tune: { min: -24, max: 24, default: 0, step: 0.1 },
+      decay: { min: 0.1, max: 4, default: 1, step: 0.01 },
+      level: { min: 0, max: 1, default: 1, step: 0.01 },
+    } },
   vcf: { label: 'VCF', category: 'Filters & Effects', keywords: 'filter lowpass highpass bandpass notch cutoff resonance keytrack',
     inputs: ['audio', 'cutoff', 'pitch'], outputs: ['out'], params: {
       cutoff: { min: 20, max: 18000, default: 2400, step: 1 },
@@ -453,6 +461,73 @@ export const MODULAR_FX_SLOTS = 4;
 export const MODULAR_FX_MEMORY = 128;
 export const MODULAR_ECHO_SECONDS = 2;
 // The LFO's host-synced cycle lengths in beats (quarter notes), as the Synth's LFO Sync.
+// GM Drum Kit: one row of MODULAR_DRUM_FIELDS numbers per kit and GM note (35-81), worked out
+// from the Drums instrument's parameters as drums_update / drums_note_on do. Fields: kind, the
+// Drums voice it plays (a new hit chokes older hits of that voice), a second voice it chokes
+// (the closed hat chokes the open hat), gain, left and right pan gains, pitch, tone, decay (ms),
+// then kind-specific values x1-x6.
+export const MODULAR_DRUM_FIRST = 35, MODULAR_DRUM_LAST = 81, MODULAR_DRUM_FIELDS = 15;
+export const MODULAR_DRUM_HITS = buildDrumHits();
+function buildDrumHits() {
+  const notes = MODULAR_DRUM_LAST - MODULAR_DRUM_FIRST + 1;
+  const table = new Float64Array(DRUM_PRESETS.length * notes * MODULAR_DRUM_FIELDS);
+  DRUM_PRESETS.forEach((kit, k) => {
+    const p = { ...defaultValues(DRUM_PARAMS), ...kit.params };
+    for (let note = MODULAR_DRUM_FIRST; note <= MODULAR_DRUM_LAST; note++) {
+      const hit = drumHit(p, note);
+      if (hit) table.set(hit, (k * notes + note - MODULAR_DRUM_FIRST) * MODULAR_DRUM_FIELDS);
+    }
+  });
+  return table;
+}
+function drumHit(p, note) {
+  const g = GM_DRUM_VARIANTS.find(x => x.note === note) ?? { pitch: 1, decay: 1, level: 1 };
+  const db = d => d <= -60 ? 0 : Math.pow(10, d / 20);
+  // kind: 1 kick, 2 snare, 3 clap, 4 hat / cymbal, 5 tom, 6 rimshot, 7 cowbell / agogo, 8 shaker,
+  // 9 conga / bongo / timbale, 10 claves / wood block, 11 triangle, 12 vibraslap, 13 whistle,
+  // 14 guiro, 15 cuica.
+  const row = (kind, voice, part, { gain = 1, hz = p[part + '_pitch_hz'] * g.pitch, decay = p[part + '_decay_ms'] * g.decay,
+    tone = p[part + '_tone'], x = [], choke = -1 } = {}) => {
+    const a = (Math.min(1, Math.max(-1, p[part + '_pan'])) + 1) * 0.25 * Math.PI;
+    const level = db(p[part + '_level_db']) * gain * db(p.drum_master_volume_db) * 0.8;
+    return [kind, voice, choke, level, Math.cos(a) * 1.41421356, Math.sin(a) * 1.41421356, hz, tone, decay, ...x];
+  };
+  const hat = (voice, part, bp, hp, metal, options = {}) => row(4, voice, part, { ...options, x: [metal, bp, hp] });
+  const hand = (voice, part) => row(9, voice, part, { gain: g.level,
+    x: part === 'conga' ? [1.59, 0.35, 1200] : [2.32, 0.8, 3000] });
+  const bell = (voice, part, fast, ratio, bp, k, mix) => row(7, voice, part, { gain: g.level, x: [fast, ratio, bp, k, mix] });
+  switch (note) {
+    case 35: case 36: return row(1, 0, 'kick', { hz: p.kick_pitch_hz, decay: p.kick_decay_ms, x: [p.kick_sweep_oct, p.kick_sweep_ms] });
+    case 38: case 40: return row(2, 1, 'snare', { hz: p.snare_pitch_hz, decay: p.snare_decay_ms, x: [p.snare_snappy] });
+    case 39: return row(3, 2, 'clap', { x: [p.clap_spread_ms] });
+    case 42: return hat(3, 'closed_hat', 10000, 3000, p.closed_hat_metal_mix, { choke: 4 });
+    case 44: return hat(3, 'closed_hat', 10000, 3000, p.closed_hat_metal_mix, { choke: 4, gain: 0.6, decay: p.closed_hat_decay_ms * 0.8 });
+    case 46: return hat(4, 'open_hat', 10000, 3000, p.open_hat_metal_mix);
+    case 49: return hat(5, 'crash', 6500, 1500, p.crash_metal_mix);
+    case 51: return hat(6, 'ride', 8000, 2000, p.ride_metal_mix);
+    case 45: return row(5, 7, 'low_tom');
+    case 47: return row(5, 8, 'mid_tom');
+    case 50: return row(5, 9, 'high_tom');
+    case 37: return row(6, 10, 'rimshot');
+    case 56: return bell(11, 'cowbell', 40, 1.4815, 1.6, 1, 0.6);
+    case 69: case 70: return row(8, 12, 'shaker', { hz: p.shaker_pitch_hz, decay: p.shaker_decay_ms });
+    case 54: return hat(13, 'tambourine', 9000, 4000, 0.7);
+    case 41: case 43: return row(5, note === 41 ? 14 : 15, 'low_tom');
+    case 48: return row(5, 16, 'mid_tom');
+    case 52: case 55: case 57: return hat(17, 'crash', 6500, 1500, p.crash_metal_mix, { gain: g.level });
+    case 53: case 59: return hat(18, 'ride', 8000, 2000, g.pitch > 1 ? 1 : p.ride_metal_mix, { gain: g.level });
+    case 60: case 61: case 62: case 63: case 64: return hand(19 + note - 60, 'conga');
+    case 65: case 66: return hand(19 + note - 60, 'timbale');
+    case 67: case 68: return bell(26 + note - 67, 'agogo', 25, 1.6, 1.3, 0.8, 0.5);
+    case 75: case 76: case 77: return row(10, 28 + note - 75, 'claves', { gain: g.level });
+    case 80: case 81: return row(11, 31, 'triangle', { hz: p.triangle_pitch_hz, decay: Math.max(30, p.triangle_decay_ms * (note === 80 ? 0.05 : 1)) });
+    case 58: return row(12, 32, 'vibraslap');
+    case 71: case 72: return row(13, 33, 'whistle', { hz: p.whistle_pitch_hz, decay: p.whistle_decay_ms * (note === 71 ? 0.3 : 1) });
+    case 73: case 74: return row(14, 34, 'guiro', { hz: p.guiro_pitch_hz, decay: p.guiro_decay_ms * (note === 73 ? 0.3 : 1) });
+    case 78: case 79: return row(15, 35, 'cuica', { hz: p.cuica_pitch_hz * (note === 78 ? 1.5 : 1), decay: p.cuica_decay_ms * (note === 78 ? 0.35 : 1) });
+    default: return null;
+  }
+}
 export const MODULAR_ARP_BEATS = [1, 0.5, 1 / 3, 0.75, 0.25, 1 / 6, 0.125];
 /** New Chord: a key pressed this long after the previous key press starts a new chord. */
 export const MODULAR_ARP_CHORD_MS = 50;
@@ -490,7 +565,7 @@ const FX_TYPES = new Set(['echo', 'chorus', 'reverb', 'guitarAmp', 'soundboard',
 
 const LINE_TYPES = new Set(['string', 'physString', 'physMesh', 'synthNoise', 'comb', 'reedPipe']);
 // Modules that ring on after their gate falls; a released voice lives until they are quiet.
-const RINGING_TYPES = new Set(['adsr', 'functionGen', 'string', 'physString', 'physBowed', 'physWind', 'physBrass', 'physPiano', 'physMesh', 'modal', 'bowed', 'reedPipe']);
+const RINGING_TYPES = new Set(['drumKit', 'adsr', 'functionGen', 'string', 'physString', 'physBowed', 'physWind', 'physBrass', 'physPiano', 'physMesh', 'modal', 'bowed', 'reedPipe']);
 const QUANTIZER_SCALES = [0xfff, 0xab5, 0x5ad, 0x295, 0x4a9];
 
 const searchWords = text => text.toLowerCase().split(/[^a-z0-9&]+/).filter(Boolean);
@@ -839,6 +914,7 @@ const FACTORY_PATCHES = [
     patch: echoHallPluck },
   ...MODULAR_SYNTH_PORTS,
   ...MODULAR_PHYSICAL_PORTS,
+  ...MODULAR_DRUM_PORTS,
 ];
 
 const MANUAL_CATEGORIES = {
@@ -2105,6 +2181,276 @@ function measureSignals(s, voice) {
   }
 }
 
+// GM Drum Kit (see MODULAR_DRUM_HITS). State: st.write is the hit's table row; envelopes in y2[0..2]
+// with coefficients in a2[0..2]; oscillator phases in y1[0..5] with increments in a1[0..5]; a band
+// (or low) state variable filter in ic1/ic2 with coefficients b[0..2] and damping a1[6]; a second
+// one in ic3/ic4, b[3..5], a1[7]; a one-pole high-pass in prev with coefficient b[6]; a pitch
+// envelope in p0 with coefficient b[7]; st.value the hit's gain; y2[5] the choke fade.
+export const MODULAR_TRIANGLE = { ratios: [1, 2.05, 3.13, 4.27, 5.4], levels: [1, 0.7, 0.55, 0.45, 0.35] };
+const { ratios: TRI_RATIOS, levels: TRI_LEVELS } = MODULAR_TRIANGLE;
+const t60 = (ms, sr) => Math.exp(-6.907755 / (Math.max(ms, 0.01) * 0.001 * sr));
+const tau = (ms, sr) => Math.exp(-1 / (Math.max(ms, 0.001) * 0.001 * sr));
+function kitSvf(st, slot, hz, k, sr) {
+  const g = Math.tan(Math.PI * clamp(hz, 5, sr * 0.49) / sr), a1 = 1 / (1 + g * (g + k)), a2 = g * a1;
+  st.b[slot] = a1; st.b[slot + 1] = a2; st.b[slot + 2] = g * a2; st.a1[6 + slot / 3] = k;
+}
+// Runs filter 0 (ic1/ic2) or 1 (ic3/ic4); returns band-pass, leaves high-pass in kitHp.
+let kitHp = 0;
+function kitFilter(st, slot, x) {
+  const b = st.b, k = st.a1[6 + slot / 3];
+  const ic1 = slot ? st.ic3 : st.ic1, ic2 = slot ? st.ic4 : st.ic2;
+  const v3 = x - ic2, v1 = b[slot] * ic1 + b[slot + 1] * v3, v2 = ic2 + b[slot + 1] * ic1 + b[slot + 2] * v3;
+  if (slot) { st.ic3 = 2 * v1 - ic1; st.ic4 = 2 * v2 - ic2; } else { st.ic1 = 2 * v1 - ic1; st.ic2 = 2 * v2 - ic2; }
+  kitHp = x - k * v1 - v2;
+  return v1;
+}
+function kitEnv(st, e) {
+  const value = st.y2[e];
+  st.y2[e] *= st.a2[e];
+  if (st.y2[e] < 0.000001) st.y2[e] = 0;
+  return value;
+}
+function kitSine(st, o) {
+  const y = Math.sin(TAU * st.y1[o]);
+  st.y1[o] += st.a1[o];
+  if (st.y1[o] >= 1) st.y1[o] -= 1;
+  return y;
+}
+function kitSquare(st, o) {
+  const y = st.y1[o] < 0.5 ? 1 : -1;
+  st.y1[o] += st.a1[o];
+  if (st.y1[o] >= 1) st.y1[o] -= 1;
+  return y;
+}
+function kitHighpass(st, x) {
+  st.prev += st.b[6] * (x - st.prev);
+  return x - st.prev;
+}
+const kitPole = (hz, sr) => 1 - Math.exp(-TAU * clamp(hz, 1, sr * 0.49) / sr);
+
+function strikeDrumKit(s, v, n, st, index) {
+  const sr = s.sampleRate, notes = MODULAR_DRUM_LAST - MODULAR_DRUM_FIRST + 1;
+  const note = Math.round(read(v, n, 'key', v.note));
+  st.mode = 0;
+  if (note < MODULAR_DRUM_FIRST || note > MODULAR_DRUM_LAST) return;
+  const h = (n.params.kit * notes + note - MODULAR_DRUM_FIRST) * MODULAR_DRUM_FIELDS, T = MODULAR_DRUM_HITS;
+  const kind = T[h];
+  if (!kind) return;
+  // A new hit chokes older hits of the same Drums voice, and the closed hat chokes the open hat.
+  for (const o of s.voices) {
+    const ot = o.stages[index];
+    if (o === v || !o.active || o.age > v.age || !ot.ready || !ot.mode) continue;
+    if (T[ot.write + 1] === T[h + 1] || T[ot.write + 1] === T[h + 2]) ot.release = 1;
+  }
+  const velocity = clamp(read(v, n, 'velocity', v.velocity), 0, 1);
+  const hz = T[h + 6] * Math.pow(2, parameter(v, n, 'tune') / 12), tone = T[h + 7];
+  const decay = T[h + 8] * parameter(v, n, 'decay');
+  st.write = h; st.ready = true; st.mode = 1; st.release = 0;
+  st.value = (0.2 + 0.8 * velocity * velocity) * T[h + 3] * parameter(v, n, 'level');
+  st.p2 = hz;
+  st.y1.fill(0); st.y2.fill(0); st.y2[5] = 1; st.a2[7] = t60(8, sr);
+  st.ic1 = st.ic2 = st.ic3 = st.ic4 = st.prev = st.phase = st.amp = 0;
+  st.p0 = 1;
+  const env = (e, ms) => { st.y2[e] = 1; st.a2[e] = t60(ms, sr); };
+  const inc = (o, f) => { st.a1[o] = clamp(f / sr, 0, 0.49); };
+  switch (kind) {
+    case 1: env(0, decay); env(1, 4); st.b[7] = tau(T[h + 10], sr); st.b[6] = kitPole(2000 + 8000 * tone, sr); break;
+    case 2: env(0, Math.min(decay, 180)); env(1, decay); st.b[7] = tau(15, sr); kitSvf(st, 0, 1500 * Math.pow(6, tone), 1.2, sr);
+      st.b[6] = kitPole(400, sr); break;
+    case 3: kitSvf(st, 0, hz, 2 - 1.75 * tone, sr); st.p1 = Math.max(1, Math.round(T[h + 9] * 0.001 * sr));
+      st.a2[3] = t60(T[h + 9] * 0.9, sr); st.a2[4] = t60(decay, sr); break;
+    case 4:
+      for (let i = 0; i < 6; i++) { st.y1[i] = 0.5 + 0.5 * white(st); inc(i, hz * HAT_RATIOS[i]); }
+      env(0, decay); kitSvf(st, 0, T[h + 10], 1, sr); kitSvf(st, 3, T[h + 11] * Math.pow(4, tone), 1.2, sr); break;
+    case 5: env(0, decay); env(1, 25); st.b[7] = tau(40, sr); st.b[6] = kitPole(1500, sr); break;
+    case 6: env(0, decay); env(1, 3); inc(0, hz); inc(1, hz * 0.27); st.b[6] = kitPole(3000, sr); break;
+    case 7: env(0, T[h + 9]); env(1, decay); inc(0, hz); inc(1, hz * T[h + 10]);
+      kitSvf(st, 0, hz * T[h + 11] * Math.pow(3, tone), T[h + 12], sr); break;
+    case 8: env(0, decay); kitSvf(st, 0, hz, 1, sr); st.p1 = 1 / ((1 + 40 * tone) * 0.001 * sr); break;
+    case 9: env(0, decay); env(1, decay * T[h + 10]); env(2, 15); st.b[6] = kitPole(T[h + 11], sr); st.b[7] = tau(25, sr); break;
+    case 10: env(0, decay); env(1, decay * 0.4); env(2, 2); inc(0, hz); inc(1, hz * 2.76); st.b[6] = kitPole(3000, sr); break;
+    case 11: env(0, decay); env(1, decay * 0.5); env(2, 3);
+      for (let i = 0; i < 5; i++) inc(i, hz * TRI_RATIOS[i]);
+      st.b[6] = kitPole(4000, sr); break;
+    case 12: env(0, decay); kitSvf(st, 0, hz, 0.25, sr); st.phase = 1; st.p1 = (18 + 30 * tone) / sr; st.a2[3] = t60(1.5, sr); break;
+    case 13: kitSvf(st, 0, hz, 0.5, sr); st.amp = 1; st.p1 = Math.max(1, Math.round(decay * 0.001 * sr)); st.a2[3] = t60(60, sr); break;
+    case 14: kitSvf(st, 0, hz, 0.6, sr); st.y1[0] = 1; st.p1 = Math.max(1, Math.round(decay * 0.001 * sr));
+      st.a1[0] = (40 + 80 * tone) / sr; st.a2[3] = t60(0.8, sr); break;
+    case 15: env(0, decay); st.b[7] = tau(60, sr); break;
+  }
+}
+
+function sampleDrumKit(s, v, n, st, index) {
+  const trigger = read(v, n, 'trigger', Number(v.held)) > 0;
+  if (trigger && !st.lastGate) strikeDrumKit(s, v, n, st, index);
+  st.lastGate = trigger;
+  if (!st.mode) return 0;
+  const sr = s.sampleRate, T = MODULAR_DRUM_HITS, h = st.write, hz = st.p2, tone = T[h + 7];
+  let y = 0, alive = true;
+  switch (T[h]) {
+    case 1: {
+      if (!st.y2[0]) { alive = false; break; }
+      st.a1[0] = hz * Math.pow(2, T[h + 9] * st.p0) / sr;
+      st.p0 *= st.b[7];
+      y = kitSine(st, 0) * kitEnv(st, 0);
+      y += kitHighpass(st, white(st)) * kitEnv(st, 1) * tone * 0.6;
+      const drive = 1 + 3 * tone;
+      y = softClip(y * drive) / softClip(drive);
+      break;
+    }
+    case 2: {
+      if (!st.y2[0] && !st.y2[1]) { alive = false; break; }
+      const bend = 1 + 0.5 * st.p0;
+      st.p0 *= st.b[7];
+      st.a1[0] = hz * bend / sr; st.a1[1] = hz * 1.63 * bend / sr;
+      const body = (kitSine(st, 0) + 0.6 * kitSine(st, 1)) * 0.6 * kitEnv(st, 0);
+      const bp = kitFilter(st, 0, white(st));
+      const noise = kitHighpass(st, bp + 0.3 * kitHp) * kitEnv(st, 1) * 2.5;
+      y = body * (1 - T[h + 9]) + noise * T[h + 9];
+      break;
+    }
+    case 3: {
+      if (st.phase < 0) { alive = false; break; }
+      const spread = st.p1;
+      let env;
+      if (st.phase < 3 * spread) {
+        env = Math.pow(st.a2[3], st.phase % spread);
+        st.phase++;
+      } else {
+        if (st.phase === 3 * spread) st.amp = 1;
+        env = st.amp;
+        st.amp *= st.a2[4];
+        if (st.amp < 0.000001) st.phase = -1;
+        else st.phase++;
+      }
+      y = kitFilter(st, 0, white(st)) * env * 3.5;
+      break;
+    }
+    case 4: {
+      if (!st.y2[0]) { alive = false; break; }
+      let metal = 0;
+      for (let i = 0; i < 6; i++) metal += kitSquare(st, i);
+      const mix = T[h + 9];
+      const bp = kitFilter(st, 0, metal * (1 / 6) * mix + white(st) * (1 - mix));
+      kitFilter(st, 3, bp);
+      y = kitHp * kitEnv(st, 0) * 3;
+      break;
+    }
+    case 5: {
+      if (!st.y2[0]) { alive = false; break; }
+      st.a1[0] = hz * Math.pow(2, tone * st.p0) / sr;
+      st.p0 *= st.b[7];
+      const body = kitSine(st, 0) * kitEnv(st, 0);
+      y = body + kitHighpass(st, white(st)) * kitEnv(st, 1) * tone * 0.4;
+      break;
+    }
+    case 6: {
+      if (!st.y2[0]) { alive = false; break; }
+      const env = kitEnv(st, 0);
+      const body = (kitSine(st, 0) * 0.7 + kitSine(st, 1) * 0.5) * env;
+      const click = kitHighpass(st, white(st)) * kitEnv(st, 1) * 0.5;
+      const drive = 1 + 4 * tone;
+      y = softClip((body + click) * drive) / softClip(drive);
+      break;
+    }
+    case 7: {
+      if (!st.y2[1]) { alive = false; break; }
+      const mix = T[h + 13];
+      const env = mix * kitEnv(st, 0) + (1 - mix) * kitEnv(st, 1);
+      y = kitFilter(st, 0, (kitSquare(st, 0) + kitSquare(st, 1)) * 0.5) * env * 2;
+      break;
+    }
+    case 8: {
+      if (!st.y2[0]) { alive = false; break; }
+      let env;
+      if (st.phase < 1) {
+        st.phase = Math.min(1, st.phase + st.p1);
+        env = st.phase * st.phase;
+      } else env = kitEnv(st, 0);
+      y = kitFilter(st, 0, white(st)) * env * 2.5;
+      break;
+    }
+    case 9: {
+      if (!st.y2[0]) { alive = false; break; }
+      const f = hz * Math.pow(2, 0.5 * tone * st.p0);
+      st.p0 *= st.b[7];
+      st.a1[0] = clamp(f / sr, 0, 0.49); st.a1[1] = clamp(f * T[h + 9] / sr, 0, 0.49);
+      const body = kitSine(st, 0) * kitEnv(st, 0) + 0.35 * kitSine(st, 1) * kitEnv(st, 1);
+      y = body + kitHighpass(st, white(st)) * kitEnv(st, 2) * tone * 0.5;
+      break;
+    }
+    case 10: {
+      if (!st.y2[0]) { alive = false; break; }
+      const body = kitSine(st, 0) * kitEnv(st, 0) + 0.4 * tone * kitSine(st, 1) * kitEnv(st, 1);
+      y = (body + kitHighpass(st, white(st)) * kitEnv(st, 2) * tone * 0.6) * 1.2;
+      break;
+    }
+    case 11: {
+      if (!st.y2[0]) { alive = false; break; }
+      const e1 = kitEnv(st, 0), e2 = kitEnv(st, 1);
+      let x = 0;
+      for (let i = 0; i < 5; i++) {
+        const level = TRI_LEVELS[i] * (i === 0 ? 1 - 0.5 * tone : 1.5 * tone);
+        x += kitSine(st, i) * level * (i < 3 ? e1 : e2);
+      }
+      x += kitHighpass(st, white(st)) * kitEnv(st, 2) * 0.5;
+      y = x * 0.35;
+      break;
+    }
+    case 12: {
+      if (!st.y2[0]) { alive = false; break; }
+      st.phase += st.p1;
+      if (st.phase >= 1) { st.phase -= 1; st.amp = 1; }
+      const bp = kitFilter(st, 0, white(st) * st.amp);
+      st.amp *= st.a2[3];
+      y = bp * kitEnv(st, 0) * 6;
+      break;
+    }
+    case 13: {
+      if (!st.amp) { alive = false; break; }
+      const tr = Math.sin(TAU * st.y1[1]);
+      st.y1[1] += 30 / sr;
+      if (st.y1[1] >= 1) st.y1[1] -= 1;
+      st.a1[0] = clamp(hz * (1 + 0.025 * tone * tr) / sr, 0, 0.49);
+      const am = 1 - 0.6 * tone * (0.5 + 0.5 * tr);
+      const bp = kitFilter(st, 0, white(st));
+      if (st.phase >= st.p1) st.amp *= st.a2[3];
+      const a = Math.min(1, st.phase * (1 / (0.008 * sr))) * st.amp;
+      st.phase++;
+      if (st.amp < 0.0001) st.amp = 0;
+      y = (kitSine(st, 0) * am + 0.15 * bp) * a * 0.5;
+      break;
+    }
+    case 14: {
+      if (st.phase >= st.p1) { alive = false; break; }
+      st.y1[0] += st.a1[0] * (1 + 0.6 * (st.phase / st.p1));
+      if (st.y1[0] >= 1) { st.y1[0] -= 1; st.amp = 1; }
+      const bp = kitFilter(st, 0, white(st) * st.amp);
+      st.amp *= st.a2[3];
+      const a = Math.min(1, st.phase / (0.015 * sr)) * Math.min(1, (st.p1 - st.phase) / (0.008 * sr));
+      st.phase++;
+      y = bp * a * 5;
+      break;
+    }
+    case 15: {
+      if (!st.y2[0]) { alive = false; break; }
+      const f = hz * (1 - 0.35 * tone * st.p0);
+      st.p0 *= st.b[7];
+      st.a1[0] = clamp(f / sr, 0, 0.49); st.a1[1] = clamp(2 * f / sr, 0, 0.49);
+      const body = kitSine(st, 0) + 0.3 * kitSine(st, 1);
+      y = body * (1 + 0.2 * white(st)) * kitEnv(st, 0) * 0.6;
+      break;
+    }
+  }
+  // Choked: fade out within about 8 ms, then end.
+  if (st.release) {
+    st.y2[5] *= st.a2[7];
+    if (st.y2[5] < 0.000001) alive = false;
+  }
+  if (!alive) { st.mode = 0; return 0; }
+  return y * st.value * st.y2[5];
+}
+
 function sampleDrum(s, v, n, st) {
   const trigger = read(v, n, 'trigger', Number(v.held)) > 0;
   const choke = read(v, n, 'choke') > 0;
@@ -2549,6 +2895,12 @@ function sampleNode(s, v, i) {
       break;
     }
     case 'drumVoice': sig.out = sampleDrum(s, v, n, st); break;
+    case 'drumKit': {
+      const y = sampleDrumKit(s, v, n, st, i);
+      const h = st.write;
+      sig.out = y; sig.left = y * MODULAR_DRUM_HITS[h + 4]; sig.right = y * MODULAR_DRUM_HITS[h + 5];
+      break;
+    }
     case 'ring': sig.out = read(v, n, 'a') * read(v, n, 'b', 1) * parameter(v, n, 'level'); break;
     case 'wavefolder': {
       const input = read(v, n, 'in');

@@ -18,13 +18,13 @@ const notes = [
 ];
 const samples = 24000;
 
-function renderWeb(patch, right = false, midi = [], transport = []) {
+function renderWeb(patch, right = false, midi = [], transport = [], list = notes) {
   const s = {};
   modular_init(s, rate);
   modular_set_patch(s, patch);
   const out = new Float32Array(samples);
   for (let n = 0; n < samples; n++) {
-    for (const note of notes) {
+    for (const note of list) {
       if (note.on === n) modular_midi(s, 0x90, note.key, note.velocity);
       if (note.off === n) modular_midi(s, 0x80, note.key, 0);
     }
@@ -36,9 +36,9 @@ function renderWeb(patch, right = false, midi = [], transport = []) {
   return out;
 }
 
-function renderNative(patch, dir, right = false, midi = [], expressions = [], transport = []) {
+function renderNative(patch, dir, right = false, midi = [], expressions = [], transport = [], list = notes) {
   const spec = join(dir, 'spec.json'), out = join(dir, 'out.f32');
-  writeFileSync(spec, JSON.stringify({ rate, samples, patch, notes, right, midi, expressions, transport }));
+  writeFileSync(spec, JSON.stringify({ rate, samples, patch, notes: list, right, midi, expressions, transport }));
   execFileSync(tool, [spec, out]);
   const bytes = readFileSync(out);
   return new Float32Array(bytes.buffer, bytes.byteOffset, bytes.length / 4);
@@ -382,6 +382,25 @@ for (const [name, [midi, transport]] of Object.entries(ARPS)) {
   TRANSPORT[name] = transport;
 }
 
+// GM Drum Kit patches play their own notes: every kind of hit, hat and triangle chokes and a
+// retriggered kick.
+const NOTES = {};
+const hits = keys => keys.map(([key, on, velocity = 100]) => ({ key, velocity, on, off: on + 500 }));
+const drumKit = (params, cables) => ({
+  nodes: [{ id: 'note', type: 'midi' }, { id: 'out', type: 'output', params: { level: 1 } }, { id: 'kit', type: 'drumKit', params }],
+  cables: [{ from: 'kit', port: 'left', to: 'out', input: 'audio' }, { from: 'kit', port: 'right', to: 'out', input: 'right' }, ...cables],
+});
+const KIT_808 = 'GM Drum Kit: 808 kit, chokes and retriggers';
+PATCHES[KIT_808] = drumKit({ kit: 1 }, []);
+NOTES[KIT_808] = hits([[36, 0], [42, 1000, 70], [46, 1500], [42, 4000], [38, 5000], [39, 6000, 127], [45, 7000], [37, 8000],
+  [56, 9000], [70, 10000], [36, 11000, 40], [49, 12000], [51, 16000], [35, 18000]]);
+const KIT_PERC = 'GM Drum Kit: Latin percussion, tuned and shortened, velocity from a cable';
+PATCHES[KIT_PERC] = drumKit({ kit: 4, tune: 2, decay: 0.7, level: 0.8 }, [{ from: 'vel', port: 'out', to: 'kit', input: 'velocity' },
+  { from: 'note', port: 'velocity', to: 'vel', input: 'in' }]);
+PATCHES[KIT_PERC].nodes.push({ id: 'vel', type: 'cv', params: { scale: 0.5, offset: 0.4 } });
+NOTES[KIT_PERC] = hits([[54, 0], [62, 1000], [66, 2000], [67, 3000], [76, 4000], [81, 5000], [80, 7000], [58, 8000],
+  [72, 9000], [74, 10000], [79, 11000], [53, 12000], [44, 13000], [60, 14000], [71, 15000], [73, 16000], [78, 17000], [55, 18000]]);
+
 const PATCH_FX = 'patch effects: echo (free and host-synced ping-pong), chorus and reverb on the voice sum';
 PATCHES[PATCH_FX] = {
   nodes: [
@@ -430,7 +449,8 @@ for (const [name, patch] of Object.entries(PATCHES)) {
     try {
       const midi = MIDI[name] ?? [];
       const transport = TRANSPORT[name] ?? [];
-      const web = renderWeb(patch, false, midi, transport), native = renderNative(patch, dir, false, midi, [], transport);
+      const list = NOTES[name] ?? notes;
+      const web = renderWeb(patch, false, midi, transport, list), native = renderNative(patch, dir, false, midi, [], transport, list);
       assert.equal(native.length, web.length);
       let worst = 0, at = 0, energy = 0;
       for (let i = 0; i < web.length; i++) {
@@ -444,14 +464,14 @@ for (const [name, patch] of Object.entries(PATCHES)) {
       const stereo = patch.nodes.some(node => node.type === 'fxOutput') || patch.cables.some(cable => cable.input === 'right' &&
         patch.nodes.some(node => node.id === cable.to && node.type === 'output'));
       if (stereo) {
-        const webRight = renderWeb(patch, true, midi, transport), nativeRight = renderNative(patch, dir, true, midi, [], transport);
+        const webRight = renderWeb(patch, true, midi, transport, list), nativeRight = renderNative(patch, dir, true, midi, [], transport, list);
         // A mono source through a plain Echo stays mono; reverb, chorus and ping-pong widen it.
         const widens = patch.cables.some(cable => cable.input === 'right' && patch.nodes.some(node =>
           node.id === cable.to && node.type === 'output')) || patch.nodes.some(node => node.type === 'pan' || node.type === 'reverb' || node.type === 'chorus' || (node.type === 'echo' && node.params?.pingPong));
         if (widens) assert.ok(webRight.some((value, i) => Math.abs(value - web[i]) > 1e-3), `${name} plays the same in both channels`);
         assert.ok(webRight.every((value, i) => Math.abs(value - nativeRight[i]) < 1e-4));
       } else {
-        assert.deepEqual(renderWeb(patch, true, midi, transport), web);
+        assert.deepEqual(renderWeb(patch, true, midi, transport, list), web);
       }
     } finally {
       rmSync(dir, { recursive: true, force: true });

@@ -255,7 +255,7 @@ inline Graph compile(Json &patch, Macros &macros) {
         // Modules that ring on after their gate falls keep a released voice alive until quiet.
         const auto type = graph.nodes[index].type;
         if (type == Type::adsr || type == Type::functionGen || type == Type::string || type == Type::physString || type == Type::physBowed || type == Type::physWind || type == Type::physBrass || type == Type::physPiano || type == Type::physMesh ||
-            type == Type::modal || type == Type::bowed || type == Type::reedPipe)
+            type == Type::modal || type == Type::bowed || type == Type::reedPipe || type == Type::drumKit)
             graph.envelopes[graph.envelope_count++] = index;
         if (type == Type::drumVoice) graph.envelopes[graph.envelope_count++] = index;
         for (auto link : graph.nodes[index].links) {
@@ -929,6 +929,283 @@ struct Engine {
         return 0;
     }
 
+    // GM Drum Kit: see sampleDrumKit in the Web engine for the state layout.
+    static double kit_t60(double ms, double sr) { return std::exp(-6.907755 / (std::max(ms, 0.01) * 0.001 * sr)); }
+    static double kit_tau(double ms, double sr) { return std::exp(-1 / (std::max(ms, 0.001) * 0.001 * sr)); }
+    static double kit_pole(double hz, double sr) { return 1 - std::exp(-2 * kPi * std::clamp(hz, 1.0, sr * 0.49) / sr); }
+    static void kit_svf(Stage &st, int slot, double hz, double k, double sr) {
+        const double g = std::tan(kPi * std::clamp(hz, 5.0, sr * 0.49) / sr), a1 = 1 / (1 + g * (g + k)), a2 = g * a1;
+        st.b[size_t(slot)] = a1; st.b[size_t(slot + 1)] = a2; st.b[size_t(slot + 2)] = g * a2; st.a1[size_t(6 + slot / 3)] = k;
+    }
+    static double kit_filter(Stage &st, int slot, double x, double &hp) {
+        const auto &b = st.b;
+        const double k = st.a1[size_t(6 + slot / 3)];
+        const double ic1 = slot ? st.ic3 : st.ic1, ic2 = slot ? st.ic4 : st.ic2;
+        const double v3 = x - ic2, v1 = b[size_t(slot)] * ic1 + b[size_t(slot + 1)] * v3,
+            v2 = ic2 + b[size_t(slot + 1)] * ic1 + b[size_t(slot + 2)] * v3;
+        if (slot) { st.ic3 = 2 * v1 - ic1; st.ic4 = 2 * v2 - ic2; } else { st.ic1 = 2 * v1 - ic1; st.ic2 = 2 * v2 - ic2; }
+        hp = x - k * v1 - v2;
+        return v1;
+    }
+    static double kit_env(Stage &st, int e) {
+        const double value = st.y2[size_t(e)];
+        st.y2[size_t(e)] *= st.a2[size_t(e)];
+        if (st.y2[size_t(e)] < 0.000001) st.y2[size_t(e)] = 0;
+        return value;
+    }
+    static double kit_sine(Stage &st, int o) {
+        const double y = std::sin(2 * kPi * st.y1[size_t(o)]);
+        st.y1[size_t(o)] += st.a1[size_t(o)];
+        if (st.y1[size_t(o)] >= 1) st.y1[size_t(o)] -= 1;
+        return y;
+    }
+    static double kit_square(Stage &st, int o) {
+        const double y = st.y1[size_t(o)] < 0.5 ? 1 : -1;
+        st.y1[size_t(o)] += st.a1[size_t(o)];
+        if (st.y1[size_t(o)] >= 1) st.y1[size_t(o)] -= 1;
+        return y;
+    }
+    static double kit_highpass(Stage &st, double x) {
+        st.prev += st.b[6] * (x - st.prev);
+        return x - st.prev;
+    }
+
+    void strike_drum_kit(const Voice &v, const Node &n, Stage &st, int index, const std::array<double, kMaxParams> &p) {
+        const double sr = rate;
+        constexpr int notes = kDrumLast - kDrumFirst + 1;
+        const int note = int(std::round(read(v, n, 0, v.key)));
+        st.mode = 0;
+        if (note < kDrumFirst || note > kDrumLast) return;
+        const int h = (int(p[0]) * notes + note - kDrumFirst) * kDrumFields;
+        const double *T = kDrumHits;
+        const int kind = int(T[h]);
+        if (!kind) return;
+        // A new hit chokes older hits of the same Drums voice, and the closed hat chokes the open hat.
+        for (auto &o : voices) {
+            auto &ot = o.stages[size_t(index)];
+            if (&o == &v || !o.active || o.age > v.age || !ot.ready || !ot.mode) continue;
+            if (T[ot.write + 1] == T[h + 1] || T[ot.write + 1] == T[h + 2]) ot.release = 1;
+        }
+        const double velocity = std::clamp(read(v, n, 2, v.velocity), 0.0, 1.0);
+        const double hz = T[h + 6] * std::pow(2.0, p[1] / 12), tone = T[h + 7];
+        const double decay = T[h + 8] * p[2];
+        st.write = h; st.ready = true; st.mode = 1; st.release = 0;
+        st.value = (0.2 + 0.8 * velocity * velocity) * T[h + 3] * p[3];
+        st.p2 = hz;
+        st.y1.fill(0); st.y2.fill(0); st.y2[5] = 1; st.a2[7] = kit_t60(8, sr);
+        st.ic1 = st.ic2 = st.ic3 = st.ic4 = st.prev = st.phase = st.amp = 0;
+        st.p0 = 1;
+        auto env = [&](int e, double ms) { st.y2[size_t(e)] = 1; st.a2[size_t(e)] = kit_t60(ms, sr); };
+        auto inc = [&](int o, double f) { st.a1[size_t(o)] = std::clamp(f / sr, 0.0, 0.49); };
+        switch (kind) {
+        case 1: env(0, decay); env(1, 4); st.b[7] = kit_tau(T[h + 10], sr); st.b[6] = kit_pole(2000 + 8000 * tone, sr); break;
+        case 2: env(0, std::min(decay, 180.0)); env(1, decay); st.b[7] = kit_tau(15, sr); kit_svf(st, 0, 1500 * std::pow(6.0, tone), 1.2, sr);
+            st.b[6] = kit_pole(400, sr); break;
+        case 3: kit_svf(st, 0, hz, 2 - 1.75 * tone, sr); st.p1 = std::max(1.0, std::round(T[h + 9] * 0.001 * sr));
+            st.a2[3] = kit_t60(T[h + 9] * 0.9, sr); st.a2[4] = kit_t60(decay, sr); break;
+        case 4:
+            for (int i = 0; i < 6; ++i) { st.y1[size_t(i)] = 0.5 + 0.5 * white(st); inc(i, hz * kHatRatios[i]); }
+            env(0, decay); kit_svf(st, 0, T[h + 10], 1, sr); kit_svf(st, 3, T[h + 11] * std::pow(4.0, tone), 1.2, sr); break;
+        case 5: env(0, decay); env(1, 25); st.b[7] = kit_tau(40, sr); st.b[6] = kit_pole(1500, sr); break;
+        case 6: env(0, decay); env(1, 3); inc(0, hz); inc(1, hz * 0.27); st.b[6] = kit_pole(3000, sr); break;
+        case 7: env(0, T[h + 9]); env(1, decay); inc(0, hz); inc(1, hz * T[h + 10]);
+            kit_svf(st, 0, hz * T[h + 11] * std::pow(3.0, tone), T[h + 12], sr); break;
+        case 8: env(0, decay); kit_svf(st, 0, hz, 1, sr); st.p1 = 1 / ((1 + 40 * tone) * 0.001 * sr); break;
+        case 9: env(0, decay); env(1, decay * T[h + 10]); env(2, 15); st.b[6] = kit_pole(T[h + 11], sr); st.b[7] = kit_tau(25, sr); break;
+        case 10: env(0, decay); env(1, decay * 0.4); env(2, 2); inc(0, hz); inc(1, hz * 2.76); st.b[6] = kit_pole(3000, sr); break;
+        case 11: env(0, decay); env(1, decay * 0.5); env(2, 3);
+            for (int i = 0; i < 5; ++i) inc(i, hz * kTriangleRatios[i]);
+            st.b[6] = kit_pole(4000, sr); break;
+        case 12: env(0, decay); kit_svf(st, 0, hz, 0.25, sr); st.phase = 1; st.p1 = (18 + 30 * tone) / sr; st.a2[3] = kit_t60(1.5, sr); break;
+        case 13: kit_svf(st, 0, hz, 0.5, sr); st.amp = 1; st.p1 = std::max(1.0, std::round(decay * 0.001 * sr)); st.a2[3] = kit_t60(60, sr); break;
+        case 14: kit_svf(st, 0, hz, 0.6, sr); st.y1[0] = 1; st.p1 = std::max(1.0, std::round(decay * 0.001 * sr));
+            st.a1[0] = (40 + 80 * tone) / sr; st.a2[3] = kit_t60(0.8, sr); break;
+        case 15: env(0, decay); st.b[7] = kit_tau(60, sr); break;
+        default: break;
+        }
+    }
+
+    double sample_drum_kit(const Voice &v, const Node &n, Stage &st, int index, const std::array<double, kMaxParams> &p) {
+        const bool trigger = read(v, n, 1, v.held) > 0;
+        if (trigger && !st.gate) strike_drum_kit(v, n, st, index, p);
+        st.gate = trigger;
+        if (!st.mode) return 0;
+        const double sr = rate, *T = kDrumHits;
+        const int h = st.write;
+        const double hz = st.p2, tone = T[h + 7];
+        double y = 0, hp = 0;
+        bool alive = true;
+        switch (int(T[h])) {
+        case 1: {
+            if (st.y2[0] == 0) { alive = false; break; }
+            st.a1[0] = hz * std::pow(2.0, T[h + 9] * st.p0) / sr;
+            st.p0 *= st.b[7];
+            y = kit_sine(st, 0) * kit_env(st, 0);
+            y += kit_highpass(st, white(st)) * kit_env(st, 1) * tone * 0.6;
+            const double drive = 1 + 3 * tone;
+            y = soft_clip(y * drive) / soft_clip(drive);
+            break;
+        }
+        case 2: {
+            if (st.y2[0] == 0 && st.y2[1] == 0) { alive = false; break; }
+            const double bend = 1 + 0.5 * st.p0;
+            st.p0 *= st.b[7];
+            st.a1[0] = hz * bend / sr; st.a1[1] = hz * 1.63 * bend / sr;
+            const double s0 = kit_sine(st, 0), s1 = kit_sine(st, 1);
+            const double body = (s0 + 0.6 * s1) * 0.6 * kit_env(st, 0);
+            const double bp = kit_filter(st, 0, white(st), hp);
+            const double noise = kit_highpass(st, bp + 0.3 * hp) * kit_env(st, 1) * 2.5;
+            y = body * (1 - T[h + 9]) + noise * T[h + 9];
+            break;
+        }
+        case 3: {
+            if (st.phase < 0) { alive = false; break; }
+            const double spread = st.p1;
+            double env;
+            if (st.phase < 3 * spread) {
+                env = std::pow(st.a2[3], std::fmod(st.phase, spread));
+                st.phase += 1;
+            } else {
+                if (st.phase == 3 * spread) st.amp = 1;
+                env = st.amp;
+                st.amp *= st.a2[4];
+                if (st.amp < 0.000001) st.phase = -1;
+                else st.phase += 1;
+            }
+            y = kit_filter(st, 0, white(st), hp) * env * 3.5;
+            break;
+        }
+        case 4: {
+            if (st.y2[0] == 0) { alive = false; break; }
+            double metal = 0;
+            for (int i = 0; i < 6; ++i) metal += kit_square(st, i);
+            const double mix = T[h + 9];
+            const double bp = kit_filter(st, 0, metal * (1.0 / 6) * mix + white(st) * (1 - mix), hp);
+            kit_filter(st, 3, bp, hp);
+            y = hp * kit_env(st, 0) * 3;
+            break;
+        }
+        case 5: {
+            if (st.y2[0] == 0) { alive = false; break; }
+            st.a1[0] = hz * std::pow(2.0, tone * st.p0) / sr;
+            st.p0 *= st.b[7];
+            const double body = kit_sine(st, 0) * kit_env(st, 0);
+            y = body + kit_highpass(st, white(st)) * kit_env(st, 1) * tone * 0.4;
+            break;
+        }
+        case 6: {
+            if (st.y2[0] == 0) { alive = false; break; }
+            const double env = kit_env(st, 0);
+            const double s0 = kit_sine(st, 0), s1 = kit_sine(st, 1);
+            const double body = (s0 * 0.7 + s1 * 0.5) * env;
+            const double click = kit_highpass(st, white(st)) * kit_env(st, 1) * 0.5;
+            const double drive = 1 + 4 * tone;
+            y = soft_clip((body + click) * drive) / soft_clip(drive);
+            break;
+        }
+        case 7: {
+            if (st.y2[1] == 0) { alive = false; break; }
+            const double mix = T[h + 13];
+            const double e0 = kit_env(st, 0), e1 = kit_env(st, 1);
+            const double env = mix * e0 + (1 - mix) * e1;
+            const double q0 = kit_square(st, 0), q1 = kit_square(st, 1);
+            y = kit_filter(st, 0, (q0 + q1) * 0.5, hp) * env * 2;
+            break;
+        }
+        case 8: {
+            if (st.y2[0] == 0) { alive = false; break; }
+            double env;
+            if (st.phase < 1) {
+                st.phase = std::min(1.0, st.phase + st.p1);
+                env = st.phase * st.phase;
+            } else env = kit_env(st, 0);
+            y = kit_filter(st, 0, white(st), hp) * env * 2.5;
+            break;
+        }
+        case 9: {
+            if (st.y2[0] == 0) { alive = false; break; }
+            const double f = hz * std::pow(2.0, 0.5 * tone * st.p0);
+            st.p0 *= st.b[7];
+            st.a1[0] = std::clamp(f / sr, 0.0, 0.49); st.a1[1] = std::clamp(f * T[h + 9] / sr, 0.0, 0.49);
+            const double s0 = kit_sine(st, 0), e0 = kit_env(st, 0), s1 = kit_sine(st, 1), e1 = kit_env(st, 1);
+            const double body = s0 * e0 + 0.35 * s1 * e1;
+            y = body + kit_highpass(st, white(st)) * kit_env(st, 2) * tone * 0.5;
+            break;
+        }
+        case 10: {
+            if (st.y2[0] == 0) { alive = false; break; }
+            const double s0 = kit_sine(st, 0), e0 = kit_env(st, 0), s1 = kit_sine(st, 1), e1 = kit_env(st, 1);
+            const double body = s0 * e0 + 0.4 * tone * s1 * e1;
+            y = (body + kit_highpass(st, white(st)) * kit_env(st, 2) * tone * 0.6) * 1.2;
+            break;
+        }
+        case 11: {
+            if (st.y2[0] == 0) { alive = false; break; }
+            const double e1 = kit_env(st, 0), e2 = kit_env(st, 1);
+            double x = 0;
+            for (int i = 0; i < 5; ++i) {
+                const double level = kTriangleLevels[i] * (i == 0 ? 1 - 0.5 * tone : 1.5 * tone);
+                x += kit_sine(st, i) * level * (i < 3 ? e1 : e2);
+            }
+            x += kit_highpass(st, white(st)) * kit_env(st, 2) * 0.5;
+            y = x * 0.35;
+            break;
+        }
+        case 12: {
+            if (st.y2[0] == 0) { alive = false; break; }
+            st.phase += st.p1;
+            if (st.phase >= 1) { st.phase -= 1; st.amp = 1; }
+            const double bp = kit_filter(st, 0, white(st) * st.amp, hp);
+            st.amp *= st.a2[3];
+            y = bp * kit_env(st, 0) * 6;
+            break;
+        }
+        case 13: {
+            if (st.amp == 0) { alive = false; break; }
+            const double tr = std::sin(2 * kPi * st.y1[1]);
+            st.y1[1] += 30 / sr;
+            if (st.y1[1] >= 1) st.y1[1] -= 1;
+            st.a1[0] = std::clamp(hz * (1 + 0.025 * tone * tr) / sr, 0.0, 0.49);
+            const double am = 1 - 0.6 * tone * (0.5 + 0.5 * tr);
+            const double bp = kit_filter(st, 0, white(st), hp);
+            if (st.phase >= st.p1) st.amp *= st.a2[3];
+            const double a = std::min(1.0, st.phase * (1 / (0.008 * sr))) * st.amp;
+            st.phase += 1;
+            if (st.amp < 0.0001) st.amp = 0;
+            y = (kit_sine(st, 0) * am + 0.15 * bp) * a * 0.5;
+            break;
+        }
+        case 14: {
+            if (st.phase >= st.p1) { alive = false; break; }
+            st.y1[0] += st.a1[0] * (1 + 0.6 * (st.phase / st.p1));
+            if (st.y1[0] >= 1) { st.y1[0] -= 1; st.amp = 1; }
+            const double bp = kit_filter(st, 0, white(st) * st.amp, hp);
+            st.amp *= st.a2[3];
+            const double a = std::min(1.0, st.phase / (0.015 * sr)) * std::min(1.0, (st.p1 - st.phase) / (0.008 * sr));
+            st.phase += 1;
+            y = bp * a * 5;
+            break;
+        }
+        case 15: {
+            if (st.y2[0] == 0) { alive = false; break; }
+            const double f = hz * (1 - 0.35 * tone * st.p0);
+            st.p0 *= st.b[7];
+            st.a1[0] = std::clamp(f / sr, 0.0, 0.49); st.a1[1] = std::clamp(2 * f / sr, 0.0, 0.49);
+            const double s0 = kit_sine(st, 0), s1 = kit_sine(st, 1);
+            const double body = s0 + 0.3 * s1;
+            y = body * (1 + 0.2 * white(st)) * kit_env(st, 0) * 0.6;
+            break;
+        }
+        default: alive = false; break;
+        }
+        if (st.release != 0) {
+            st.y2[5] *= st.a2[7];
+            if (st.y2[5] < 0.000001) alive = false;
+        }
+        if (!alive) { st.mode = 0; return 0; }
+        return y * st.value * st.y2[5];
+    }
+
     double sample_drum(const Voice &v, const Node &n, Stage &st, const std::array<double, kMaxParams> &p) {
         const bool trigger = read(v, n, 0, v.held) > 0;
         const bool choke = read(v, n, 2) > 0;
@@ -1379,6 +1656,11 @@ struct Engine {
             break;
         }
         case Type::drumVoice: sig[0] = sample_drum(v, n, st, p); break;
+        case Type::drumKit: {
+            const double y = sample_drum_kit(v, n, st, i, p);
+            sig[0] = y; sig[1] = y * kDrumHits[st.write + 4]; sig[2] = y * kDrumHits[st.write + 5];
+            break;
+        }
         case Type::ring: sig[0] = read(v, n, 0) * read(v, n, 1, 1) * p[0]; break;
         case Type::wavefolder: {
             const double input = read(v, n, 0);
