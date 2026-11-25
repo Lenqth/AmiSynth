@@ -390,7 +390,10 @@ for (const [name, patch] of Object.entries(PATCHES)) {
         patch.nodes.some(node => node.id === cable.to && node.type === 'output'));
       if (stereo) {
         const webRight = renderWeb(patch, true, midi, transport), nativeRight = renderNative(patch, dir, true, midi, [], transport);
-        assert.ok(webRight.some((value, i) => Math.abs(value - web[i]) > 0.01));
+        // A mono source through a plain Echo stays mono; reverb, chorus and ping-pong widen it.
+        const widens = patch.cables.some(cable => cable.input === 'right' && patch.nodes.some(node =>
+          node.id === cable.to && node.type === 'output')) || patch.nodes.some(node => node.type === 'pan' || node.type === 'reverb' || node.type === 'chorus' || (node.type === 'echo' && node.params?.pingPong));
+        if (widens) assert.ok(webRight.some((value, i) => Math.abs(value - web[i]) > 1e-3), `${name} plays the same in both channels`);
         assert.ok(webRight.every((value, i) => Math.abs(value - nativeRight[i]) < 1e-4));
       } else {
         assert.deepEqual(renderWeb(patch, true, midi, transport), web);

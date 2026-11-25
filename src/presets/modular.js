@@ -9,7 +9,7 @@
 // with each voice instead of running globally, and performance controls
 // (mod wheel, pitch-bend range) are not part of a patch. Anything else a preset changes throws,
 // so a patch never silently sounds unlike its name.
-import { SYNTH_PARAMS, defaultValues } from '../dsp/params.js';
+import { DELAY_SYNC_BEATS, MOD_DESTINATIONS, MOD_SLOTS, MOD_SOURCES, SYNTH_PARAMS, defaultValues } from '../dsp/params.js';
 import { SYNTH_PRESETS } from './synth.js';
 
 const DEFAULTS = defaultValues(SYNTH_PARAMS);
@@ -27,6 +27,11 @@ const SUPPORTED = new Set([
   'wt_position_lfo', 'wt_position_filter_env', 'wt_position_amp_env',
   'unison_voices', 'unison_detune_cents', 'unison_side_level', 'unison_detune_curve', 'master_volume_db',
   'voice_mode', 'glide_mode', 'lfo_amp', 'lfo_pulse_width', 'noise_filter_mode', 'noise_filter_hz',
+  'lfo2_waveform', 'lfo2_rate_hz', 'mod_env_attack_ms', 'mod_env_decay_ms', 'mod_env_sustain', 'mod_env_release_ms',
+  ...Array.from({ length: MOD_SLOTS }, (_, i) => ['source', 'destination', 'amount'].map(k => `mod${i + 1}_${k}`)).flat(),
+  'fx_chorus_on', 'fx_chorus_mix', 'fx_chorus_rate_hz', 'fx_chorus_depth_ms',
+  'fx_delay_on', 'fx_delay_mix', 'fx_delay_sync', 'fx_delay_time_ms', 'fx_delay_feedback', 'fx_delay_ping_pong', 'fx_delay_high_cut_hz',
+  'fx_reverb_on', 'fx_reverb_mix', 'fx_reverb_decay_ms', 'fx_reverb_size', 'fx_reverb_damping',
   // Left out: performance controls and stereo.
   'modwheel_vibrato_cents', 'modwheel_filter_oct', 'pitch_bend_range_cents', 'unison_stereo_width', 'legato_window_ms',
 ]);
@@ -40,6 +45,32 @@ const START = [0, 0, 0.75, 0];
 const spaced = (base, u) => (base + u * 0.618034) % 1;
 const COLUMN = 274, ROW = 300;
 
+// Patch Echo note values (MODULAR_ECHO_BEATS in dsp/modular.js, which imports this file).
+const ECHO_BEATS = [0.25, 0.5, 0.75, 1, 1.5, 2, 4, 0.125, 1 / 6, 0.375, 1 / 3, 2 / 3, 4 / 3, 3];
+// Mod matrix destinations the conversion patches; the others throw.
+const MOD_PATCHED = new Set(['Pitch', 'Filter Cutoff', 'Osc2 Pitch', 'FM Index', 'Pan', 'LFO 1 Rate',
+  'Noise Level', 'Osc1 WT Position', 'Osc2 WT Position']);
+// Freeverb's mean comb length; with the comb feedback it sets the decay time.
+const REVERB_COMB_SECONDS = 1350 / 44100;
+// How much louder (dB) Modular's Reverb at mix 1 is than the Synth reverb, measured with white
+// noise against the dry level, by Synth decay (rows, ms) and size (columns 0, 0.3, 0.6, 0.9).
+// The conversion turns the reverb's wet path down by this much.
+const REVERB_DECAYS = [400, 700, 1200, 2000, 3000, 4500, 7000, 10000];
+const REVERB_EXCESS_DB = [
+  [2.4, 3.9, 5.7, 7.8], [2.4, 2.7, 3.6, 4.7], [3.7, 3.3, 3.5, 4.1], [5.2, 4.4, 4.3, 4.5],
+  [6.6, 5.5, 5.2, 5.3], [8.0, 6.8, 6.4, 6.3], [9.6, 8.4, 7.9, 7.7], [11.0, 9.7, 9.2, 9.0],
+];
+// Linear interpolation in a table row, by fractional index (clamped to the ends).
+const lerp = (values, x) => {
+  const i = Math.max(0, Math.min(values.length - 2, Math.floor(x))), t = Math.max(0, Math.min(1, x - i));
+  return values[i] * (1 - t) + values[i + 1] * t;
+};
+function reverbExcess(decayMs, size) {
+  const logs = REVERB_DECAYS.map(Math.log), d = Math.log(decayMs);
+  const row = Math.max(0, Math.min(logs.length - 2, logs.findLastIndex(value => value <= d)));
+  return lerp(REVERB_EXCESS_DB.map(columns => lerp(columns, size / 0.3)), row + (d - logs[row]) / (logs[row + 1] - logs[row]));
+}
+
 /** A Modular patch that plays a Synth preset's parameters. */
 export function modularFromSynth(params) {
   const p = { ...DEFAULTS, ...params };
@@ -47,9 +78,20 @@ export function modularFromSynth(params) {
     if (!SUPPORTED.has(key) && value !== DEFAULTS[key]) throw new Error(`Modular cannot play ${key}`);
   if (![p.osc1_waveform, p.osc2_waveform].every(wave => wave === 4 || wave in VCO_WAVE))
     throw new Error('Modular cannot play this oscillator waveform');
+  // Active mod matrix slots as [source name, destination name, amount].
+  const slots = [];
+  for (let i = 1; i <= MOD_SLOTS; i++) {
+    const source = MOD_SOURCES[p[`mod${i}_source`]], destination = MOD_DESTINATIONS[p[`mod${i}_destination`]]?.name;
+    if (source === 'Off' || destination === 'Off' || !p[`mod${i}_amount`]) continue;
+    if (source === 'Sidechain') throw new Error('Modular cannot play the Sidechain modulation source');
+    if (!MOD_PATCHED.has(destination)) throw new Error(`Modular cannot play the ${destination} modulation destination`);
+    slots.push([source, destination, p[`mod${i}_amount`]]);
+  }
+  const uses = source => slots.some(slot => slot[0] === source);
   if (!(p.lfo_waveform in LFO_WAVES)) throw new Error('Modular cannot play this LFO waveform');
+  if (uses('LFO 2') && !(p.lfo2_waveform in LFO_WAVES)) throw new Error('Modular cannot play this LFO 2 waveform');
 
-  const nodes = [], cables = [], rows = [0, 0, 0, 0, 0, 0];
+  const nodes = [], cables = [], rows = [0, 0, 0, 0, 0, 0, 0];
   const node = (id, type, params, column) => {
     nodes.push({ id, type, params, position: { x: 22 + column * COLUMN, y: 22 + rows[column]++ * ROW } });
     return id;
@@ -57,7 +99,7 @@ export function modularFromSynth(params) {
   const wire = (from, port, to, input) => cables.push({ from, port, to, input });
   const scale = (id, source, port, factor, offset, column) => {
     node(id, 'cv', { scale: factor, offset }, column);
-    wire(source, port, id, 'in');
+    if (source) wire(source, port, id, 'in');
     return id;
   };
   // Sums any number of sources with Mixer (4) modules; returns the node carrying the total.
@@ -79,12 +121,15 @@ export function modularFromSynth(params) {
     }
     return level[0][0];
   };
+  // One signal from a list of [node, port] terms of gain 1: the term itself, or their sum.
+  const total = (prefix, terms, column) => terms.length === 0 ? null
+    : terms.length === 1 ? terms[0][0] : sum(prefix, terms.map(([id, port]) => [id, port, 1]), column);
 
   const mono = p.voice_mode >= 1 || p.voice_count === 1;
   node('note', 'midi', { voices: p.voice_mode >= 1 ? p.voice_mode : mono ? 1 : 0,
     glide: p.glide_ms / 1000, glideMode: p.glide_mode }, 0);
 
-  // Envelopes, velocity and LFO.
+  // Envelopes, velocity and LFOs.
   const env = (id, prefix) => node(id, 'adsr', {
     attack: Math.max(0.001, p[`${prefix}_attack_ms`] / 1000), decay: Math.max(0.001, p[`${prefix}_decay_ms`] / 1000),
     sustain: p[`${prefix}_sustain`], release: Math.max(0.001, p[`${prefix}_release_ms`] / 1000), curve: 1,
@@ -93,20 +138,45 @@ export function modularFromSynth(params) {
   wire('note', 'gate', 'fenv', 'gate');
   env('aenv', 'amp');
   wire('note', 'gate', 'aenv', 'gate');
+  const lfoNode = (id, wave, rate) => LFO_WAVES[wave] === 'sample-and-hold'
+    ? node(id, 'sh', { rate }, 0) : node(id, 'lfo', { rate, depth: 1, wave }, 0);
   let lfo = null;
   const usesTables = p.osc1_waveform === 4 || p.osc2_waveform === 4;
   const needsLfo = p.lfo_pitch_cents !== 0 || p.lfo_filter_oct !== 0 || p.lfo_amp !== 0 ||
-    p.lfo_pulse_width !== 0 || (usesTables && p.wt_position_lfo !== 0);
-  if (needsLfo && LFO_WAVES[p.lfo_waveform] === 'sample-and-hold') lfo = node('lfo', 'sh', { rate: p.lfo_rate_hz }, 0);
-  else if (needsLfo) lfo = node('lfo', 'lfo', { rate: p.lfo_rate_hz, depth: 1, wave: p.lfo_waveform }, 0);
+    p.lfo_pulse_width !== 0 || (usesTables && p.wt_position_lfo !== 0) || uses('LFO 1');
+  if (needsLfo) lfo = lfoNode('lfo', p.lfo_waveform, p.lfo_rate_hz);
 
-  // Pitch modulation in octaves: the LFO on both oscillators, the filter envelope on osc2.
-  const vibrato = lfo && p.lfo_pitch_cents ? scale('vibrato', lfo, 'out', p.lfo_pitch_cents / 1200, 0, 1) : null;
-  let osc2Pitch = vibrato;
-  if (p.osc2_env_pitch_cents) {
-    const sweep = scale('sweep', 'fenv', 'out', p.osc2_env_pitch_cents / 1200, 0, 1);
-    osc2Pitch = vibrato ? sum('pitchsum', [[vibrato, 'out', 1], [sweep, 'out', 1]], 1) : sweep;
+  // Mod matrix sources, each a [node, port] with the Synth's range.
+  const sources = {};
+  if (uses('LFO 2')) sources['LFO 2'] = [lfoNode('lfo2', p.lfo2_waveform, p.lfo2_rate_hz), 'out'];
+  if (uses('LFO 1')) sources['LFO 1'] = [lfo, 'out'];
+  if (uses('Mod Env')) {
+    sources['Mod Env'] = [env('menv', 'mod_env'), 'out'];
+    wire('note', 'gate', 'menv', 'gate');
   }
+  sources['Velocity'] = ['note', 'velocity'];
+  sources['Mod Wheel'] = ['note', 'mod'];
+  sources['Pressure'] = ['note', 'pressure'];
+  // Key Track: octaves from middle C.
+  if (uses('Key Track')) sources['Key Track'] = [scale('keytrack', 'note', 'pitch', 1 / 12, -5, 0), 'out'];
+  // Random (per note): new noise held from each note-on.
+  if (uses('Random (per note)')) {
+    sources['Random (per note)'] = [node('random', 'sh', { rate: 0.01 }, 0), 'out'];
+    wire('note', 'gate', 'random', 'trigger');
+  }
+  // CV terms for one destination, each scaled from the destination's unit by `unit`.
+  let termCount = 0;
+  const modTerms = (destination, unit, column) => slots.filter(slot => slot[1] === destination)
+    .map(([source, , amount]) => [scale('mod' + ++termCount, ...sources[source], amount * unit, 0, column), 'out']);
+
+  // Pitch modulation in octaves: the LFO and Pitch slots on both oscillators, the filter envelope
+  // and Osc2 Pitch slots on osc2.
+  const pitchTerms = modTerms('Pitch', 1 / 1200, 1);
+  if (lfo && p.lfo_pitch_cents) pitchTerms.unshift([scale('vibrato', lfo, 'out', p.lfo_pitch_cents / 1200, 0, 1), 'out']);
+  const pitchMod = total('pitchmod', pitchTerms, 1);
+  const osc2Terms = [...(pitchMod ? [[pitchMod, 'out']] : []), ...modTerms('Osc2 Pitch', 1 / 1200, 1)];
+  if (p.osc2_env_pitch_cents) osc2Terms.push([scale('sweep', 'fenv', 'out', p.osc2_env_pitch_cents / 1200, 0, 1), 'out']);
+  const osc2Pitch = total('pitchsum', osc2Terms, 1);
 
   // Oscillators, one pair per unison copy.
   const copies = Math.max(1, Math.round(p.unison_voices));
@@ -118,8 +188,13 @@ export function modularFromSynth(params) {
     const octave = Math.max(-3, Math.min(3, Math.trunc(cents / 1200)));
     return { octave, detune: Math.round(cents - octave * 1200) };
   };
-  const sources = [];
-  const fm = p.fm_index > 0, sync = p.osc2_hard_sync >= 0.5;
+  const audio = [];
+  const sync = p.osc2_hard_sync >= 0.5;
+  // FM index: the knob plus FM Index slots, multiplied into osc2's output per copy.
+  const indexTerms = modTerms('FM Index', 1, 2);
+  const fm = p.fm_index > 0 || indexTerms.length > 0;
+  const fmIndex = indexTerms.length ? sum('fmindex', [[scale('fmbase', null, null, 0, p.fm_index, 2), 'out', 1],
+    ...indexTerms.map(([id, port]) => [id, port, 1])], 2) : null;
   // LFO pulse-width modulation, shared by every pulse oscillator.
   const pwm = (base, id) => lfo && p.lfo_pulse_width ? scale(id, lfo, 'out', p.lfo_pulse_width, base, 0) : null;
   const pwm1 = p.osc1_waveform === 1 ? pwm(p.osc1_pulse_width, 'pwm') : null;
@@ -127,10 +202,15 @@ export function modularFromSynth(params) {
   const tableModulation = usesTables ? [
     [lfo, p.wt_position_lfo], ['fenv', p.wt_position_filter_env], ['aenv', p.wt_position_amp_env],
   ].filter(([source, depth]) => source && depth).map(([source, depth], index) =>
-    [scale('wt_depth' + index, source, 'out', depth, 0, 2), 'out', 1]) : [];
-  const positionMod = tableModulation.length > 1 ? sum('wt_position', tableModulation, 2) : tableModulation[0]?.[0];
-  const wavePosition = [1, 2].map(i => positionMod && p['osc' + i + '_waveform'] === 4
-    ? scale('wt_scan' + i, positionMod, 'out', 1, p['osc' + i + '_wt_position'], 2) : null);
+    [scale('wt_depth' + index, source, 'out', depth, 0, 2), 'out']) : [];
+  const sharedPosition = total('wt_position', tableModulation, 2);
+  const wavePosition = [1, 2].map(i => {
+    if (p['osc' + i + '_waveform'] !== 4) return null;
+    const own = modTerms('Osc' + i + ' WT Position', 1, 2);
+    const modulation = own.length ? total('wt_position_osc' + i, [...(sharedPosition ? [[sharedPosition, 'out']] : []), ...own], 2)
+      : sharedPosition;
+    return modulation ? scale('wt_scan' + i, modulation, 'out', 1, p['osc' + i + '_wt_position'], 2) : null;
+  });
   function oscillator(id, index, cents, phase) {
     const prefix = 'osc' + index + '_';
     const waveform = p[prefix + 'waveform'];
@@ -156,32 +236,48 @@ export function modularFromSynth(params) {
       spread + p.osc2_transpose_cents + p.osc2_detune_cents, spaced((START[p.osc2_waveform] ?? 0) + 0.37, u));
     wire('note', 'pitch', o1, 'pitch');
     wire('note', 'pitch', o2, 'pitch');
-    if (vibrato) wire(vibrato, 'out', o1, 'fm');
+    if (pitchMod) wire(pitchMod, 'out', o1, 'fm');
     if (osc2Pitch) wire(osc2Pitch, 'out', o2, 'fm');
     if (sync) wire(o1, 'sync', o2, 'sync');
     if (pwm1) wire(pwm1, 'out', o1, 'param:pw');
     if (pwm2) wire(pwm2, 'out', o2, 'param:pw');
-    if (fm) wire(scale('index' + suffix, o2, 'out', p.fm_index, 0, 2), 'out', o1, 'pm');
+    if (fmIndex) {
+      node('index' + suffix, 'ring', { level: 1 }, 2);
+      wire(o2, 'out', 'index' + suffix, 'a');
+      wire(fmIndex, 'out', 'index' + suffix, 'b');
+      wire('index' + suffix, 'out', o1, 'pm');
+    } else if (fm) wire(scale('index' + suffix, o2, 'out', p.fm_index, 0, 2), 'out', o1, 'pm');
     const gain = weight(u) * norm;
-    if (p.osc1_level) sources.push([o1, 'out', p.osc1_level * gain]);
-    if (p.osc2_level) sources.push([o2, 'out', p.osc2_level * gain]);
+    if (p.osc1_level) audio.push([o1, 'out', p.osc1_level * gain]);
+    if (p.osc2_level) audio.push([o2, 'out', p.osc2_level * gain]);
   }
   if (p.sub_osc_level) {
     node('sub', 'vco', { wave: 2, octave: -1, level: 1 }, 1);
     wire('note', 'pitch', 'sub', 'pitch');
-    sources.push(['sub', 'out', p.sub_osc_level]);
+    audio.push(['sub', 'out', p.sub_osc_level]);
   }
-  if (p.noise_level) {
+  const noiseTerms = modTerms('Noise Level', 1, 2);
+  if (p.noise_level || noiseTerms.length) {
     node('noise', 'noise', { color: 0, level: 1 }, 1);
+    let noise = 'noise';
     if (p.noise_filter_mode > 0) {
       // The Synth's noise filter: a fixed SVF with k = 1.
       node('noisefilter', 'vcf', { cutoff: p.noise_filter_hz, resonance: 1 / 1.95, mode: p.noise_filter_mode - 1 }, 2);
       wire('noise', 'out', 'noisefilter', 'audio');
-      sources.push(['noisefilter', 'out', p.noise_level]);
-    } else sources.push(['noise', 'out', p.noise_level]);
+      noise = 'noisefilter';
+    }
+    if (noiseTerms.length) {
+      // Noise Level slots add to the knob value.
+      const level = p.noise_level ? sum('noiselevel', [[scale('noisebase', null, null, 0, p.noise_level, 2), 'out', 1],
+        ...noiseTerms.map(([id, port]) => [id, port, 1])], 2) : total('noiselevel', noiseTerms, 2);
+      node('noisevca', 'ring', { level: 1 }, 2);
+      wire(noise, 'out', 'noisevca', 'a');
+      wire(level, 'out', 'noisevca', 'b');
+      audio.push(['noisevca', 'out', 1]);
+    } else audio.push([noise, 'out', p.noise_level]);
   }
-  if (sources.length === 0) throw new Error('The preset has no sound source');
-  const mixed = sum('mix', sources, 2);
+  if (audio.length === 0) throw new Error('The preset has no sound source');
+  const mixed = sum('mix', audio, 2);
 
   // Filter: the same slope, drive, resonance curve and key tracking; cutoff CV adds 2 octaves per unit.
   node('filter', 'vcf', {
@@ -200,13 +296,23 @@ export function modularFromSynth(params) {
       wire(velocity, 'out', 'fscale', 'b');
       source = 'fscale';
     }
-    cutoff.push([scale('fdepth', source, 'out', p.filter_env_amount_oct / 2, 0, 3), 'out', 1]);
+    cutoff.push([scale('fdepth', source, 'out', p.filter_env_amount_oct / 2, 0, 3), 'out']);
   }
-  if (lfo && p.lfo_filter_oct) cutoff.push([scale('lfodepth', lfo, 'out', p.lfo_filter_oct / 2, 0, 3), 'out', 1]);
-  if (cutoff.length) wire(cutoff.length === 1 ? cutoff[0][0] : sum('cutoff', cutoff, 3), 'out', 'filter', 'cutoff');
+  if (lfo && p.lfo_filter_oct) cutoff.push([scale('lfodepth', lfo, 'out', p.lfo_filter_oct / 2, 0, 3), 'out']);
+  cutoff.push(...modTerms('Filter Cutoff', 1 / 2, 3));
+  if (cutoff.length) wire(total('cutoff', cutoff, 3), 'out', 'filter', 'cutoff');
 
-  // Amplifier with velocity, tremolo and master volume (the Synth halves its output).
-  node('amp', 'vca', { level: Math.min(2, 0.5 * 10 ** (p.master_volume_db / 20)) }, 5);
+  // LFO 1 Rate slots: the Synth multiplies the rate by 2^amount; a linear CV matches it at
+  // source values 0 and 1.
+  const rateTerms = slots.filter(slot => slot[1] === 'LFO 1 Rate').map(([source, , amount]) =>
+    [scale('mod' + ++termCount, ...sources[source], p.lfo_rate_hz * (2 ** amount - 1), 0, 0), 'out']);
+  if (rateTerms.length && lfo) wire(sum('lforate', [[scale('lfobase', null, null, 0, p.lfo_rate_hz, 0), 'out', 1],
+    ...rateTerms.map(([id, port]) => [id, port, 1])], 0), 'out', lfo, 'param:rate');
+
+  // Amplifier with velocity, tremolo and master volume (the Synth halves its output). A Pan slot
+  // places the voice with the Synth's constant-power law (+3 dB at the centre against Pan / Spread).
+  const panTerms = modTerms('Pan', 1, 5);
+  node('amp', 'vca', { level: Math.min(2, (panTerms.length ? Math.SQRT2 : 1) * 0.5 * 10 ** (p.master_volume_db / 20)) }, 5);
   wire('filter', 'out', 'amp', 'audio');
   let gain = 'aenv';
   const multiply = (id, by) => {
@@ -219,8 +325,53 @@ export function modularFromSynth(params) {
     multiply('ascale', scale('avel', 'note', 'velocity', p.amp_velocity_amount, 1 - p.amp_velocity_amount, 0));
   if (lfo && p.lfo_amp) multiply('tremolo', scale('tremolodepth', lfo, 'out', p.lfo_amp / 2, 1 - p.lfo_amp / 2, 3));
   wire(gain, 'out', 'amp', 'gain');
-  node('out', 'output', { level: 1 }, 5);
-  wire('amp', 'out', 'out', 'audio');
+  let left = ['amp', 'out'], right = null;
+  if (panTerms.length) {
+    node('pan', 'pan', { pan: 0, spread: 0 }, 5);
+    wire('amp', 'out', 'pan', 'in');
+    wire(total('panmod', panTerms, 5), 'out', 'pan', 'param:pan');
+    left = ['pan', 'left'];
+    right = ['pan', 'right'];
+  }
+
+  // Effects run once for all voices, in the Synth's order: chorus, delay, reverb.
+  const effects = [];
+  if (p.fx_chorus_on >= 0.5) effects.push(['chorus', 'chorus', { rate: p.fx_chorus_rate_hz, depth: p.fx_chorus_depth_ms,
+    delay: 7, spread: 1, mix: p.fx_chorus_mix }]);
+  if (p.fx_delay_on >= 0.5) {
+    const beats = DELAY_SYNC_BEATS[Math.round(p.fx_delay_sync)] ?? 0;
+    const index = ECHO_BEATS.findIndex(value => Math.abs(value - beats) < 1e-9);
+    if (beats && index < 0) throw new Error('Modular cannot play this delay note value');
+    effects.push(['echo', 'echo', { time: p.fx_delay_time_ms, sync: beats ? 1 : 0, beats: Math.max(0, index),
+      feedback: p.fx_delay_feedback, damping: Math.exp(-2 * Math.PI * p.fx_delay_high_cut_hz / 48000),
+      pingPong: p.fx_delay_ping_pong >= 0.5 ? 1 : 0, mix: p.fx_delay_mix }]);
+  }
+  for (const [id, type, settings] of effects) {
+    node(id, type, settings, 6);
+    wire(...left, id, 'left');
+    if (right) wire(...right, id, 'right');
+    left = [id, 'left'];
+    right = [id, 'right'];
+  }
+  // The reverb's wet path runs in parallel at mix 1 into its own FX output, so its level can match.
+  const reverb = p.fx_reverb_on >= 0.5;
+  if (reverb) {
+    // Freeverb's comb feedback that reaches -60 dB in the Synth's decay time.
+    const room = 10 ** (-3 * REVERB_COMB_SECONDS / (p.fx_reverb_decay_ms / 1000));
+    node('reverb', 'reverb', { size: Math.max(0, Math.min(1, (room - 0.7) / 0.28)),
+      damping: p.fx_reverb_damping, width: 1, mix: 1 }, 6);
+    wire(...left, 'reverb', 'left');
+    if (right) wire(...right, 'reverb', 'right');
+    const wet = p.fx_reverb_mix * 10 ** (-reverbExcess(p.fx_reverb_decay_ms, p.fx_reverb_size) / 20);
+    node('reverbout', 'fxOutput', { level: Math.round(wet * 1000) / 1000 }, 6);
+    wire('reverb', 'left', 'reverbout', 'left');
+    wire('reverb', 'right', 'reverbout', 'right');
+  }
+  const dry = reverb ? 1 - p.fx_reverb_mix : 1;
+  if (effects.length) node('out', 'fxOutput', { level: dry }, 6);
+  else node('out', 'output', { level: dry }, 5);
+  wire(...left, 'out', effects.length ? 'left' : 'audio');
+  if (right) wire(...right, 'out', 'right');
   if (nodes.length > 32 || cables.length > 128) throw new Error('Modular cannot play this preset within the rack limits');
   return { nodes, cables };
 }

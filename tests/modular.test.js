@@ -518,7 +518,7 @@ test('voice mode and glide are patch settings that take no cable', () => {
 test('Synth presets convert to Modular patches that fit the rack, or name what Modular cannot play', async () => {
   const { modularFromSynth, MODULAR_SYNTH_PORTS } = await import('../src/presets/modular.js');
   const { SYNTH_PRESETS } = await import('../src/presets/synth.js');
-  assert.ok(MODULAR_SYNTH_PORTS.length >= 30);
+  assert.ok(MODULAR_SYNTH_PORTS.length >= 60);
   for (const preset of SYNTH_PRESETS) {
     let patch;
     try { patch = modularFromSynth(preset.params); } catch (e) {
@@ -527,7 +527,42 @@ test('Synth presets convert to Modular patches that fit the rack, or name what M
     }
     assert.ok(compileModularPatch(patch).nodes.length <= 32, preset.name);
   }
-  assert.throws(() => modularFromSynth({ fx_delay_on: 1 }), /fx_delay_on/);
+  assert.throws(() => modularFromSynth({ arp_mode: 1 }), /arp_mode/);
+});
+
+test('Synth effects, Mod Env and mod matrix slots convert to patch modules', async () => {
+  const { modularFromSynth } = await import('../src/presets/modular.js');
+  const { MODULAR_ECHO_BEATS, MODULAR_TYPES } = await import('../src/dsp/modular.js');
+  const { DELAY_SYNC_BEATS } = await import('../src/dsp/params.js');
+  assert.equal(MODULAR_TYPES.echo.params.beats.choices.length, MODULAR_ECHO_BEATS.length);
+  assert.equal(MODULAR_TYPES.echo.params.beats.max, MODULAR_ECHO_BEATS.length - 1);
+  // Every tempo-synced Synth delay has an Echo note value.
+  for (let sync = 1; sync < DELAY_SYNC_BEATS.length; sync++) {
+    const patch = modularFromSynth({ fx_delay_on: 1, fx_delay_sync: sync });
+    const echo = patch.nodes.find(node => node.type === 'echo');
+    assert.equal(echo.params.sync, 1);
+    assert.ok(Math.abs(MODULAR_ECHO_BEATS[echo.params.beats] - DELAY_SYNC_BEATS[sync]) < 1e-9, String(sync));
+  }
+  const fx = modularFromSynth({ fx_chorus_on: 1, fx_delay_on: 1, fx_reverb_on: 1, fx_reverb_mix: 0.4 });
+  assert.deepEqual(fx.nodes.filter(node => MODULAR_TYPES[node.type].global).map(node => node.type),
+    ['chorus', 'echo', 'reverb', 'fxOutput', 'fxOutput']);
+  assert.ok(!fx.nodes.some(node => node.type === 'output'));
+  assert.equal(fx.nodes.find(node => node.id === 'out').params.level, 0.6);
+  const wet = fx.nodes.find(node => node.id === 'reverbout').params.level;
+  assert.ok(wet > 0 && wet < 0.4);
+  // A longer Synth decay gives a larger Reverb size.
+  const size = decay => modularFromSynth({ fx_reverb_on: 1, fx_reverb_decay_ms: decay }).nodes.find(node => node.type === 'reverb').params.size;
+  assert.ok(size(1500) < size(6000));
+
+  const mod = modularFromSynth({ mod_env_decay_ms: 90, mod1_source: 3, mod1_destination: 1, mod1_amount: 1200,
+    mod2_source: 8, mod2_destination: 8, mod2_amount: 0.5 });
+  compileModularPatch(mod);
+  assert.ok(mod.nodes.some(node => node.id === 'menv' && node.type === 'adsr'));
+  assert.ok(mod.cables.some(cable => cable.from === 'note' && cable.to === 'random' && cable.input === 'trigger'));
+  assert.ok(mod.cables.some(cable => cable.to === 'pan' && cable.input === 'param:pan'));
+  assert.equal(mod.nodes.find(node => node.id === 'mod1').params.scale, 1);
+  assert.throws(() => modularFromSynth({ mod1_source: 9, mod1_destination: 1, mod1_amount: 1 }), /Sidechain/);
+  assert.throws(() => modularFromSynth({ mod1_source: 1, mod1_destination: 7, mod1_amount: 1 }), /Amp modulation destination/);
 });
 
 test('the factory preset match survives layout changes and returns when a sound edit is undone', () => {

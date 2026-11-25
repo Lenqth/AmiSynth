@@ -287,7 +287,8 @@ export const MODULAR_TYPES = Object.freeze({
     inputs: ['left', 'right'], outputs: ['left', 'right'], params: {
       time: { min: 1, max: 2000, default: 375, step: 1, fixed: true },
       sync: { min: 0, max: 1, default: 0, step: 1, choices: ['Free', 'Host'], fixed: true },
-      beats: { min: 0, max: 6, default: 3, step: 1, choices: ['1/16', '1/8', 'Dotted 1/8', '1/4', 'Dotted 1/4', '1/2', '1 bar'], fixed: true },
+      beats: { min: 0, max: 13, default: 3, step: 1, choices: ['1/16', '1/8', 'Dotted 1/8', '1/4', 'Dotted 1/4', '1/2', '1 bar',
+        '1/32', '1/16 triplet', 'Dotted 1/16', '1/8 triplet', '1/4 triplet', '1/2 triplet', 'Dotted 1/2'], fixed: true },
       feedback: { min: 0, max: 0.95, default: 0.4, step: 0.01, fixed: true },
       damping: { min: 0, max: 1, default: 0.3, step: 0.01, fixed: true },
       pingPong: { min: 0, max: 1, default: 0, step: 1, choices: ['Off', 'On'], fixed: true },
@@ -317,7 +318,8 @@ export const MODULAR_TYPES = Object.freeze({
 // Patch effects share preallocated buffers: one slot per Echo, Chorus or Reverb.
 export const MODULAR_FX_SLOTS = 4;
 export const MODULAR_ECHO_SECONDS = 2;
-export const MODULAR_ECHO_BEATS = [0.25, 0.5, 0.75, 1, 1.5, 2, 4];
+// Later entries were appended so stored patches keep their note values.
+export const MODULAR_ECHO_BEATS = [0.25, 0.5, 0.75, 1, 1.5, 2, 4, 0.125, 1 / 6, 0.375, 1 / 3, 2 / 3, 4 / 3, 3];
 // Freeverb's comb and allpass lengths at 44.1 kHz; the right channel is 23 samples longer.
 export const MODULAR_REVERB_COMBS = [1116, 1188, 1277, 1356, 1422, 1491, 1557, 1617];
 export const MODULAR_REVERB_ALLPASSES = [556, 441, 341, 225];
