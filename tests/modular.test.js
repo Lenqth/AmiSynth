@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { MODULAR_PRESETS, MODULAR_TYPES, compileModularPatch, searchModularTypes, defaultModularPatch, modular_init, modular_meter_enable, modular_meter_snapshot, modular_midi, modularPresetIndex, modular_render, modular_set_patch, safeModularPatch } from '../src/dsp/modular.js';
+import { MODULAR_PRESETS, MODULAR_TYPES, compileModularPatch, searchModularTypes, defaultModularPatch, modular_init, modular_meter_enable, modular_meter_snapshot, modular_midi, modularPresetIndex, modular_render, modular_set_patch, modular_transport, safeModularPatch } from '../src/dsp/modular.js';
 import { renderPattern } from '../src/lib/render.js';
 import { modularCardBounds, modularCardsOverlap, modularRackPoint, searchModularPresets } from '../src/dsp/modular.js';
 
@@ -703,4 +703,26 @@ test('pressure follows channel aftertouch and per-note polyphonic aftertouch', (
   modular_midi(p.s, 0xa0, 60, 0);
   modular_midi(p.s, 0xd0, 32, 0);
   assert.ok(Math.abs(p.value() - 32 / 127) < 1e-6);
+});
+
+test('a host-synced Clock pulses on the host beat grid and holds reset while stopped', () => {
+  const s = {};
+  modular_init(s, 1000);
+  modular_set_patch(s, {
+    nodes: [
+      { id: 'clock', type: 'clock', params: { pulses: 1, duty: 0.25, sync: 1 } },
+      { id: 'out', type: 'output', params: { level: 1 } },
+    ],
+    cables: [{ from: 'clock', port: 'gate', to: 'out', input: 'audio' }],
+  });
+  const gate = () => { modular_render(s); return Math.round(Math.atanh(s.out_l) * 1000) / 1000; };
+  assert.equal(gate(), 0, 'stopped transport keeps the clock low');
+  modular_transport(s, 120, true, 1.9); // 2 beats per second: 0.1 beat = 50 samples before the beat
+  const pulses = Array.from({ length: 1200 }, gate);
+  // Accumulated beat steps may land a sample late on the boundary.
+  const first = pulses.indexOf(1), second = pulses.indexOf(1, 300);
+  assert.ok(first >= 50 && first <= 51, `first pulse at ${first}`);
+  assert.ok(second >= 550 && second <= 551, `second pulse at ${second}`);
+  assert.ok(pulses.slice(first, first + 124).every(x => x === 1));
+  assert.equal(pulses[first + 130], 0);
 });

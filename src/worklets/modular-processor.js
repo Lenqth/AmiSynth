@@ -1,4 +1,4 @@
-import { defaultModularPatch, modular_all_notes_off, modular_init, modular_meter_enable, modular_meter_snapshot, modular_midi, modular_render, modular_scope_select, modular_set_patch } from '../dsp/modular.js';
+import { defaultModularPatch, modular_all_notes_off, modular_init, modular_meter_enable, modular_meter_snapshot, modular_midi, modular_render, modular_scope_select, modular_set_patch, modular_transport } from '../dsp/modular.js';
 import { registerAmiProcessor } from './processor-base.js';
 
 registerAmiProcessor('amisynth-modular', {
@@ -6,6 +6,7 @@ registerAmiProcessor('amisynth-modular', {
   init: modular_init,
   update() {},
   midi: modular_midi,
+  transport: modular_transport,
   render: modular_render,
   panic: modular_all_notes_off,
   snapshot: modular_meter_snapshot,

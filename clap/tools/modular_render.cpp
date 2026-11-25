@@ -3,6 +3,7 @@
 // spec: {"rate": 48000, "samples": 4800, "patch": {...},
 //        "notes": [{"key": 60, "velocity": 100, "on": 0, "off": 2400}],
 //        "midi": [{"at": 100, "data": [176, 1, 64]}],            optional controllers on channel 1
+//        "transport": [{"at": 0, "bpm": 140, "playing": true, "beat": 0}],  optional host transport
 //        "expressions": [{"at": 100, "id": 6, "key": 60, "value": 0.5}]}  optional CLAP note expressions
 #include "../src/modular_dsp.h"
 #include <cstdio>
@@ -38,6 +39,11 @@ int main(int argc, char **argv) {
                     else for (auto &v : engine->voices)
                         if (v.key_down && Engine::matches(v, 0, key, -1)) engine->release(v);
                 }
+            }
+            if (const auto transport = spec.find("transport"); transport != spec.end()) {
+                for (const auto &t : *transport)
+                    if (t.at("at").get<size_t>() == n)
+                        engine->transport(t.at("bpm").get<double>(), t.at("playing").get<bool>(), t.at("beat").get<double>());
             }
             if (const auto midi = spec.find("midi"); midi != spec.end()) {
                 for (const auto &event : *midi) {

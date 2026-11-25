@@ -205,9 +205,19 @@ struct Instance {
         dsp.note_expression(e.expression_id, e.channel, e.key, e.note_id, e.value);
     }
 
+    void transport(const clap_event_transport_t &t) {
+        const double bpm = t.flags & CLAP_TRANSPORT_HAS_TEMPO ? t.tempo : 0;
+        const double beat = t.flags & CLAP_TRANSPORT_HAS_BEATS_TIMELINE ? double(t.song_pos_beats) / CLAP_BEATTIME_FACTOR : NAN;
+        dsp.transport(bpm, (t.flags & CLAP_TRANSPORT_IS_PLAYING) != 0, beat);
+    }
+
     void event(const clap_event_header_t *h, const clap_output_events_t *output) {
         if (!h || h->space_id != CLAP_CORE_EVENT_SPACE_ID) return;
         if (h->type == CLAP_EVENT_PARAM_VALUE) { param(h); return; }
+        if (h->type == CLAP_EVENT_TRANSPORT && h->size >= sizeof(clap_event_transport_t)) {
+            transport(*reinterpret_cast<const clap_event_transport_t *>(h));
+            return;
+        }
         if (dsp.graph.autonomous) return;
         if (h->type == CLAP_EVENT_MIDI && h->size >= sizeof(clap_event_midi_t)) {
             midi(*reinterpret_cast<const clap_event_midi_t *>(h), output);
@@ -266,6 +276,8 @@ clap_process_status CLAP_ABI process(const clap_plugin_t *p, const clap_process_
     out.constant_mask = 0;
     self.sync_graph(block->out_events);
     self.emit_macro_changes(block->out_events);
+    if (block->transport) self.transport(*block->transport);
+    else self.dsp.transport(0, false, NAN);
     const auto *events = block->in_events;
     const uint32_t count = events ? events->size(events) : 0;
     uint32_t index = 0;

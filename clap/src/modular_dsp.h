@@ -305,6 +305,8 @@ struct Engine {
     std::array<double, 16 * 128> cc{};
     std::array<bool, 16> sustain{};
     std::array<double, kNodes> clock_phases{};
+    // Host transport: tempo, play state and beat (quarter note) position, advanced every sample.
+    struct Host { double bpm = 120, beat = 0; bool playing = false; } host;
     uint64_t clock = 0;
     // Held keys in Mono and Legato, most recent last.
     struct Held { int16_t channel, key; int32_t id; double velocity; bool clap_note; };
@@ -315,7 +317,7 @@ struct Engine {
     // temporary, which would put hundreds of kilobytes on the stack.
     void reset() {
         for (auto &v : voices) { v.active = v.key_down = v.held = v.clap_note = false; v.tail = 0; }
-        bend = {}; sustain = {}; clock_phases = {}; clock = 0; held_count = 0; last_key = -1;
+        bend = {}; sustain = {}; clock_phases = {}; clock = 0; held_count = 0; last_key = -1; host = {};
         for (int channel = 0; channel < 16; ++channel) reset_controllers(channel);
     }
 
@@ -326,6 +328,13 @@ struct Engine {
         double *c = cc.data() + channel * 128;
         std::fill(c, c + 128, 0.0);
         c[7] = 100 / 127.0; c[10] = 64 / 127.0; c[11] = 1;
+    }
+
+    // Called at the start of a block; while playing the beat advances until the next call resyncs it.
+    void transport(double bpm, bool playing, double beat) {
+        if (bpm > 0 && std::isfinite(bpm)) host.bpm = std::clamp(bpm, 1.0, 1000.0);
+        host.playing = playing;
+        if (playing && std::isfinite(beat)) host.beat = beat;
     }
 
     void pitch_bend(int channel, int value) { bend[size_t(channel)] = (value - 8192) / 8192.0; }
@@ -582,15 +591,21 @@ struct Engine {
             break;
         }
         case Type::clock:
-            sig[0] = clock_phases[i] < p[2] ? 1 : 0;
-            sig[1] = clock_phases[i];
+            if (p[3] != 0 && !host.playing) {
+                sig[0] = sig[1] = 0;
+                sig[2] = 1;
+                break;
+            }
+            sig[1] = p[3] != 0 ? host.beat * p[1] - std::floor(host.beat * p[1]) : clock_phases[i];
+            sig[0] = sig[1] < p[2] ? 1 : 0;
+            sig[2] = 0;
             break;
         case Type::gatedClock: {
             const bool run = read(v, n, 0, v.key_down) > 0;
             sig[0] = run && st.phase < p[2] ? 1 : 0;
             sig[1] = run ? st.phase : 0;
             sig[2] = run ? 0 : 1;
-            const double phase = st.phase + p[0] * p[1] / (60 * rate);
+            const double phase = st.phase + (p[3] != 0 ? host.bpm : p[0]) * p[1] / (60 * rate);
             st.phase = run ? phase - std::floor(phase) : 0;
             break;
         }
@@ -1045,6 +1060,7 @@ struct Engine {
             out += value;
             right += value_right;
         }
+        if (host.playing) host.beat += host.bpm / (60 * rate);
         for (int i = 0; i < graph.clock_count; ++i) {
             const int index = graph.clocks[i];
             const auto &params = graph.nodes[index].knobs;

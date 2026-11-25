@@ -172,21 +172,26 @@ export const MODULAR_TYPES = Object.freeze({
       to: { min: -24000, max: 24000, default: 1, step: 0.01 },
       curve: { min: -1, max: 1, default: 0, step: 0.01 },
     } },
-  clock: { label: 'Clock', category: 'Modulation', keywords: 'tempo bpm pulse time sequencer',
-    inputs: [], outputs: ['gate', 'phase'], params: {
+  // Host sync follows the DAW's tempo and beat position: pulses land on the beat grid while the
+  // transport plays, and the clock stops with reset held high while it is stopped.
+  clock: { label: 'Clock', category: 'Modulation', keywords: 'tempo bpm pulse time sequencer host sync daw transport',
+    inputs: [], outputs: ['gate', 'phase', 'reset'], params: {
       bpm: { min: 20, max: 300, default: 120, step: 0.1, fixed: true },
       pulses: { min: 1, max: 16, default: 4, step: 1, fixed: true },
       duty: { min: 0.01, max: 0.99, default: 0.5, step: 0.01, fixed: true },
+      sync: { min: 0, max: 1, default: 0, step: 1, choices: ['Free', 'Host'], fixed: true },
     } },
   divider: { label: 'Clock Divider', category: 'Modulation', keywords: 'clock pulse divide rhythm',
     inputs: ['clock', 'reset'], outputs: ['gate'], params: {
       division: { min: 1, max: 32, default: 2, step: 1 },
     } },
-  gatedClock: { label: 'Gated Clock', category: 'Modulation', keywords: 'tempo bpm pulse time rhythm held gate sequencer',
+  // Host sync takes the DAW's tempo in place of bpm; the clock still starts when a key goes down.
+  gatedClock: { label: 'Gated Clock', category: 'Modulation', keywords: 'tempo bpm pulse time rhythm held gate sequencer host sync daw',
     inputs: ['run'], outputs: ['gate', 'phase', 'reset'], params: {
       bpm: { min: 20, max: 300, default: 120, step: 0.1 },
       pulses: { min: 1, max: 16, default: 2, step: 1 },
       duty: { min: 0.01, max: 0.99, default: 0.5, step: 0.01 },
+      sync: { min: 0, max: 1, default: 0, step: 1, choices: ['Free', 'Host'], fixed: true },
     } },
   beatGrid: { label: 'Beat Grid', category: 'Modulation', keywords: 'step trigger pattern rhythm drum clock router matrix',
     inputs: ['clock', 'reset'], outputs: BEAT_GRID_LANES, params: {
@@ -1066,6 +1071,7 @@ export function modular_init(s, sampleRate) {
   for (let channel = 0; channel < 16; channel++) resetControllers(s, channel);
   s.sustain = new Uint8Array(16);
   s.tick = 0;
+  s.host = { bpm: 120, playing: false, beat: 0 };
   s.stack = []; // Held keys in Mono and Legato, most recent last.
   s.lastKey = -1;
   s.out_l = 0; s.out_r = 0;
@@ -1085,6 +1091,16 @@ export function modular_set_patch(s, patch) {
       old.patch.cables.every((c, i) => Object.keys(c).every(k => c[k] === graph.patch.cables[i][k]))) return;
   s.voices = Array.from({ length: MAX_VOICES }, (_, slot) => newVoice(graph.nodes.length, slot));
   s.clockPhases = new Float64Array(graph.nodes.length);
+}
+
+/**
+ * Host transport at the start of a block: tempo, whether it plays, and the beat (quarter note)
+ * position. While playing the beat advances every sample until the next call resyncs it.
+ */
+export function modular_transport(s, bpm, playing, beat) {
+  if (bpm > 0 && Number.isFinite(bpm)) s.host.bpm = clamp(bpm, 1, 1000);
+  s.host.playing = !!playing;
+  if (playing && Number.isFinite(beat)) s.host.beat = beat;
 }
 
 export function modular_all_notes_off(s) {
@@ -1340,6 +1356,9 @@ function sampleDrum(s, v, n, st) {
   return out;
 }
 
+// Position within the current pulse, from the host's beat count times pulses per beat.
+const hostPhase = pulses => pulses - Math.floor(pulses);
+
 function sampleNode(s, v, i) {
   const n = s.graph.nodes[i], st = v.stages[i], sig = v.signals[i];
   switch (n.type) {
@@ -1355,15 +1374,21 @@ function sampleNode(s, v, i) {
       break;
     }
     case 'clock':
-      sig.phase = s.clockPhases[i];
+      if (n.params.sync && !s.host.playing) {
+        sig.phase = sig.gate = 0; sig.reset = 1;
+        break;
+      }
+      sig.phase = n.params.sync ? hostPhase(s.host.beat * n.params.pulses) : s.clockPhases[i];
       sig.gate = Number(sig.phase < n.params.duty);
+      sig.reset = 0;
       break;
     case 'gatedClock': {
       const run = read(v, n, 'run', Number(v.keyDown)) > 0;
       sig.gate = Number(run && st.phase < parameter(v, n, 'duty'));
       sig.phase = run ? st.phase : 0;
       sig.reset = Number(!run);
-      const phase = st.phase + parameter(v, n, 'bpm') * parameter(v, n, 'pulses') / (60 * s.sampleRate);
+      const bpm = n.params.sync ? s.host.bpm : parameter(v, n, 'bpm');
+      const phase = st.phase + bpm * parameter(v, n, 'pulses') / (60 * s.sampleRate);
       st.phase = run ? phase - Math.floor(phase) : 0;
       break;
     }
@@ -1833,6 +1858,7 @@ export function modular_render(s) {
     out += sample;
     right += sampleRight;
   }
+  if (s.host.playing) s.host.beat += s.host.bpm / (60 * s.sampleRate);
   for (const i of clocks) {
     const { bpm, pulses } = nodes[i].params;
     const phase = s.clockPhases[i] + bpm * pulses / (60 * s.sampleRate);
