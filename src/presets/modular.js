@@ -396,6 +396,7 @@ const PHYS_COMMON = new Set(['phys_model', 'phys_volume_db', 'phys_release_ms', 
   'phys_room_decay_ms', 'phys_velocity_amount', 'phys_pitch_bend_range_cents', 'phys_sustain_mode',
   'tuning_divisions', 'tuning_period_cents', 'tuning_ref_note', 'tuning_ref_hz']);
 const PHYS_MODELS = {
+  0: new Set(['string_excitation', 'string_decay_ms', 'string_damping', 'string_pick_position', 'string_brightness']),
   1: new Set(['modal_material', 'modal_decay_ms', 'modal_high_damping', 'modal_hardness', 'modal_strike_position',
     'modal_inharmonicity']),
 };
@@ -433,7 +434,23 @@ export function modularFromPhysical(params) {
   // Physical's modal sum is scaled by 1.6, and its output by 0.5.
   const level = 0.8 * 10 ** (p.phys_volume_db / 20);
 
+  // Physical's constant-power pan is +3 dB at the centre against Pan / Spread.
+  const width = p.phys_stereo_width, panGain = width > 0 ? Math.SQRT2 : 1;
   let source;
+  if (model === 0) {
+    // Physical's string output is scaled by velocity and halved.
+    source = node('string', 'physString', {
+      excitation: p.string_excitation >= 0.5 ? 1 : 0, decay: p.string_decay_ms / 1000, release: p.phys_release_ms / 1000,
+      damping: p.string_damping, pick: p.string_pick_position, brightness: p.string_brightness, level: 1,
+    }, 1);
+    wire('note', 'pitch', source, 'pitch');
+    wire('note', 'gate', source, 'gate');
+    wire('note', 'velocity', source, 'velocity');
+    node('dynamics', 'vca', { level: Math.min(2, Math.round(0.5 * 10 ** (p.phys_volume_db / 20) * panGain * 1e4) / 1e4) }, 1);
+    wire(source, 'out', 'dynamics', 'audio');
+    wire('velocity', 'out', 'dynamics', 'gain');
+    source = 'dynamics';
+  }
   if (model === 1) {
     const material = Math.round(p.modal_material);
     const extra = {};
@@ -452,10 +469,8 @@ export function modularFromPhysical(params) {
     wire('note', 'gate', source, 'gate');
     wire('velocity', 'out', source, 'velocity');
   }
-  // Level above the module's maximum, and Physical's constant-power pan (+3 dB at the centre
-  // against Pan / Spread), go on a VCA.
-  const width = p.phys_stereo_width;
-  const boost = Math.max(1, level) * (width > 0 ? Math.SQRT2 : 1);
+  // A modal level above the module's maximum, and the pan gain, go on a VCA.
+  const boost = model === 1 ? Math.max(1, level) * panGain : 1;
   let left = [source, 'out'], right = null;
   if (boost > 1 + 1e-9) {
     node('gain', 'vca', { level: Math.min(2, boost) }, 2);

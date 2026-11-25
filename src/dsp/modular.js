@@ -100,6 +100,17 @@ export const MODULAR_TYPES = Object.freeze({
       brightness: { min: 0, max: 1, default: 0.6, step: 0.01 },
       level: { min: 0, max: 1, default: 0.6, step: 0.01 },
     } },
+  physString: { label: 'Physical String', category: 'Physical',
+    keywords: 'karplus strong guitar bass harp harpsichord koto pick damping hammer physical model',
+    inputs: ['pitch', 'gate', 'velocity'], outputs: ['out'], params: {
+      excitation: { min: 0, max: 1, default: 0, step: 1, choices: ['Pluck', 'Strike'] },
+      decay: { min: 0.1, max: 20, default: 3, step: 0.01 },
+      release: { min: 0.01, max: 10, default: 0.3, step: 0.01 },
+      damping: { min: 0, max: 1, default: 0.35, step: 0.001 },
+      pick: { min: 0.02, max: 0.5, default: 0.13, step: 0.001 },
+      brightness: { min: 0, max: 1, default: 0.7, step: 0.001 },
+      level: { min: 0, max: 1, default: 0.6, step: 0.01 },
+    } },
   modal: { label: 'Modal Resonator', category: 'Physical', keywords: 'bell marimba glass gong mallet physical model resonance',
     inputs: ['in', 'pitch', 'gate', 'velocity'], outputs: ['out'], params: {
       material: { min: 0, max: MATERIALS.length - 1, default: 0, step: 1, choices: MATERIALS.map(m => m.name) },
@@ -325,9 +336,9 @@ export const MODULAR_REVERB_ALLPASSES = [556, 441, 341, 225];
 export const MODULAR_REVERB_SPREAD = 23;
 const FX_TYPES = new Set(['echo', 'chorus', 'reverb']);
 
-const LINE_TYPES = new Set(['string', 'comb', 'reedPipe']);
+const LINE_TYPES = new Set(['string', 'physString', 'comb', 'reedPipe']);
 // Modules that ring on after their gate falls; a released voice lives until they are quiet.
-const RINGING_TYPES = new Set(['adsr', 'functionGen', 'string', 'modal', 'bowed', 'reedPipe']);
+const RINGING_TYPES = new Set(['adsr', 'functionGen', 'string', 'physString', 'modal', 'bowed', 'reedPipe']);
 const QUANTIZER_SCALES = [0xfff, 0xab5, 0x5ad, 0x295, 0x4a9];
 
 const searchWords = text => text.toLowerCase().split(/[^a-z0-9&]+/).filter(Boolean);
@@ -1847,6 +1858,56 @@ function sampleNode(s, v, i) {
       st.amp = Math.max(Math.abs(y), st.amp * 0.9995);
       st.mode = st.amp > 1e-4 ? 1 : 0;
       sig.out = y * parameter(v, n, 'level');
+      break;
+    }
+    case 'physString': {
+      // The Physical instrument's String model: a Karplus-Strong loop with a one-pole damping
+      // filter, filled with a pick-combed noise burst or hammer pulse on each rising gate.
+      const line = v.lines[n.line];
+      const gate = read(v, n, 'gate', 1) >= 0.5;
+      const hz = clamp(440 * Math.pow(2, (read(v, n, 'pitch', 69) - 69) / 12),
+        s.sampleRate / (MODULAR_LINE_SAMPLES - 4), s.sampleRate * 0.45);
+      const damping = 0.05 + 0.9 * parameter(v, n, 'damping');
+      if (st.key[0] !== hz || st.key[1] !== damping) {
+        // The loop delay less the damping filter's phase delay at the fundamental.
+        st.key[0] = hz; st.key[1] = damping;
+        const w = TAU * hz / s.sampleRate;
+        st.a1[0] = clamp(s.sampleRate / hz - Math.atan2(damping * Math.sin(w), 1 - damping * Math.cos(w)) / w,
+          2, MODULAR_LINE_SAMPLES - 2);
+        st.a1[1] = 1.2 * clamp(Math.pow(hz / 220, 0.3), 0.7, 2);
+        st.key[2] = NaN;
+      }
+      if (gate && !st.lastGate) {
+        line.fill(0);
+        const count = Math.ceil(st.a1[0]);
+        const bright = clamp(parameter(v, n, 'brightness') * (0.6 + 0.4 * clamp(read(v, n, 'velocity', 1), 0, 1)), 0.02, 1);
+        const a = bright * bright, norm = 1 / Math.sqrt(a / (2 - a));
+        const strike = parameter(v, n, 'excitation') >= 0.5, width = Math.max(2, count * (0.5 - 0.45 * bright));
+        let lp = 0;
+        for (let i = 0; i < count; i++) {
+          let x;
+          if (strike) x = i < width ? 0.5 - 0.5 * Math.cos(TAU * i / width) : 0;
+          else { lp += a * (white(st) - lp); x = lp * norm * 0.5; }
+          line[(st.write + i) & MASK] = x;
+        }
+        // Picking point: subtract the burst delayed by the pick distance.
+        const pick = Math.max(1, Math.round(parameter(v, n, 'pick') * count));
+        for (let i = count - 1; i >= pick; i--) line[(st.write + i) & MASK] -= line[(st.write + i - pick) & MASK];
+        st.write = (st.write + count) & MASK;
+        st.prev = 0;
+      }
+      st.lastGate = gate;
+      const decay = parameter(v, n, 'decay');
+      const t60 = gate ? decay : Math.min(decay, parameter(v, n, 'release'));
+      if (st.key[2] !== t60) { st.key[2] = t60; st.a2[0] = Math.exp(-LN1000 / (hz * t60)); }
+      const y = lineRead(line, st.write, st.a1[0]);
+      st.prev = (1 - damping) * y + damping * st.prev;
+      const feedback = clamp(st.prev * st.a2[0], -4, 4);
+      line[st.write] = feedback;
+      st.write = (st.write + 1) & MASK;
+      st.amp = Math.max(Math.abs(feedback), st.amp * 0.9995);
+      st.mode = st.amp > 1e-4 ? 1 : 0;
+      sig.out = feedback * st.a1[1] * parameter(v, n, 'level');
       break;
     }
     case 'bowed': {

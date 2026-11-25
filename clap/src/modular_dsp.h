@@ -100,7 +100,7 @@ inline Graph compile(Json &patch, Macros &macros) {
         auto &node = graph.nodes[ids.size()];
         node.type = spec->type;
         const int lines = node.type == Type::bowed ? 2 :
-            int(node.type == Type::string || node.type == Type::comb || node.type == Type::reedPipe);
+            int(node.type == Type::string || node.type == Type::physString || node.type == Type::comb || node.type == Type::reedPipe);
         if (lines) {
             if (graph.line_count + lines > int(kLines)) throw std::invalid_argument("Too many delay lines");
             node.line = graph.line_count;
@@ -252,7 +252,7 @@ inline Graph compile(Json &patch, Macros &macros) {
         const int index = audible[i];
         // Modules that ring on after their gate falls keep a released voice alive until quiet.
         const auto type = graph.nodes[index].type;
-        if (type == Type::adsr || type == Type::functionGen || type == Type::string ||
+        if (type == Type::adsr || type == Type::functionGen || type == Type::string || type == Type::physString ||
             type == Type::modal || type == Type::bowed || type == Type::reedPipe)
             graph.envelopes[graph.envelope_count++] = index;
         if (type == Type::drumVoice) graph.envelopes[graph.envelope_count++] = index;
@@ -942,6 +942,56 @@ struct Engine {
             st.amp = std::max(std::abs(y), st.amp * 0.9995);
             st.mode = st.amp > 1e-4 ? 1 : 0;
             sig[0] = y * p[3];
+            break;
+        }
+        case Type::physString: {
+            // The Physical instrument's String model (see the Web engine).
+            auto &line = v.lines[size_t(n.line)];
+            const bool gate = read(v, n, 1, 1) >= 0.5;
+            const double hz = std::clamp(440 * std::pow(2.0, (read(v, n, 0, 69) - 69) / 12),
+                rate / double(kLineSamples - 4), rate * 0.45);
+            const double damping = 0.05 + 0.9 * p[3];
+            if (st.key[0] != hz || st.key[1] != damping) {
+                st.key[0] = hz;
+                st.key[1] = damping;
+                const double w = 2 * kPi * hz / rate;
+                st.a1[0] = std::clamp(rate / hz - std::atan2(damping * std::sin(w), 1 - damping * std::cos(w)) / w,
+                    2.0, double(kLineSamples - 2));
+                st.a1[1] = 1.2 * std::clamp(std::pow(hz / 220, 0.3), 0.7, 2.0);
+                st.key[2] = NAN;
+            }
+            if (gate && !st.gate) {
+                line.fill(0);
+                const int count = int(std::ceil(st.a1[0]));
+                const double bright = std::clamp(p[5] * (0.6 + 0.4 * std::clamp(read(v, n, 2, 1), 0.0, 1.0)), 0.02, 1.0);
+                const double a = bright * bright, norm = 1 / std::sqrt(a / (2 - a));
+                const bool strike = p[0] >= 0.5;
+                const double width = std::max(2.0, count * (0.5 - 0.45 * bright));
+                double lp = 0;
+                for (int i = 0; i < count; ++i) {
+                    double x;
+                    if (strike) x = i < width ? 0.5 - 0.5 * std::cos(2 * kPi * i / width) : 0;
+                    else { lp += a * (white(st) - lp); x = lp * norm * 0.5; }
+                    line[size_t((st.write + i) & kLineMask)] = float(x);
+                }
+                const int pick = std::max(1, int(std::round(p[4] * count)));
+                for (int i = count - 1; i >= pick; --i)
+                    line[size_t((st.write + i) & kLineMask)] = float(double(line[size_t((st.write + i) & kLineMask)]) -
+                        double(line[size_t((st.write + i - pick) & kLineMask)]));
+                st.write = (st.write + count) & kLineMask;
+                st.prev = 0;
+            }
+            st.gate = gate;
+            const double t60 = gate ? p[1] : std::min(p[1], p[2]);
+            if (st.key[2] != t60) { st.key[2] = t60; st.a2[0] = std::exp(-kLn1000 / (hz * t60)); }
+            const double y = line_read(line, st.write, st.a1[0]);
+            st.prev = (1 - damping) * y + damping * st.prev;
+            const double feedback = std::clamp(st.prev * st.a2[0], -4.0, 4.0);
+            line[size_t(st.write)] = float(feedback);
+            st.write = (st.write + 1) & kLineMask;
+            st.amp = std::max(std::abs(feedback), st.amp * 0.9995);
+            st.mode = st.amp > 1e-4 ? 1 : 0;
+            sig[0] = feedback * st.a1[1] * p[6];
             break;
         }
         case Type::bowed: {
