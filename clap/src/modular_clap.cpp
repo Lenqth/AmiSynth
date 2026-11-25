@@ -108,6 +108,8 @@ struct Instance {
     void sync_graph(const clap_output_events_t *output) {
         if ((middle.load() & dirty) == 0) return;
         front = middle.exchange(front) & ~dirty;
+        // Switching the arpeggiator on or off releases every note, as in the Synth instrument.
+        if ((dsp.graph.arp.mode > 0) != (graphs[front].arp.mode > 0)) dsp.arp_switch();
         dsp.graph = graphs[front];
         if (applied_epoch != graph_epochs[front]) {
             for (auto &v : dsp.voices) if (v.active) end_voice(v, 0, output);
@@ -172,7 +174,12 @@ struct Instance {
         if (e.port_index != 0) return;
         const int op = e.data[0] & 0xf0, channel = e.data[0] & 0xf;
         const int key = e.data[1] & 0x7f, value = e.data[2] & 0x7f;
-        if (op == 0x90 && value) {
+        const bool arp = dsp.graph.arp.mode > 0;
+        if (arp && op == 0x90 && value) {
+            dsp.arp_key_on(channel, key, value / 127.0);
+        } else if (arp && (op == 0x90 || op == 0x80)) {
+            dsp.arp_key_off(channel, key);
+        } else if (op == 0x90 && value) {
             end_note(dsp.note_on(channel, key, -1, value / 127.0, false), e.header.time, output);
         } else if ((op == 0x90 || op == 0x80) && dsp.graph.voice_mode) {
             end_note(dsp.mono_note_off(channel, key), e.header.time, output);
@@ -190,6 +197,7 @@ struct Instance {
         } else if (op == 0xb0) {
             dsp.controller(channel, key, value);
             if (key == 64) dsp.sustain[channel] = value >= 64;
+            if (key == 120 || key == 123) dsp.arp_forget(channel);
             for (auto &v : dsp.voices) {
                 if (!Engine::matches(v, channel, -1, -1)) continue;
                 if (key == 120) end_voice(v, e.header.time, output);
@@ -229,6 +237,17 @@ struct Instance {
         }
         if (h->type > CLAP_EVENT_NOTE_CHOKE || h->size < sizeof(clap_event_note_t)) return;
         const auto &e = *reinterpret_cast<const clap_event_note_t *>(h);
+        if (dsp.graph.arp.mode > 0) {
+            // The arpeggiator plays its own notes, so a host note ends when its key is released.
+            if (e.port_index > 0 || e.channel < 0 || e.channel >= 16 || e.key < 0 || e.key >= 128) return;
+            if (h->type == CLAP_EVENT_NOTE_ON) {
+                if (std::isfinite(e.velocity)) dsp.arp_key_on(e.channel, e.key, std::clamp(e.velocity, 0.0, 1.0));
+                return;
+            }
+            dsp.arp_key_off(e.channel, e.key);
+            end_note({true, int16_t(e.channel), int16_t(e.key), e.note_id}, h->time, output);
+            return;
+        }
         if (h->type == CLAP_EVENT_NOTE_ON) {
             if (e.port_index == 0 && e.channel >= 0 && e.channel < 16 && e.key >= 0 && e.key < 128 && std::isfinite(e.velocity))
                 end_note(dsp.note_on(e.channel, e.key, e.note_id, std::clamp(e.velocity, 0.0, 1.0), true), h->time, output);

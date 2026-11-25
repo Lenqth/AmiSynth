@@ -346,6 +346,42 @@ PATCHES[HOST_LFOS] = voice([
 ]);
 TRANSPORT[HOST_LFOS] = TRANSPORT[HOST_CLOCKS];
 
+// Arpeggiator patches: a plucked VCO with a short envelope, so each step is audible.
+const arpVoice = midi => ({
+  nodes: [
+    { id: 'note', type: 'midi', params: midi },
+    { id: 'out', type: 'output' },
+    { id: 'osc', type: 'vco', params: { wave: 1 } },
+    { id: 'env', type: 'adsr', params: { attack: 0.001, decay: 0.05, sustain: 0.5, release: 0.01 } },
+    { id: 'amp', type: 'vca' },
+  ],
+  cables: [
+    { from: 'note', port: 'pitch', to: 'osc', input: 'pitch' },
+    { from: 'note', port: 'gate', to: 'env', input: 'gate' },
+    { from: 'osc', port: 'out', to: 'amp', input: 'audio' },
+    { from: 'env', port: 'out', to: 'amp', input: 'gain' },
+    { from: 'amp', port: 'out', to: 'out', input: 'audio' },
+  ],
+});
+const ARP_TRANSPORT = [
+  { at: 0, bpm: 200, playing: true, beat: 1.3 },
+  { at: 9000, bpm: 200, playing: true, beat: 1.3 + 9000 * 200 / 60 / rate },
+  { at: 12000, bpm: 200, playing: true, beat: 0.5 },  // a loop back
+  { at: 19000, bpm: 260, playing: false, beat: 0 },   // stopped: runs on at the tempo
+];
+const ARPS = {
+  'arpeggiator Up over 2 octaves with swing and a 5-step pattern': [{ arp: 1, arpRate: 5, arpOctaves: 2, arpGate: 0.6, arpSwing: 62, arpSteps: 5, arpPattern: 0xfffb }, ARP_TRANSPORT],
+  'arpeggiator Random on a Legato voice, Every Bar, gate 1': [{ voices: 2, glide: 0.02, arp: 4, arpRate: 6, arpOctaves: 3, arpGate: 1, arpRetrigger: 2 }, [{ at: 0, bpm: 300, playing: false, beat: 0 }]],
+  'arpeggiator Chord stabs with New Chord': [{ arp: 6, arpRate: 1, arpGate: 0.45, arpSteps: 3, arpPattern: 0b101, arpRetrigger: 1 }, ARP_TRANSPORT],
+  'arpeggiator Up-Down with Free Run': [{ arp: 3, arpRate: 4, arpOctaves: 2, arpGate: 0.5, arpRetrigger: 3 }, ARP_TRANSPORT],
+  'arpeggiator Down on a Mono voice': [{ voices: 1, arp: 2, arpRate: 3, arpOctaves: 4, arpGate: 0.8 }, [{ at: 0, bpm: 170, playing: true, beat: 7.9 }]],
+  'arpeggiator As Played': [{ arp: 5, arpRate: 2, arpOctaves: 2, arpGate: 0.3, arpSwing: 75 }, [{ at: 0, bpm: 150, playing: true, beat: 0 }]],
+};
+for (const [name, [midi, transport]] of Object.entries(ARPS)) {
+  PATCHES[name] = arpVoice(midi);
+  TRANSPORT[name] = transport;
+}
+
 const PATCH_FX = 'patch effects: echo (free and host-synced ping-pong), chorus and reverb on the voice sum';
 PATCHES[PATCH_FX] = {
   nodes: [

@@ -70,6 +70,8 @@ struct Graph {
     int voice_mode = 0;
     double glide = 0, bend_range = 2;
     bool glide_legato_only = false;
+    // The arpeggiator on that module (mode 0 = off); see Engine::arp_tick.
+    struct Arp { int mode = 0, octaves = 1, steps = 16, pattern = 65535, retrigger = 0; double step_beats = 1, gate = 0.5, swing = 0; } arp;
 };
 
 inline int port_index(std::initializer_list<const char *> ports, const std::string &name) {
@@ -270,6 +272,9 @@ inline Graph compile(Json &patch, Macros &macros) {
         graph.glide = graph.nodes[i].knobs[1];
         graph.glide_legato_only = graph.nodes[i].knobs[2] != 0;
         graph.bend_range = graph.nodes[i].knobs[3];
+        const auto &k = graph.nodes[i].knobs;
+        graph.arp = {int(k[5]), int(k[7]), int(k[10]), int(k[11]), int(k[12]), kArpBeats[size_t(k[6])], k[8],
+                     std::clamp(2 * k[9] / 100 - 1, 0.0, 0.5)};
         break;
     }
     macros = {};
@@ -416,12 +421,20 @@ struct Engine {
     struct Held { int16_t channel, key; int32_t id; double velocity; bool clap_note; };
     std::array<Held, 16> stack{};
     int held_count = 0, last_key = -1;
+    // Arpeggiator: held keys in the order played and the notes of the current step.
+    struct ArpKey { int channel, key; double velocity; };
+    struct ArpState {
+        std::array<ArpKey, 16> keys{}, sounding{};
+        int count = 0, sounding_count = 0, last = 0, idx = 0, bar = 0;
+        double off_pos = 0, since_key = 1e9, beat = 0;
+        uint32_t rng = 1;
+    } arp;
 
     // Voices hold their delay lines, so they are reset in place rather than by assigning a
     // temporary, which would put hundreds of kilobytes on the stack.
     void reset() {
         for (auto &v : voices) { v.active = v.key_down = v.held = v.clap_note = false; v.tail = 0; }
-        bend = {}; sustain = {}; clock_phases = {}; clock = 0; held_count = 0; last_key = -1; host = {};
+        bend = {}; sustain = {}; clock_phases = {}; clock = 0; held_count = 0; last_key = -1; host = {}; arp = {};
         for (int channel = 0; channel < 16; ++channel) reset_controllers(channel);
     }
 
@@ -466,6 +479,135 @@ struct Engine {
             reset_controllers(channel);
             for (auto &v : voices) if (v.channel == channel) v.reset_expressions();
         }
+    }
+
+    // Arpeggiator (the Synth instrument's): steps follow the host beat while it plays and the host
+    // tempo while stopped. Its notes are not CLAP notes, so they need no note-end events.
+    void arp_switch() {
+        arp.count = arp.sounding_count = 0;
+        held_count = 0;
+        for (auto &v : voices) if (v.active && v.key_down) release(v);
+    }
+    void arp_forget(int channel) {
+        int kept = 0;
+        for (int i = 0; i < arp.count; ++i) if (arp.keys[size_t(i)].channel != channel) arp.keys[size_t(kept++)] = arp.keys[size_t(i)];
+        arp.count = kept;
+        kept = 0;
+        for (int i = 0; i < arp.sounding_count; ++i)
+            if (arp.sounding[size_t(i)].channel != channel) arp.sounding[size_t(kept++)] = arp.sounding[size_t(i)];
+        arp.sounding_count = kept;
+    }
+    void arp_key_on(int channel, int key, double velocity) {
+        for (int i = 0; i < arp.count; ++i) {
+            auto &h = arp.keys[size_t(i)];
+            if (h.channel == channel && h.key == key) { h.velocity = velocity; return; }
+        }
+        if (arp.count >= int(arp.keys.size())) return;
+        if (arp.count == 0) {
+            const double pos = arp.beat / graph.arp.step_beats;
+            const int k = int(std::floor(pos + 0.000001));
+            arp.idx = 0;
+            arp.last = pos - k > 0.9 ? k : k - 1;
+        } else if (graph.arp.retrigger == 1 && arp.since_key > kArpChordMs * 0.001 * rate) {
+            arp.idx = 0;
+        }
+        arp.since_key = 0;
+        arp.keys[size_t(arp.count++)] = {channel, key, velocity};
+    }
+    void arp_key_off(int channel, int key) {
+        int kept = 0;
+        for (int i = 0; i < arp.count; ++i) {
+            const auto &h = arp.keys[size_t(i)];
+            if (h.channel != channel || h.key != key) arp.keys[size_t(kept++)] = h;
+        }
+        arp.count = kept;
+    }
+    // A note played or ended by the arpeggiator, through the Poly or Mono voice logic.
+    void play_note(int channel, int key, double velocity) { note_on(channel, key, -1, velocity, false); }
+    void end_played(int channel, int key) {
+        if (graph.voice_mode) { mono_note_off(channel, key); return; }
+        Voice *oldest = nullptr;
+        for (auto &v : voices)
+            if (v.key_down && matches(v, channel, key, -1) && (!oldest || v.age < oldest->age)) oldest = &v;
+        if (oldest) release(*oldest);
+    }
+    void arp_fire() {
+        const auto &cfg = graph.arp;
+        const int n = arp.count;
+        std::array<ArpKey, 16> notes{};
+        int m = 0;
+        if (cfg.mode == 6) {
+            for (int i = 0; i < n; ++i) notes[size_t(i)] = arp.keys[size_t(i)];
+            m = n;
+        } else {
+            std::array<ArpKey, 16> order{};
+            for (int i = 0; i < n; ++i) {
+                int j = i;
+                if (cfg.mode != 5)
+                    for (; j > 0 && order[size_t(j - 1)].key > arp.keys[size_t(i)].key; --j) order[size_t(j)] = order[size_t(j - 1)];
+                order[size_t(j)] = arp.keys[size_t(i)];
+            }
+            const int len = n * cfg.octaves;
+            if (cfg.retrigger == 3) arp.idx = std::max(0, arp.last);
+            int i;
+            if (cfg.mode == 2) i = len - 1 - arp.idx % len;
+            else if (cfg.mode == 3) {
+                const int cycle = 2 * len - 2;
+                const int j = len > 1 ? arp.idx % cycle : 0;
+                i = j < len ? j : cycle - j;
+            } else if (cfg.mode == 4) {
+                arp.rng = arp.rng * 1664525u + 1013904223u;
+                i = std::min(len - 1, int(std::floor(arp.rng / 4294967296.0 * len)));
+            } else i = arp.idx % len;
+            ++arp.idx;
+            const int octave = i / n;
+            const auto &held = order[size_t(i - octave * n)];
+            notes[0] = {held.channel, held.key + 12 * octave, held.velocity};
+            m = 1;
+        }
+        // Notes struck again are released first so they restart; the rest of the old notes end
+        // after the new ones start, so Legato slurs at gate 1.
+        std::array<bool, 16> again{};
+        for (int j = 0; j < arp.sounding_count; ++j) {
+            const auto &o = arp.sounding[size_t(j)];
+            for (int i = 0; i < m && !again[size_t(j)]; ++i)
+                again[size_t(j)] = notes[size_t(i)].channel == o.channel && notes[size_t(i)].key == o.key;
+            if (again[size_t(j)]) end_played(o.channel, o.key);
+        }
+        for (int i = 0; i < m; ++i) play_note(notes[size_t(i)].channel, notes[size_t(i)].key, notes[size_t(i)].velocity);
+        for (int j = 0; j < arp.sounding_count; ++j)
+            if (!again[size_t(j)]) end_played(arp.sounding[size_t(j)].channel, arp.sounding[size_t(j)].key);
+        arp.sounding = notes;
+        arp.sounding_count = m;
+    }
+    void arp_tick() {
+        const auto &cfg = graph.arp;
+        if (host.playing) arp.beat = host.beat;
+        const double pos = arp.beat / cfg.step_beats;
+        const int k = int(std::floor(pos + 0.000001));
+        bool fired = false;
+        if (arp.since_key < 1e9) ++arp.since_key;
+        if (arp.count && k != arp.last) {
+            const int odd = k - 2 * int(std::floor(k / 2.0));
+            const double start = k + odd * cfg.swing;
+            if (pos >= start - 0.000001) {
+                arp.last = k;
+                const int bar = int(std::floor(k * cfg.step_beats / 4 + 0.000001));
+                if (cfg.retrigger == 2 && bar != arp.bar) arp.idx = 0;
+                arp.bar = bar;
+                const int step = k - cfg.steps * int(std::floor(double(k) / cfg.steps));
+                if ((cfg.pattern >> step) & 1) {
+                    fired = true;
+                    arp.off_pos = start + cfg.gate * (odd ? 1 - cfg.swing : 1 + cfg.swing);
+                    arp_fire();
+                }
+            }
+        }
+        if (!fired && arp.sounding_count && (pos >= arp.off_pos - 0.000001 || pos < arp.off_pos - 4)) {
+            for (int j = 0; j < arp.sounding_count; ++j) end_played(arp.sounding[size_t(j)].channel, arp.sounding[size_t(j)].key);
+            arp.sounding_count = 0;
+        }
+        arp.beat += host.bpm / (60 * rate);
     }
 
     NoteEnd note_on(int channel, int key, int32_t id, double velocity, bool clap_note) {
@@ -2111,6 +2253,7 @@ struct Engine {
             start(voices[0], 0, 60, -1, 1, false);
             voices[0].key_down = false;
         }
+        if (graph.arp.mode > 0) arp_tick();
         // Glide decays like the Synth instrument: about 95% of the way after the glide time.
         const double glide_coef = graph.glide > 0 ? std::exp(-1 / (graph.glide / 3 * rate)) : 0;
         for (auto &v : voices) {

@@ -33,6 +33,8 @@ const SUPPORTED = new Set([
   ...Array.from({ length: MOD_SLOTS }, (_, i) => ['source', 'destination', 'amount'].map(k => `mod${i + 1}_${k}`)).flat(),
   'fx_chorus_on', 'fx_chorus_mix', 'fx_chorus_rate_hz', 'fx_chorus_depth_ms',
   'fx_delay_on', 'fx_delay_mix', 'fx_delay_sync', 'fx_delay_time_ms', 'fx_delay_feedback', 'fx_delay_ping_pong', 'fx_delay_high_cut_hz',
+  'arp_mode', 'arp_rate', 'arp_octaves', 'arp_gate', 'arp_swing_percent', 'arp_steps', 'arp_retrigger',
+  ...Array.from({ length: 16 }, (_, i) => `arp_step_${i + 1}`),
   'fx_reverb_on', 'fx_reverb_mix', 'fx_reverb_decay_ms', 'fx_reverb_size', 'fx_reverb_damping',
   // Left out: performance controls and stereo.
   'modwheel_vibrato_cents', 'modwheel_filter_oct', 'pitch_bend_range_cents', 'unison_stereo_width', 'legato_window_ms',
@@ -129,8 +131,12 @@ export function modularFromSynth(params) {
     : terms.length === 1 ? terms[0][0] : sum(prefix, terms.map(([id, port]) => [id, port, 1]), column);
 
   const mono = p.voice_mode >= 1 || p.voice_count === 1;
+  // The arpeggiator moves to the MIDI / Note module with the same settings.
+  const arp = p.arp_mode > 0 ? { arp: p.arp_mode, arpRate: p.arp_rate, arpOctaves: p.arp_octaves, arpGate: p.arp_gate,
+    arpSwing: p.arp_swing_percent, arpSteps: p.arp_steps, arpRetrigger: p.arp_retrigger,
+    arpPattern: Array.from({ length: 16 }, (_, i) => p[`arp_step_${i + 1}`] >= 0.5 ? 1 << i : 0).reduce((a, b) => a | b) } : {};
   node('note', 'midi', { voices: p.voice_mode >= 1 ? p.voice_mode : mono ? 1 : 0,
-    glide: p.glide_ms / 1000, glideMode: p.glide_mode }, 0);
+    glide: p.glide_ms / 1000, glideMode: p.glide_mode, ...arp }, 0);
 
   // Envelopes, velocity and LFOs.
   const env = (id, prefix) => node(id, 'adsr', {

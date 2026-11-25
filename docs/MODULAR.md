@@ -14,7 +14,7 @@ Use the checkboxes on module cards to select a group. **Duplicate selection** co
 
 On the Web, choose any module output in **Scope** to see the most recent 1024 samples from the first active voice, along with the current value and range. The output need not have a cable connected.
 
-Patches support up to 32 modules and eight voices. The first **MIDI / Note** module sets the voice mode: **Poly**, **Mono** (last-note priority; releasing a key returns to the one still held) or **Legato** (a new key while one is held keeps the envelopes running), with **glide** time and whether glide happens **Always** or only between overlapping notes. These three knobs are patch settings and take no cable. A structural edit resets the voices. Turning a knob or changing a macro keeps them running. Each cable carries one signal. Connect both Audio output inputs for stereo.
+Patches support up to 32 modules and eight voices. The first **MIDI / Note** module sets the voice mode: **Poly**, **Mono** (last-note priority; releasing a key returns to the one still held) or **Legato** (a new key while one is held keeps the envelopes running), with **glide** time and whether glide happens **Always** or only between overlapping notes. These knobs, and the arpeggiator's, are patch settings and take no cable. A structural edit resets the voices. Turning a knob or changing a macro keeps them running. Each cable carries one signal. Connect both Audio output inputs for stereo.
 
 ### Signal conventions
 
@@ -23,6 +23,7 @@ Type an exact value next to a numeric slider or macro. Press Enter or leave the 
 | Port or module | Meaning |
 | --- | --- |
 | MIDI / Note | Pitch is a MIDI note number, gate is 0 or 1, and velocity is 0–1. **bend** is the pitch wheel from −1 to 1; it also moves **pitch** by **bendRange** semitones (default 2, set by the first MIDI / Note module). **mod** is the modulation wheel (CC1), 0–1. **pressure** is the larger of channel aftertouch and the note's own polyphonic aftertouch, 0–1. **cc** reads the controller chosen by the **cc** knob (default 74), 0–1. Use another MIDI / Note module to read a second CC. Controllers are tracked per MIDI channel, so MPE input works. Volume (CC7) starts at 100, pan (CC10) at 64 and expression (CC11) at 127; Reset All Controllers (CC121) restores these defaults. |
+| Arpeggiator | The first MIDI / Note module also holds the Synth instrument's arpeggiator. **arp** picks **Up**, **Down**, **Up-Down**, **Random**, **As Played** or **Chord** (the whole chord on every step). **arpRate** is the step length from 1/4 to 1/32, **arpOctaves** spans 1–4 octaves, **arpGate** is the note length as a fraction of a step, and **arpSwing** (50–75 %) delays every second step. **arpSteps** sets the pattern length, and bit *n* of **arpPattern** switches step *n* + 1 on (65535 plays every step). **arpRetrigger** restarts the pattern on the first key (**First Key**), on a chord played after a 50 ms gap (**New Chord**), at each 4-beat bar (**Every Bar**), or never (**Free Run**, which counts steps from the song start). Steps follow the host's beat position while the transport plays and its tempo while it is stopped. In the Web app the Piano Roll supplies both. Switching the arpeggiator on or off releases every note. |
 | VCO FM | 1 adds one octave. VCO pitch and FM run at audio rate. |
 | VCO PM | Phase modulation in radians, as the Synth instrument's FM index. |
 | VCO sync | The **sync** output is 1 on the sample where the cycle restarts. Patched into another VCO's **sync** input, it restarts that oscillator (hard sync). |
@@ -106,8 +107,9 @@ Drum Voice also offers **Rimshot**, **Cowbell**, **Shaker**, **Crash**, and **Ri
 - **Mod Env** is a third ADSR. **LFO 2** is a second LFO or Sample & Hold.
 - Mod matrix slots become CV Scale modules summed into the destination. The supported sources are LFO 1, LFO 2, Mod Env, Velocity, Key Track, Mod Wheel, Pressure and Random (a Sample & Hold triggered by the gate). The supported destinations are Pitch, Osc2 Pitch, Filter Cutoff, Filter Resonance, FM Index, Pan, LFO 1 Rate, Noise Level and the wavetable positions. **LFO 1 Rate** is linear between source values 0 and 1, where the Synth's rate is exponential. **Filter Resonance** is linear between source values 0 and 1 too, where the Synth's resonance follows a square root.
 - A tempo-synced LFO becomes an LFO with **sync** = **Host** and the same note value.
+- The **arpeggiator** settings move to the MIDI / Note module's arpeggiator, with the Arp Step switches as **arpPattern** bits.
 
-The converter rejects unsupported features such as the arpeggiator, a tempo-synced Sample & Hold, the Sidechain source, and the Pulse Width, Amp and LFO 2 Rate destinations. Ports restart the LFOs per voice, and use fixed oscillator start phases. Apart from Pan slots and effects, ports are mono. Performance controls such as the modulation wheel and pitch-bend range are outside the conversion; patch them from the MIDI / Note outputs.
+The converter rejects unsupported features such as a tempo-synced Sample & Hold, the Sidechain source, and the Pulse Width, Amp and LFO 2 Rate destinations. Ports restart the LFOs per voice, and use fixed oscillator start phases. Apart from Pan slots and effects, ports are mono. Performance controls such as the modulation wheel and pitch-bend range are outside the conversion; patch them from the MIDI / Note outputs.
 
 ### Physical presets
 

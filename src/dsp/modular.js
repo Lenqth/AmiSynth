@@ -64,6 +64,15 @@ export const MODULAR_TYPES = Object.freeze({
       glideMode: { min: 0, max: 1, default: 0, step: 1, choices: ['Always', 'Legato only'], fixed: true },
       bendRange: { min: 0, max: 48, default: 2, step: 1, fixed: true },
       cc: { min: 0, max: 127, default: 74, step: 1, fixed: true },
+      arp: { min: 0, max: 6, default: 0, step: 1, choices: ['Off', 'Up', 'Down', 'Up-Down', 'Random', 'As Played', 'Chord'], fixed: true },
+      arpRate: { min: 0, max: 6, default: 4, step: 1, choices: ['1/4', '1/8', '1/8 triplet', '1/8 dotted', '1/16', '1/16 triplet', '1/32'], fixed: true },
+      arpOctaves: { min: 1, max: 4, default: 1, step: 1, fixed: true },
+      arpGate: { min: 0.05, max: 1, default: 0.5, step: 0.001, fixed: true },
+      arpSwing: { min: 50, max: 75, default: 50, step: 0.1, fixed: true },
+      arpSteps: { min: 1, max: 16, default: 16, step: 1, fixed: true },
+      // Bit i switches step i + 1 on.
+      arpPattern: { min: 0, max: 65535, default: 65535, step: 1, fixed: true },
+      arpRetrigger: { min: 0, max: 3, default: 0, step: 1, choices: ['First Key', 'New Chord', 'Every Bar', 'Free Run'], fixed: true },
     } },
   vco: { label: 'VCO', category: 'Sources', keywords: 'oscillator saw square pulse sine triangle tone sync fm pm',
     // The sync output is 1 for the sample where the cycle restarts; patch it into another VCO's sync.
@@ -444,6 +453,9 @@ export const MODULAR_FX_SLOTS = 4;
 export const MODULAR_FX_MEMORY = 128;
 export const MODULAR_ECHO_SECONDS = 2;
 // The LFO's host-synced cycle lengths in beats (quarter notes), as the Synth's LFO Sync.
+export const MODULAR_ARP_BEATS = [1, 0.5, 1 / 3, 0.75, 0.25, 1 / 6, 0.125];
+/** New Chord: a key pressed this long after the previous key press starts a new chord. */
+export const MODULAR_ARP_CHORD_MS = 50;
 export const MODULAR_LFO_BEATS = [16, 8, 4, 2, 3, 4 / 3, 1, 1.5, 2 / 3, 0.5, 0.75, 1 / 3, 0.25, 0.375, 1 / 6, 0.125];
 // Later entries were appended so stored patches keep their note values.
 export const MODULAR_ECHO_BEATS = [0.25, 0.5, 0.75, 1, 1.5, 2, 4, 0.125, 1 / 6, 0.375, 1 / 3, 2 / 3, 4 / 3, 3];
@@ -1160,9 +1172,15 @@ export function compileModularPatch(raw) {
   const clocks = order.filter(i => nodes[i].type === 'clock');
   const mono = { mode: midi?.params.voices ?? 0, glide: midi?.params.glide ?? 0, legatoOnly: midi?.params.glideMode ?? 0,
     bendRange: midi?.params.bendRange ?? 2 };
+  // The arpeggiator, as in the Synth instrument: steps lock to the beat grid, every second step is
+  // delayed by the swing, and each step plays the next held key (or the whole chord).
+  const ap = midi?.params;
+  const arp = ap ? { mode: ap.arp, stepBeats: MODULAR_ARP_BEATS[ap.arpRate], octaves: ap.arpOctaves, gate: ap.arpGate,
+    swing: clamp(2 * ap.arpSwing / 100 - 1, 0, 0.5), steps: ap.arpSteps, pattern: ap.arpPattern, retrigger: ap.arpRetrigger }
+    : { mode: 0 };
   return {
     nodes, order: voiceOrder, globals, busLinks, fxOutputs,
-    delays, outputs, envelopes, lineCount, mono, clocks, autonomous: clocks.length > 0 && !midi,
+    delays, outputs, envelopes, lineCount, mono, arp, clocks, autonomous: clocks.length > 0 && !midi,
     meterSources: [...new Map(raw.cables.map(c => {
       const key = c.from + '/' + c.port;
       return [key, { key, index: ids.get(c.from), port: c.port }];
@@ -1281,6 +1299,7 @@ export function modular_init(s, sampleRate) {
   s.host = { bpm: 120, playing: false, beat: 0 };
   s.stack = []; // Held keys in Mono and Legato, most recent last.
   s.lastKey = -1;
+  s.arp = newArp();
   s.out_l = 0; s.out_r = 0;
   s.fx = []; // Patch effect slots, allocated when a patch first uses them.
   modular_set_patch(s, defaultModularPatch());
@@ -1291,6 +1310,8 @@ export function modular_set_patch(s, patch) {
   for (const node of graph.nodes) if (node.type === 'wavetable') wt_build(node.params.bank);
   const old = s.graph;
   s.graph = graph;
+  // Switching the arpeggiator on or off releases every note, as in the Synth instrument.
+  if (old && (old.arp.mode > 0) !== (graph.arp.mode > 0)) arpSwitch(s);
   if (s.meter) modular_meter_enable(s, true);
   if (old && old.nodes.length === graph.nodes.length &&
       old.patch.cables.length === graph.patch.cables.length &&
@@ -1781,6 +1802,7 @@ export function modular_transport(s, bpm, playing, beat) {
 }
 
 export function modular_all_notes_off(s) {
+  s.arp.keys = []; s.arp.sounding = [];
   s.sustain.fill(0);
   for (const v of s.voices) v.active = false;
 }
@@ -1801,6 +1823,10 @@ export function modular_midi(s, status, d1, d2) {
       for (const v of s.voices) if (v.channel === channel) resetNoteExpressions(v);
     }
     if (d1 === 64) s.sustain[channel] = d2 >= 64;
+    if (d1 === 120 || d1 === 123) {
+      s.arp.keys = s.arp.keys.filter(h => h.channel !== channel);
+      s.arp.sounding = s.arp.sounding.filter(h => h.channel !== channel);
+    }
     for (const v of s.voices) {
       if (v.channel !== channel) continue;
       if (d1 === 120) v.active = false;
@@ -1810,23 +1836,139 @@ export function modular_midi(s, status, d1, d2) {
     return;
   }
   if (!Number.isInteger(d1) || d1 < 0 || d1 > 127) return;
-  if (s.graph.mono.mode && (op === 0x80 || op === 0x90)) {
-    if (op === 0x90 && d2) { if (Number.isFinite(d2) && d2 <= 127) monoNoteOn(s, channel, d1, d2 / 127); }
-    else monoNoteOff(s, channel, d1);
-    return;
-  }
+  const arp = s.graph.arp.mode > 0;
   if (op === 0x80 || (op === 0x90 && !d2)) {
-    let oldest;
-    for (const v of s.voices) {
-      if (v.active && v.keyDown && v.channel === channel && v.note === d1 && (!oldest || v.age < oldest.age)) oldest = v;
-    }
-    if (oldest) { oldest.keyDown = false; oldest.held = !!s.sustain[channel]; }
+    if (arp) arpKeyOff(s, channel, d1);
+    else noteOff(s, channel, d1);
     return;
   }
   if (op !== 0x90 || !Number.isFinite(d2) || d2 < 1 || d2 > 127) return;
+  if (arp) arpKeyOn(s, channel, d1, d2 / 127);
+  else noteOn(s, channel, d1, d2 / 127);
+}
+
+function noteOn(s, channel, key, velocity) {
+  if (s.graph.mono.mode) { monoNoteOn(s, channel, key, velocity); return; }
   let v = s.voices.find(voice => !voice.active);
   if (!v) v = s.voices.reduce((a, b) => a.held === b.held ? (a.age < b.age ? a : b) : a.held ? b : a);
-  startVoice(s, v, channel, d1, d2 / 127);
+  startVoice(s, v, channel, key, velocity);
+}
+
+function noteOff(s, channel, key) {
+  if (s.graph.mono.mode) { monoNoteOff(s, channel, key); return; }
+  let oldest;
+  for (const v of s.voices) {
+    if (v.active && v.keyDown && v.channel === channel && v.note === key && (!oldest || v.age < oldest.age)) oldest = v;
+  }
+  if (oldest) { oldest.keyDown = false; oldest.held = !!s.sustain[channel]; }
+}
+
+// ---------------------------------------------------------------------------
+// Arpeggiator (the Synth instrument's, on the MIDI / Note module). Held keys are kept in the
+// order played; the steps follow the host beat while it plays, and the host tempo while stopped.
+
+function newArp() {
+  return { keys: [], sounding: [], last: 0, offPos: 0, idx: 0, bar: 0, sinceKey: 1e9, beat: 0, rng: 1 };
+}
+
+function arpSwitch(s) {
+  s.arp.keys = []; s.arp.sounding = []; s.stack = [];
+  for (const v of s.voices) if (v.keyDown) { v.keyDown = false; v.held = !!s.sustain[v.channel]; }
+}
+
+function arpKeyOn(s, channel, key, velocity) {
+  const a = s.arp, cfg = s.graph.arp;
+  const held = a.keys.find(h => h.channel === channel && h.key === key);
+  if (held) { held.velocity = velocity; return; }
+  if (a.keys.length >= 16) return;
+  if (!a.keys.length) {
+    // The first key starts from the bottom and plays the current step at once, unless it comes in
+    // the last 10 % of a step.
+    const pos = a.beat / cfg.stepBeats;
+    const k = Math.floor(pos + 0.000001);
+    a.idx = 0;
+    a.last = pos - k > 0.9 ? k : k - 1;
+  } else if (cfg.retrigger === 1 && a.sinceKey > MODULAR_ARP_CHORD_MS * 0.001 * s.sampleRate) {
+    a.idx = 0;
+  }
+  a.sinceKey = 0;
+  a.keys.push({ channel, key, velocity });
+}
+
+function arpKeyOff(s, channel, key) {
+  s.arp.keys = s.arp.keys.filter(h => h.channel !== channel || h.key !== key);
+}
+
+function arpRandom(a) {
+  a.rng = (Math.imul(a.rng, 1664525) + 1013904223) >>> 0;
+  return a.rng / 4294967296;
+}
+
+function arpFire(s) {
+  const a = s.arp, cfg = s.graph.arp, n = a.keys.length;
+  let notes;
+  if (cfg.mode === 6) notes = a.keys.map(h => ({ ...h }));
+  else {
+    const order = a.keys.slice();
+    // Sorted low to high, equal keys in play order; As Played keeps the order.
+    if (cfg.mode !== 5) order.sort((x, y) => x.key - y.key);
+    const len = n * cfg.octaves;
+    if (cfg.retrigger === 3) a.idx = Math.max(0, a.last);
+    let i;
+    if (cfg.mode === 2) i = len - 1 - (a.idx % len);
+    else if (cfg.mode === 3) {
+      const cycle = 2 * len - 2;
+      const j = len > 1 ? a.idx % cycle : 0;
+      i = j < len ? j : cycle - j;
+    } else if (cfg.mode === 4) i = Math.min(len - 1, Math.floor(arpRandom(a) * len));
+    else i = a.idx % len;
+    a.idx++;
+    const octave = Math.floor(i / n), held = order[i - octave * n];
+    notes = [{ channel: held.channel, key: held.key + 12 * octave, velocity: held.velocity }];
+  }
+  // Notes struck again are released first so they restart; the rest of the old notes end after the
+  // new ones start, so Legato slurs at gate 1.
+  const old = a.sounding.filter(o => {
+    const again = notes.some(note => note.channel === o.channel && note.key === o.key);
+    if (again) noteOff(s, o.channel, o.key);
+    return !again;
+  });
+  for (const note of notes) noteOn(s, note.channel, note.key, note.velocity);
+  for (const o of old) noteOff(s, o.channel, o.key);
+  a.sounding = notes.map(({ channel, key }) => ({ channel, key }));
+}
+
+/** Once per sample, before the voices. */
+function arpTick(s) {
+  const a = s.arp, cfg = s.graph.arp;
+  if (s.host.playing) a.beat = s.host.beat;
+  const pos = a.beat / cfg.stepBeats;
+  const k = Math.floor(pos + 0.000001);
+  let fired = false;
+  if (a.sinceKey < 1e9) a.sinceKey++;
+  if (a.keys.length && k !== a.last) {
+    const odd = k - 2 * Math.floor(k / 2);
+    const start = k + odd * cfg.swing;
+    if (pos >= start - 0.000001) {
+      a.last = k;
+      // Every Bar: the first step in a new (4-beat) bar goes back to the first note.
+      const bar = Math.floor(k * cfg.stepBeats / 4 + 0.000001);
+      if (cfg.retrigger === 2 && bar !== a.bar) a.idx = 0;
+      a.bar = bar;
+      const step = k - cfg.steps * Math.floor(k / cfg.steps);
+      if ((cfg.pattern >> step) & 1) {
+        fired = true;
+        a.offPos = start + cfg.gate * (odd ? 1 - cfg.swing : 1 + cfg.swing);
+        arpFire(s);
+      }
+    }
+  }
+  // The end of the gate, also when the host jumps back (a loop).
+  if (!fired && a.sounding.length && (pos >= a.offPos - 0.000001 || pos < a.offPos - 4)) {
+    for (const note of a.sounding) noteOff(s, note.channel, note.key);
+    a.sounding = [];
+  }
+  a.beat += s.host.bpm / (60 * s.sampleRate);
 }
 
 function startVoice(s, v, channel, key, velocity) {
@@ -3061,6 +3203,7 @@ export function modular_render(s) {
   let out = 0, right = 0;
   const { nodes, order, delays, outputs, envelopes, mono, clocks, autonomous, globals, busLinks } = s.graph;
   if (autonomous && !s.voices[0].active) startVoice(s, s.voices[0], 0, 60, 1);
+  if (s.graph.arp.mode > 0) arpTick(s);
   // Glide decays like the Synth instrument: about 95% of the way after the glide time.
   const glideCoef = mono.glide > 0 ? Math.exp(-1 / (mono.glide / 3 * s.sampleRate)) : 0;
   let meterVoice;

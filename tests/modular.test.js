@@ -527,7 +527,11 @@ test('Synth presets convert to Modular patches that fit the rack, or name what M
     }
     assert.ok(compileModularPatch(patch).nodes.length <= 32, preset.name);
   }
-  assert.throws(() => modularFromSynth({ arp_mode: 1 }), /arp_mode/);
+  assert.throws(() => modularFromSynth({ mod1_source: 1, mod1_destination: 4, mod1_amount: 0.5 }), /Pulse Width/);
+  // The arpeggiator moves to the MIDI / Note module; Arp Step switches become the pattern bits.
+  const arp = modularFromSynth({ arp_mode: 6, arp_rate: 1, arp_gate: 0.45, arp_steps: 2, arp_step_1: 0, arp_swing_percent: 60 });
+  const note = arp.nodes.find(node => node.type === 'midi').params;
+  assert.deepEqual([note.arp, note.arpRate, note.arpGate, note.arpSteps, note.arpPattern, note.arpSwing], [6, 1, 0.45, 2, 0xfffe, 60]);
 });
 
 test('Synth effects, Mod Env and mod matrix slots convert to patch modules', async () => {

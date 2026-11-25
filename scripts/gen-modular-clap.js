@@ -2,7 +2,7 @@
 import { writeFileSync } from 'node:fs';
 import { HAT_RATIOS } from '../src/dsp/drums.js';
 import { BEAT_GRID_MAX_STEPS } from '../src/dsp/modular.js';
-import { BRASS_MIN_DRIVE, BRASS_MULTS, BRASS_NOTE0, BRASS_SHARP, MODULAR_BRASS, MODULAR_AMP_TYPES, MODULAR_WIND, MODULAR_ECHO_BEATS, MODULAR_ECHO_SECONDS, MODULAR_FX_MEMORY, MODULAR_FX_SLOTS, MODULAR_LFO_BEATS, MODULAR_ORGAN, MODULAR_PIANO, MODULAR_REVERB_ALLPASSES, MODULAR_REVERB_COMBS, MODULAR_REVERB_SPREAD } from '../src/dsp/modular.js';
+import { BRASS_MIN_DRIVE, BRASS_MULTS, BRASS_NOTE0, BRASS_SHARP, MODULAR_BRASS, MODULAR_AMP_TYPES, MODULAR_WIND, MODULAR_ECHO_BEATS, MODULAR_ECHO_SECONDS, MODULAR_FX_MEMORY, MODULAR_FX_SLOTS, MODULAR_LFO_BEATS, MODULAR_ARP_BEATS, MODULAR_ARP_CHORD_MS, MODULAR_ORGAN, MODULAR_PIANO, MODULAR_REVERB_ALLPASSES, MODULAR_REVERB_COMBS, MODULAR_REVERB_SPREAD } from '../src/dsp/modular.js';
 import { MODULAR_DRUM_DECAY, MODULAR_DRUM_PITCH } from '../src/dsp/modular.js';
 import {
   MODULAR_LINE_SAMPLES, MODULAR_LINES, MODULAR_MACROS, MODULAR_MATERIALS, MODULAR_MAX_INPUTS, MODULAR_MAX_OUTPUTS,
@@ -60,6 +60,8 @@ constexpr size_t kWtBanks = ${WT_BANKS}, kWtFrames = ${WT_FRAMES}, kWtMips = ${W
 constexpr size_t kWtSize = ${WT_SIZE}, kWtHarmonics = ${WT_MAX_HARM};
 constexpr double kWtFade = ${WT_FADE};
 constexpr size_t kFxSlots = ${MODULAR_FX_SLOTS}, kFxMemory = ${MODULAR_FX_MEMORY};
+constexpr std::array<double, ${MODULAR_ARP_BEATS.length}> kArpBeats{${MODULAR_ARP_BEATS.map(b => b.toPrecision(17)).join(', ')}};
+constexpr double kArpChordMs = ${MODULAR_ARP_CHORD_MS};
 constexpr std::array<double, ${MODULAR_LFO_BEATS.length}> kLfoBeats{${MODULAR_LFO_BEATS.map(b => b.toPrecision(17)).join(', ')}};
 constexpr double kEchoSeconds = ${MODULAR_ECHO_SECONDS};
 constexpr double kEchoBeats[] = ${list(MODULAR_ECHO_BEATS)};
