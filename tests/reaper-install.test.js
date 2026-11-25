@@ -14,7 +14,7 @@ const hasLua = spawnSync('lua', ['-v']).status === 0;
 test('REAPER installation dry-run is read-only; installed layout preserves dependencies and custom scripts', () => {
   const resource = mkdtempSync(join(tmpdir(), 'amisynth-install-'));
   const plan = install(resource, true);
-  assert.equal(plan.length, 22);
+  assert.equal(plan.length, 23);
   assert.deepEqual(readdirSync(resource), []);
   mkdirSync(join(resource, 'Scripts', 'AmiSynth'), { recursive: true });
   const custom = join(resource, 'Scripts', 'AmiSynth', 'Apply My Patch.lua');
@@ -70,6 +70,12 @@ test('Lua host-contract tests pass (tests/reaper-toolkit.test.lua)', { skip: !ha
   const r = spawnSync('lua', ['tests/reaper-toolkit.test.lua'], { cwd: new URL('..', import.meta.url), encoding: 'utf8' });
   assert.equal(r.status, 0, r.stderr + r.stdout);
   assert.match(r.stdout, /MCP sound actions/);
+});
+
+test('Lua Modular actions pass their host-contract tests (tests/reaper-modular.test.lua)', { skip: !hasLua && 'lua is not installed' }, () => {
+  const r = spawnSync('lua', ['tests/reaper-modular.test.lua'], { cwd: new URL('..', import.meta.url), encoding: 'utf8' });
+  assert.equal(r.status, 0, r.stderr + r.stdout);
+  assert.match(r.stdout, /REAPER Modular actions/);
 });
 
 test('Lua validate_diff clamps, rounds and rejects exactly like the web JSON paste', { skip: !hasLua && 'lua is not installed' }, () => {

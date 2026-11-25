@@ -12,6 +12,7 @@ import { DRUM_PRESETS } from '../src/presets/drums.js';
 import { SYNTH_PRESETS } from '../src/presets/synth.js';
 import { PHYS_PRESETS } from '../src/presets/phys.js';
 import { createCatalog } from '../src/lib/reaper-catalog.js';
+import { MODULAR_MACROS, MODULAR_PRESETS, MODULAR_TYPES, compileModularPatch } from '../src/dsp/modular.js';
 import { writeManifest } from './catalog-integrity.js';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -112,6 +113,21 @@ export function modAmountDisplayText() {
     '  gfx_set(0.8, 0.85, 0.9, 1); gfx_x = 8; gfx_y = 210 + (slot - 1) * 16; gfx_drawstr(#mod_amount_text);\n);\n';
 }
 
+/** Module catalog and normalized factory patches for the REAPER scripts' Modular actions. */
+export function modularCatalog() {
+  return {
+    schemaVersion: 1, macros: MODULAR_MACROS,
+    types: Object.fromEntries(Object.entries(MODULAR_TYPES).map(([type, spec]) => [type, {
+      label: spec.label, category: spec.category, inputs: spec.inputs, outputs: spec.outputs,
+      params: Object.fromEntries(Object.entries(spec.params).map(([name, p]) => [name, {
+        min: p.min, max: p.max, default: p.default, step: p.step, ...(p.choices ? { choices: p.choices } : {}),
+      }])),
+    }])),
+    presets: MODULAR_PRESETS.map(p => ({ name: p.name, category: p.category, description: p.description ?? '',
+      patch: compileModularPatch(p.patch()).patch })),
+  };
+}
+
 function main() {
   mkdirSync(outDir, { recursive: true });
   writeFileSync(join(root, 'jsfx', 'amisynth_modulation.jsfx-inc'), modAmountDisplayText());
@@ -123,6 +139,7 @@ function main() {
   const catalog = createCatalog();
   writeFileSync(join(outDir, 'automation.json'), JSON.stringify(catalog, null, 2) + '\n');
   writeFileSync(join(outDir, 'catalog.lua'), LUA_CATALOG_HEADER + 'return ' + toLua(catalog) + '\n');
+  writeFileSync(join(outDir, 'modular.json'), JSON.stringify(modularCatalog()) + '\n');
   // Full slider values per preset, in slider order (for building REAPER .rpl presets later).
   const resolved = (defs, presets) =>
     presets.map((p) => ({ name: p.name, category: p.category, description: p.description, sliders: defs.map((d) => resolvePreset(defs, p)[d.id]) }));
