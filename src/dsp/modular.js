@@ -111,6 +111,15 @@ export const MODULAR_TYPES = Object.freeze({
       brightness: { min: 0, max: 1, default: 0.7, step: 0.001 },
       level: { min: 0, max: 1, default: 0.6, step: 0.01 },
     } },
+  physBowed: { label: 'Physical Bowed String', category: 'Physical',
+    keywords: 'violin viola cello contrabass fiddle bow friction waveguide body physical model',
+    inputs: ['pitch', 'bow'], outputs: ['out'], params: {
+      speed: { min: 0, max: 1, default: 0.55, step: 0.001 },
+      pressure: { min: 0, max: 1, default: 0.45, step: 0.001 },
+      position: { min: 0.02, max: 0.5, default: 0.127, step: 0.001 },
+      brightness: { min: 0, max: 1, default: 0.6, step: 0.001 },
+      level: { min: 0, max: 1, default: 0.6, step: 0.01 },
+    } },
   modal: { label: 'Modal Resonator', category: 'Physical', keywords: 'bell marimba glass gong mallet physical model resonance',
     inputs: ['in', 'pitch', 'gate', 'velocity'], outputs: ['out'], params: {
       material: { min: 0, max: MATERIALS.length - 1, default: 0, step: 1, choices: MATERIALS.map(m => m.name) },
@@ -354,7 +363,7 @@ const FX_TYPES = new Set(['echo', 'chorus', 'reverb', 'guitarAmp']);
 
 const LINE_TYPES = new Set(['string', 'physString', 'comb', 'reedPipe']);
 // Modules that ring on after their gate falls; a released voice lives until they are quiet.
-const RINGING_TYPES = new Set(['adsr', 'functionGen', 'string', 'physString', 'modal', 'bowed', 'reedPipe']);
+const RINGING_TYPES = new Set(['adsr', 'functionGen', 'string', 'physString', 'physBowed', 'modal', 'bowed', 'reedPipe']);
 const QUANTIZER_SCALES = [0xfff, 0xab5, 0x5ad, 0x295, 0x4a9];
 
 const searchWords = text => text.toLowerCase().split(/[^a-z0-9&]+/).filter(Boolean);
@@ -977,7 +986,7 @@ export function compileModularPatch(raw) {
     throw new Error(`Use at most ${MODULAR_FX_SLOTS} patch effects`);
   let lineCount = 0;
   for (const n of nodes) {
-    const lines = n.type === 'bowed' ? 2 : Number(LINE_TYPES.has(n.type));
+    const lines = n.type === 'bowed' || n.type === 'physBowed' ? 2 : Number(LINE_TYPES.has(n.type));
     n.line = lines ? lineCount : -1;
     lineCount += lines;
   }
@@ -1953,6 +1962,51 @@ function sampleNode(s, v, i) {
       st.amp = Math.max(Math.abs(feedback), st.amp * 0.9995);
       st.mode = st.amp > 1e-4 ? 1 : 0;
       sig.out = feedback * st.a1[1] * parameter(v, n, 'level');
+      break;
+    }
+    case 'physBowed': {
+      // The Physical instrument's Bowed model: bridge and nut delay lines meeting at the bow, a
+      // friction curve between bow and string, and two body resonances. **bow** is the bow
+      // envelope, scaled by **speed** into the bow velocity.
+      const bridge = v.lines[n.line], nut = v.lines[n.line + 1];
+      const hz = clamp(440 * Math.pow(2, (read(v, n, 'pitch', 69) - 69) / 12),
+        s.sampleRate / (MODULAR_LINE_SAMPLES - 4), s.sampleRate * 0.45);
+      const damping = 0.1 + 0.75 * (1 - parameter(v, n, 'brightness')), position = parameter(v, n, 'position');
+      if (st.key[0] !== hz || st.key[1] !== damping || st.key[2] !== position) {
+        st.key[0] = hz; st.key[1] = damping; st.key[2] = position;
+        const w = TAU * hz / s.sampleRate;
+        const total = s.sampleRate / hz - Math.atan2(damping * Math.sin(w), 1 - damping * Math.cos(w)) / w;
+        st.a1[0] = clamp(total * position, 2, MODULAR_LINE_SAMPLES - 2);
+        st.a1[1] = clamp(total * (1 - position), 2, MODULAR_LINE_SAMPLES - 2);
+      }
+      if (!st.ready) {
+        // The body's two band-pass resonances at 290 Hz and 1150 Hz.
+        st.ready = true;
+        for (const [k, hzBody, q] of [[0, 290, 0.6], [1, 1150, 0.9]]) {
+          const g = Math.tan(Math.PI * hzBody / s.sampleRate);
+          st.a2[3 * k] = 1 / (1 + g * (g + q)); st.a2[3 * k + 1] = g * st.a2[3 * k]; st.a2[3 * k + 2] = g * st.a2[3 * k + 1];
+        }
+      }
+      const bow = clamp(read(v, n, 'bow'), 0, 1) * (0.03 + 0.25 * parameter(v, n, 'speed'));
+      const bridgeOut = lineRead(bridge, st.write, st.a1[0]), nutOut = lineRead(nut, st.write, st.a1[1]);
+      st.prev = (1 - damping) * bridgeOut + damping * st.prev;
+      const reflectedBridge = -st.prev * 0.95, reflectedNut = -nutOut;
+      const relative = bow - (reflectedBridge + reflectedNut);
+      const friction = Math.min(1, Math.pow(Math.abs(relative * (5 - 4 * parameter(v, n, 'pressure'))) + 0.75, -4));
+      nut[st.write] = clamp(reflectedBridge + relative * friction, -4, 4);
+      bridge[st.write] = clamp(reflectedNut + relative * friction, -4, 4);
+      st.write = (st.write + 1) & MASK;
+      // Band-pass outputs of the two body resonances (state-variable filters).
+      let body = 0;
+      for (let k = 0; k < 2; k++) {
+        const ic1 = k ? 'ic3' : 'ic1', ic2 = k ? 'ic4' : 'ic2', a1 = st.a2[3 * k], a2 = st.a2[3 * k + 1], a3 = st.a2[3 * k + 2];
+        const v3 = bridgeOut - st[ic2], v1 = a1 * st[ic1] + a2 * v3, v2 = st[ic2] + a2 * st[ic1] + a3 * v3;
+        st[ic1] = 2 * v1 - st[ic1]; st[ic2] = 2 * v2 - st[ic2];
+        body += (k ? 0.8 : 1.2) * v1;
+      }
+      st.amp = Math.max(Math.abs(bridgeOut), st.amp * 0.9995);
+      st.mode = bow > 1e-5 || st.amp > 1e-4 ? 1 : 0;
+      sig.out = (bridgeOut + body) * 1.6 * parameter(v, n, 'level');
       break;
     }
     case 'bowed': {

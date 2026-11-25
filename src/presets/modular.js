@@ -394,10 +394,13 @@ const PHYS_DEFAULTS = defaultValues(PHYS_PARAMS);
 // Read by every model, or deliberately left out (performance controls and the sustain pedal).
 const PHYS_COMMON = new Set(['phys_model', 'phys_volume_db', 'phys_release_ms', 'phys_stereo_width', 'phys_room_mix',
   'phys_room_decay_ms', 'phys_velocity_amount', 'phys_pitch_bend_range_cents', 'phys_sustain_mode',
+  'phys_pressure_excitation', 'phys_pressure_brightness', 'phys_pressure_vibrato_cents',
   'tuning_divisions', 'tuning_period_cents', 'tuning_ref_note', 'tuning_ref_hz']);
 const PHYS_MODELS = {
   0: new Set(['string_excitation', 'string_decay_ms', 'string_damping', 'string_pick_position', 'string_brightness',
     'amp_type', 'amp_gain', 'amp_tone', 'amp_level_db', 'phys_vibrato_cents', 'phys_vibrato_rate_hz']),
+  2: new Set(['bow_pressure', 'bow_speed', 'bow_position', 'bow_attack_ms', 'bowed_brightness',
+    'phys_vibrato_cents', 'phys_vibrato_rate_hz']),
   1: new Set(['modal_material', 'modal_decay_ms', 'modal_high_damping', 'modal_hardness', 'modal_strike_position',
     'modal_inharmonicity']),
 };
@@ -441,22 +444,38 @@ export function modularFromPhysical(params) {
   // voices play at Physical's internal level and the output gain moves to the FX outputs.
   const amp = Math.round(p.amp_type) > 0;
   const outputGain = 0.5 * 10 ** (p.phys_volume_db / 20), voiceGain = amp ? 1 : outputGain;
+  let pitch = ['note', 'pitch'];
+  if (p.phys_vibrato_cents > 0 && model !== 1) {
+    // Physical's vibrato: a sine on the pitch (the LFO restarts with each voice).
+    node('vibrato', 'lfo', { rate: p.phys_vibrato_rate_hz, depth: 1, wave: 0 }, 0);
+    node('pitch', 'mix4', { a: 1, b: p.phys_vibrato_cents / 100, c: 0, d: 0 }, 0);
+    wire('note', 'pitch', 'pitch', 'a');
+    wire('vibrato', 'out', 'pitch', 'b');
+    pitch = ['pitch', 'out'];
+  }
   let source;
+  if (model === 2) {
+    // The bow envelope, scaled by velocity, drives the bow speed.
+    node('bowenv', 'adsr', { attack: Math.max(0.001, p.bow_attack_ms / 1000), decay: 0.001, sustain: 1,
+      release: Math.max(0.001, p.phys_release_ms / 1000), curve: 1 }, 0);
+    wire('note', 'gate', 'bowenv', 'gate');
+    node('bowing', 'ring', { level: 1 }, 0);
+    wire('bowenv', 'out', 'bowing', 'a');
+    wire('velocity', 'out', 'bowing', 'b');
+    source = node('bowed', 'physBowed', { speed: p.bow_speed, pressure: p.bow_pressure, position: p.bow_position,
+      brightness: p.bowed_brightness, level: 1 }, 1);
+    wire(...pitch, source, 'pitch');
+    wire('bowing', 'out', source, 'bow');
+    node('dynamics', 'vca', { level: Math.min(2, Math.round(voiceGain * panGain * 1e4) / 1e4) }, 1);
+    wire(source, 'out', 'dynamics', 'audio');
+    source = 'dynamics';
+  }
   if (model === 0) {
     // Physical's string output is scaled by velocity and halved.
     source = node('string', 'physString', {
       excitation: p.string_excitation >= 0.5 ? 1 : 0, decay: p.string_decay_ms / 1000, release: p.phys_release_ms / 1000,
       damping: p.string_damping, pick: p.string_pick_position, brightness: p.string_brightness, level: 1,
     }, 1);
-    let pitch = ['note', 'pitch'];
-    if (p.phys_vibrato_cents > 0) {
-      // Physical's vibrato: a sine on the pitch (the LFO restarts with each voice).
-      node('vibrato', 'lfo', { rate: p.phys_vibrato_rate_hz, depth: 1, wave: 0 }, 0);
-      node('pitch', 'mix4', { a: 1, b: p.phys_vibrato_cents / 100, c: 0, d: 0 }, 0);
-      wire('note', 'pitch', 'pitch', 'a');
-      wire('vibrato', 'out', 'pitch', 'b');
-      pitch = ['pitch', 'out'];
-    }
     wire(...pitch, source, 'pitch');
     wire('note', 'gate', source, 'gate');
     wire('note', 'velocity', source, 'velocity');

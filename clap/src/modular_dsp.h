@@ -99,7 +99,7 @@ inline Graph compile(Json &patch, Macros &macros) {
             throw std::invalid_argument("Invalid module");
         auto &node = graph.nodes[ids.size()];
         node.type = spec->type;
-        const int lines = node.type == Type::bowed ? 2 :
+        const int lines = node.type == Type::bowed || node.type == Type::physBowed ? 2 :
             int(node.type == Type::string || node.type == Type::physString || node.type == Type::comb || node.type == Type::reedPipe);
         if (lines) {
             if (graph.line_count + lines > int(kLines)) throw std::invalid_argument("Too many delay lines");
@@ -252,7 +252,7 @@ inline Graph compile(Json &patch, Macros &macros) {
         const int index = audible[i];
         // Modules that ring on after their gate falls keep a released voice alive until quiet.
         const auto type = graph.nodes[index].type;
-        if (type == Type::adsr || type == Type::functionGen || type == Type::string || type == Type::physString ||
+        if (type == Type::adsr || type == Type::functionGen || type == Type::string || type == Type::physString || type == Type::physBowed ||
             type == Type::modal || type == Type::bowed || type == Type::reedPipe)
             graph.envelopes[graph.envelope_count++] = index;
         if (type == Type::drumVoice) graph.envelopes[graph.envelope_count++] = index;
@@ -992,6 +992,54 @@ struct Engine {
             st.amp = std::max(std::abs(feedback), st.amp * 0.9995);
             st.mode = st.amp > 1e-4 ? 1 : 0;
             sig[0] = feedback * st.a1[1] * p[6];
+            break;
+        }
+        case Type::physBowed: {
+            // The Physical instrument's Bowed model (see the Web engine).
+            auto &bridge = v.lines[size_t(n.line)], &nut = v.lines[size_t(n.line + 1)];
+            const double hz = std::clamp(440 * std::pow(2.0, (read(v, n, 0, 69) - 69) / 12),
+                rate / double(kLineSamples - 4), rate * 0.45);
+            const double damping = 0.1 + 0.75 * (1 - p[3]), position = p[2];
+            if (st.key[0] != hz || st.key[1] != damping || st.key[2] != position) {
+                st.key[0] = hz;
+                st.key[1] = damping;
+                st.key[2] = position;
+                const double w = 2 * kPi * hz / rate;
+                const double total = rate / hz - std::atan2(damping * std::sin(w), 1 - damping * std::cos(w)) / w;
+                st.a1[0] = std::clamp(total * position, 2.0, double(kLineSamples - 2));
+                st.a1[1] = std::clamp(total * (1 - position), 2.0, double(kLineSamples - 2));
+            }
+            if (!st.ready) {
+                st.ready = true;
+                const double body_hz[2] = {290, 1150}, body_k[2] = {0.6, 0.9};
+                for (int k = 0; k < 2; ++k) {
+                    const double g = std::tan(kPi * body_hz[k] / rate);
+                    st.a2[size_t(3 * k)] = 1 / (1 + g * (g + body_k[k]));
+                    st.a2[size_t(3 * k + 1)] = g * st.a2[size_t(3 * k)];
+                    st.a2[size_t(3 * k + 2)] = g * st.a2[size_t(3 * k + 1)];
+                }
+            }
+            const double bow = std::clamp(read(v, n, 1), 0.0, 1.0) * (0.03 + 0.25 * p[0]);
+            const double bridge_out = line_read(bridge, st.write, st.a1[0]), nut_out = line_read(nut, st.write, st.a1[1]);
+            st.prev = (1 - damping) * bridge_out + damping * st.prev;
+            const double reflected_bridge = -st.prev * 0.95, reflected_nut = -nut_out;
+            const double relative = bow - (reflected_bridge + reflected_nut);
+            const double friction = std::min(1.0, std::pow(std::abs(relative * (5 - 4 * p[1])) + 0.75, -4.0));
+            nut[size_t(st.write)] = float(std::clamp(reflected_bridge + relative * friction, -4.0, 4.0));
+            bridge[size_t(st.write)] = float(std::clamp(reflected_nut + relative * friction, -4.0, 4.0));
+            st.write = (st.write + 1) & kLineMask;
+            double body = 0;
+            for (int k = 0; k < 2; ++k) {
+                double &ic1 = k ? st.ic3 : st.ic1, &ic2 = k ? st.ic4 : st.ic2;
+                const double a1 = st.a2[size_t(3 * k)], a2 = st.a2[size_t(3 * k + 1)], a3 = st.a2[size_t(3 * k + 2)];
+                const double v3 = bridge_out - ic2, v1 = a1 * ic1 + a2 * v3, v2 = ic2 + a2 * ic1 + a3 * v3;
+                ic1 = 2 * v1 - ic1;
+                ic2 = 2 * v2 - ic2;
+                body += (k ? 0.8 : 1.2) * v1;
+            }
+            st.amp = std::max(std::abs(bridge_out), st.amp * 0.9995);
+            st.mode = bow > 1e-5 || st.amp > 1e-4 ? 1 : 0;
+            sig[0] = (bridge_out + body) * 1.6 * p[4];
             break;
         }
         case Type::bowed: {
