@@ -401,6 +401,8 @@ const PHYS_MODELS = {
     'amp_type', 'amp_gain', 'amp_tone', 'amp_level_db', 'phys_vibrato_cents', 'phys_vibrato_rate_hz']),
   3: new Set(['wind_type', 'breath_pressure', 'breath_noise', 'wind_attack_ms', 'wind_embouchure', 'free_reed_detune_cents',
     'phys_vibrato_cents', 'phys_vibrato_rate_hz']),
+  5: new Set(['piano_inharmonicity', 'piano_hammer_hardness', 'piano_strike_position', 'piano_decay_ms', 'piano_damping',
+    'piano_soundboard', 'piano_unison_detune_cents', 'amp_type', 'amp_gain', 'amp_tone', 'amp_level_db']),
   6: new Set(['brass_pressure', 'brass_lip', 'brass_attack_ms', 'brass_bell', 'phys_vibrato_cents', 'phys_vibrato_rate_hz']),
   2: new Set(['bow_pressure', 'bow_speed', 'bow_position', 'bow_attack_ms', 'bowed_brightness',
     'phys_vibrato_cents', 'phys_vibrato_rate_hz']),
@@ -467,6 +469,20 @@ export function modularFromPhysical(params) {
       attack: Math.max(0.001, p.brass_attack_ms / 1000), velocity: p.phys_velocity_amount, level: 1 }, 1);
     wire(...pitch, source, 'pitch');
     wire('breath', 'out', source, 'breath');
+    wire('note', 'velocity', source, 'velocity');
+    node('dynamics', 'vca', { level: Math.min(2, Math.round(voiceGain * panGain * 1e4) / 1e4) }, 1);
+    wire(source, 'out', 'dynamics', 'audio');
+    wire('velocity', 'out', 'dynamics', 'gain');
+    source = 'dynamics';
+  }
+  if (model === 5) {
+    // Raw velocity sets the hammer speed (and so the brightness); Physical scales the strings'
+    // output by velocity too.
+    source = node('piano', 'physPiano', { hardness: p.piano_hammer_hardness, position: p.piano_strike_position,
+      decay: p.piano_decay_ms / 1000, release: p.phys_release_ms / 1000, damping: p.piano_damping,
+      inharmonicity: p.piano_inharmonicity, detune: p.piano_unison_detune_cents, level: 1 }, 1);
+    wire(...pitch, source, 'pitch');
+    wire('note', 'gate', source, 'gate');
     wire('note', 'velocity', source, 'velocity');
     node('dynamics', 'vca', { level: Math.min(2, Math.round(voiceGain * panGain * 1e4) / 1e4) }, 1);
     wire(source, 'out', 'dynamics', 'audio');
@@ -553,6 +569,15 @@ export function modularFromPhysical(params) {
     left = ['pan', 'left'];
     right = ['pan', 'right'];
   }
+  // The piano soundboard rings on the sum of the strings, before the amp.
+  const board = model === 5 && p.piano_soundboard > 0;
+  if (board) {
+    node('board', 'soundboard', { body: p.piano_soundboard }, 3);
+    wire(...left, 'board', 'left');
+    if (right) wire(...right, 'board', 'right');
+    left = ['board', 'left'];
+    right = ['board', 'right'];
+  }
   if (amp) {
     node('amp', 'guitarAmp', { type: Math.round(p.amp_type) - 1, gain: p.amp_gain, tone: p.amp_tone,
       level: p.amp_level_db }, 3);
@@ -561,6 +586,10 @@ export function modularFromPhysical(params) {
     left = ['amp', 'left'];
     right = ['amp', 'right'];
     node('out', 'fxOutput', { level: Math.min(2, Math.round(outputGain * 1e4) / 1e4) }, 3);
+    wire(...left, 'out', 'left');
+    wire(...right, 'out', 'right');
+  } else if (board) {
+    node('out', 'fxOutput', { level: 1 }, 3);
     wire(...left, 'out', 'left');
     wire(...right, 'out', 'right');
   } else {
@@ -575,7 +604,7 @@ export function modularFromPhysical(params) {
     const gain = p.phys_room_mix * 10 ** (-roomExcess(p.phys_room_decay_ms) / 20) * (amp ? outputGain : 1);
     // FX output goes up to 2; before the amp, a per-voice send VCA supplies the rest.
     let send = left, sendRight = right;
-    if (gain > 2 && !amp) {
+    if (gain > 2 && !amp && !board) {
       node('send', 'vca', { level: Math.min(2, Math.round(gain / 2 * 1000) / 1000) }, 3);
       wire(...left, 'send', 'audio');
       send = ['send', 'out'];

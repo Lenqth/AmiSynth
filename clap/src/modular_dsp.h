@@ -99,7 +99,7 @@ inline Graph compile(Json &patch, Macros &macros) {
             throw std::invalid_argument("Invalid module");
         auto &node = graph.nodes[ids.size()];
         node.type = spec->type;
-        const int lines = node.type == Type::bowed || node.type == Type::physBowed || node.type == Type::physWind || node.type == Type::physBrass ? 2 :
+        const int lines = node.type == Type::physPiano ? 3 : node.type == Type::bowed || node.type == Type::physBowed || node.type == Type::physWind || node.type == Type::physBrass ? 2 :
             int(node.type == Type::string || node.type == Type::physString || node.type == Type::comb || node.type == Type::reedPipe);
         if (lines) {
             if (graph.line_count + lines > int(kLines)) throw std::invalid_argument("Too many delay lines");
@@ -180,7 +180,7 @@ inline Graph compile(Json &patch, Macros &macros) {
     bool fx_output = false;
     for (int i = 0; i < graph.size; ++i) {
         const auto type = graph.nodes[size_t(i)].type;
-        fx_count += type == Type::echo || type == Type::chorus || type == Type::reverb || type == Type::guitarAmp;
+        fx_count += type == Type::echo || type == Type::chorus || type == Type::reverb || type == Type::guitarAmp || type == Type::soundboard;
         fx_output |= type == Type::fxOutput;
     }
     if (!graph.output_count && !fx_output) throw std::invalid_argument("Missing output");
@@ -252,7 +252,7 @@ inline Graph compile(Json &patch, Macros &macros) {
         const int index = audible[i];
         // Modules that ring on after their gate falls keep a released voice alive until quiet.
         const auto type = graph.nodes[index].type;
-        if (type == Type::adsr || type == Type::functionGen || type == Type::string || type == Type::physString || type == Type::physBowed || type == Type::physWind || type == Type::physBrass ||
+        if (type == Type::adsr || type == Type::functionGen || type == Type::string || type == Type::physString || type == Type::physBowed || type == Type::physWind || type == Type::physBrass || type == Type::physPiano ||
             type == Type::modal || type == Type::bowed || type == Type::reedPipe)
             graph.envelopes[graph.envelope_count++] = index;
         if (type == Type::drumVoice) graph.envelopes[graph.envelope_count++] = index;
@@ -343,9 +343,11 @@ struct Engine {
     struct Fx {
         std::vector<float> buf;
         std::array<int, 24> pos{};
-        std::array<double, 24> mem{};
+        std::array<double, kFxMemory> mem{};
     };
     std::array<Fx, kFxSlots> fx{};
+    // Scratch for a piano hammer pulse and its force history (one voice at a time).
+    std::array<double, kLineSamples> piano_pulse{}, piano_force{};
     std::array<std::array<double, 2>, kNodes> gsig{}, bus{};
     int echo_length = 0, chorus_length = 0;
 
@@ -570,6 +572,126 @@ struct Engine {
             c[4] = 0.1 + 0.4 * embouchure;
             c[5] = std::clamp(1 + 0.5 * std::log(hz * 48000 / (rate * 1046.5)) / std::log(2.0), 1.0, 1.6);
         }
+    }
+    static double allpass_delay(double a, double w) {
+        return -(std::atan2(-std::sin(w), a + std::cos(w)) - std::atan2(-a * std::sin(w), 1 + a * std::cos(w))) / w;
+    }
+    static double one_pole_delay(double b, double w) { return std::atan2(b * std::sin(w), 1 - b * std::cos(w)) / w; }
+    static void thiran_split(double L, double w, double &length, double &coef) {
+        const double n = std::clamp(std::floor(L - 0.5), 1.0, double(kLineSamples - 2)), d = std::clamp(L - n, 0.5, 1.5);
+        double dl = d, a = 0;
+        for (int it = 0; it < 4; ++it) {
+            a = (1 - dl) / (1 + dl);
+            dl += d - allpass_delay(a, w);
+        }
+        length = n;
+        coef = (1 - dl) / (1 + dl);
+    }
+    // A Physical Piano voice's two strings for a pitch and knob setting (see the Web engine).
+    static void tune_piano(Stage &st, double hz, double inharmonicity, double damping, double detune, double rate) {
+        auto &c = st.a1;
+        const double b = (0.05 + 0.6 * damping) * std::clamp(std::sqrt(262 / hz), 0.15, 1.0) * std::min(1.0, std::pow(2093 / hz, 3.0));
+        const double k = inharmonicity / 0.35, B = 1.5e-4 * (1 + std::pow(hz / 262, 1.5)) * k * k;
+        const double w1 = 2 * kPi * hz / rate;
+        const int n = int(std::min(8.0, std::floor(0.5 * kPi / w1)));
+        double a = 0;
+        if (n >= 2 && B > 0) {
+            const double wn = n * w1, period = rate / hz;
+            const double target = period * (1 - 1 / std::sqrt(1 + B * n * n)) - (one_pole_delay(b, w1) - one_pole_delay(b, wn));
+            if (target > 0) {
+                const double room = period - one_pole_delay(b, w1) - 3;
+                double lo = -0.95, hi = 0;
+                for (int it = 0; it < 40; ++it) {
+                    const double mid = 0.5 * (lo + hi), pd1 = kPianoAllpasses * allpass_delay(mid, w1);
+                    if (pd1 - kPianoAllpasses * allpass_delay(mid, wn) > target || pd1 > room) lo = mid;
+                    else hi = mid;
+                }
+                a = 0.5 * (lo + hi);
+            }
+        }
+        const double det = std::pow(2.0, detune / 2400), hz_a = hz * det, hz_b = hz / det;
+        const double wa = 2 * kPi * hz_a / rate, wb = 2 * kPi * hz_b / rate;
+        const double count = a == 0 ? 0 : kPianoAllpasses;
+        thiran_split(rate / hz_a - one_pole_delay(b, wa) - count * allpass_delay(a, wa), wa, c[0], c[2]);
+        thiran_split(rate / hz_b - one_pole_delay(b, wb) - count * allpass_delay(a, wb), wb, c[1], c[3]);
+        c[4] = a; c[5] = count; c[6] = b;
+        c[7] = 0.9 * std::clamp(std::pow(hz / 220, 0.3), 0.7, 2.0);
+        st.a2[2] = wa; st.a2[3] = wb;
+    }
+    int hammer_force(double hz, double v0, double hardness, double beta) {
+        const int sub = kPianoSubsteps;
+        const double m = std::clamp(0.0087 * std::pow(262 / hz, 0.3), 0.004, 0.012), Z = 2 * std::pow(262 / hz, 0.2);
+        const double K = 250000000 * std::pow(100.0, hardness - 0.5), dt = 1 / (rate * sub);
+        const int lagged = int(std::clamp(std::round(beta * rate * sub / hz), 1.0, double(kLineMask)));
+        const int most = int(std::min(double(kLineSamples), std::floor(0.03 * rate)));
+        double vh = v0, d = 0;
+        int i = 0, count = 0;
+        while (count < most) {
+            double acc = 0;
+            for (int j = 0; j < sub; ++j) {
+                const double F = d > 0 ? K * std::pow(d, 2.5) : 0;
+                piano_force[size_t(i & kLineMask)] = F;
+                const double back = i >= lagged ? piano_force[size_t((i - lagged) & kLineMask)] : 0;
+                vh -= F / m * dt;
+                d += (vh - (F - back) / (2 * Z)) * dt;
+                acc += F;
+                ++i;
+            }
+            piano_pulse[size_t(count++)] = acc / (sub * 2 * Z);
+            if (d <= 0 && vh < 0 && count > 3) break;
+        }
+        return count;
+    }
+    double pulse_level(int count, double w) const {
+        double re = 0, im = 0;
+        for (int i = 0; i < count; ++i) { re += piano_pulse[size_t(i)] * std::cos(w * i); im += piano_pulse[size_t(i)] * std::sin(w * i); }
+        return std::sqrt(re * re + im * im);
+    }
+    // The hammer excitation for a new note, written to `line` (see the Web engine). Returns its length.
+    int piano_strike(Stage &st, Line &line, double hz, double vel, double hardness, double position) {
+        auto &e = piano_pulse;
+        const double v0 = 0.3 + 4.7 * vel * vel * vel;
+        const int len = hammer_force(hz, v0, hardness, position);
+        const int pick = std::max(1, int(std::round(position * st.a1[0])));
+        const int total = int(std::min(double(kLineSamples), std::max(double(len + pick + 1), std::round(0.03 * rate))));
+        for (int i = len; i < total; ++i) e[size_t(i)] = 0;
+        for (int i = total - 1; i >= pick; --i) e[size_t(i)] -= e[size_t(i - pick)];
+        const double hp_a = 1 - std::exp(-2 * kPi * 0.8 * hz / rate);
+        double hp[4] = {0, 0, 0, 0};
+        for (int i = 0; i < total; ++i) {
+            double x = e[size_t(i)];
+            for (double &h : hp) { h += hp_a * (x - h); x -= h; }
+            e[size_t(i)] = x;
+        }
+        const double top = std::clamp((hz - rate / 16) / (rate / 10 - rate / 16), 0.0, 1.0);
+        if (top > 0) {
+            const double w0 = 2 * kPi * hz / rate;
+            double around = 0;
+            for (int k = 0; k < 5; ++k) around = std::max(around, pulse_level(total, w0 * (0.8 + 0.1 * k)));
+            const double want = std::max(pulse_level(total, w0), 0.3 * around);
+            const int blen = std::min(total, std::max(len, int(std::ceil(2 * rate / hz))));
+            const double amp = want / (blen / 4.0);
+            for (int i = 0; i < total; ++i) {
+                const double burst = i < blen ? amp * (0.5 - 0.5 * std::cos(2 * kPi * i / blen)) * std::sin(w0 * i) : 0;
+                e[size_t(i)] = (1 - top) * e[size_t(i)] + top * burst;
+            }
+        }
+        double mag = 0, around = 0;
+        for (int k = 0; k < 5; ++k) {
+            const double level = pulse_level(total, 2 * kPi * hz * (0.8 + 0.1 * k) / rate);
+            if (k == 2) mag = level;
+            if (level > around) around = level;
+        }
+        mag = std::max(mag, 0.3 * around);
+        const double scale = kPianoGain * std::pow(std::clamp(hz / 262, 0.35, 8.0), -1.5) * std::pow(v0 / 2, 0.6) / std::max(1e-12, mag);
+        const double decay = std::exp(-1 / (0.004 * rate)), thump_a = 1 - std::exp(-2 * kPi * 600 / rate);
+        double env = 0.02 * vel, lp = 0;
+        for (int i = 0; i < total; ++i) {
+            lp += thump_a * (white(st) - lp);
+            line[size_t(i)] = float(e[size_t(i)] * scale + lp * env);
+            env *= decay;
+        }
+        return total;
     }
     // A Physical Brass voice's lips and bore for a pitch and mouth pressure (see the Web engine).
     static void tune_brass(Stage &st, double hz, double press, double lip, double bell, double rate) {
@@ -1106,6 +1228,70 @@ struct Engine {
             sig[0] = (bridge_out + body) * 1.6 * p[4];
             break;
         }
+        case Type::physPiano: {
+            // The Physical instrument's Stiff String (piano) model (see the Web engine).
+            auto &line_a = v.lines[size_t(n.line)], &line_b = v.lines[size_t(n.line + 1)], &pulse = v.lines[size_t(n.line + 2)];
+            const bool gate = read(v, n, 1, 1) >= 0.5;
+            const double hz = std::clamp(440 * std::pow(2.0, (read(v, n, 0, 69) - 69) / 12),
+                rate / double(kLineSamples - 4), rate * 0.45);
+            if (st.key[0] != hz || st.key[1] != p[5] || st.key[2] != p[4] || st.key[3] != p[6]) {
+                st.key[0] = hz;
+                st.key[1] = p[5];
+                st.key[2] = p[4];
+                st.key[3] = p[6];
+                tune_piano(st, hz, p[5], p[4], p[6], rate);
+                st.key[4] = NAN;
+            }
+            const auto &c = st.a1;
+            auto &g = st.a2;
+            if (st.key[4] != p[2]) {
+                st.key[4] = p[2];
+                const double t = p[2] * std::clamp(std::pow(220 / hz, 0.4), 0.25, 2.0), b = c[6];
+                const auto gain = [&](double w) { return (1 - b) / std::sqrt(1 - 2 * b * std::cos(w) + b * b); };
+                g[0] = std::min(0.99999, std::exp(-kLn1000 / (g[2] / (2 * kPi) * rate * t)) / gain(g[2]));
+                g[1] = std::min(0.99999, std::exp(-kLn1000 / (g[3] / (2 * kPi) * rate * t)) / gain(g[3]));
+            }
+            if (gate && !st.gate) {
+                line_a.fill(0);
+                line_b.fill(0);
+                st.y1 = {};
+                st.y2 = {};
+                st.ic1 = st.ic2 = st.ic3 = st.ic4 = st.p0 = st.p1 = st.p2 = 0;
+                g[4] = piano_strike(st, pulse, hz, std::clamp(read(v, n, 2, 1), 0.0, 1.0), p[0], p[1]);
+            }
+            st.gate = gate;
+            double loop_a = g[0], loop_b = g[1];
+            if (!gate) {
+                const double released = std::exp(-kLn1000 / (hz * p[3]));
+                loop_a = std::min(loop_a, released);
+                loop_b = std::min(loop_b, released);
+            }
+            double exc = 0;
+            if (st.p2 < g[4]) { exc = pulse[size_t(st.p2)]; st.p2 += 1; }
+            const double a = c[4], b = c[6];
+            const int count = int(c[5]);
+            auto &A = st.y1, &B = st.y2;
+            double x = line_a[size_t((st.write - int(c[0])) & kLineMask)];
+            double y = c[2] * x + st.ic1 - c[2] * st.ic2;
+            st.ic1 = x; st.ic2 = y;
+            for (int k = 0; k < count; ++k) { x = y; y = a * x + A[size_t(2 * k)] - a * A[size_t(2 * k + 1)]; A[size_t(2 * k)] = x; A[size_t(2 * k + 1)] = y; }
+            st.p0 = (1 - b) * y + b * st.p0;
+            const double fa = st.p0 * loop_a + 0.5 * exc;
+            line_a[size_t(st.write)] = float(fa);
+            x = line_b[size_t((st.write - int(c[1])) & kLineMask)];
+            y = c[3] * x + st.ic3 - c[3] * st.ic4;
+            st.ic3 = x; st.ic4 = y;
+            for (int k = 0; k < count; ++k) { x = y; y = a * x + B[size_t(2 * k)] - a * B[size_t(2 * k + 1)]; B[size_t(2 * k)] = x; B[size_t(2 * k + 1)] = y; }
+            st.p1 = (1 - b) * y + b * st.p1;
+            const double fb = st.p1 * loop_b + 0.32 * exc;
+            line_b[size_t(st.write)] = float(fb);
+            st.write = (st.write + 1) & kLineMask;
+            const double out = (fa + fb) * c[7];
+            st.amp = std::max(std::abs(out), st.amp * 0.9995);
+            st.mode = st.amp > 1e-4 || st.p2 < g[4] ? 1 : 0;
+            sig[0] = std::clamp(out, -16.0, 16.0) * p[7];
+            break;
+        }
         case Type::physBrass: {
             // The Physical instrument's Brass model (see the Web engine).
             auto &line = v.lines[size_t(n.line)], &steep = v.lines[size_t(n.line + 1)];
@@ -1490,6 +1676,38 @@ struct Engine {
         sig = {channel(in_l, 0), channel(in_r, 6)};
     }
 
+    // The Physical instrument's piano soundboard (see the Web engine).
+    void soundboard(Fx &f, const Node &n, double in_l, double in_r, std::array<double, 2> &sig) {
+        auto &mem = f.mem;
+        if (!f.pos[0]) {
+            f.pos[0] = 1;
+            for (int k = 0; k < 16; ++k) {
+                const double fr = 75 * std::pow(2800.0 / 75, k / 15.0) * (1 + 0.06 * std::sin(2.3 * k + 1));
+                const double t60 = std::clamp(0.35 * std::pow(150 / fr, 0.4), 0.05, 0.6);
+                const double kk = 1 / std::clamp(kPi * fr * t60 / 6.908, 2.0, 60.0), g = std::tan(kPi * std::min(fr, rate * 0.45) / rate);
+                const size_t o = size_t(32 + k * 6);
+                const double a1 = 1 / (1 + g * (g + kk)), gain = (0.7 + 0.3 * std::cos(1.7 * k)) / (1 + fr / 1500) * 0.45;
+                mem[o] = kk; mem[o + 1] = a1; mem[o + 2] = g * a1; mem[o + 3] = g * g * a1;
+                mem[o + 4] = gain * (k % 2 == 0 ? 1.3 : 0.7);
+                mem[o + 5] = gain * (k % 2 == 0 ? 0.7 : 1.3);
+            }
+        }
+        const double x = 0.5 * (in_l + in_r);
+        double l = 0, r = 0;
+        for (int k = 0; k < 16; ++k) {
+            const size_t o = size_t(32 + k * 6), i = size_t(2 * k);
+            const double v3 = x - mem[i + 1];
+            const double v1 = mem[o + 1] * mem[i] + mem[o + 2] * v3, v2 = mem[i + 1] + mem[o + 2] * mem[i] + mem[o + 3] * v3;
+            mem[i] = 2 * v1 - mem[i];
+            mem[i + 1] = 2 * v2 - mem[i + 1];
+            const double bp = v1 * mem[o];
+            l += bp * mem[o + 4];
+            r += bp * mem[o + 5];
+        }
+        const double body = n.knobs[0], dry = 1 - 0.7 * body;
+        sig = {in_l * dry + body * l, in_r * dry + body * r};
+    }
+
     // Runs the patch effects once on the summed voice signals; returns what FX outputs add.
     std::array<double, 2> sample_globals() {
         double left = 0, right = 0;
@@ -1513,6 +1731,7 @@ struct Engine {
             if (n.type == Type::echo) echo(f, n, in_l, in_r, sig);
             else if (n.type == Type::chorus) chorus(f, n, in_l, in_r, sig);
             else if (n.type == Type::guitarAmp) amp(f, n, in_l, in_r, sig);
+            else if (n.type == Type::soundboard) soundboard(f, n, in_l, in_r, sig);
             else reverb(f, n, in_l, in_r, sig);
             sig[0] = std::clamp(sig[0], -1e6, 1e6);
             sig[1] = std::clamp(sig[1], -1e6, 1e6);
