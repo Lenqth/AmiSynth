@@ -100,7 +100,7 @@ inline Graph compile(Json &patch, Macros &macros) {
         auto &node = graph.nodes[ids.size()];
         node.type = spec->type;
         const int lines = node.type == Type::physPiano ? 3 : node.type == Type::bowed || node.type == Type::physBowed || node.type == Type::physWind || node.type == Type::physBrass ? 2 :
-            int(node.type == Type::string || node.type == Type::physString || node.type == Type::comb || node.type == Type::reedPipe);
+            int(node.type == Type::string || node.type == Type::physString || node.type == Type::physMesh || node.type == Type::comb || node.type == Type::reedPipe);
         if (lines) {
             if (graph.line_count + lines > int(kLines)) throw std::invalid_argument("Too many delay lines");
             node.line = graph.line_count;
@@ -252,7 +252,7 @@ inline Graph compile(Json &patch, Macros &macros) {
         const int index = audible[i];
         // Modules that ring on after their gate falls keep a released voice alive until quiet.
         const auto type = graph.nodes[index].type;
-        if (type == Type::adsr || type == Type::functionGen || type == Type::string || type == Type::physString || type == Type::physBowed || type == Type::physWind || type == Type::physBrass || type == Type::physPiano ||
+        if (type == Type::adsr || type == Type::functionGen || type == Type::string || type == Type::physString || type == Type::physBowed || type == Type::physWind || type == Type::physBrass || type == Type::physPiano || type == Type::physMesh ||
             type == Type::modal || type == Type::bowed || type == Type::reedPipe)
             graph.envelopes[graph.envelope_count++] = index;
         if (type == Type::drumVoice) graph.envelopes[graph.envelope_count++] = index;
@@ -348,6 +348,49 @@ struct Engine {
     std::array<Fx, kFxSlots> fx{};
     // Scratch for a piano hammer pulse and its force history (one voice at a time).
     std::array<double, kLineSamples> piano_pulse{}, piano_force{};
+    // Membrane mesh shapes by size and shape, worked out on first use (see the Web engine).
+    static constexpr int kMeshW = 18, kMeshCells = kMeshW * kMeshW;
+    struct MeshShape {
+        bool ready = false;
+        double mu = 0;
+        int pick = 0, span_count = 0;
+        std::array<int, 32> spans{};
+        std::array<uint8_t, kMeshCells> mask{};
+    };
+    std::array<MeshShape, 34> mesh_shapes{};
+    const MeshShape &mesh_shape(int n, int shape) {
+        auto &m = mesh_shapes[size_t(shape * 17 + n)];
+        if (m.ready) return m;
+        m.ready = true;
+        const double cc = (n - 1) / 2.0, rr = n / 2.0;
+        m.span_count = 0;
+        for (int i = 0; i < n; ++i) {
+            int start = -1, end = -1;
+            for (int j = 0; j < n; ++j) {
+                const int c = (i + 1) * kMeshW + (j + 1);
+                m.mask[size_t(c)] = shape == 1 || (i - cc) * (i - cc) + (j - cc) * (j - cc) <= rr * rr ? 1 : 0;
+                if (m.mask[size_t(c)]) { if (start < 0) start = c; end = c + 1; }
+            }
+            if (start >= 0) { m.spans[size_t(m.span_count++)] = start; m.spans[size_t(m.span_count++)] = end; }
+        }
+        std::array<double, kMeshCells> x{}, y{};
+        for (int c = 0; c < kMeshCells; ++c) x[size_t(c)] = m.mask[size_t(c)];
+        double lambda = 0;
+        for (int it = 0; it < 800; ++it) {
+            double norm = 0;
+            for (int c = 0; c < kMeshCells; ++c) {
+                if (!m.mask[size_t(c)]) continue;
+                y[size_t(c)] = 4 * x[size_t(c)] + x[size_t(c - 1)] + x[size_t(c + 1)] + x[size_t(c - kMeshW)] + x[size_t(c + kMeshW)];
+                if (y[size_t(c)] > norm) norm = y[size_t(c)];
+            }
+            lambda = norm;
+            for (int c = 0; c < kMeshCells; ++c) x[size_t(c)] = m.mask[size_t(c)] ? y[size_t(c)] / norm : 0;
+        }
+        m.mu = 8 - lambda;
+        m.pick = (int(std::floor(n * 0.62)) + 1) * kMeshW + (int(std::floor(n * 0.71)) + 1);
+        if (!m.mask[size_t(m.pick)]) m.pick = (int(std::floor(cc)) + 1) * kMeshW + (int(std::floor(cc)) + 1);
+        return m;
+    }
     std::array<std::array<double, 2>, kNodes> gsig{}, bus{};
     int echo_length = 0, chorus_length = 0;
 
@@ -1226,6 +1269,61 @@ struct Engine {
             st.amp = std::max(std::abs(bridge_out), st.amp * 0.9995);
             st.mode = bow > 1e-5 || st.amp > 1e-4 ? 1 : 0;
             sig[0] = (bridge_out + body) * 1.6 * p[4];
+            break;
+        }
+        case Type::physMesh: {
+            // The Physical instrument's Mesh model (see the Web engine).
+            auto &line = v.lines[size_t(n.line)];
+            const bool gate = read(v, n, 1, 1) >= 0.5;
+            const int size = int(std::clamp(std::floor(p[1] + 0.5), 6.0, 16.0)), form = p[0] >= 0.5 ? 1 : 0;
+            const auto &mesh = mesh_shape(size, form);
+            const double hz = std::clamp(440 * std::pow(2.0, (read(v, n, 0, 69) - 69) / 12), 20.0, rate * 0.2);
+            if (st.key[0] != hz || st.key[1] != mesh.mu) {
+                st.key[0] = hz;
+                st.key[1] = mesh.mu;
+                const double w = 2 * kPi * hz / rate;
+                st.a1[0] = std::min(0.49, 2 * (1 - std::cos(w)) / mesh.mu);
+                st.a1[1] = w;
+            }
+            const double t60 = gate ? p[2] : std::min(p[2], p[3]);
+            if (st.key[2] != t60) {
+                st.key[2] = t60;
+                const double g = std::exp(-2 * kLn1000 / (std::max(t60, 1e-5) * rate));
+                st.a1[2] = (1 - g) / (1 + g);
+            }
+            if (gate && !st.gate) {
+                std::fill(line.begin(), line.begin() + 3 * kMeshCells, 0.0f);
+                st.ic1 = 0; st.ic2 = kMeshCells; st.ic3 = 2 * kMeshCells;
+                const double vel = std::clamp(read(v, n, 2, 1), 0.0, 1.0);
+                const double R = 0.75 + 2.5 * (1 - std::clamp(p[7] * (0.7 + 0.3 * vel), 0.0, 1.0)), amp = 4 / (R * R);
+                const double sx = p[5] * (size - 1), sy = p[6] * (size - 1);
+                for (int i = 0; i < size; ++i) {
+                    for (int j = 0; j < size; ++j) {
+                        const int c = (i + 1) * kMeshW + (j + 1);
+                        if (!mesh.mask[size_t(c)]) continue;
+                        const double d = std::sqrt((i - sy) * (i - sy) + (j - sx) * (j - sx));
+                        if (d < R) line[size_t(int(st.ic2) + c)] = float((-0.5 - 0.5 * std::cos(kPi * (R - d) / R)) * amp);
+                    }
+                }
+            }
+            st.gate = gate;
+            const double sig2 = st.a1[2], inv = 1 / (1 + sig2), d = p[4] * 172.5 / rate, mu = mesh.mu, c2 = st.a1[0];
+            const double ku = (2 - 4 * c2 - 4 * d + d * mu) * inv, kp = (4 * d - d * mu - (1 - sig2)) * inv;
+            const double kn = (c2 + d) * inv, kq = d * inv;
+            const int u = int(st.ic1), up = int(st.ic2), un = int(st.ic3);
+            const auto at = [&](int i) { return double(line[size_t(i)]); };
+            for (int r = 0; r < mesh.span_count; r += 2) {
+                for (int c = mesh.spans[size_t(r)]; c < mesh.spans[size_t(r + 1)]; ++c) {
+                    line[size_t(un + c)] = float(ku * at(u + c) + kp * at(up + c) +
+                        kn * (at(u + c - 1) + at(u + c + 1) + at(u + c - kMeshW) + at(u + c + kMeshW)) -
+                        kq * (at(up + c - 1) + at(up + c + 1) + at(up + c - kMeshW) + at(up + c + kMeshW)));
+                }
+            }
+            st.ic1 = un; st.ic2 = u; st.ic3 = up;
+            const double out = at(un + mesh.pick) * st.a1[1] * 5.5;
+            st.amp = std::max(std::abs(out), st.amp * 0.9995);
+            st.mode = st.amp > 1e-4 ? 1 : 0;
+            sig[0] = std::clamp(out, -16.0, 16.0) * p[8];
             break;
         }
         case Type::physPiano: {

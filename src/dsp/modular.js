@@ -152,6 +152,19 @@ export const MODULAR_TYPES = Object.freeze({
       detune: { min: 0, max: 10, default: 1.2, step: 0.01 },
       level: { min: 0, max: 1, default: 0.6, step: 0.01 },
     } },
+  physMesh: { label: 'Physical Mesh', category: 'Physical',
+    keywords: 'drum membrane tom timpani taiko plate mesh mallet waveguide physical model',
+    inputs: ['pitch', 'gate', 'velocity'], outputs: ['out'], params: {
+      shape: { min: 0, max: 1, default: 0, step: 1, choices: ['Circular drum', 'Square plate'] },
+      size: { min: 6, max: 16, default: 12, step: 1 },
+      decay: { min: 0.05, max: 10, default: 0.9, step: 0.01 },
+      release: { min: 0.01, max: 10, default: 0.9, step: 0.01 },
+      highDamping: { min: 0, max: 1, default: 0.3, step: 0.001 },
+      strikeX: { min: 0, max: 1, default: 0.3, step: 0.001 },
+      strikeY: { min: 0, max: 1, default: 0.42, step: 0.001 },
+      hardness: { min: 0, max: 1, default: 0.5, step: 0.001 },
+      level: { min: 0, max: 1, default: 0.6, step: 0.01 },
+    } },
   modal: { label: 'Modal Resonator', category: 'Physical', keywords: 'bell marimba glass gong mallet physical model resonance',
     inputs: ['in', 'pitch', 'gate', 'velocity'], outputs: ['out'], params: {
       material: { min: 0, max: MATERIALS.length - 1, default: 0, step: 1, choices: MATERIALS.map(m => m.name) },
@@ -411,9 +424,9 @@ export const MODULAR_AMP_TYPES = [
 ];
 const FX_TYPES = new Set(['echo', 'chorus', 'reverb', 'guitarAmp', 'soundboard']);
 
-const LINE_TYPES = new Set(['string', 'physString', 'comb', 'reedPipe']);
+const LINE_TYPES = new Set(['string', 'physString', 'physMesh', 'comb', 'reedPipe']);
 // Modules that ring on after their gate falls; a released voice lives until they are quiet.
-const RINGING_TYPES = new Set(['adsr', 'functionGen', 'string', 'physString', 'physBowed', 'physWind', 'physBrass', 'physPiano', 'modal', 'bowed', 'reedPipe']);
+const RINGING_TYPES = new Set(['adsr', 'functionGen', 'string', 'physString', 'physBowed', 'physWind', 'physBrass', 'physPiano', 'physMesh', 'modal', 'bowed', 'reedPipe']);
 const QUANTIZER_SCALES = [0xfff, 0xab5, 0x5ad, 0x295, 0x4a9];
 
 const searchWords = text => text.toLowerCase().split(/[^a-z0-9&]+/).filter(Boolean);
@@ -1536,6 +1549,43 @@ function sampleSoundboard(s, fx, p, inL, inR, sig) {
   sig.left = inL * dry + body * l;
   sig.right = inR * dry + body * r;
 }
+// The Physical instrument's membrane mesh: up to 16 x 16 cells inside a zero border, 18 cells
+// to a row. A shape's rows of cells, its lowest mode's -Laplacian eigenvalue and pickup cell
+// depend only on the size and shape, so they are worked out once (Physical's mesh_setup).
+const MESH_W = 18, MESH_CELLS = MESH_W * MESH_W, meshShapes = new Map();
+function meshShape(n, shape) {
+  const found = meshShapes.get(shape * 32 + n);
+  if (found) return found;
+  const cc = (n - 1) / 2, rr = n / 2, m = new Float64Array(MESH_CELLS), spans = [];
+  for (let i = 0; i < n; i++) {
+    let start = -1, end = -1;
+    for (let j = 0; j < n; j++) {
+      const c = (i + 1) * MESH_W + (j + 1);
+      m[c] = shape === 1 || (i - cc) * (i - cc) + (j - cc) * (j - cc) <= rr * rr ? 1 : 0;
+      if (m[c] !== 0) { if (start < 0) start = c; end = c + 1; }
+    }
+    if (start >= 0) spans.push(start, end);
+  }
+  // Power iteration on (8 - (-Laplacian)): its largest eigenvalue is 8 - mu.
+  const x = new Float64Array(MESH_CELLS), y = new Float64Array(MESH_CELLS);
+  for (let c = 0; c < MESH_CELLS; c++) x[c] = m[c];
+  let lambda = 0;
+  for (let it = 0; it < 800; it++) {
+    let norm = 0;
+    for (let c = 0; c < MESH_CELLS; c++) {
+      if (m[c] === 0) continue;
+      y[c] = 4 * x[c] + x[c - 1] + x[c + 1] + x[c - MESH_W] + x[c + MESH_W];
+      if (y[c] > norm) norm = y[c];
+    }
+    lambda = norm;
+    for (let c = 0; c < MESH_CELLS; c++) x[c] = m[c] === 0 ? 0 : y[c] / norm;
+  }
+  let pick = (Math.floor(n * 0.62) + 1) * MESH_W + (Math.floor(n * 0.71) + 1);
+  if (m[pick] === 0) pick = (Math.floor(cc) + 1) * MESH_W + (Math.floor(cc) + 1);
+  const result = { mu: 8 - lambda, pick, spans, mask: m };
+  meshShapes.set(shape * 32 + n, result);
+  return result;
+}
 function freeReedFlow(x, bias) {
   const d = Math.abs(x - bias) - MODULAR_WIND.overlap;
   return d > 0 ? d : 0;
@@ -2341,6 +2391,65 @@ function sampleNode(s, v, i) {
       const out = (fa + fb) * c[7];
       st.amp = Math.max(Math.abs(out), st.amp * 0.9995);
       st.mode = st.amp > 1e-4 || st.p2 < g[4] ? 1 : 0;
+      sig.out = clamp(out, -16, 16) * parameter(v, n, 'level');
+      break;
+    }
+    case 'physMesh': {
+      // The Physical instrument's Mesh model: a 2D membrane (circular drum or square plate) of
+      // size x size cells, struck by a mallet on each rising gate; the pitch tunes its lowest mode.
+      // Raw **velocity** makes the mallet harder; the level follows velocity outside the module.
+      const line = v.lines[n.line], rate = s.sampleRate;
+      const gate = read(v, n, 'gate', 1) >= 0.5;
+      const size = clamp(Math.floor(parameter(v, n, 'size') + 0.5), 6, 16), form = parameter(v, n, 'shape') >= 0.5 ? 1 : 0;
+      const mesh = meshShape(size, form);
+      const hz = clamp(440 * Math.pow(2, (read(v, n, 'pitch', 69) - 69) / 12), 20, rate * 0.2);
+      if (st.key[0] !== hz || st.key[1] !== mesh.mu) {
+        st.key[0] = hz; st.key[1] = mesh.mu;
+        const w = TAU * hz / rate;
+        st.a1[0] = Math.min(0.49, 2 * (1 - Math.cos(w)) / mesh.mu);
+        st.a1[1] = w;
+      }
+      const decay = parameter(v, n, 'decay'), t60 = gate ? decay : Math.min(decay, parameter(v, n, 'release'));
+      if (st.key[2] !== t60) {
+        st.key[2] = t60;
+        const g = Math.exp(-2 * LN1000 / (Math.max(t60, 1e-5) * rate));
+        st.a1[2] = (1 - g) / (1 + g);
+      }
+      if (gate && !st.lastGate) {
+        // The mallet: a raised-cosine bump of radius R around the strike point, as initial velocity
+        // (the same momentum whatever the mallet size).
+        line.fill(0, 0, 3 * MESH_CELLS);
+        st.ic1 = 0; st.ic2 = MESH_CELLS; st.ic3 = 2 * MESH_CELLS;
+        const vel = clamp(read(v, n, 'velocity', 1), 0, 1);
+        const R = 0.75 + 2.5 * (1 - clamp(parameter(v, n, 'hardness') * (0.7 + 0.3 * vel), 0, 1)), amp = 4 / (R * R);
+        const sx = parameter(v, n, 'strikeX') * (size - 1), sy = parameter(v, n, 'strikeY') * (size - 1);
+        for (let i = 0; i < size; i++) {
+          for (let j = 0; j < size; j++) {
+            const c = (i + 1) * MESH_W + (j + 1);
+            if (mesh.mask[c] === 0) continue;
+            const d = Math.sqrt((i - sy) * (i - sy) + (j - sx) * (j - sx));
+            if (d < R) line[st.ic2 + c] = (-0.5 - 0.5 * Math.cos(Math.PI * (R - d) / R)) * amp;
+          }
+        }
+      }
+      st.lastGate = gate;
+      // u' = 2u - (1 - s) up + c2 Lap(u) + d (Lap(u) - Lap(up) + mu (u - up)), all / (1 + s).
+      const sig2 = st.a1[2], inv = 1 / (1 + sig2), d = parameter(v, n, 'highDamping') * 172.5 / rate, mu = mesh.mu;
+      const c2 = st.a1[0];
+      const ku = (2 - 4 * c2 - 4 * d + d * mu) * inv, kp = (4 * d - d * mu - (1 - sig2)) * inv;
+      const kn = (c2 + d) * inv, kq = d * inv;
+      const u = st.ic1, up = st.ic2, un = st.ic3, spans = mesh.spans;
+      for (let r = 0; r < spans.length; r += 2) {
+        for (let c = spans[r]; c < spans[r + 1]; c++) {
+          line[un + c] = ku * line[u + c] + kp * line[up + c] +
+            kn * (line[u + c - 1] + line[u + c + 1] + line[u + c - MESH_W] + line[u + c + MESH_W]) -
+            kq * (line[up + c - 1] + line[up + c + 1] + line[up + c - MESH_W] + line[up + c + MESH_W]);
+        }
+      }
+      st.ic1 = un; st.ic2 = u; st.ic3 = up;
+      const out = line[un + mesh.pick] * st.a1[1] * 5.5;
+      st.amp = Math.max(Math.abs(out), st.amp * 0.9995);
+      st.mode = st.amp > 1e-4 ? 1 : 0;
       sig.out = clamp(out, -16, 16) * parameter(v, n, 'level');
       break;
     }

@@ -401,6 +401,7 @@ const PHYS_MODELS = {
     'amp_type', 'amp_gain', 'amp_tone', 'amp_level_db', 'phys_vibrato_cents', 'phys_vibrato_rate_hz']),
   3: new Set(['wind_type', 'breath_pressure', 'breath_noise', 'wind_attack_ms', 'wind_embouchure', 'free_reed_detune_cents',
     'phys_vibrato_cents', 'phys_vibrato_rate_hz']),
+  4: new Set(['mesh_shape', 'mesh_size', 'mesh_decay_ms', 'mesh_high_damping', 'mesh_strike_x', 'mesh_strike_y', 'mesh_hardness']),
   5: new Set(['piano_inharmonicity', 'piano_hammer_hardness', 'piano_strike_position', 'piano_decay_ms', 'piano_damping',
     'piano_soundboard', 'piano_unison_detune_cents', 'amp_type', 'amp_gain', 'amp_tone', 'amp_level_db']),
   6: new Set(['brass_pressure', 'brass_lip', 'brass_attack_ms', 'brass_bell', 'phys_vibrato_cents', 'phys_vibrato_rate_hz']),
@@ -469,6 +470,19 @@ export function modularFromPhysical(params) {
       attack: Math.max(0.001, p.brass_attack_ms / 1000), velocity: p.phys_velocity_amount, level: 1 }, 1);
     wire(...pitch, source, 'pitch');
     wire('breath', 'out', source, 'breath');
+    wire('note', 'velocity', source, 'velocity');
+    node('dynamics', 'vca', { level: Math.min(2, Math.round(voiceGain * panGain * 1e4) / 1e4) }, 1);
+    wire(source, 'out', 'dynamics', 'audio');
+    wire('velocity', 'out', 'dynamics', 'gain');
+    source = 'dynamics';
+  }
+  if (model === 4) {
+    // Raw velocity hardens the mallet; Physical scales the strike by velocity too.
+    source = node('mesh', 'physMesh', { shape: Math.round(p.mesh_shape), size: Math.round(p.mesh_size),
+      decay: p.mesh_decay_ms / 1000, release: p.phys_release_ms / 1000, highDamping: p.mesh_high_damping,
+      strikeX: p.mesh_strike_x, strikeY: p.mesh_strike_y, hardness: p.mesh_hardness, level: 1 }, 1);
+    wire(...pitch, source, 'pitch');
+    wire('note', 'gate', source, 'gate');
     wire('note', 'velocity', source, 'velocity');
     node('dynamics', 'vca', { level: Math.min(2, Math.round(voiceGain * panGain * 1e4) / 1e4) }, 1);
     wire(source, 'out', 'dynamics', 'audio');
