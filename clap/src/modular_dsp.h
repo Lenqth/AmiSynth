@@ -180,7 +180,7 @@ inline Graph compile(Json &patch, Macros &macros) {
     bool fx_output = false;
     for (int i = 0; i < graph.size; ++i) {
         const auto type = graph.nodes[size_t(i)].type;
-        fx_count += type == Type::echo || type == Type::chorus || type == Type::reverb;
+        fx_count += type == Type::echo || type == Type::chorus || type == Type::reverb || type == Type::guitarAmp;
         fx_output |= type == Type::fxOutput;
     }
     if (!graph.output_count && !fx_output) throw std::invalid_argument("Missing output");
@@ -1199,6 +1199,34 @@ struct Engine {
         sig = {wet[0] * wet1 + wet[1] * wet2 + in_l * (1 - p[3]), wet[1] * wet1 + wet[0] * wet2 + in_r * (1 - p[3])};
     }
 
+    // The Physical instrument's guitar amp (see the Web engine).
+    std::array<double, 2> svf_step(Fx &f, int i, double x, double cutoff, double k) const {
+        const double g = std::tan(kPi * std::clamp(cutoff, 5.0, rate * 0.49) / rate);
+        const double a1 = 1 / (1 + g * (g + k)), a2 = g * a1, a3 = g * a2;
+        const double v3 = x - f.mem[size_t(i + 1)];
+        const double v1 = a1 * f.mem[size_t(i)] + a2 * v3, v2 = f.mem[size_t(i + 1)] + a2 * f.mem[size_t(i)] + a3 * v3;
+        f.mem[size_t(i)] = 2 * v1 - f.mem[size_t(i)];
+        f.mem[size_t(i + 1)] = 2 * v2 - f.mem[size_t(i + 1)];
+        return {v2, x - k * v1 - v2};
+    }
+    void amp(Fx &f, const Node &n, double in_l, double in_r, std::array<double, 2> &sig) {
+        const auto &p = n.knobs; // type, gain, tone, level
+        const auto &t = kAmpTypes[int(p[0])];
+        const double drive = t[1] * std::pow(t[2] / t[1], p[1]), bias_out = soft_clip(t[3]);
+        const double cabinet = t[5] * std::pow(t[6] / t[5], p[2]), out = std::pow(10.0, p[3] / 20);
+        const double pre = 1 - std::exp(-2 * kPi * std::clamp(t[0], 1.0, rate * 0.49) / rate);
+        const double inter = 1 - std::exp(-2 * kPi * 5000 / rate);
+        const auto channel = [&](double x, int base) {
+            auto &mem = f.mem;
+            mem[size_t(base)] += pre * (x - mem[size_t(base)]);
+            double y = soft_clip((x - mem[size_t(base)]) * drive + t[3]) - bias_out;
+            if (t[4] > 1) { mem[size_t(base + 1)] += inter * (y - mem[size_t(base + 1)]); y = soft_clip(mem[size_t(base + 1)] * 4); }
+            const double low = svf_step(f, base + 2, y, cabinet, 1.1)[0];
+            return svf_step(f, base + 4, low, 80, 1.4)[1] * out;
+        };
+        sig = {channel(in_l, 0), channel(in_r, 6)};
+    }
+
     // Runs the patch effects once on the summed voice signals; returns what FX outputs add.
     std::array<double, 2> sample_globals() {
         double left = 0, right = 0;
@@ -1221,6 +1249,7 @@ struct Engine {
             auto &f = fx[size_t(n.slot)];
             if (n.type == Type::echo) echo(f, n, in_l, in_r, sig);
             else if (n.type == Type::chorus) chorus(f, n, in_l, in_r, sig);
+            else if (n.type == Type::guitarAmp) amp(f, n, in_l, in_r, sig);
             else reverb(f, n, in_l, in_r, sig);
             sig[0] = std::clamp(sig[0], -1e6, 1e6);
             sig[1] = std::clamp(sig[1], -1e6, 1e6);

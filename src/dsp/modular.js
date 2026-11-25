@@ -319,6 +319,14 @@ export const MODULAR_TYPES = Object.freeze({
       width: { min: 0, max: 1, default: 1, step: 0.01, fixed: true },
       mix: { min: 0, max: 1, default: 0.3, step: 0.01, fixed: true },
     } },
+  guitarAmp: { label: 'Guitar Amp', category: 'Patch Effects', global: true,
+    keywords: 'amp amplifier overdrive distortion crunch cabinet guitar bass effect fx',
+    inputs: ['left', 'right'], outputs: ['left', 'right'], params: {
+      type: { min: 0, max: 3, default: 1, step: 1, choices: ['Clean', 'Crunch', 'Overdrive', 'Distortion'], fixed: true },
+      gain: { min: 0, max: 1, default: 0.5, step: 0.001, fixed: true },
+      tone: { min: 0, max: 1, default: 0.5, step: 0.001, fixed: true },
+      level: { min: -24, max: 12, default: 0, step: 0.1, fixed: true },
+    } },
   fxOutput: { label: 'FX output', category: 'Input & Output', global: true, keywords: 'effects return bus master out',
     inputs: ['left', 'right'], outputs: [], params: {
       level: { min: 0, max: 2, default: 1, step: 0.01, fixed: true },
@@ -334,7 +342,15 @@ export const MODULAR_ECHO_BEATS = [0.25, 0.5, 0.75, 1, 1.5, 2, 4, 0.125, 1 / 6, 
 export const MODULAR_REVERB_COMBS = [1116, 1188, 1277, 1356, 1422, 1491, 1557, 1617];
 export const MODULAR_REVERB_ALLPASSES = [556, 441, 341, 225];
 export const MODULAR_REVERB_SPREAD = 23;
-const FX_TYPES = new Set(['echo', 'chorus', 'reverb']);
+// The Physical instrument's amps: pre high-pass Hz, drive at gain 0 and 1, bias, clipping
+// stages, cabinet low-pass Hz at tone 0 and 1.
+export const MODULAR_AMP_TYPES = [
+  [60, 1, 4, 0, 1, 3000, 9000],
+  [100, 3, 30, 0.15, 1, 2500, 7000],
+  [200, 8, 100, 0.2, 1, 2200, 6000],
+  [150, 30, 600, 0.1, 2, 1800, 5000],
+];
+const FX_TYPES = new Set(['echo', 'chorus', 'reverb', 'guitarAmp']);
 
 const LINE_TYPES = new Set(['string', 'physString', 'comb', 'reedPipe']);
 // Modules that ring on after their gate falls; a released voice lives until they are quiet.
@@ -1243,6 +1259,34 @@ function sampleReverb(s, fx, p, inL, inR, sig) {
   sig.right = wet[1] * wet1 + wet[0] * wet2 + inR * (1 - p.mix);
 }
 
+// The Physical instrument's guitar amp: pre high-pass, asymmetric soft clipping in one or two
+// stages, then a resonant cabinet low-pass and an 80 Hz high-pass.
+function svfStep(mem, i, x, cutoff, k, rate) {
+  const g = Math.tan(Math.PI * clamp(cutoff, 5, rate * 0.49) / rate);
+  const a1 = 1 / (1 + g * (g + k)), a2 = g * a1, a3 = g * a2;
+  const v3 = x - mem[i + 1];
+  const v1 = a1 * mem[i] + a2 * v3, v2 = mem[i + 1] + a2 * mem[i] + a3 * v3;
+  mem[i] = 2 * v1 - mem[i];
+  mem[i + 1] = 2 * v2 - mem[i + 1];
+  return [v2, x - k * v1 - v2];
+}
+function sampleAmp(s, fx, p, inL, inR, sig) {
+  const t = MODULAR_AMP_TYPES[p.type], rate = s.sampleRate;
+  const drive = t[1] * Math.pow(t[2] / t[1], p.gain), biasOut = softClip(t[3]);
+  const cabinet = t[5] * Math.pow(t[6] / t[5], p.tone), out = Math.pow(10, p.level / 20);
+  const pre = 1 - Math.exp(-TAU * clamp(t[0], 1, rate * 0.49) / rate), inter = 1 - Math.exp(-TAU * 5000 / rate);
+  const channel = (x, base) => {
+    const mem = fx.mem;
+    mem[base] += pre * (x - mem[base]);
+    let y = softClip((x - mem[base]) * drive + t[3]) - biasOut;
+    if (t[4] > 1) { mem[base + 1] += inter * (y - mem[base + 1]); y = softClip(mem[base + 1] * 4); }
+    const [low] = svfStep(mem, base + 2, y, cabinet, 1.1, rate);
+    return svfStep(mem, base + 4, low, 80, 1.4, rate)[1] * out;
+  };
+  sig.left = channel(inL, 0);
+  sig.right = channel(inR, 6);
+}
+
 // Runs the patch effects once per sample on the summed voice signals. Returns [left, right].
 function sampleGlobals(s) {
   const { nodes, globals } = s.graph;
@@ -1263,6 +1307,7 @@ function sampleGlobals(s) {
     const fx = s.fx[n.slot];
     if (n.type === 'echo') sampleEcho(s, fx, n.params, inL, inR, sig);
     else if (n.type === 'chorus') sampleChorus(s, fx, n.params, inL, inR, sig);
+    else if (n.type === 'guitarAmp') sampleAmp(s, fx, n.params, inL, inR, sig);
     else sampleReverb(s, fx, n.params, inL, inR, sig);
     sig.left = clamp(sig.left, -1e6, 1e6);
     sig.right = clamp(sig.right, -1e6, 1e6);

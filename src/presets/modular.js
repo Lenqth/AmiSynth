@@ -396,7 +396,8 @@ const PHYS_COMMON = new Set(['phys_model', 'phys_volume_db', 'phys_release_ms', 
   'phys_room_decay_ms', 'phys_velocity_amount', 'phys_pitch_bend_range_cents', 'phys_sustain_mode',
   'tuning_divisions', 'tuning_period_cents', 'tuning_ref_note', 'tuning_ref_hz']);
 const PHYS_MODELS = {
-  0: new Set(['string_excitation', 'string_decay_ms', 'string_damping', 'string_pick_position', 'string_brightness']),
+  0: new Set(['string_excitation', 'string_decay_ms', 'string_damping', 'string_pick_position', 'string_brightness',
+    'amp_type', 'amp_gain', 'amp_tone', 'amp_level_db', 'phys_vibrato_cents', 'phys_vibrato_rate_hz']),
   1: new Set(['modal_material', 'modal_decay_ms', 'modal_high_damping', 'modal_hardness', 'modal_strike_position',
     'modal_inharmonicity']),
 };
@@ -421,7 +422,7 @@ export function modularFromPhysical(params) {
   for (const [key, value] of Object.entries(params))
     if (!PHYS_COMMON.has(key) && !supported.has(key) && value !== PHYS_DEFAULTS[key]) throw new Error(`Modular cannot play ${key}`);
 
-  const nodes = [], cables = [], rows = [0, 0, 0, 0, 0];
+  const nodes = [], cables = [], rows = [0, 0, 0, 0, 0, 0];
   const node = (id, type, settings, column, extra) => {
     nodes.push({ id, type, params: settings, ...extra, position: { x: 22 + column * COLUMN, y: 22 + rows[column]++ * ROW } });
     return id;
@@ -436,6 +437,10 @@ export function modularFromPhysical(params) {
 
   // Physical's constant-power pan is +3 dB at the centre against Pan / Spread.
   const width = p.phys_stereo_width, panGain = width > 0 ? Math.SQRT2 : 1;
+  // The guitar amp clips the voices' sum before Physical's output gain, so with an amp the
+  // voices play at Physical's internal level and the output gain moves to the FX outputs.
+  const amp = Math.round(p.amp_type) > 0;
+  const outputGain = 0.5 * 10 ** (p.phys_volume_db / 20), voiceGain = amp ? 1 : outputGain;
   let source;
   if (model === 0) {
     // Physical's string output is scaled by velocity and halved.
@@ -443,10 +448,19 @@ export function modularFromPhysical(params) {
       excitation: p.string_excitation >= 0.5 ? 1 : 0, decay: p.string_decay_ms / 1000, release: p.phys_release_ms / 1000,
       damping: p.string_damping, pick: p.string_pick_position, brightness: p.string_brightness, level: 1,
     }, 1);
-    wire('note', 'pitch', source, 'pitch');
+    let pitch = ['note', 'pitch'];
+    if (p.phys_vibrato_cents > 0) {
+      // Physical's vibrato: a sine on the pitch (the LFO restarts with each voice).
+      node('vibrato', 'lfo', { rate: p.phys_vibrato_rate_hz, depth: 1, wave: 0 }, 0);
+      node('pitch', 'mix4', { a: 1, b: p.phys_vibrato_cents / 100, c: 0, d: 0 }, 0);
+      wire('note', 'pitch', 'pitch', 'a');
+      wire('vibrato', 'out', 'pitch', 'b');
+      pitch = ['pitch', 'out'];
+    }
+    wire(...pitch, source, 'pitch');
     wire('note', 'gate', source, 'gate');
     wire('note', 'velocity', source, 'velocity');
-    node('dynamics', 'vca', { level: Math.min(2, Math.round(0.5 * 10 ** (p.phys_volume_db / 20) * panGain * 1e4) / 1e4) }, 1);
+    node('dynamics', 'vca', { level: Math.min(2, Math.round(voiceGain * panGain * 1e4) / 1e4) }, 1);
     wire(source, 'out', 'dynamics', 'audio');
     wire('velocity', 'out', 'dynamics', 'gain');
     source = 'dynamics';
@@ -487,17 +501,29 @@ export function modularFromPhysical(params) {
     left = ['pan', 'left'];
     right = ['pan', 'right'];
   }
-  node('out', 'output', { level: 1 }, 3);
-  wire(...left, 'out', 'audio');
-  if (right) wire(...right, 'out', 'right');
+  if (amp) {
+    node('amp', 'guitarAmp', { type: Math.round(p.amp_type) - 1, gain: p.amp_gain, tone: p.amp_tone,
+      level: p.amp_level_db }, 3);
+    wire(...left, 'amp', 'left');
+    if (right) wire(...right, 'amp', 'right');
+    left = ['amp', 'left'];
+    right = ['amp', 'right'];
+    node('out', 'fxOutput', { level: Math.min(2, Math.round(outputGain * 1e4) / 1e4) }, 3);
+    wire(...left, 'out', 'left');
+    wire(...right, 'out', 'right');
+  } else {
+    node('out', 'output', { level: 1 }, 3);
+    wire(...left, 'out', 'audio');
+    if (right) wire(...right, 'out', 'right');
+  }
   if (p.phys_room_mix > 0) {
     // The room's decay sets the Reverb size, as for the Synth reverb. Measured, Physical's room
     // decays in about 0.93 of its setting and the Reverb in about 1.03 of its target.
     const room = 10 ** (-3 * REVERB_COMB_SECONDS / (0.9 * p.phys_room_decay_ms / 1000));
-    const gain = p.phys_room_mix * 10 ** (-roomExcess(p.phys_room_decay_ms) / 20);
-    // FX output goes up to 2; a per-voice send VCA supplies the rest.
+    const gain = p.phys_room_mix * 10 ** (-roomExcess(p.phys_room_decay_ms) / 20) * (amp ? outputGain : 1);
+    // FX output goes up to 2; before the amp, a per-voice send VCA supplies the rest.
     let send = left, sendRight = right;
-    if (gain > 2) {
+    if (gain > 2 && !amp) {
       node('send', 'vca', { level: Math.min(2, Math.round(gain / 2 * 1000) / 1000) }, 3);
       wire(...left, 'send', 'audio');
       send = ['send', 'out'];
@@ -507,10 +533,10 @@ export function modularFromPhysical(params) {
         sendRight = ['sendright', 'out'];
       }
     }
-    node('room', 'reverb', { size: Math.max(0, Math.min(1, (room - 0.7) / 0.28)), damping: 0.45, width: 1, mix: 1 }, 3);
+    node('room', 'reverb', { size: Math.max(0, Math.min(1, (room - 0.7) / 0.28)), damping: 0.45, width: 1, mix: 1 }, 4);
     wire(...send, 'room', 'left');
     if (sendRight) wire(...sendRight, 'room', 'right');
-    node('roomout', 'fxOutput', { level: Math.round(Math.min(2, gain) * 1000) / 1000 }, 3);
+    node('roomout', 'fxOutput', { level: Math.round(Math.min(2, gain) * 1000) / 1000 }, 4);
     wire('room', 'left', 'roomout', 'left');
     wire('room', 'right', 'roomout', 'right');
   }
