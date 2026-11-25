@@ -180,7 +180,7 @@ inline Graph compile(Json &patch, Macros &macros) {
     bool fx_output = false;
     for (int i = 0; i < graph.size; ++i) {
         const auto type = graph.nodes[size_t(i)].type;
-        fx_count += type == Type::echo || type == Type::chorus || type == Type::reverb || type == Type::guitarAmp || type == Type::soundboard;
+        fx_count += type == Type::echo || type == Type::chorus || type == Type::reverb || type == Type::guitarAmp || type == Type::soundboard || type == Type::rotary;
         fx_output |= type == Type::fxOutput;
     }
     if (!graph.output_count && !fx_output) throw std::invalid_argument("Missing output");
@@ -1271,6 +1271,48 @@ struct Engine {
             sig[0] = (bridge_out + body) * 1.6 * p[4];
             break;
         }
+        case Type::physOrgan: {
+            // The Physical instrument's tonewheel organ (see the Web engine).
+            const bool gate = read(v, n, 1, 1) >= 0.5;
+            const double hz = std::clamp(440 * std::pow(2.0, (read(v, n, 0, 69) - 69) / 12), 1.0, rate * 0.45);
+            const double click_len = std::max(1.0, std::round(0.004 * rate));
+            if (gate && !st.gate) {
+                bool earlier = false;
+                for (const auto &o : voices) earlier |= &o != &v && o.active && o.key_down && o.age < v.age;
+                st.p0 = earlier ? 0 : 1;
+                st.p1 = p[12] > 0 ? click_len : 0;
+            }
+            st.gate = gate;
+            const double inc = 0.5 * hz / rate;
+            st.phase += inc;
+            if (st.phase >= 1) st.phase -= 1;
+            const double th = 2 * kPi * st.phase, c2 = 2 * std::cos(th);
+            std::array<double, 17> sn{};
+            sn[1] = std::sin(th);
+            for (size_t k = 2; k <= 16; ++k) sn[k] = c2 * sn[k - 1] - sn[k - 2];
+            const double half = inc * rate, top = 0.45 * rate;
+            double y = 0;
+            for (size_t j = 0; j < 9; ++j) {
+                const double bar = std::clamp(std::round(p[j]), 0.0, 8.0);
+                if (bar == 0) continue;
+                int k = kOrganHarmonics[j];
+                if (k * half > kOrganFoldHz && k > 3) k = k / 2;
+                if (k * half < top) y += kOrganGain * std::pow(10.0, 3 * (bar - 8) / 20) * sn[size_t(k)];
+            }
+            const int perc = int(std::round(p[9])), pk = perc == 1 ? 4 : perc == 2 ? 6 : 0;
+            if (pk > 0 && st.p0 > 0.00001) {
+                if (pk * half < top) y += 2 * kOrganGain * p[11] * st.p0 * sn[size_t(pk)];
+                st.p0 *= std::exp(-kLn1000 / (std::max(p[10], 1e-5) * rate));
+            }
+            if (st.p1 > 0) {
+                const double e = st.p1 / click_len;
+                y += 0.4 * p[12] * e * e * white(st);
+                st.p1 -= 1;
+            }
+            st.mode = 0;
+            sig[0] = y * p[13];
+            break;
+        }
         case Type::physMesh: {
             // The Physical instrument's Mesh model (see the Web engine).
             auto &line = v.lines[size_t(n.line)];
@@ -1774,6 +1816,36 @@ struct Engine {
         sig = {channel(in_l, 0), channel(in_r, 6)};
     }
 
+    // The Physical instrument's rotary speaker (see the Web engine).
+    void rotary(Fx &f, const Node &n, double in_l, double in_r, std::array<double, 2> &sig) {
+        const auto &p = n.knobs; // speed, mix
+        const int L = chorus_length;
+        auto &mem = f.mem;
+        if (!f.pos[1]) { f.pos[1] = 1; mem[0] = 0.8; mem[1] = 0.65; }
+        bool fast = p[0] >= 0.5;
+        for (int channel = 0; channel < 16 && !fast; ++channel) fast = cc[size_t(channel * 128 + 1)] >= 0.5;
+        mem[0] += (1 - std::exp(-1 / (0.5 * rate))) * ((fast ? 6.8 : 0.8) - mem[0]);
+        mem[1] += (1 - std::exp(-1 / (3 * rate))) * ((fast ? 5.9 : 0.65) - mem[1]);
+        mem[2] += mem[0] / rate;
+        if (mem[2] >= 1) mem[2] -= 1;
+        mem[3] += mem[1] / rate;
+        if (mem[3] >= 1) mem[3] -= 1;
+        const double x = (in_l + in_r) * 0.5;
+        mem[4] += (1 - std::exp(-2 * kPi * 800 / rate)) * (x - mem[4]);
+        const double lo = mem[4];
+        const int w = f.pos[0];
+        f.buf[size_t(w)] = float(std::clamp(x - lo, -4.0, 4.0));
+        const int next = w + 1 == L ? 0 : w + 1;
+        f.pos[0] = next;
+        const double hc = std::cos(2 * kPi * mem[2]), hs = std::sin(2 * kPi * mem[2]);
+        const double dc = std::cos(2 * kPi * mem[3]), ds = std::sin(2 * kPi * mem[3]);
+        const double d0 = std::max(1.0, 0.0002 * rate), dd = 0.00035 * rate;
+        const double hl = fx_read(f.buf, 0, L, next, d0 + dd * (1 - hc)) * (0.65 + 0.35 * hc);
+        const double hr = fx_read(f.buf, 0, L, next, d0 + dd * (1 - hs)) * (0.65 + 0.35 * hs);
+        const double rl = 1.2 * (hl + lo * (0.8 + 0.2 * dc)), rr = 1.2 * (hr + lo * (0.8 + 0.2 * ds));
+        sig = {in_l + p[1] * (rl - in_l), in_r + p[1] * (rr - in_r)};
+    }
+
     // The Physical instrument's piano soundboard (see the Web engine).
     void soundboard(Fx &f, const Node &n, double in_l, double in_r, std::array<double, 2> &sig) {
         auto &mem = f.mem;
@@ -1830,6 +1902,7 @@ struct Engine {
             else if (n.type == Type::chorus) chorus(f, n, in_l, in_r, sig);
             else if (n.type == Type::guitarAmp) amp(f, n, in_l, in_r, sig);
             else if (n.type == Type::soundboard) soundboard(f, n, in_l, in_r, sig);
+            else if (n.type == Type::rotary) rotary(f, n, in_l, in_r, sig);
             else reverb(f, n, in_l, in_r, sig);
             sig[0] = std::clamp(sig[0], -1e6, 1e6);
             sig[1] = std::clamp(sig[1], -1e6, 1e6);

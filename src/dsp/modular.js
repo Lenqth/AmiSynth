@@ -10,7 +10,7 @@ import { DRUM_PARAMS, defaultValues } from './params.js';
 
 // Native storage limits per module (checked by scripts/gen-modular-clap.js).
 export const MODULAR_MAX_INPUTS = 4;
-export const MODULAR_MAX_PARAMS = 10;
+export const MODULAR_MAX_PARAMS = 16;
 export const MODULAR_MAX_OUTPUTS = 8;
 export const BEAT_GRID_LANES = ['a', 'b', 'c', 'd'];
 export const BEAT_GRID_MAX_STEPS = 32;
@@ -164,6 +164,24 @@ export const MODULAR_TYPES = Object.freeze({
       strikeY: { min: 0, max: 1, default: 0.42, step: 0.001 },
       hardness: { min: 0, max: 1, default: 0.5, step: 0.001 },
       level: { min: 0, max: 1, default: 0.6, step: 0.01 },
+    } },
+  physOrgan: { label: 'Physical Organ', category: 'Physical',
+    keywords: 'tonewheel drawbar hammond organ percussion click physical model',
+    inputs: ['pitch', 'gate'], outputs: ['out'], params: {
+      d16: { min: 0, max: 8, default: 8, step: 1 },
+      d513: { min: 0, max: 8, default: 8, step: 1 },
+      d8: { min: 0, max: 8, default: 8, step: 1 },
+      d4: { min: 0, max: 8, default: 0, step: 1 },
+      d223: { min: 0, max: 8, default: 0, step: 1 },
+      d2: { min: 0, max: 8, default: 0, step: 1 },
+      d135: { min: 0, max: 8, default: 0, step: 1 },
+      d113: { min: 0, max: 8, default: 0, step: 1 },
+      d1: { min: 0, max: 8, default: 0, step: 1 },
+      percussion: { min: 0, max: 2, default: 0, step: 1, choices: ['Off', 'Second', 'Third'] },
+      percDecay: { min: 0.05, max: 3, default: 0.3, step: 0.01 },
+      percLevel: { min: 0, max: 1, default: 0.6, step: 0.001 },
+      click: { min: 0, max: 1, default: 0.3, step: 0.001 },
+      level: { min: 0, max: 2, default: 1, step: 0.01 },
     } },
   modal: { label: 'Modal Resonator', category: 'Physical', keywords: 'bell marimba glass gong mallet physical model resonance',
     inputs: ['in', 'pitch', 'gate', 'velocity'], outputs: ['out'], params: {
@@ -381,6 +399,12 @@ export const MODULAR_TYPES = Object.freeze({
       tone: { min: 0, max: 1, default: 0.5, step: 0.001, fixed: true },
       level: { min: -24, max: 12, default: 0, step: 0.1, fixed: true },
     } },
+  rotary: { label: 'Rotary Speaker', category: 'Patch Effects', global: true,
+    keywords: 'leslie rotary speaker horn drum organ doppler tremolo effect fx',
+    inputs: ['left', 'right'], outputs: ['left', 'right'], params: {
+      speed: { min: 0, max: 1, default: 0, step: 1, choices: ['Slow', 'Fast'], fixed: true },
+      mix: { min: 0, max: 1, default: 1, step: 0.001, fixed: true },
+    } },
   soundboard: { label: 'Soundboard', category: 'Patch Effects', global: true,
     keywords: 'piano soundboard body resonance bridge wood effect fx',
     inputs: ['left', 'right'], outputs: ['left', 'right'], params: {
@@ -414,6 +438,10 @@ export const MODULAR_WIND = { conePosition: [0, 0, 0.4, 0.35], coneGain: [0, 0, 
 export const MODULAR_BRASS = { boost: 6, boostPeriods: 10, seed: 0.15, steep: 1.5, gain: 2.5 };
 // The Physical instrument's piano constants: dispersion all-passes per string, hammer
 // integration sub-steps and the hammer pulse gain.
+// The Physical instrument's organ: drawbar parameters in drawbar order, the partial (of half the
+// note frequency) each one plays, the fold-down frequency of the top tonewheel and a drawbar's gain.
+export const MODULAR_ORGAN = { bars: ['d16', 'd513', 'd8', 'd4', 'd223', 'd2', 'd135', 'd113', 'd1'],
+  harmonics: [1, 3, 2, 4, 6, 8, 10, 12, 16], foldHz: 6000, gain: 0.12 };
 export const MODULAR_PIANO = { allpasses: 4, substeps: 4, gain: 63 };
 export { BRASS_MIN_DRIVE, BRASS_MULTS, BRASS_NOTE0, BRASS_SHARP };
 export const MODULAR_AMP_TYPES = [
@@ -422,7 +450,7 @@ export const MODULAR_AMP_TYPES = [
   [200, 8, 100, 0.2, 1, 2200, 6000],
   [150, 30, 600, 0.1, 2, 1800, 5000],
 ];
-const FX_TYPES = new Set(['echo', 'chorus', 'reverb', 'guitarAmp', 'soundboard']);
+const FX_TYPES = new Set(['echo', 'chorus', 'reverb', 'guitarAmp', 'soundboard', 'rotary']);
 
 const LINE_TYPES = new Set(['string', 'physString', 'physMesh', 'comb', 'reedPipe']);
 // Modules that ring on after their gate falls; a released voice lives until they are quiet.
@@ -1586,6 +1614,35 @@ function meshShape(n, shape) {
   meshShapes.set(shape * 32 + n, result);
   return result;
 }
+const organSines = new Float64Array(17);
+// The Physical instrument's rotary speaker: a crossover at 800 Hz, the treble through a spinning
+// horn (Doppler delay and amplitude), the bass through a drum; the rotors spin up and down slowly.
+// Fast with **speed** Fast or the mod wheel past half on any channel.
+function sampleRotary(s, fx, p, inL, inR, sig) {
+  const rate = s.sampleRate, L = chorusLength(rate), mem = fx.mem;
+  if (!fx.pos[1]) { fx.pos[1] = 1; mem[0] = 0.8; mem[1] = 0.65; }
+  let fast = p.speed >= 0.5;
+  for (let channel = 0; channel < 16 && !fast; channel++) fast = s.cc[channel * 128 + 1] >= 0.5;
+  mem[0] += (1 - Math.exp(-1 / (0.5 * rate))) * ((fast ? 6.8 : 0.8) - mem[0]);
+  mem[1] += (1 - Math.exp(-1 / (3 * rate))) * ((fast ? 5.9 : 0.65) - mem[1]);
+  mem[2] += mem[0] / rate;
+  if (mem[2] >= 1) mem[2] -= 1;
+  mem[3] += mem[1] / rate;
+  if (mem[3] >= 1) mem[3] -= 1;
+  const x = (inL + inR) * 0.5;
+  mem[4] += (1 - Math.exp(-TAU * 800 / rate)) * (x - mem[4]);
+  const lo = mem[4], w = fx.pos[0];
+  fx.buf[w] = clamp(x - lo, -4, 4);
+  const next = w + 1 === L ? 0 : w + 1;
+  fx.pos[0] = next;
+  const hc = Math.cos(TAU * mem[2]), hs = Math.sin(TAU * mem[2]), dc = Math.cos(TAU * mem[3]), ds = Math.sin(TAU * mem[3]);
+  const d0 = Math.max(1, 0.0002 * rate), dd = 0.00035 * rate;
+  const hl = fxRead(fx.buf, 0, L, next, d0 + dd * (1 - hc)) * (0.65 + 0.35 * hc);
+  const hr = fxRead(fx.buf, 0, L, next, d0 + dd * (1 - hs)) * (0.65 + 0.35 * hs);
+  const rl = 1.2 * (hl + lo * (0.8 + 0.2 * dc)), rr = 1.2 * (hr + lo * (0.8 + 0.2 * ds));
+  sig.left = inL + p.mix * (rl - inL);
+  sig.right = inR + p.mix * (rr - inR);
+}
 function freeReedFlow(x, bias) {
   const d = Math.abs(x - bias) - MODULAR_WIND.overlap;
   return d > 0 ? d : 0;
@@ -1641,6 +1698,7 @@ function sampleGlobals(s) {
     else if (n.type === 'chorus') sampleChorus(s, fx, n.params, inL, inR, sig);
     else if (n.type === 'guitarAmp') sampleAmp(s, fx, n.params, inL, inR, sig);
     else if (n.type === 'soundboard') sampleSoundboard(s, fx, n.params, inL, inR, sig);
+    else if (n.type === 'rotary') sampleRotary(s, fx, n.params, inL, inR, sig);
     else sampleReverb(s, fx, n.params, inL, inR, sig);
     sig.left = clamp(sig.left, -1e6, 1e6);
     sig.right = clamp(sig.right, -1e6, 1e6);
@@ -2451,6 +2509,49 @@ function sampleNode(s, v, i) {
       st.amp = Math.max(Math.abs(out), st.amp * 0.9995);
       st.mode = st.amp > 1e-4 ? 1 : 0;
       sig.out = clamp(out, -16, 16) * parameter(v, n, 'level');
+      break;
+    }
+    case 'physOrgan': {
+      // The Physical instrument's tonewheel organ: nine drawbar sines (partials above the top
+      // tonewheel fold down an octave), single-trigger percussion and a key click. The level
+      // envelope and velocity are patched outside the module.
+      const rate = s.sampleRate, O = MODULAR_ORGAN;
+      const gate = read(v, n, 'gate', 1) >= 0.5;
+      const hz = clamp(440 * Math.pow(2, (read(v, n, 'pitch', 69) - 69) / 12), 1, rate * 0.45);
+      if (gate && !st.lastGate) {
+        // Percussion only strikes when no earlier key is still down.
+        st.p0 = s.voices.some(o => o !== v && o.active && o.keyDown && o.age < v.age) ? 0 : 1;
+        st.p1 = parameter(v, n, 'click') > 0 ? Math.max(1, Math.round(0.004 * rate)) : 0;
+      }
+      st.lastGate = gate;
+      const inc = 0.5 * hz / rate;
+      st.phase += inc;
+      if (st.phase >= 1) st.phase -= 1;
+      const th = TAU * st.phase, c2 = 2 * Math.cos(th), sn = organSines;
+      sn[0] = 0;
+      sn[1] = Math.sin(th);
+      for (let k = 2; k <= 16; k++) sn[k] = c2 * sn[k - 1] - sn[k - 2];
+      const half = inc * rate, top = 0.45 * rate;
+      let y = 0;
+      for (let j = 0; j < 9; j++) {
+        const bar = clamp(Math.round(parameter(v, n, O.bars[j])), 0, 8);
+        if (bar === 0) continue;
+        let k = O.harmonics[j];
+        if (k * half > O.foldHz && k > 3) k = k / 2;
+        if (k * half < top) y += O.gain * Math.pow(10, 3 * (bar - 8) / 20) * sn[k];
+      }
+      const perc = Math.round(parameter(v, n, 'percussion')), pk = perc === 1 ? 4 : perc === 2 ? 6 : 0;
+      if (pk > 0 && st.p0 > 0.00001) {
+        if (pk * half < top) y += 2 * O.gain * parameter(v, n, 'percLevel') * st.p0 * sn[pk];
+        st.p0 *= Math.exp(-LN1000 / (Math.max(parameter(v, n, 'percDecay'), 1e-5) * rate));
+      }
+      if (st.p1 > 0) {
+        const e = st.p1 / Math.max(1, Math.round(0.004 * rate));
+        y += 0.4 * parameter(v, n, 'click') * e * e * white(st);
+        st.p1--;
+      }
+      st.mode = 0;
+      sig.out = y * parameter(v, n, 'level');
       break;
     }
     case 'physBrass': {

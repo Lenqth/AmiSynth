@@ -401,6 +401,9 @@ const PHYS_MODELS = {
     'amp_type', 'amp_gain', 'amp_tone', 'amp_level_db', 'phys_vibrato_cents', 'phys_vibrato_rate_hz']),
   3: new Set(['wind_type', 'breath_pressure', 'breath_noise', 'wind_attack_ms', 'wind_embouchure', 'free_reed_detune_cents',
     'phys_vibrato_cents', 'phys_vibrato_rate_hz']),
+  7: new Set(['organ_drawbar_16', 'organ_drawbar_5_13', 'organ_drawbar_8', 'organ_drawbar_4', 'organ_drawbar_2_23',
+    'organ_drawbar_2', 'organ_drawbar_1_35', 'organ_drawbar_1_13', 'organ_drawbar_1', 'organ_percussion', 'organ_perc_decay_ms',
+    'organ_perc_level', 'organ_click', 'rotary_mode', 'rotary_mix', 'amp_type', 'amp_gain', 'amp_tone', 'amp_level_db']),
   4: new Set(['mesh_shape', 'mesh_size', 'mesh_decay_ms', 'mesh_high_damping', 'mesh_strike_x', 'mesh_strike_y', 'mesh_hardness']),
   5: new Set(['piano_inharmonicity', 'piano_hammer_hardness', 'piano_strike_position', 'piano_decay_ms', 'piano_damping',
     'piano_soundboard', 'piano_unison_detune_cents', 'amp_type', 'amp_gain', 'amp_tone', 'amp_level_db']),
@@ -473,6 +476,24 @@ export function modularFromPhysical(params) {
     wire('note', 'velocity', source, 'velocity');
     node('dynamics', 'vca', { level: Math.min(2, Math.round(voiceGain * panGain * 1e4) / 1e4) }, 1);
     wire(source, 'out', 'dynamics', 'audio');
+    wire('velocity', 'out', 'dynamics', 'gain');
+    source = 'dynamics';
+  }
+  if (model === 7) {
+    // The drawbars through Physical's organ envelope (1.5 ms attack), scaled by velocity.
+    source = node('organ', 'physOrgan', { d16: p.organ_drawbar_16, d513: p.organ_drawbar_5_13, d8: p.organ_drawbar_8,
+      d4: p.organ_drawbar_4, d223: p.organ_drawbar_2_23, d2: p.organ_drawbar_2, d135: p.organ_drawbar_1_35,
+      d113: p.organ_drawbar_1_13, d1: p.organ_drawbar_1, percussion: Math.round(p.organ_percussion),
+      percDecay: p.organ_perc_decay_ms / 1000, percLevel: p.organ_perc_level, click: p.organ_click, level: 1 }, 1);
+    wire(...pitch, source, 'pitch');
+    wire('note', 'gate', source, 'gate');
+    node('envelope', 'adsr', { attack: 0.0015, decay: 0.001, sustain: 1, release: Math.max(0.001, p.phys_release_ms / 1000), curve: 1 }, 0);
+    wire('note', 'gate', 'envelope', 'gate');
+    node('keying', 'vca', { level: 1 }, 1);
+    wire(source, 'out', 'keying', 'audio');
+    wire('envelope', 'out', 'keying', 'gain');
+    node('dynamics', 'vca', { level: Math.min(2, Math.round(voiceGain * panGain * 1e4) / 1e4) }, 1);
+    wire('keying', 'out', 'dynamics', 'audio');
     wire('velocity', 'out', 'dynamics', 'gain');
     source = 'dynamics';
   }
@@ -599,11 +620,19 @@ export function modularFromPhysical(params) {
     if (right) wire(...right, 'amp', 'right');
     left = ['amp', 'left'];
     right = ['amp', 'right'];
-    node('out', 'fxOutput', { level: Math.min(2, Math.round(outputGain * 1e4) / 1e4) }, 3);
-    wire(...left, 'out', 'left');
-    wire(...right, 'out', 'right');
-  } else if (board) {
-    node('out', 'fxOutput', { level: 1 }, 3);
+  }
+  // The organ's rotary speaker follows the amp; Slow switches to Fast with the mod wheel.
+  const rotary = model === 7 && Math.round(p.rotary_mode) > 0;
+  if (rotary) {
+    node('rotary', 'rotary', { speed: Math.round(p.rotary_mode) - 1, mix: p.rotary_mix }, 3);
+    wire(...left, 'rotary', 'left');
+    if (right) wire(...right, 'rotary', 'right');
+    left = ['rotary', 'left'];
+    right = ['rotary', 'right'];
+  }
+  const chain = board || amp || rotary;
+  if (chain) {
+    node('out', 'fxOutput', { level: amp ? Math.min(2, Math.round(outputGain * 1e4) / 1e4) : 1 }, 3);
     wire(...left, 'out', 'left');
     wire(...right, 'out', 'right');
   } else {
@@ -618,7 +647,7 @@ export function modularFromPhysical(params) {
     const gain = p.phys_room_mix * 10 ** (-roomExcess(p.phys_room_decay_ms) / 20) * (amp ? outputGain : 1);
     // FX output goes up to 2; before the amp, a per-voice send VCA supplies the rest.
     let send = left, sendRight = right;
-    if (gain > 2 && !amp && !board) {
+    if (gain > 2 && !chain) {
       node('send', 'vca', { level: Math.min(2, Math.round(gain / 2 * 1000) / 1000) }, 3);
       wire(...left, 'send', 'audio');
       send = ['send', 'out'];

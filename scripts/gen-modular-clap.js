@@ -2,7 +2,7 @@
 import { writeFileSync } from 'node:fs';
 import { HAT_RATIOS } from '../src/dsp/drums.js';
 import { BEAT_GRID_MAX_STEPS } from '../src/dsp/modular.js';
-import { BRASS_MIN_DRIVE, BRASS_MULTS, BRASS_NOTE0, BRASS_SHARP, MODULAR_BRASS, MODULAR_AMP_TYPES, MODULAR_WIND, MODULAR_ECHO_BEATS, MODULAR_ECHO_SECONDS, MODULAR_FX_MEMORY, MODULAR_FX_SLOTS, MODULAR_PIANO, MODULAR_REVERB_ALLPASSES, MODULAR_REVERB_COMBS, MODULAR_REVERB_SPREAD } from '../src/dsp/modular.js';
+import { BRASS_MIN_DRIVE, BRASS_MULTS, BRASS_NOTE0, BRASS_SHARP, MODULAR_BRASS, MODULAR_AMP_TYPES, MODULAR_WIND, MODULAR_ECHO_BEATS, MODULAR_ECHO_SECONDS, MODULAR_FX_MEMORY, MODULAR_FX_SLOTS, MODULAR_ORGAN, MODULAR_PIANO, MODULAR_REVERB_ALLPASSES, MODULAR_REVERB_COMBS, MODULAR_REVERB_SPREAD } from '../src/dsp/modular.js';
 import { MODULAR_DRUM_DECAY, MODULAR_DRUM_PITCH } from '../src/dsp/modular.js';
 import {
   MODULAR_LINE_SAMPLES, MODULAR_LINES, MODULAR_MACROS, MODULAR_MATERIALS, MODULAR_MAX_INPUTS, MODULAR_MAX_OUTPUTS,
@@ -77,6 +77,8 @@ constexpr double kBrassBoost = ${MODULAR_BRASS.boost}, kBrassBoostPeriods = ${MO
 constexpr double kBrassSeed = ${MODULAR_BRASS.seed}, kBrassSteep = ${MODULAR_BRASS.steep}, kBrassGain = ${MODULAR_BRASS.gain};
 constexpr int kPianoAllpasses = ${MODULAR_PIANO.allpasses}, kPianoSubsteps = ${MODULAR_PIANO.substeps};
 constexpr double kPianoGain = ${MODULAR_PIANO.gain};
+constexpr std::array<int, 9> kOrganHarmonics{${MODULAR_ORGAN.harmonics.join(', ')}};
+constexpr double kOrganFoldHz = ${MODULAR_ORGAN.foldHz}, kOrganGain = ${MODULAR_ORGAN.gain};
 constexpr double kAmpTypes[][7] = {${MODULAR_AMP_TYPES.map(list).join(', ')}};
 constexpr bool kGlobal[] = {${Object.values(MODULAR_TYPES).map(t => !!t.global).join(', ')}};
 inline constexpr double kWtSpectra[kWtBanks][kWtFrames][2][kWtHarmonics] = {
