@@ -327,6 +327,25 @@ TRANSPORT[HOST_CLOCKS] = [
   { at: 19000, bpm: 180, playing: true, beat: 0 },
 ];
 
+const HOST_LFOS = 'host-synced LFOs follow tempo and position and run free while stopped';
+PATCHES[HOST_LFOS] = voice([
+  { id: 'osc', type: 'vco', params: { wave: 1 } },
+  { id: 'sum', type: 'mix', params: { a: 1, b: 1 } },
+  { id: 'vib', type: 'lfo', params: { rate: 3, depth: 0.2, wave: 0, sync: 1, beats: 9 } },
+  { id: 'trem', type: 'lfo', params: { rate: 2, depth: 0.5, wave: 4, sync: 1, beats: 6 } },
+  { id: 'gain', type: 'cv', params: { scale: 1, offset: 0.5 } },
+  { id: 'amp', type: 'vca' },
+], [
+  { from: 'note', port: 'pitch', to: 'sum', input: 'a' },
+  { from: 'vib', port: 'out', to: 'sum', input: 'b' },
+  { from: 'sum', port: 'out', to: 'osc', input: 'pitch' },
+  { from: 'trem', port: 'out', to: 'gain', input: 'in' },
+  { from: 'osc', port: 'out', to: 'amp', input: 'audio' },
+  { from: 'gain', port: 'out', to: 'amp', input: 'gain' },
+  { from: 'amp', port: 'out', to: 'out', input: 'audio' },
+]);
+TRANSPORT[HOST_LFOS] = TRANSPORT[HOST_CLOCKS];
+
 const PATCH_FX = 'patch effects: echo (free and host-synced ping-pong), chorus and reverb on the voice sum';
 PATCHES[PATCH_FX] = {
   nodes: [

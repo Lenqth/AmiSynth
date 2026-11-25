@@ -1018,8 +1018,12 @@ struct Engine {
             break;
         }
         case Type::lfo:
-            sig[0] = lfo_wave(int(std::round(p[2])), st.phase) * p[1];
-            st.phase = std::fmod(st.phase + p[0] / rate, 1.0);
+        {
+            const double beats = n.knobs[3] != 0 ? kLfoBeats[size_t(n.knobs[4])] : 0;
+            const double phase = beats != 0 && host.playing ? host.beat / beats - std::floor(host.beat / beats) : st.phase;
+            sig[0] = lfo_wave(int(std::round(p[2])), phase) * p[1];
+            st.phase = std::fmod(phase + (beats != 0 ? host.bpm / (60 * beats) : p[0]) / rate, 1.0);
+        }
             break;
         case Type::adsr: {
             const bool gate = read(v, n, 0) >= 0.5;

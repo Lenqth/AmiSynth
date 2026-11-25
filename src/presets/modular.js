@@ -29,7 +29,7 @@ const SUPPORTED = new Set([
   'wt_position_lfo', 'wt_position_filter_env', 'wt_position_amp_env',
   'unison_voices', 'unison_detune_cents', 'unison_side_level', 'unison_detune_curve', 'master_volume_db',
   'voice_mode', 'glide_mode', 'lfo_amp', 'lfo_pulse_width', 'noise_filter_mode', 'noise_filter_hz',
-  'lfo2_waveform', 'lfo2_rate_hz', 'mod_env_attack_ms', 'mod_env_decay_ms', 'mod_env_sustain', 'mod_env_release_ms',
+  'lfo2_waveform', 'lfo2_rate_hz', 'lfo_sync', 'lfo2_sync', 'mod_env_attack_ms', 'mod_env_decay_ms', 'mod_env_sustain', 'mod_env_release_ms',
   ...Array.from({ length: MOD_SLOTS }, (_, i) => ['source', 'destination', 'amount'].map(k => `mod${i + 1}_${k}`)).flat(),
   'fx_chorus_on', 'fx_chorus_mix', 'fx_chorus_rate_hz', 'fx_chorus_depth_ms',
   'fx_delay_on', 'fx_delay_mix', 'fx_delay_sync', 'fx_delay_time_ms', 'fx_delay_feedback', 'fx_delay_ping_pong', 'fx_delay_high_cut_hz',
@@ -51,7 +51,7 @@ const COLUMN = 274, ROW = 300;
 // Patch Echo note values (MODULAR_ECHO_BEATS in dsp/modular.js, which imports this file).
 const ECHO_BEATS = [0.25, 0.5, 0.75, 1, 1.5, 2, 4, 0.125, 1 / 6, 0.375, 1 / 3, 2 / 3, 4 / 3, 3];
 // Mod matrix destinations the conversion patches; the others throw.
-const MOD_PATCHED = new Set(['Pitch', 'Filter Cutoff', 'Osc2 Pitch', 'FM Index', 'Pan', 'LFO 1 Rate',
+const MOD_PATCHED = new Set(['Pitch', 'Filter Cutoff', 'Filter Resonance', 'Osc2 Pitch', 'FM Index', 'Pan', 'LFO 1 Rate',
   'Noise Level', 'Osc1 WT Position', 'Osc2 WT Position']);
 // Freeverb's mean comb length; with the comb feedback it sets the decay time.
 const REVERB_COMB_SECONDS = 1350 / 44100;
@@ -141,17 +141,23 @@ export function modularFromSynth(params) {
   wire('note', 'gate', 'fenv', 'gate');
   env('aenv', 'amp');
   wire('note', 'gate', 'aenv', 'gate');
-  const lfoNode = (id, wave, rate) => LFO_WAVES[wave] === 'sample-and-hold'
-    ? node(id, 'sh', { rate }, 0) : node(id, 'lfo', { rate, depth: 1, wave: LFO_WAVES[wave] }, 0);
+  // A host-synced LFO keeps the Synth's note value (LFO Sync index 1.. = MODULAR_LFO_BEATS 0..).
+  const lfoNode = (id, wave, rate, sync) => {
+    if (LFO_WAVES[wave] === 'sample-and-hold') {
+      if (sync > 0) throw new Error('Modular cannot play a tempo-synced Sample & Hold LFO');
+      return node(id, 'sh', { rate }, 0);
+    }
+    return node(id, 'lfo', { rate, depth: 1, wave: LFO_WAVES[wave], ...(sync > 0 ? { sync: 1, beats: sync - 1 } : {}) }, 0);
+  };
   let lfo = null;
   const usesTables = p.osc1_waveform === 4 || p.osc2_waveform === 4;
   const needsLfo = p.lfo_pitch_cents !== 0 || p.lfo_filter_oct !== 0 || p.lfo_amp !== 0 ||
     p.lfo_pulse_width !== 0 || (usesTables && p.wt_position_lfo !== 0) || uses('LFO 1');
-  if (needsLfo) lfo = lfoNode('lfo', p.lfo_waveform, p.lfo_rate_hz);
+  if (needsLfo) lfo = lfoNode('lfo', p.lfo_waveform, p.lfo_rate_hz, Math.round(p.lfo_sync));
 
   // Mod matrix sources, each a [node, port] with the Synth's range.
   const sources = {};
-  if (uses('LFO 2')) sources['LFO 2'] = [lfoNode('lfo2', p.lfo2_waveform, p.lfo2_rate_hz), 'out'];
+  if (uses('LFO 2')) sources['LFO 2'] = [lfoNode('lfo2', p.lfo2_waveform, p.lfo2_rate_hz, Math.round(p.lfo2_sync)), 'out'];
   if (uses('LFO 1')) sources['LFO 1'] = [lfo, 'out'];
   if (uses('Mod Env')) {
     sources['Mod Env'] = [env('menv', 'mod_env'), 'out'];
@@ -308,6 +314,14 @@ export function modularFromSynth(params) {
   if (lfo && p.lfo_filter_oct) cutoff.push([scale('lfodepth', lfo, 'out', p.lfo_filter_oct / 2, 0, 3), 'out']);
   cutoff.push(...modTerms('Filter Cutoff', 1 / 2, 3));
   if (cutoff.length) wire(total('cutoff', cutoff, 3), 'out', 'filter', 'cutoff');
+
+  // Filter Resonance slots: the Synth's damping follows the square root of knob + amount; a linear
+  // CV matches it at source values 0 and 1.
+  const resonanceOf = r => Math.min(0.95, 1.98 * Math.sqrt(Math.max(0, Math.min(1, r))) / 1.95);
+  const resonanceTerms = slots.filter(slot => slot[1] === 'Filter Resonance').map(([source, , amount]) =>
+    [scale('mod' + ++termCount, ...sources[source], resonanceOf(p.filter_resonance + amount) - resonanceOf(p.filter_resonance), 0, 3), 'out']);
+  if (resonanceTerms.length) wire(sum('resonance', [[scale('resbase', null, null, 0, resonanceOf(p.filter_resonance), 3), 'out', 1],
+    ...resonanceTerms.map(([id, port]) => [id, port, 1])], 3), 'out', 'filter', 'param:resonance');
 
   // LFO 1 Rate slots: the Synth multiplies the rate by 2^amount; a linear CV matches it at
   // source values 0 and 1.

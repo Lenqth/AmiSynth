@@ -227,6 +227,9 @@ export const MODULAR_TYPES = Object.freeze({
       rate: { min: 0.01, max: 30, default: 2, step: 0.01 },
       depth: { min: 0, max: 1, default: 1, step: 0.01 },
       wave: { min: 0, max: 4, default: 0, step: 1, choices: ['Sine', 'Triangle', 'Saw Down', 'Square', 'Duck'] },
+      sync: { min: 0, max: 1, default: 0, step: 1, choices: ['Free', 'Host'], fixed: true },
+      beats: { min: 0, max: 15, default: 6, step: 1, choices: ['4 bars', '2 bars', '1/1', '1/2', '1/2 dotted', '1/2 triplet',
+        '1/4', '1/4 dotted', '1/4 triplet', '1/8', '1/8 dotted', '1/8 triplet', '1/16', '1/16 dotted', '1/16 triplet', '1/32'], fixed: true },
     } },
   adsr: { label: 'ADSR', category: 'Modulation', keywords: 'envelope attack decay sustain release eg',
     inputs: ['gate'], outputs: ['out'], params: {
@@ -440,6 +443,8 @@ export const MODULAR_FX_SLOTS = 4;
 // Each slot's state values (the Soundboard keeps 16 modes of 2 states and 6 coefficients).
 export const MODULAR_FX_MEMORY = 128;
 export const MODULAR_ECHO_SECONDS = 2;
+// The LFO's host-synced cycle lengths in beats (quarter notes), as the Synth's LFO Sync.
+export const MODULAR_LFO_BEATS = [16, 8, 4, 2, 3, 4 / 3, 1, 1.5, 2 / 3, 0.5, 0.75, 1 / 3, 0.25, 0.375, 1 / 6, 0.125];
 // Later entries were appended so stored patches keep their note values.
 export const MODULAR_ECHO_BEATS = [0.25, 0.5, 0.75, 1, 1.5, 2, 4, 0.125, 1 / 6, 0.375, 1 / 3, 2 / 3, 4 / 3, 3];
 // Freeverb's comb and allpass lengths at 44.1 kHz; the right channel is 23 samples longer.
@@ -2184,9 +2189,12 @@ function sampleNode(s, v, i) {
       break;
     }
     case 'lfo': {
-      const phase = st.phase;
+      // Host sync: one cycle every **beats**, locked to the host's beat position while it plays
+      // (all voices in step) and running on at the host tempo while it is stopped.
+      const beats = n.params.sync ? MODULAR_LFO_BEATS[n.params.beats] : 0;
+      const phase = beats && s.host.playing ? hostPhase(s.host.beat / beats) : st.phase;
       sig.out = lfoWave(Math.round(parameter(v, n, 'wave')), phase) * parameter(v, n, 'depth');
-      st.phase = (phase + parameter(v, n, 'rate') / s.sampleRate) % 1;
+      st.phase = (phase + (beats ? s.host.bpm / (60 * beats) : parameter(v, n, 'rate')) / s.sampleRate) % 1;
       break;
     }
     case 'adsr': {
