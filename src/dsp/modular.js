@@ -4,10 +4,9 @@
 import { MATERIALS } from './phys.js';
 import { HAT_RATIOS } from './drums.js';
 import { WT_BANK_NAMES, wt_build, wt_sample } from './wavetable.js';
-import { MODULAR_SYNTH_PORTS } from '../presets/modular.js';
-import { PHYS_PRESETS } from '../presets/phys.js';
+import { MODULAR_PHYSICAL_PORTS, MODULAR_SYNTH_PORTS } from '../presets/modular.js';
 import { DRUM_PRESETS } from '../presets/drums.js';
-import { DRUM_PARAMS, PHYS_PARAMS, defaultValues } from './params.js';
+import { DRUM_PARAMS, defaultValues } from './params.js';
 
 // Native storage limits per module (checked by scripts/gen-modular-clap.js).
 export const MODULAR_MAX_INPUTS = 4;
@@ -575,11 +574,6 @@ const FACTORY_PATCHES = [
     return patch;
   } },
   ...physicalPresets(),
-  ...['Wine Glass', 'Kalimba'].map(name => ({
-    name: name + ' (Modular)', category: 'Mallets', source: 'Physical',
-    description: PHYS_PRESETS.find(preset => preset.name === name).description,
-    patch: () => modalPresetFromPhysical(name),
-  })),
   { name: 'Velvet Reed', patch: velvetReed },
   { name: 'Cowbell and Shaker', patch: () => percussionLayer('bell', { sound: 7, level: 0.7 },
     'shaker', { sound: 8, level: 0.48 }) },
@@ -681,6 +675,7 @@ const FACTORY_PATCHES = [
     description: 'Plucked string through a host-synced dotted-eighth ping-pong echo and a hall reverb',
     patch: echoHallPluck },
   ...MODULAR_SYNTH_PORTS,
+  ...MODULAR_PHYSICAL_PORTS,
 ];
 
 const MANUAL_CATEGORIES = {
@@ -846,28 +841,6 @@ function physicalPresets() {
       bell: ['modal', { material: 4, decay: 6, release: 4, brightness: 0.7, level: 0.45 }],
     }, 'note.pitch > bell.pitch', 'note.gate > bell.gate', 'bell.out > out.audio') },
   ];
-}
-
-function modalPresetFromPhysical(name) {
-  const source = PHYS_PRESETS.find(preset => preset.name === name);
-  const p = { ...defaultValues(PHYS_PARAMS), ...source.params };
-  return {
-    nodes: [
-      { id: 'note', type: 'midi', position: { x: 22, y: 22 } },
-      { id: 'resonator', type: 'modal', params: {
-        material: p.modal_material, decay: p.modal_decay_ms / 1000, release: p.phys_release_ms / 1000,
-        brightness: 1 - p.modal_high_damping, hardness: p.modal_hardness, strikePosition: p.modal_strike_position,
-        level: Math.min(1, 10 ** (p.phys_volume_db / 20)),
-      }, position: { x: 296, y: 22 } },
-      { id: 'out', type: 'output', position: { x: 570, y: 22 } },
-    ],
-    cables: [
-      { from: 'note', port: 'pitch', to: 'resonator', input: 'pitch' },
-      { from: 'note', port: 'gate', to: 'resonator', input: 'gate' },
-      { from: 'note', port: 'velocity', to: 'resonator', input: 'velocity' },
-      { from: 'resonator', port: 'out', to: 'out', input: 'audio' },
-    ],
-  };
 }
 
 function drumPreset808() {

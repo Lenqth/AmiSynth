@@ -9,7 +9,9 @@
 // with each voice instead of running globally, and performance controls
 // (mod wheel, pitch-bend range) are not part of a patch. Anything else a preset changes throws,
 // so a patch never silently sounds unlike its name.
-import { DELAY_SYNC_BEATS, MOD_DESTINATIONS, MOD_SLOTS, MOD_SOURCES, SYNTH_PARAMS, defaultValues } from '../dsp/params.js';
+import { DELAY_SYNC_BEATS, MOD_DESTINATIONS, MOD_SLOTS, MOD_SOURCES, PHYS_PARAMS, SYNTH_PARAMS, defaultValues } from '../dsp/params.js';
+import { MATERIALS } from '../dsp/phys.js';
+import { PHYS_PRESETS } from './phys.js';
 import { SYNTH_PRESETS } from './synth.js';
 
 const DEFAULTS = defaultValues(SYNTH_PARAMS);
@@ -381,3 +383,132 @@ export const MODULAR_SYNTH_PORTS = SYNTH_PRESETS.filter(preset => {
   try { modularFromSynth(preset.params); return true; } catch { return false; }
 }).map(preset => ({ name: preset.name, category: preset.category, description: preset.description,
   source: 'Synth', patch: () => modularFromSynth(preset.params) }));
+
+// ---- Physical presets ------------------------------------------------------------------------
+//
+// A Physical preset is rebuilt from the Modular module with the same model. The stereo width
+// pans each note by its pitch, as Physical does, and the Room becomes a patch Reverb added to the
+// dry sound. Anything else a preset changes throws.
+
+const PHYS_DEFAULTS = defaultValues(PHYS_PARAMS);
+// Read by every model, or deliberately left out (performance controls and the sustain pedal).
+const PHYS_COMMON = new Set(['phys_model', 'phys_volume_db', 'phys_release_ms', 'phys_stereo_width', 'phys_room_mix',
+  'phys_room_decay_ms', 'phys_velocity_amount', 'phys_pitch_bend_range_cents', 'phys_sustain_mode',
+  'tuning_divisions', 'tuning_period_cents', 'tuning_ref_note', 'tuning_ref_hz']);
+const PHYS_MODELS = {
+  1: new Set(['modal_material', 'modal_decay_ms', 'modal_high_damping', 'modal_hardness', 'modal_strike_position',
+    'modal_inharmonicity']),
+};
+// How much louder (dB) Modular's Reverb at mix 1 is than the Physical room, by room decay (ms),
+// measured as wet against dry energy with Woodblock hits on four notes, then 3 dB less wet so
+// sustained modal tones (Celesta, Steel Drums), whose reverb measures louder, come closer.
+// Negative: Modular's is quieter, and the room's send and FX output turn it up.
+const ROOM_DECAYS = [200, 400, 700, 1300, 2500, 4000, 6000];
+const ROOM_EXCESS_DB = [-3.6, -9.8, -13.5, -14.6, -15, -15, -15];
+
+function roomExcess(decayMs) {
+  const logs = ROOM_DECAYS.map(Math.log), d = Math.log(decayMs);
+  const row = Math.max(0, Math.min(logs.length - 2, logs.findLastIndex(value => value <= d)));
+  return lerp(ROOM_EXCESS_DB, row + (d - logs[row]) / (logs[row + 1] - logs[row]));
+}
+
+/** A Modular patch that plays a Physical preset's parameters. */
+export function modularFromPhysical(params) {
+  const p = { ...PHYS_DEFAULTS, ...params };
+  const model = Math.round(p.phys_model), supported = PHYS_MODELS[model];
+  if (!supported) throw new Error(`Modular cannot play the ${PHYS_PARAMS.find(d => d.id === 'phys_model').options[model]} model`);
+  for (const [key, value] of Object.entries(params))
+    if (!PHYS_COMMON.has(key) && !supported.has(key) && value !== PHYS_DEFAULTS[key]) throw new Error(`Modular cannot play ${key}`);
+
+  const nodes = [], cables = [], rows = [0, 0, 0, 0, 0];
+  const node = (id, type, settings, column, extra) => {
+    nodes.push({ id, type, params: settings, ...extra, position: { x: 22 + column * COLUMN, y: 22 + rows[column]++ * ROW } });
+    return id;
+  };
+  const wire = (from, port, to, input) => cables.push({ from, port, to, input });
+  node('note', 'midi', {}, 0);
+  // Physical scales its excitation by velocity this much.
+  node('velocity', 'cv', { scale: p.phys_velocity_amount, offset: 1 - p.phys_velocity_amount }, 0);
+  wire('note', 'velocity', 'velocity', 'in');
+  // Physical's modal sum is scaled by 1.6, and its output by 0.5.
+  const level = 0.8 * 10 ** (p.phys_volume_db / 20);
+
+  let source;
+  if (model === 1) {
+    const material = Math.round(p.modal_material);
+    const extra = {};
+    if (p.modal_inharmonicity) {
+      // Stretched ratios, as Physical's ratio^(1 + inharmonicity), in a custom table.
+      const mat = MATERIALS[material];
+      extra.modalTable = mat.ratios.slice(0, 8).map((ratio, k) => ({ ratio: ratio ** (1 + p.modal_inharmonicity),
+        gain: mat.gains[k], decay: 1 }));
+    }
+    source = node('resonator', 'modal', {
+      material, decay: p.modal_decay_ms / 1000, release: p.phys_release_ms / 1000,
+      brightness: 1 - p.modal_high_damping, hardness: p.modal_hardness, strikePosition: p.modal_strike_position,
+      level: Math.min(1, level),
+    }, 1, extra);
+    wire('note', 'pitch', source, 'pitch');
+    wire('note', 'gate', source, 'gate');
+    wire('velocity', 'out', source, 'velocity');
+  }
+  // Level above the module's maximum, and Physical's constant-power pan (+3 dB at the centre
+  // against Pan / Spread), go on a VCA.
+  const width = p.phys_stereo_width;
+  const boost = Math.max(1, level) * (width > 0 ? Math.SQRT2 : 1);
+  let left = [source, 'out'], right = null;
+  if (boost > 1 + 1e-9) {
+    node('gain', 'vca', { level: Math.min(2, boost) }, 2);
+    wire(source, 'out', 'gain', 'audio');
+    left = ['gain', 'out'];
+  }
+  if (width > 0) {
+    // Physical pans each note by (note - 60) / 36 x width.
+    node('place', 'cv', { scale: width / 36, offset: -60 * width / 36 }, 2);
+    wire('note', 'pitch', 'place', 'in');
+    node('pan', 'pan', { pan: 0, spread: 0 }, 2);
+    wire(...left, 'pan', 'in');
+    wire('place', 'out', 'pan', 'param:pan');
+    left = ['pan', 'left'];
+    right = ['pan', 'right'];
+  }
+  node('out', 'output', { level: 1 }, 3);
+  wire(...left, 'out', 'audio');
+  if (right) wire(...right, 'out', 'right');
+  if (p.phys_room_mix > 0) {
+    // The room's decay sets the Reverb size, as for the Synth reverb. Measured, Physical's room
+    // decays in about 0.93 of its setting and the Reverb in about 1.03 of its target.
+    const room = 10 ** (-3 * REVERB_COMB_SECONDS / (0.9 * p.phys_room_decay_ms / 1000));
+    const gain = p.phys_room_mix * 10 ** (-roomExcess(p.phys_room_decay_ms) / 20);
+    // FX output goes up to 2; a per-voice send VCA supplies the rest.
+    let send = left, sendRight = right;
+    if (gain > 2) {
+      node('send', 'vca', { level: Math.min(2, Math.round(gain / 2 * 1000) / 1000) }, 3);
+      wire(...left, 'send', 'audio');
+      send = ['send', 'out'];
+      if (right) {
+        node('sendright', 'vca', { level: nodes.at(-1).params.level }, 3);
+        wire(...right, 'sendright', 'audio');
+        sendRight = ['sendright', 'out'];
+      }
+    }
+    node('room', 'reverb', { size: Math.max(0, Math.min(1, (room - 0.7) / 0.28)), damping: 0.45, width: 1, mix: 1 }, 3);
+    wire(...send, 'room', 'left');
+    if (sendRight) wire(...sendRight, 'room', 'right');
+    node('roomout', 'fxOutput', { level: Math.round(Math.min(2, gain) * 1000) / 1000 }, 3);
+    wire('room', 'left', 'roomout', 'left');
+    wire('room', 'right', 'roomout', 'right');
+  }
+  return { nodes, cables };
+}
+
+// Physical categories under the names the Modular library already uses.
+const PHYS_CATEGORIES = { String: 'Strings', Mallet: 'Mallets', Bowed: 'Strings', Wind: 'Winds', Reed: 'Winds',
+  'Free Reed': 'Winds' };
+
+/** Physical presets whose sound Modular reproduces, by name. */
+export const MODULAR_PHYSICAL_PORTS = PHYS_PRESETS.filter(preset => {
+  try { modularFromPhysical(preset.params); return true; } catch { return false; }
+}).map(preset => ({ name: preset.name + ' (Modular)', category: PHYS_CATEGORIES[preset.category] ?? preset.category,
+  description: preset.description,
+  source: 'Physical', patch: () => modularFromPhysical(preset.params) }));
