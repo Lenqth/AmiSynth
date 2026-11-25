@@ -56,7 +56,15 @@ Type an exact value next to a numeric slider or macro. Press Enter or leave the 
 | Comb / Delay Line | Delay of 0.05–40 ms with damped feedback and a dry/wet mix. |
 | Pluck String | Karplus-Strong string: a rising **gate** plucks it at **pitch**; **excite** adds input to the loop. **decay** is the time to −60 dB while held, **release** after. |
 | Modal Resonator | Uses a built-in material or a custom table of up to eight resonant modes. A rising **gate** strikes it and **in** adds continuous excitation. |
+| Patch effects | **Echo**, **Chorus** and **Reverb** run once for the whole patch, after the voices. Each input adds up that signal from every voice, so a released note's tail keeps ringing through them after the voice ends. Their outputs can feed only other patch effects and **FX output**, which adds them to the final mix; keep an **Audio output** for the dry sound or use the effect's **mix**. An unpatched **right** input copies **left**. A patch can use four of Echo, Chorus and Reverb. Their knobs are set in the rack or patch, not by cables. |
+| Echo | A stereo delay of 1–2000 ms. With **sync** set to **Host**, **beats** picks a note value at the DAW's (or Piano Roll's) tempo. **Feedback** sets the repeats, **damping** darkens each repeat and **pingPong** bounces repeats between the channels. |
+| Chorus | Two delay lines of **delay** ms swept by **depth** ms at **rate** Hz; **spread** offsets the right channel's sweep by up to a quarter cycle. |
+| Reverb | A Freeverb-style room: **size** sets the decay, **damping** the high-frequency loss, and **width** the stereo spread of the reverb. **Mix** blends it with the input. |
 | Delay lines | Strings and comb filters share four preallocated lines per voice, so a patch can use four of them. A released voice stays alive while an ADSR, function generator, string or modal resonator is still active, up to the voice tail limit. |
+
+### Patch effect presets
+
+**Echo Hall Pluck** sends a plucked string to a host-synced dotted-eighth ping-pong Echo and a hall Reverb while the dry string goes to Audio output.
 
 ### Wavetable presets
 

@@ -48,6 +48,7 @@ struct Node {
     bool custom_modal = false;
     bool modulated = false;
     int line = -1; // Delay-line slot for strings and comb filters.
+    int slot = -1; // Patch effect buffer slot for Echo, Chorus and Reverb.
     const float *wavetable = nullptr;
 };
 // CLAP note expression IDs (clap/events.h), so the engine stays free of CLAP headers.
@@ -56,8 +57,14 @@ constexpr int kExpressionTuning = 2, kExpressionExpression = 4, kExpressionBrigh
 struct Graph {
     std::array<Node, kNodes> nodes{};
     std::array<int, kNodes> order{}, delays{}, outputs{}, envelopes{}, clocks{};
-    int size = 0, delay_count = 0, output_count = 0, envelope_count = 0, line_count = 0;
+    int size = 0, size_voice = 0, delay_count = 0, output_count = 0, envelope_count = 0, line_count = 0;
     int clock_count = 0;
+    // Patch effects in dependency order, run once per sample after the voices. A bus link is a
+    // patch effect input fed by a voice module; it reads that signal summed over the voices.
+    struct BusLink { int global, input, node, port; };
+    std::array<int, kNodes> globals{};
+    std::array<BusLink, 2 * kNodes> bus_links{};
+    int global_count = 0, bus_count = 0;
     bool autonomous = false;
     // From the first MIDI / Note module: 0 poly, 1 mono, 2 legato; glide in seconds.
     int voice_mode = 0;
@@ -168,7 +175,16 @@ inline Graph compile(Json &patch, Macros &macros) {
         }
         n = std::move(saved);
     }
-    if (!graph.output_count) throw std::invalid_argument("Missing output");
+    const auto is_global = [&](int i) { return kGlobal[size_t(graph.nodes[size_t(i)].type)]; };
+    int fx_count = 0;
+    bool fx_output = false;
+    for (int i = 0; i < graph.size; ++i) {
+        const auto type = graph.nodes[size_t(i)].type;
+        fx_count += type == Type::echo || type == Type::chorus || type == Type::reverb;
+        fx_output |= type == Type::fxOutput;
+    }
+    if (!graph.output_count && !fx_output) throw std::invalid_argument("Missing output");
+    if (fx_count > int(kFxSlots)) throw std::invalid_argument("Too many patch effects");
 
     const auto node_index = [&](const std::string &id) {
         const auto found = std::find(ids.begin(), ids.end(), id);
@@ -198,6 +214,7 @@ inline Graph compile(Json &patch, Macros &macros) {
         }
         auto &link = node.links[dest_port];
         if (link.node >= 0) throw std::invalid_argument("Duplicate input");
+        if (is_global(source) && !is_global(dest)) throw std::invalid_argument("Patch effects feed only patch effects");
         link = {source, source_port};
         if (graph.nodes[dest].type != Type::delay) {
             adjacency[source].push_back(dest);
@@ -210,9 +227,26 @@ inline Graph compile(Json &patch, Macros &macros) {
     for (int i = 0; i < count; ++i)
         for (int next : adjacency[graph.order[i]]) if (--degree[next] == 0) graph.order[count++] = next;
     if (count != graph.size) throw std::invalid_argument("Instantaneous feedback loop");
+    // Voice modules keep their order; patch effects move to their own list.
+    int voice_count = 0, slot = 0;
+    for (int i = 0; i < count; ++i) {
+        const int index = graph.order[size_t(i)];
+        if (!is_global(index)) { graph.order[size_t(voice_count++)] = index; continue; }
+        auto &node = graph.nodes[size_t(index)];
+        if (node.type != Type::fxOutput) node.slot = slot++;
+        graph.globals[size_t(graph.global_count++)] = index;
+        for (int input = 0; input < 2; ++input) {
+            const auto link = node.links[size_t(input)];
+            if (link.node >= 0 && !is_global(link.node))
+                graph.bus_links[size_t(graph.bus_count++)] = {index, input, link.node, link.port};
+        }
+    }
+    graph.size_voice = voice_count;
 
     std::array<bool, kNodes> seen{};
     std::vector<int> audible(graph.outputs.begin(), graph.outputs.begin() + graph.output_count);
+    for (int i = 0; i < graph.global_count; ++i)
+        if (graph.nodes[size_t(graph.globals[size_t(i)])].type == Type::fxOutput) audible.push_back(graph.globals[size_t(i)]);
     for (int node : audible) seen[node] = true;
     for (size_t i = 0; i < audible.size(); ++i) {
         const int index = audible[i];
@@ -305,6 +339,31 @@ struct Engine {
     std::array<double, 16 * 128> cc{};
     std::array<bool, 16> sustain{};
     std::array<double, kNodes> clock_phases{};
+    // Patch effect state: one buffer per slot, sized by prepare() outside the audio thread.
+    struct Fx {
+        std::vector<float> buf;
+        std::array<int, 24> pos{};
+        std::array<double, 24> mem{};
+    };
+    std::array<Fx, kFxSlots> fx{};
+    std::array<std::array<double, 2>, kNodes> gsig{}, bus{};
+    int echo_length = 0, chorus_length = 0;
+
+    static int reverb_length(double rate, int samples, int channel) {
+        return std::max(1, int(std::round((samples + channel * kReverbSpread) * rate / 44100)));
+    }
+    void prepare(double sample_rate) {
+        rate = sample_rate;
+        echo_length = int(std::ceil(kEchoSeconds * rate)) + 4;
+        chorus_length = int(std::ceil(0.064 * rate)) + 4;
+        for (auto &slot : fx) slot.buf.assign(size_t(2 * echo_length), 0.0f);
+        clear_fx();
+    }
+    void clear_fx() {
+        for (auto &slot : fx) { std::fill(slot.buf.begin(), slot.buf.end(), 0.0f); slot.pos = {}; slot.mem = {}; }
+        gsig = {}; bus = {};
+    }
+
     // Host transport: tempo, play state and beat (quarter note) position, advanced every sample.
     struct Host { double bpm = 120, beat = 0; bool playing = false; } host;
     uint64_t clock = 0;
@@ -1017,6 +1076,108 @@ struct Engine {
         sig[0] = std::clamp(sig[0], -1e6, 1e6);
     }
 
+    static double fx_read(const std::vector<float> &buf, int start, int length, int write, double delay) {
+        const double pos = write - delay, base = std::floor(pos), frac = pos - base;
+        const int a = ((int(base) % length) + length) % length, b = a + 1 == length ? 0 : a + 1;
+        return buf[size_t(start + a)] * (1 - frac) + buf[size_t(start + b)] * frac;
+    }
+    static double flush(double x) { return std::abs(x) < 1e-20 ? 0 : x; }
+
+    void echo(Fx &f, const Node &n, double in_l, double in_r, std::array<double, 2> &sig) {
+        const auto &p = n.knobs; // time, sync, beats, feedback, damping, pingPong, mix
+        const int L = echo_length, w = f.pos[0];
+        const double target = std::clamp(p[1] != 0 ? kEchoBeats[int(p[2])] * 60 / host.bpm * rate : p[0] * 0.001 * rate,
+                                          1.0, double(L - 2));
+        if (!f.pos[1]) { f.mem[0] = target; f.pos[1] = 1; }
+        f.mem[0] += (target - f.mem[0]) * lag(0.05);
+        const double dl = fx_read(f.buf, 0, L, w, f.mem[0]), dr = fx_read(f.buf, L, L, w, f.mem[0]);
+        f.mem[1] = flush(f.mem[1] + (dl - f.mem[1]) * (1 - p[4]));
+        f.mem[2] = flush(f.mem[2] + (dr - f.mem[2]) * (1 - p[4]));
+        const double wl = p[5] != 0 ? (in_l + in_r) * 0.5 + p[3] * f.mem[2] : in_l + p[3] * f.mem[1];
+        const double wr = p[5] != 0 ? p[3] * f.mem[1] : in_r + p[3] * f.mem[2];
+        f.buf[size_t(w)] = float(std::clamp(wl, -4.0, 4.0));
+        f.buf[size_t(L + w)] = float(std::clamp(wr, -4.0, 4.0));
+        f.pos[0] = w + 1 == L ? 0 : w + 1;
+        sig = {in_l * (1 - p[6]) + dl * p[6], in_r * (1 - p[6]) + dr * p[6]};
+    }
+
+    void chorus(Fx &f, const Node &n, double in_l, double in_r, std::array<double, 2> &sig) {
+        const auto &p = n.knobs; // rate, depth, delay, spread, mix
+        const int L = chorus_length, w = f.pos[0];
+        const double ms = 0.001 * rate, phase = f.mem[0];
+        const double dl = (p[2] + p[1] * 0.5 * (1 + std::sin(2 * kPi * phase))) * ms;
+        const double dr = (p[2] + p[1] * 0.5 * (1 + std::sin(2 * kPi * (phase + p[3] * 0.25)))) * ms;
+        const double wet_l = fx_read(f.buf, 0, L, w, dl), wet_r = fx_read(f.buf, L, L, w, dr);
+        f.buf[size_t(w)] = float(std::clamp(in_l, -4.0, 4.0));
+        f.buf[size_t(L + w)] = float(std::clamp(in_r, -4.0, 4.0));
+        f.pos[0] = w + 1 == L ? 0 : w + 1;
+        const double next = phase + p[0] / rate;
+        f.mem[0] = next - std::floor(next);
+        sig = {in_l * (1 - p[4]) + wet_l * p[4], in_r * (1 - p[4]) + wet_r * p[4]};
+    }
+
+    // Freeverb: eight damped combs in parallel, then four allpasses, per channel.
+    void reverb(Fx &f, const Node &n, double in_l, double in_r, std::array<double, 2> &sig) {
+        const auto &p = n.knobs; // size, damping, width, mix
+        const double room = p[0] * 0.28 + 0.7, damp = p[1] * 0.4, input = (in_l + in_r) * 0.015;
+        double wet[2] = {0, 0};
+        int start = 0, k = 0;
+        for (int channel = 0; channel < 2; ++channel) {
+            double sum = 0;
+            for (int comb : kReverbCombs) {
+                const int length = reverb_length(rate, comb, channel), i = f.pos[size_t(k)];
+                const double y = f.buf[size_t(start + i)];
+                f.mem[size_t(k)] = flush(y * (1 - damp) + f.mem[size_t(k)] * damp);
+                f.buf[size_t(start + i)] = float(input + f.mem[size_t(k)] * room);
+                f.pos[size_t(k)] = i + 1 == length ? 0 : i + 1;
+                sum += y;
+                start += length;
+                ++k;
+            }
+            for (int allpass : kReverbAllpasses) {
+                const int length = reverb_length(rate, allpass, channel), i = f.pos[size_t(k)];
+                const double held = f.buf[size_t(start + i)];
+                f.buf[size_t(start + i)] = float(sum + held * 0.5);
+                sum = held - sum;
+                f.pos[size_t(k)] = i + 1 == length ? 0 : i + 1;
+                start += length;
+                ++k;
+            }
+            wet[channel] = sum;
+        }
+        const double wet1 = p[3] * (p[2] / 2 + 0.5), wet2 = p[3] * ((1 - p[2]) / 2);
+        sig = {wet[0] * wet1 + wet[1] * wet2 + in_l * (1 - p[3]), wet[1] * wet1 + wet[0] * wet2 + in_r * (1 - p[3])};
+    }
+
+    // Runs the patch effects once on the summed voice signals; returns what FX outputs add.
+    std::array<double, 2> sample_globals() {
+        double left = 0, right = 0;
+        for (int i = 0; i < graph.global_count; ++i) {
+            const int g = graph.globals[size_t(i)];
+            const auto &n = graph.nodes[size_t(g)];
+            const auto input = [&](int port, double fallback) {
+                const auto link = n.links[size_t(port)];
+                if (link.node < 0) return fallback;
+                return kGlobal[size_t(graph.nodes[size_t(link.node)].type)] ? gsig[size_t(link.node)][size_t(link.port)]
+                                                                            : bus[size_t(g)][size_t(port)];
+            };
+            const double in_l = input(0, 0), in_r = input(1, in_l);
+            if (n.type == Type::fxOutput) {
+                left += in_l * n.knobs[0];
+                right += in_r * n.knobs[0];
+                continue;
+            }
+            auto &sig = gsig[size_t(g)];
+            auto &f = fx[size_t(n.slot)];
+            if (n.type == Type::echo) echo(f, n, in_l, in_r, sig);
+            else if (n.type == Type::chorus) chorus(f, n, in_l, in_r, sig);
+            else reverb(f, n, in_l, in_r, sig);
+            sig[0] = std::clamp(sig[0], -1e6, 1e6);
+            sig[1] = std::clamp(sig[1], -1e6, 1e6);
+        }
+        return {left, right};
+    }
+
     std::array<double, 2> sample(const Macros &macros) {
         double out = 0, right = 0;
         if (graph.autonomous && !voices[0].active) {
@@ -1027,7 +1188,7 @@ struct Engine {
         const double glide_coef = graph.glide > 0 ? std::exp(-1 / (graph.glide / 3 * rate)) : 0;
         for (auto &v : voices) {
             if (!v.active) continue;
-            for (int i = 0; i < graph.size; ++i) sample_node(v, graph.order[i], macros);
+            for (int i = 0; i < graph.size_voice; ++i) sample_node(v, graph.order[size_t(i)], macros);
             for (int i = 0; i < graph.delay_count; ++i) {
                 const int index = graph.delays[i];
                 v.stages[index].memory = std::clamp(read(v, graph.nodes[index], 0), -4.0, 4.0);
@@ -1036,7 +1197,7 @@ struct Engine {
                 v.glide *= glide_coef;
                 if (std::abs(v.glide) < 0.0012) v.glide = 0;
             }
-            double value = 0, value_right = 0;
+            double value = 0, value_right = 0, gain = 1;
             for (int i = 0; i < graph.output_count; ++i) {
                 value += v.signals[graph.outputs[i]][0];
                 value_right += v.signals[graph.outputs[i]][1];
@@ -1046,7 +1207,7 @@ struct Engine {
                 const auto limit = graph.envelope_count ? uint64_t(10 * rate) : 0;
                 if (v.tail > limit) {
                     const double fade = std::max(1.0, std::round(0.005 * rate));
-                    const double gain = std::clamp(1 - double(v.tail - limit) / fade, 0.0, 1.0);
+                    gain = std::clamp(1 - double(v.tail - limit) / fade, 0.0, 1.0);
                     value *= gain;
                     value_right *= gain;
                     if (double(v.tail - limit) >= fade) v.active = false;
@@ -1057,8 +1218,21 @@ struct Engine {
                     });
                 }
             }
+            for (int i = 0; i < graph.bus_count; ++i) {
+                const auto &link = graph.bus_links[size_t(i)];
+                bus[size_t(link.global)][size_t(link.input)] += v.signals[size_t(link.node)][size_t(link.port)] * gain;
+            }
             out += value;
             right += value_right;
+        }
+        if (graph.global_count) {
+            const auto wet = sample_globals();
+            out += wet[0];
+            right += wet[1];
+            for (int i = 0; i < graph.bus_count; ++i) {
+                const auto &link = graph.bus_links[size_t(i)];
+                bus[size_t(link.global)][size_t(link.input)] = 0;
+            }
         }
         if (host.playing) host.beat += host.bpm / (60 * rate);
         for (int i = 0; i < graph.clock_count; ++i) {

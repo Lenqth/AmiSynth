@@ -112,6 +112,7 @@ struct Instance {
         if (applied_epoch != graph_epochs[front]) {
             for (auto &v : dsp.voices) if (v.active) end_voice(v, 0, output);
             dsp.clock_phases = {};
+            dsp.clear_fx();
         }
         applied_epoch = graph_epochs[front];
     }
@@ -262,7 +263,7 @@ bool CLAP_ABI init(const clap_plugin_t *p) {
 bool CLAP_ABI activate(const clap_plugin_t *p, double rate, uint32_t, uint32_t) {
     if (!std::isfinite(rate) || rate < 1000 || rate > 768000) return false;
     auto &self = Instance::get(p);
-    self.dsp.rate = rate;
+    self.dsp.prepare(rate);
     self.dsp.reset();
     self.tail_samples.store(uint32_t(std::ceil(10.005 * rate)));
     return true;
@@ -299,7 +300,8 @@ clap_process_status CLAP_ABI process(const clap_plugin_t *p, const clap_process_
         for (auto &v : self.dsp.voices)
             if (!v.active && v.clap_note) self.end_voice(v, frame, block->out_events);
     }
-    return self.dsp.graph.clock_count > 0 ||
+    // Patch effects keep ringing after the last voice ends.
+    return self.dsp.graph.clock_count > 0 || self.dsp.graph.global_count > 0 ||
         std::any_of(self.dsp.voices.begin(), self.dsp.voices.end(), [](const Voice &v) { return v.active; })
         ? CLAP_PROCESS_CONTINUE : CLAP_PROCESS_SLEEP;
 }

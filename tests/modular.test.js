@@ -726,3 +726,36 @@ test('a host-synced Clock pulses on the host beat grid and holds reset while sto
   assert.ok(pulses.slice(first, first + 124).every(x => x === 1));
   assert.equal(pulses[first + 130], 0);
 });
+
+test('patch effects run on the voice sum, keep ringing after the voices end and only feed effects', () => {
+  const s = {};
+  modular_init(s, 8000);
+  modular_set_patch(s, {
+    nodes: [
+      { id: 'note', type: 'midi' },
+      { id: 'osc', type: 'vco', params: { wave: 0 } },
+      { id: 'echo', type: 'echo', params: { time: 100, feedback: 0.5, mix: 1 } },
+      { id: 'fx', type: 'fxOutput' },
+    ],
+    cables: [
+      { from: 'note', port: 'pitch', to: 'osc', input: 'pitch' },
+      { from: 'osc', port: 'out', to: 'echo', input: 'left' },
+      { from: 'echo', port: 'left', to: 'fx', input: 'left' },
+    ],
+  });
+  modular_midi(s, 0x90, 69, 100);
+  const level = n => { let peak = 0; for (let i = 0; i < n; i++) { modular_render(s); peak = Math.max(peak, Math.abs(s.out_l)); } return peak; };
+  assert.ok(level(790) < 1e-9, 'a fully wet echo is silent before its first repeat');
+  assert.ok(level(200) > 0.1);
+  modular_midi(s, 0x80, 69, 0);
+  level(80); // the voice ends (no envelope) after its short fade
+  assert.ok(s.voices.every(v => !v.active));
+  assert.ok(level(1600) > 0.01, 'the echo tail continues without voices');
+
+  const node = (id, type) => ({ id, type });
+  assert.throws(() => compileModularPatch({ nodes: [node('a', 'reverb'), node('osc', 'vco'), node('out', 'output')],
+    cables: [{ from: 'a', port: 'left', to: 'osc', input: 'fm' }] }), /feed only/);
+  assert.throws(() => compileModularPatch({ nodes: [...['a', 'b', 'c', 'd', 'e'].map(id => node(id, 'chorus')), node('out', 'fxOutput')],
+    cables: [] }), /at most 4/);
+  assert.doesNotThrow(() => compileModularPatch({ nodes: [node('out', 'fxOutput')], cables: [] }));
+});

@@ -281,7 +281,48 @@ export const MODULAR_TYPES = Object.freeze({
     inputs: ['audio', 'right'], outputs: [], params: {
       level: { min: 0, max: 1, default: 0.8, step: 0.01 },
     } },
+  // Patch effects run once on the sum of all voices ("global"), after the voices. Their inputs
+  // add up every voice's signal; their outputs can feed only other patch effects and FX output.
+  echo: { label: 'Echo', category: 'Patch Effects', global: true, keywords: 'delay echo ping pong stereo tempo sync tape effect fx',
+    inputs: ['left', 'right'], outputs: ['left', 'right'], params: {
+      time: { min: 1, max: 2000, default: 375, step: 1, fixed: true },
+      sync: { min: 0, max: 1, default: 0, step: 1, choices: ['Free', 'Host'], fixed: true },
+      beats: { min: 0, max: 6, default: 3, step: 1, choices: ['1/16', '1/8', 'Dotted 1/8', '1/4', 'Dotted 1/4', '1/2', '1 bar'], fixed: true },
+      feedback: { min: 0, max: 0.95, default: 0.4, step: 0.01, fixed: true },
+      damping: { min: 0, max: 1, default: 0.3, step: 0.01, fixed: true },
+      pingPong: { min: 0, max: 1, default: 0, step: 1, choices: ['Off', 'On'], fixed: true },
+      mix: { min: 0, max: 1, default: 0.3, step: 0.01, fixed: true },
+    } },
+  chorus: { label: 'Chorus', category: 'Patch Effects', global: true, keywords: 'chorus ensemble width stereo modulation effect fx',
+    inputs: ['left', 'right'], outputs: ['left', 'right'], params: {
+      rate: { min: 0.05, max: 5, default: 0.6, step: 0.01, fixed: true },
+      depth: { min: 0, max: 10, default: 3, step: 0.01, fixed: true },
+      delay: { min: 2, max: 30, default: 8, step: 0.1, fixed: true },
+      spread: { min: 0, max: 1, default: 1, step: 0.01, fixed: true },
+      mix: { min: 0, max: 1, default: 0.5, step: 0.01, fixed: true },
+    } },
+  reverb: { label: 'Reverb', category: 'Patch Effects', global: true, keywords: 'reverb room hall space ambience effect fx',
+    inputs: ['left', 'right'], outputs: ['left', 'right'], params: {
+      size: { min: 0, max: 1, default: 0.7, step: 0.01, fixed: true },
+      damping: { min: 0, max: 1, default: 0.4, step: 0.01, fixed: true },
+      width: { min: 0, max: 1, default: 1, step: 0.01, fixed: true },
+      mix: { min: 0, max: 1, default: 0.3, step: 0.01, fixed: true },
+    } },
+  fxOutput: { label: 'FX output', category: 'Input & Output', global: true, keywords: 'effects return bus master out',
+    inputs: ['left', 'right'], outputs: [], params: {
+      level: { min: 0, max: 2, default: 1, step: 0.01, fixed: true },
+    } },
 });
+
+// Patch effects share preallocated buffers: one slot per Echo, Chorus or Reverb.
+export const MODULAR_FX_SLOTS = 4;
+export const MODULAR_ECHO_SECONDS = 2;
+export const MODULAR_ECHO_BEATS = [0.25, 0.5, 0.75, 1, 1.5, 2, 4];
+// Freeverb's comb and allpass lengths at 44.1 kHz; the right channel is 23 samples longer.
+export const MODULAR_REVERB_COMBS = [1116, 1188, 1277, 1356, 1422, 1491, 1557, 1617];
+export const MODULAR_REVERB_ALLPASSES = [556, 441, 341, 225];
+export const MODULAR_REVERB_SPREAD = 23;
+const FX_TYPES = new Set(['echo', 'chorus', 'reverb']);
 
 const LINE_TYPES = new Set(['string', 'comb', 'reedPipe']);
 // Modules that ring on after their gate falls; a released voice lives until they are quiet.
@@ -634,6 +675,9 @@ const FACTORY_PATCHES = [
   { name: 'Expressive Lead', category: 'Lead', tags: 'mod wheel aftertouch pressure mpe cc74 brightness vibrato bend',
     description: 'Mod wheel adds vibrato; aftertouch and CC74 open the filter; bend spans a whole tone',
     patch: expressiveLead },
+  { name: 'Echo Hall Pluck', category: 'Strings', tags: 'echo delay reverb hall ambient tempo sync ping pong',
+    description: 'Plucked string through a host-synced dotted-eighth ping-pong echo and a hall reverb',
+    patch: echoHallPluck },
   ...MODULAR_SYNTH_PORTS,
 ];
 
@@ -664,6 +708,30 @@ export function searchModularPresets(query, category = '') {
     const text = searchWords([preset.name, preset.category, preset.source, preset.description, preset.tags].join(' '));
     return words.every(word => text.some(token => token.startsWith(word))) ? [{ preset, index }] : [];
   });
+}
+
+// The dry string goes straight out; the echo and reverb run once on all voices together.
+function echoHallPluck() {
+  return {
+    nodes: [
+      { id: 'note', type: 'midi', position: { x: 22, y: 22 } },
+      { id: 'string', type: 'string', params: { decay: 2.4, release: 0.6, brightness: 0.62, level: 0.5 }, position: { x: 296, y: 22 } },
+      { id: 'out', type: 'output', params: { level: 0.7 }, position: { x: 570, y: 22 } },
+      { id: 'echo', type: 'echo', params: { sync: 1, beats: 2, feedback: 0.42, damping: 0.45, pingPong: 1, mix: 0.35 }, position: { x: 570, y: 200 } },
+      { id: 'hall', type: 'reverb', params: { size: 0.82, damping: 0.45, width: 1, mix: 0.32 }, position: { x: 844, y: 200 } },
+      { id: 'fx', type: 'fxOutput', params: { level: 0.8 }, position: { x: 1118, y: 200 } },
+    ],
+    cables: [
+      { from: 'note', port: 'pitch', to: 'string', input: 'pitch' },
+      { from: 'note', port: 'gate', to: 'string', input: 'gate' },
+      { from: 'string', port: 'out', to: 'out', input: 'audio' },
+      { from: 'string', port: 'out', to: 'echo', input: 'left' },
+      { from: 'echo', port: 'left', to: 'hall', input: 'left' },
+      { from: 'echo', port: 'right', to: 'hall', input: 'right' },
+      { from: 'hall', port: 'left', to: 'fx', input: 'left' },
+      { from: 'hall', port: 'right', to: 'fx', input: 'right' },
+    ],
+  };
 }
 
 // Plays as a plain saw lead until the controllers move, so it also works without them.
@@ -901,7 +969,10 @@ export function compileModularPatch(raw) {
     }) : undefined;
     return { id: n.id, type: n.type, params, modalTable, grid, links: {}, paramLinks: {} };
   });
-  if (!nodes.some((n) => n.type === 'output')) throw new Error('An audio output is required');
+  if (!nodes.some((n) => n.type === 'output' || n.type === 'fxOutput')) throw new Error('An audio output is required');
+  const isGlobal = i => !!MODULAR_TYPES[nodes[i].type].global;
+  if (nodes.filter(n => FX_TYPES.has(n.type)).length > MODULAR_FX_SLOTS)
+    throw new Error(`Use at most ${MODULAR_FX_SLOTS} patch effects`);
   let lineCount = 0;
   for (const n of nodes) {
     const lines = n.type === 'bowed' ? 2 : Number(LINE_TYPES.has(n.type));
@@ -921,6 +992,7 @@ export function compileModularPatch(raw) {
     if (!MODULAR_TYPES[nodes[src].type].outputs.includes(cable.port) ||
         (!dest.inputs.includes(cable.input) && !parameter) ||
         nodes[dst].links[cable.input]) throw new Error('Invalid or duplicate cable');
+    if (isGlobal(src) && !isGlobal(dst)) throw new Error('Patch effects can feed only other patch effects and FX output');
     const link = { index: src, port: cable.port };
     nodes[dst].links[cable.input] = link;
     if (parameter) nodes[dst].paramLinks[cable.input.slice(6)] = link;
@@ -941,7 +1013,15 @@ export function compileModularPatch(raw) {
   if (order.length !== nodes.length) throw new Error('Add a Unit Delay to each feedback loop');
   const delays = order.filter(i => nodes[i].type === 'delay');
   const outputs = order.filter(i => nodes[i].type === 'output');
-  const audible = new Set(outputs);
+  const globals = order.filter(isGlobal);
+  const voiceOrder = order.filter(i => !isGlobal(i));
+  const fxOutputs = globals.filter(i => nodes[i].type === 'fxOutput');
+  let slot = 0;
+  for (const i of globals) nodes[i].slot = FX_TYPES.has(nodes[i].type) ? slot++ : -1;
+  // Voice signals that patch effects read; each is summed over the voices.
+  const busLinks = globals.flatMap(g => Object.entries(nodes[g].links)
+    .filter(([, link]) => !isGlobal(link.index)).map(([input, link]) => ({ g, input, index: link.index, port: link.port })));
+  const audible = new Set([...outputs, ...fxOutputs]);
   for (const i of audible) for (const link of Object.values(nodes[i].links)) audible.add(link.index);
   const envelopes = [...audible].filter(i => RINGING_TYPES.has(nodes[i].type) || nodes[i].type === 'drumVoice');
   const macros = Array.from({ length: MODULAR_MACROS }, (_, i) =>
@@ -955,7 +1035,8 @@ export function compileModularPatch(raw) {
   const mono = { mode: midi?.params.voices ?? 0, glide: midi?.params.glide ?? 0, legatoOnly: midi?.params.glideMode ?? 0,
     bendRange: midi?.params.bendRange ?? 2 };
   return {
-    nodes, order, delays, outputs, envelopes, lineCount, mono, clocks, autonomous: clocks.length > 0 && !midi,
+    nodes, order: voiceOrder, globals, busLinks, fxOutputs,
+    delays, outputs, envelopes, lineCount, mono, clocks, autonomous: clocks.length > 0 && !midi,
     meterSources: [...new Map(raw.cables.map(c => {
       const key = c.from + '/' + c.port;
       return [key, { key, index: ids.get(c.from), port: c.port }];
@@ -1075,6 +1156,7 @@ export function modular_init(s, sampleRate) {
   s.stack = []; // Held keys in Mono and Legato, most recent last.
   s.lastKey = -1;
   s.out_l = 0; s.out_r = 0;
+  s.fx = []; // Patch effect slots, allocated when a patch first uses them.
   modular_set_patch(s, defaultModularPatch());
 }
 
@@ -1091,6 +1173,115 @@ export function modular_set_patch(s, patch) {
       old.patch.cables.every((c, i) => Object.keys(c).every(k => c[k] === graph.patch.cables[i][k]))) return;
   s.voices = Array.from({ length: MAX_VOICES }, (_, slot) => newVoice(graph.nodes.length, slot));
   s.clockPhases = new Float64Array(graph.nodes.length);
+  s.gsig = graph.nodes.map(() => ({ left: 0, right: 0 }));
+  s.bus = graph.nodes.map(() => ({ left: 0, right: 0 }));
+  const slots = graph.nodes.filter(n => n.slot >= 0).length;
+  while (s.fx.length < slots) s.fx.push({ buf: new Float32Array(fxSlotSize(s.sampleRate)), pos: new Int32Array(24), mem: new Float64Array(24) });
+  for (const fx of s.fx) { fx.buf.fill(0); fx.pos.fill(0); fx.mem.fill(0); }
+}
+
+// Echo needs the most: two channels of MODULAR_ECHO_SECONDS.
+const echoLength = rate => Math.ceil(MODULAR_ECHO_SECONDS * rate) + 4;
+const chorusLength = rate => Math.ceil(0.064 * rate) + 4;
+const reverbLength = (rate, samples, channel) => Math.max(1, Math.round((samples + channel * MODULAR_REVERB_SPREAD) * rate / 44100));
+function fxSlotSize(rate) { return 2 * echoLength(rate); }
+
+// Linear interpolation in a circular section [start, start + length) of a slot buffer.
+function fxRead(buf, start, length, write, delay) {
+  const pos = write - delay, i = Math.floor(pos), frac = pos - i;
+  const a = ((i % length) + length) % length, b = a + 1 === length ? 0 : a + 1;
+  return buf[start + a] * (1 - frac) + buf[start + b] * frac;
+}
+const flush = x => Math.abs(x) < 1e-20 ? 0 : x;
+
+function sampleEcho(s, fx, p, inL, inR, sig) {
+  const L = echoLength(s.sampleRate), w = fx.pos[0];
+  const target = clamp(p.sync ? MODULAR_ECHO_BEATS[p.beats] * 60 / s.host.bpm * s.sampleRate : p.time * 0.001 * s.sampleRate, 1, L - 2);
+  if (!fx.pos[1]) { fx.mem[0] = target; fx.pos[1] = 1; }
+  fx.mem[0] += (target - fx.mem[0]) * lag(0.05, s.sampleRate);
+  const dl = fxRead(fx.buf, 0, L, w, fx.mem[0]), dr = fxRead(fx.buf, L, L, w, fx.mem[0]);
+  fx.mem[1] = flush(fx.mem[1] + (dl - fx.mem[1]) * (1 - p.damping));
+  fx.mem[2] = flush(fx.mem[2] + (dr - fx.mem[2]) * (1 - p.damping));
+  const wl = p.pingPong ? (inL + inR) * 0.5 + p.feedback * fx.mem[2] : inL + p.feedback * fx.mem[1];
+  const wr = p.pingPong ? p.feedback * fx.mem[1] : inR + p.feedback * fx.mem[2];
+  fx.buf[w] = clamp(wl, -4, 4);
+  fx.buf[L + w] = clamp(wr, -4, 4);
+  fx.pos[0] = w + 1 === L ? 0 : w + 1;
+  sig.left = inL * (1 - p.mix) + dl * p.mix;
+  sig.right = inR * (1 - p.mix) + dr * p.mix;
+}
+
+function sampleChorus(s, fx, p, inL, inR, sig) {
+  const L = chorusLength(s.sampleRate), w = fx.pos[0], ms = 0.001 * s.sampleRate;
+  const phase = fx.mem[0];
+  const dl = (p.delay + p.depth * 0.5 * (1 + Math.sin(TAU * phase))) * ms;
+  const dr = (p.delay + p.depth * 0.5 * (1 + Math.sin(TAU * (phase + p.spread * 0.25)))) * ms;
+  const wetL = fxRead(fx.buf, 0, L, w, dl), wetR = fxRead(fx.buf, L, L, w, dr);
+  fx.buf[w] = clamp(inL, -4, 4);
+  fx.buf[L + w] = clamp(inR, -4, 4);
+  fx.pos[0] = w + 1 === L ? 0 : w + 1;
+  const next = phase + p.rate / s.sampleRate;
+  fx.mem[0] = next - Math.floor(next);
+  sig.left = inL * (1 - p.mix) + wetL * p.mix;
+  sig.right = inR * (1 - p.mix) + wetR * p.mix;
+}
+
+// Freeverb: eight damped combs in parallel, then four allpasses, per channel.
+function sampleReverb(s, fx, p, inL, inR, sig) {
+  const room = p.size * 0.28 + 0.7, damp = p.damping * 0.4, input = (inL + inR) * 0.015;
+  const wet = [0, 0];
+  let start = 0, k = 0;
+  for (let channel = 0; channel < 2; channel++) {
+    let sum = 0;
+    for (let c = 0; c < MODULAR_REVERB_COMBS.length; c++, k++) {
+      const length = reverbLength(s.sampleRate, MODULAR_REVERB_COMBS[c], channel), i = fx.pos[k];
+      const y = fx.buf[start + i];
+      fx.mem[k] = flush(y * (1 - damp) + fx.mem[k] * damp);
+      fx.buf[start + i] = input + fx.mem[k] * room;
+      fx.pos[k] = i + 1 === length ? 0 : i + 1;
+      sum += y;
+      start += length;
+    }
+    for (let a = 0; a < MODULAR_REVERB_ALLPASSES.length; a++, k++) {
+      const length = reverbLength(s.sampleRate, MODULAR_REVERB_ALLPASSES[a], channel), i = fx.pos[k];
+      const held = fx.buf[start + i];
+      fx.buf[start + i] = sum + held * 0.5;
+      sum = held - sum;
+      fx.pos[k] = i + 1 === length ? 0 : i + 1;
+      start += length;
+    }
+    wet[channel] = sum;
+  }
+  const wet1 = p.mix * (p.width / 2 + 0.5), wet2 = p.mix * ((1 - p.width) / 2);
+  sig.left = wet[0] * wet1 + wet[1] * wet2 + inL * (1 - p.mix);
+  sig.right = wet[1] * wet1 + wet[0] * wet2 + inR * (1 - p.mix);
+}
+
+// Runs the patch effects once per sample on the summed voice signals. Returns [left, right].
+function sampleGlobals(s) {
+  const { nodes, globals } = s.graph;
+  let left = 0, right = 0;
+  for (const g of globals) {
+    const n = nodes[g], sig = s.gsig[g];
+    const input = key => {
+      const link = n.links[key];
+      if (!link) return undefined;
+      return MODULAR_TYPES[nodes[link.index].type].global ? s.gsig[link.index][link.port] : s.bus[g][key];
+    };
+    const inL = input('left') ?? 0, inR = input('right') ?? inL;
+    if (n.type === 'fxOutput') {
+      left += inL * n.params.level;
+      right += inR * n.params.level;
+      continue;
+    }
+    const fx = s.fx[n.slot];
+    if (n.type === 'echo') sampleEcho(s, fx, n.params, inL, inR, sig);
+    else if (n.type === 'chorus') sampleChorus(s, fx, n.params, inL, inR, sig);
+    else sampleReverb(s, fx, n.params, inL, inR, sig);
+    sig.left = clamp(sig.left, -1e6, 1e6);
+    sig.right = clamp(sig.right, -1e6, 1e6);
+  }
+  return [left, right];
 }
 
 /**
@@ -1231,8 +1422,14 @@ export function modular_scope_select(s, key) {
   s.meter.scope = index < 0 ? null : { key, index, port, samples: new Float32Array(1024), write: 0, count: 0 };
 }
 
-function captureScope(scope, voice) {
-  scope.samples[scope.write] = voice ? voice.signals[scope.index][scope.port] : 0;
+// Patch effects have one signal for the whole patch; other modules show the first active voice.
+function signalOf(s, voice, index, port) {
+  if (MODULAR_TYPES[s.graph.nodes[index].type].global) return s.gsig[index][port] ?? 0;
+  return voice ? voice.signals[index][port] : 0;
+}
+
+function captureScope(s, scope, voice) {
+  scope.samples[scope.write] = signalOf(s, voice, scope.index, scope.port);
   scope.write = (scope.write + 1) % scope.samples.length;
   scope.count = Math.min(scope.count + 1, scope.samples.length);
 }
@@ -1266,7 +1463,7 @@ function measureSignals(s, voice) {
   const sources = s.graph.meterSources;
   for (let i = 0; i < sources.length; i++) {
     const { index, port } = sources[i];
-    const value = voice ? voice.signals[index][port] : 0;
+    const value = signalOf(s, voice, index, port);
     if (value < low[i]) low[i] = value;
     if (value > high[i]) high[i] = value;
     // Each change of direction is half a cycle.
@@ -1823,7 +2020,7 @@ function sampleNode(s, v, i) {
 }
 export function modular_render(s) {
   let out = 0, right = 0;
-  const { nodes, order, delays, outputs, envelopes, mono, clocks, autonomous } = s.graph;
+  const { nodes, order, delays, outputs, envelopes, mono, clocks, autonomous, globals, busLinks } = s.graph;
   if (autonomous && !s.voices[0].active) startVoice(s, s.voices[0], 0, 60, 1);
   // Glide decays like the Synth instrument: about 95% of the way after the glide time.
   const glideCoef = mono.glide > 0 ? Math.exp(-1 / (mono.glide / 3 * s.sampleRate)) : 0;
@@ -1837,7 +2034,7 @@ export function modular_render(s) {
       v.glide *= glideCoef;
       if (Math.abs(v.glide) < 0.0012) v.glide = 0;
     }
-    let sample = 0, sampleRight = 0;
+    let sample = 0, sampleRight = 0, gain = 1;
     for (const i of outputs) {
       sample += v.signals[i].out;
       sampleRight += v.signals[i].right;
@@ -1847,7 +2044,7 @@ export function modular_render(s) {
       const fade = Math.max(1, Math.round(RELEASE_FADE * s.sampleRate));
       if (envelopes.length === 0 || v.tail > MAX_RELEASE * s.sampleRate) {
         const elapsed = envelopes.length ? v.tail - MAX_RELEASE * s.sampleRate : v.tail;
-        const gain = clamp(1 - elapsed / fade, 0, 1);
+        gain = clamp(1 - elapsed / fade, 0, 1);
         sample *= gain;
         sampleRight *= gain;
         if (elapsed >= fade) v.active = false;
@@ -1855,8 +2052,15 @@ export function modular_render(s) {
         v.active = false;
       }
     }
+    for (const { g, input, index, port } of busLinks) s.bus[g][input] += v.signals[index][port] * gain;
     out += sample;
     right += sampleRight;
+  }
+  if (globals.length) {
+    const [fxLeft, fxRight] = sampleGlobals(s);
+    out += fxLeft;
+    right += fxRight;
+    for (const { g, input } of busLinks) s.bus[g][input] = 0;
   }
   if (s.host.playing) s.host.beat += s.host.bpm / (60 * s.sampleRate);
   for (const i of clocks) {
@@ -1870,7 +2074,7 @@ export function modular_render(s) {
     s.meter.remaining = s.meter.interval;
     s.meter.interval = s.meter.interval === 17 ? 15 : s.meter.interval + 1;
   }
-  if (s.meter?.scope) captureScope(s.meter.scope, meterVoice);
+  if (s.meter?.scope) captureScope(s, s.meter.scope, meterVoice);
   s.out_l = Math.tanh(out);
   s.out_r = Math.tanh(right);
 }

@@ -21,7 +21,7 @@ int main(int argc, char **argv) {
         const auto spec = Json::parse(std::string(std::istreambuf_iterator<char>(input), {}));
         // Voices hold their delay lines; keep the engine off the stack.
         auto engine = std::make_unique<Engine>();
-        engine->rate = spec.at("rate").get<double>();
+        engine->prepare(spec.at("rate").get<double>());
         engine->reset();
         auto patch = spec.at("patch");
         Macros macros;

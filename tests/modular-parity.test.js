@@ -327,6 +327,43 @@ TRANSPORT[HOST_CLOCKS] = [
   { at: 19000, bpm: 180, playing: true, beat: 0 },
 ];
 
+const PATCH_FX = 'patch effects: echo (free and host-synced ping-pong), chorus and reverb on the voice sum';
+PATCHES[PATCH_FX] = {
+  nodes: [
+    { id: 'note', type: 'midi' },
+    { id: 'osc', type: 'vco', params: { wave: 1 } },
+    { id: 'env', type: 'adsr', params: { attack: 0.002, decay: 0.08, sustain: 0.3, release: 0.05 } },
+    { id: 'amp', type: 'vca' },
+    { id: 'pan', type: 'pan', params: { pan: -0.3, spread: 0.5 } },
+    { id: 'dry', type: 'output', params: { level: 0.5 } },
+    { id: 'chorus', type: 'chorus', params: { rate: 1.3, depth: 4, delay: 7, spread: 0.8, mix: 0.5 } },
+    { id: 'echo', type: 'echo', params: { time: 90, feedback: 0.55, damping: 0.4, mix: 0.4 } },
+    { id: 'synced', type: 'echo', params: { sync: 1, beats: 0, pingPong: 1, feedback: 0.6, mix: 0.5 } },
+    { id: 'reverb', type: 'reverb', params: { size: 0.8, damping: 0.3, width: 0.7, mix: 0.45 } },
+    { id: 'fx', type: 'fxOutput', params: { level: 0.9 } },
+  ],
+  cables: [
+    { from: 'note', port: 'pitch', to: 'osc', input: 'pitch' },
+    { from: 'note', port: 'gate', to: 'env', input: 'gate' },
+    { from: 'osc', port: 'out', to: 'amp', input: 'audio' },
+    { from: 'env', port: 'out', to: 'amp', input: 'gain' },
+    { from: 'amp', port: 'out', to: 'pan', input: 'in' },
+    { from: 'pan', port: 'left', to: 'dry', input: 'audio' },
+    { from: 'pan', port: 'right', to: 'dry', input: 'right' },
+    { from: 'pan', port: 'left', to: 'chorus', input: 'left' },
+    { from: 'pan', port: 'right', to: 'chorus', input: 'right' },
+    { from: 'chorus', port: 'left', to: 'echo', input: 'left' },
+    { from: 'chorus', port: 'right', to: 'echo', input: 'right' },
+    { from: 'echo', port: 'left', to: 'synced', input: 'left' },
+    { from: 'echo', port: 'right', to: 'synced', input: 'right' },
+    { from: 'synced', port: 'left', to: 'reverb', input: 'left' },
+    { from: 'synced', port: 'right', to: 'reverb', input: 'right' },
+    { from: 'reverb', port: 'left', to: 'fx', input: 'left' },
+    { from: 'reverb', port: 'right', to: 'fx', input: 'right' },
+  ],
+};
+TRANSPORT[PATCH_FX] = [{ at: 0, bpm: 160, playing: false, beat: 0 }, { at: 12000, bpm: 100, playing: true, beat: 4 }];
+
 test('the parity patches use every module type', () => {
   const used = new Set(Object.values(PATCHES).flatMap(p => p.nodes.map(n => n.type)));
   assert.deepEqual([...Object.keys(MODULAR_TYPES)].filter(t => !used.has(t) && t !== 'delay' && t !== 'cv' && t !== 'macro'), []);
@@ -348,7 +385,8 @@ for (const [name, patch] of Object.entries(PATCHES)) {
       }
       assert.ok(energy > 1e-3, `${name} is silent`);
       assert.ok(worst < 1e-4, `${name} differs by ${worst} at sample ${at}`);
-      const stereo = patch.cables.some(cable => cable.input === 'right' &&
+      // Patch effects return stereo through FX output.
+      const stereo = patch.nodes.some(node => node.type === 'fxOutput') || patch.cables.some(cable => cable.input === 'right' &&
         patch.nodes.some(node => node.id === cable.to && node.type === 'output'));
       if (stereo) {
         const webRight = renderWeb(patch, true, midi, transport), nativeRight = renderNative(patch, dir, true, midi, [], transport);
