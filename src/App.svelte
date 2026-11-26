@@ -3,6 +3,7 @@
   import { DRUM_PARAMS, DRUM_PARTS, PHYS_PARAMS, SYNTH_PARAMS } from './dsp/params.js';
   import { engine } from './lib/engine.js';
   import { demoPattern, pianoDemoPattern, Sequencer, STEPS } from './lib/pattern.js';
+  import { connectMidiInputs } from './lib/webmidi.js';
   import { downloadMidi, MIDI_MAX_BYTES, midiToSteps, parseMidi, timelineToMidi } from './lib/midifile.js';
   import { songFromFlat, timeline } from './lib/song.js';
   import { decodeShare, encodeShare, isShareFragment } from './lib/share.js';
@@ -516,6 +517,9 @@
   }
 
   // ---- Web MIDI input -----------------------------------------------------
+  /** @type {ReturnType<typeof connectMidiInputs> | null} */
+  let midiConn = null;
+
   async function enableMidi() {
     if (!navigator.requestMIDIAccess) {
       app.midiStatus = 'このブラウザは Web MIDI 非対応です';
@@ -523,17 +527,20 @@
     }
     try {
       await startAudio();
+      if (midiConn) {
+        // already wired: just rescan (pressing the button again must not stack listeners)
+        midiConn.sync();
+        return;
+      }
       const access = await navigator.requestMIDIAccess();
-      const bind = () => {
-        let count = 0;
-        for (const input of access.inputs.values()) {
-          count++;
-          input.onmidimessage = (m) => onMidi(m.data);
-        }
-        app.midiStatus = count ? `MIDI 入力 ${count} 台 (ch10 = ドラム)` : 'MIDI 機器が見つかりません';
-      };
-      bind();
-      access.onstatechange = bind;
+      if (midiConn) return;
+      midiConn = connectMidiInputs(access, {
+        onMessage: onMidi,
+        onStatus: (count) => {
+          const text = count ? `MIDI 入力 ${count} 台 (ch10 = ドラム)` : 'MIDI 機器が見つかりません';
+          if (app.midiStatus !== text) app.midiStatus = text;
+        },
+      });
     } catch (err) {
       app.midiStatus = `MIDI を有効化できません: ${err?.message ?? err}`;
     }
@@ -592,6 +599,7 @@
     // the viewport, and it closes only via its ✕ button / Esc key.
     return () => {
       cancelAnimationFrame(raf);
+      midiConn?.dispose();
       window.removeEventListener('hashchange', onHash);
       seq.stop();
     };
